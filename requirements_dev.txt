@@ -1,0 +1,14 @@
+pip
+bumpversion
+wheel
+watchdog
+flake8
+tox
+coverage
+Sphinx
+twine
+pytest==3.8.2
+pytest-runner==4.2
+nose
+sphinx-click
+sphinxcontrib-programoutput

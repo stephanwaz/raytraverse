@@ -1,0 +1,171 @@
+div.sphinxsidebar {
+    font-size: 12px;
+}
+
+div.footer {
+    font-size: 12px;
+}
+
+p.caption {
+    font-family: inherit;
+    font-size: inherit;
+}
+
+div.sphinxsidebarwrapper p.blurb {
+    font-style: normal;
+}
+
+div.sphinxsidebar h3,
+div.sphinxsidebar h4 {
+    font-family: "Century Gothic", CenturyGothic, AppleGothic, sans-serif;
+    font-size: 18px;
+    font-weight: normal;
+}
+
+div.sphinxsidebar h4 {
+    font-size: 16px;
+}
+
+div.sphinxsidebar ul li.toctree-l1 > a {
+    font-size: 130%;
+	
+}
+
+div.figure {
+	width: 50%;
+	float: left;
+	padding: 1em;
+}
+
+div.topic {
+	background-color: transparent;
+	border: transparent;
+	padding: 0;
+	clear: both;
+}
+
+p.topic-title { font-size: 200%; font-weight: bold;}
+
+div.sphinxsidebar ul li.toctree-l2 > a {
+    font-size: 115%;
+	line-height: 1.5;
+}
+
+div.sphinxsidebar ul li.toctree-l1 > ul{
+    list-style: circle;
+    list-style-position: inside;
+}
+
+
+div.sphinxsidebar ul li.toctree-l1:first-child > ul{
+    list-style: circle;
+    list-style-position: inside;
+}
+
+div.sphinxsidebar ul li.toctree-l2 ul {
+    column-count: 1;
+	list-style: disc;
+}
+
+div.sphinxsidebar input {
+    font-family: "Century Gothic", CenturyGothic, AppleGothic, sans-serif;
+    font-size: 1em;
+}
+
+/* -- body styles ----------------------------------------------------------- */
+
+a {
+    color: #004B6B;
+    text-decoration: underline;
+}
+
+a:hover {
+    color: #6D4100;
+    text-decoration: underline;
+}
+
+div.body h1,
+div.body h2,
+div.body h3,
+div.body h4,
+div.body h5,
+div.body h6 {
+    font-family: "Century Gothic", CenturyGothic, AppleGothic, sans-serif;
+    font-weight: normal;
+}
+
+div.body h1 { margin-top: 0; padding-top: 0; font-size: 240%; font-weight: bold;}
+div.body h2 { font-size: 200%; font-weight: bold;}
+div.body h3 { font-size: 150%; font-weight: bold;}
+div.body h4 { font-size: 130%; }
+div.body h5 { font-size: 100%; }
+div.body h6 { font-size: 100%; }
+
+
+
+
+
+div.admonition p.admonition-title {
+    font-family: "Century Gothic", CenturyGothic, AppleGothic, sans-serif;
+    font-weight: normal;
+    font-size: 18px;
+}
+
+pre, tt, code {
+    font-family: 'Consolas', 'Menlo', 'Deja Vu Sans Mono', 'Bitstream Vera Sans Mono', monospace;
+    font-size: 0.9em;
+}
+
+tt.descname, tt.descclassname, code.descname, code.descclassname {
+    font-size: 0.95em;
+}
+
+
+
+
+
+
+table.footnote {
+    font-size: 0.9em;
+}
+
+a.footnote-reference {
+    font-size: 0.7em;
+}
+
+body {
+	font-family: "Century Gothic", CenturyGothic, AppleGothic, sans-serif;
+	font-size: 14px;
+}
+
+ul.current {
+	max-height: 650px;
+	overflow-y: auto;
+}
+
+div.sphinxsidebar {
+    width: 300px;
+}
+
+div.bodywrapper {
+    margin: 0 0 0 300px;
+}
+
+#current-tool-mapping ul.simple {
+	column-count: 2;
+}
+
+#legacy-help li.toctree-l1 ul {
+	column-count: 3;
+}
+
+#planned-tool-mapping ul.simple {
+	column-count: 3;
+}
+#subpackages div.toctree-wrapper ul {
+	column-count: 2;
+}
+
+#subpackages div.toctree-wrapper li.toctree-l1 ul {
+	column-count: 1;
+}
