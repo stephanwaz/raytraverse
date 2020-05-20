@@ -12,3 +12,4 @@ pytest-runner==4.2
 nose
 sphinx-click
 sphinxcontrib-programoutput
+pyreverse

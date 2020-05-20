@@ -3,7 +3,7 @@ raytraverse (|release|)
 
 .. toctree::
 
-   raytraverse.raytraverse
+   raytraverse
    cli
 
 .. include:: ../README.rst

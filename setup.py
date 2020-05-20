@@ -18,7 +18,7 @@ with open('README.rst') as readme_file:
 with open('HISTORY.rst') as history_file:
     history = history_file.read()
 
-requirements = ['clasp']
+requirements = ['clasp', 'numpy', 'scipy', 'pywavelets', 'sparse']
 
 setup_requirements = ['pytest-runner', ]
 
@@ -56,7 +56,7 @@ setup(
     setup_requires=setup_requirements,
     test_suite='tests',
     tests_require=test_requirements,
-    url='https://bitbucket.org/stephenwasilewski/raytraverse',
+    url='https://gitlab.enterpriselab.ch/lightfields/raytraverse',
     version='0.1.0',
     zip_safe=True,
 )
