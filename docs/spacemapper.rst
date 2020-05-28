@@ -1,7 +1,8 @@
-raytraverse.raytraverse
+raytraverse.SpaceMapper
 ==========================================================
 
-.. automodule:: raytraverse.raytraverse
+.. autoclass:: raytraverse.spacemapper.SpaceMapper
     :members:
     :undoc-members:
     :show-inheritance:
+    :private-members:

@@ -1,7 +1,7 @@
-raytraverse.raytraverse
+raytraverse.translate
 ==========================================================
 
-.. automodule:: raytraverse.raytraverse
+.. automodule:: raytraverse.translate
     :members:
     :undoc-members:
     :show-inheritance:

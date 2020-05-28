@@ -28,9 +28,6 @@ class Scene(object):
         radiance scene file containing planar geometry of analysis area
     outdir: str
         path to store scene info and output files
-
-    Attributes
-    ----------
     overwrite: bool, optional
         if True and outdir exists, will overwrite, else raises a FileExistsError
     wea: str, optional
@@ -44,7 +41,7 @@ class Scene(object):
     skyro: float, optional
         angle in degrees counter-clockwise to rotate sky
         (to correct model north, equivalent to clockwise rotation of scene)
-    weaformat: {'time', 'angle'}
+    weaformat: {'time', 'angle'}, optional
         specify format of wea file:
             - 'time' - wea or epw file with or without header (requires loc)
               (default)
@@ -64,18 +61,22 @@ class Scene(object):
             else:
                 raise e
         if weaformat.lower() not in ['time', 'angle']:
-            raise ValueError("Invalid weaformat, choose from: {'time', 'angle'}")
+            raise ValueError("Invalid weaformat, choose from: 'time', 'angle'")
+        #: {'time', 'angle'}: expected format for sky data
         self.weaformat = weaformat.lower()
+        #: bool: overwrites scene directory
         self.overwrite = overwrite
+        #: float: ccw rotation (in degrees) for point grid on plane
         self.ptro = ptro
+        #: float: ccw rotation (in degrees) for sky
         self.skyro = skyro
+        #: str: path to store scene info and output files
         self.outdir = outdir
+        self.solarbounds = None
         self.loc = loc
         self.skydata = wea
         self.scene = scene
         self.area = area
-
-        pass
 
     @property
     def scene(self):

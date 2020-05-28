@@ -1,7 +1,7 @@
-raytraverse.raytraverse
+raytraverse.optic
 ==========================================================
 
-.. automodule:: raytraverse.raytraverse
+.. automodule:: raytraverse.optic
     :members:
     :undoc-members:
     :show-inheritance:

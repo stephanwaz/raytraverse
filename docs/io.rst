@@ -1,7 +1,7 @@
-raytraverse.raytraverse
+raytraverse.io
 ==========================================================
 
-.. automodule:: raytraverse.raytraverse
+.. automodule:: raytraverse.io
     :members:
     :undoc-members:
     :show-inheritance:

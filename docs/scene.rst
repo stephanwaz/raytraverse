@@ -1,7 +1,8 @@
-raytraverse.raytraverse
+raytraverse.Scene
 ==========================================================
 
-.. automodule:: raytraverse.raytraverse
+.. autoclass:: raytraverse.scene.Scene
     :members:
     :undoc-members:
     :show-inheritance:
+    :private-members:

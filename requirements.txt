@@ -1,6 +1,5 @@
 skyfield
 matplotlib
-pywt
 clasp
 numpy
 scipy

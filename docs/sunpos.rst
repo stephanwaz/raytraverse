@@ -1,7 +1,7 @@
-raytraverse.raytraverse
+raytraverse.sunpos
 ==========================================================
 
-.. automodule:: raytraverse.raytraverse
+.. automodule:: raytraverse.sunpos
     :members:
     :undoc-members:
     :show-inheritance:
