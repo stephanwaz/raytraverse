@@ -1,0 +1,23 @@
+# obj2rad F:\switchdrive\Private\proj\objtest\109710\simple\RAD\sglz.obj
+# Rhino
+
+sglz polygon simple__sglz.1
+0
+0
+12
+              3.75              16.25      4.33333015442
+              6.25              16.25      4.33333015442
+              6.25              13.75      4.33333015442
+              3.75              13.75      4.33333015442
+
+sglz polygon simple__sglz.2
+0
+0
+12
+              3.75               6.25      4.33333015442
+              6.25               6.25      4.33333015442
+              6.25               3.75      4.33333015442
+              3.75               3.75      4.33333015442
+
+# Done processing file: F:\switchdrive\Private\proj\objtest\109710\simple\RAD\sglz.obj
+# 16 lines, 15 statements, 1 unrecognized

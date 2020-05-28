@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
-"""Tests for plenotraverse.translate"""
+"""Tests for raytraverse.translate"""
 
 import pytest
 from raytraverse import translate

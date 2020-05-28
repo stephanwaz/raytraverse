@@ -18,7 +18,7 @@ with open('README.rst') as readme_file:
 with open('HISTORY.rst') as history_file:
     history = history_file.read()
 
-requirements = ['clasp', 'numpy', 'scipy', 'pywavelets', 'sparse']
+requirements = ['clasp', 'numpy', 'scipy', 'pywavelets', 'matplotlib']
 
 setup_requirements = ['pytest-runner', ]
 

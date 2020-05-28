@@ -7,9 +7,10 @@
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 # =======================================================================
 
-"""functions for translating between coordinate spaces"""
+"""functions for translating between coordinate spaces and resolutions"""
 
 import numpy as np
+from scipy.ndimage.filters import gaussian_filter, uniform_filter
 
 
 def norm(v):
@@ -156,3 +157,21 @@ def uv2ij(uv, shape):
     row = np.mod(np.floor(shape[0]*uv[:, 0]/aspect), shape[0]).astype(int)
     col = np.mod(np.floor(shape[1]*uv[:, 1]), shape[1]).astype(int)
     return np.vstack((row, col)).T
+
+
+def resample(samps, ts, gauss=True, radius=None):
+    rs = np.array(ts)/np.array(samps.shape)
+    if np.prod(rs) > 1:
+        for i in range(len(rs)):
+            samps = np.repeat(samps, rs[i], i)
+        if gauss:
+            if radius is None:
+                radius = tuple(rs - 1)
+            samps = gaussian_filter(samps, radius)
+    elif np.prod(rs) < 1:
+        rs = (1/rs).astype(int)
+        og = (-rs/2).astype(int)
+        samps = uniform_filter(samps, rs, origin=og)
+        for i, j in enumerate(rs):
+            samps = np.take(samps, np.arange(0, samps.shape[i], j), i)
+    return samps

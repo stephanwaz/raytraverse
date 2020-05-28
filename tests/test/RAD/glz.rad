@@ -1,0 +1,59 @@
+# obj2rad F:\switchdrive\Private\proj\objtest\109710\simple\RAD\glz.obj
+# Rhino
+
+glz polygon simple__glz.1
+0
+0
+12
+   -0.381000041962                  1                  0
+   -0.381000041962                4.5                  0
+   -0.381000041962                4.5                  4
+   -0.381000041962                  1                  4
+
+glz polygon simple__glz.2
+0
+0
+12
+   -0.381000041962                5.5                  0
+   -0.381000041962                  9                  0
+   -0.381000041962                  9                  4
+   -0.381000041962                5.5                  4
+
+glz polygon simple__glz.3
+0
+0
+12
+     10.3809995651                 19                  0
+     10.3809995651               15.5                  0
+     10.3809995651               15.5                  4
+     10.3809995651                 19                  4
+
+glz polygon simple__glz.4
+0
+0
+12
+     10.3809995651               14.5                  0
+     10.3809995651                 11                  0
+     10.3809995651                 11                  4
+     10.3809995651               14.5                  4
+
+glz polygon simple__glz.5
+0
+0
+12
+                 9    -0.381000012159                  0
+               5.5    -0.381000012159                  0
+               5.5    -0.381000012159                  4
+                 9    -0.381000012159                  4
+
+glz polygon simple__glz.6
+0
+0
+12
+               4.5    -0.381000012159                  0
+                 1    -0.381000012159                  0
+                 1    -0.381000012159                  4
+               4.5    -0.381000012159                  4
+
+# Done processing file: F:\switchdrive\Private\proj\objtest\109710\simple\RAD\glz.obj
+# 40 lines, 39 statements, 1 unrecognized

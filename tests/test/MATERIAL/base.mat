@@ -1,0 +1,124 @@
+void plastic table
+0
+0
+5 .4 .4 .4 .01 0.05
+
+## no spec
+void plastic plypanel
+0
+0
+5 0.09	0.085	0.1 0 0
+
+#######################
+#### furniture colors
+
+
+void plastic mediumgrey
+0
+0
+5 0.5 0.5 0.5 0 0
+
+void plastic darkgrey
+0
+0
+5 0.1 0.1 0.1 0 0
+
+void plastic lightgrey
+0
+0
+5 0.7 0.7 0.7 0 0
+
+void plastic verylightgrey
+0
+0
+5 0.8 0.8 0.8 0 0
+
+void plastic screen
+0
+0
+5 .03 .03 .03 .02 0
+
+
+void plastic seatCUSH
+0
+0
+5 .11 .12 .115 0 0
+
+
+inherit alias deskWHITE table
+inherit alias deskMED darkgrey
+inherit alias deskLIGHTGREY plypanel
+inherit alias deatDARK darkgrey
+inherit alias deskDARK darkgrey
+inherit alias comp lightgrey
+inherit alias furn mediumgrey
+inherit alias seatFRAME mediumgrey
+inherit alias seatDARK darkgrey
+
+
+void plastic black
+0
+0
+5 0 0 0 0 0
+
+void plastic Default
+0
+0
+5 0.5 0.5 0.5 0 0
+
+void plastic FLOR
+0
+0
+5 0.32 0.3 0.29 0.03 0.12
+
+void plastic EXT_WALL
+0
+0
+5 .7 .7 .7 0.0 0
+
+void plastic CURT_MULL
+0
+0
+5 .3 .3 .3 0.08 0
+
+void plastic lvr
+0
+0
+5 .4 .4 .4 0.0 0
+
+void plastic CLNG
+0
+0
+5 .8 .8 .8 0.0 0
+
+void glass glz
+0
+0
+3 .7 .7 .7
+
+#TVIS=0.53, RDIFF=0.2, RSPEC=0.08, ROUGH=0.08
+void trans sglz
+0
+0
+7 0.793 0.793 0.793 0.08 0.08 0.726 0.057
+
+void plastic grnd
+0
+0
+5 0.2 0.2 0.2 0 0
+
+void glass sgrnd
+0
+0
+3 0.7 0.7 0.7
+
+void plastic trees
+0
+0
+5 .10 .15 .05 0 0
+
+void plastic roi
+0
+0
+5 1.0 1.0 1.0 0.0 0
+
