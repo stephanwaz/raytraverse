@@ -64,4 +64,12 @@ def test_solarbounds(tmpdir):
 def test_area(tmpdir):
     scene = Scene('test.oct', 'plane.rad', 'results', overwrite=True)
     assert scene.in_area(np.array([[.5, .5]]))
-    assert not scene.in_area(np.array([[.85, .5]]))
+    assert not scene.in_area(np.array([[1.05, 1]]))
+
+
+def test_reload(tmpdir):
+    scene = Scene('test.oct', 'plane.rad', 'results', reload=True)
+    assert scene.skydata is None
+    scene2 = Scene('test.oct', 'plane.rad', 'results2', reload=True)
+    os.system('ls results/*')
+    assert scene2.skydata.shape == (8760,4)

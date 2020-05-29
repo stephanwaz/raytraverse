@@ -120,9 +120,5 @@ class SpaceMapper(object):
             paths.append(pt[:, 0:2])
         bbox = np.array(bbox)
         bbox = np.array([np.amin(bbox[:, 0], 0), np.amax(bbox[:, 1], 0)])
-        md = max(bbox[1, :] - bbox[0, :])
-        x0 = (md - (bbox[1, 0] - bbox[0, 0]))/2
-        y0 = (md - (bbox[1, 1] - bbox[0, 1]))/2
         bbox = np.hstack([bbox, [[z], [z]]])
-        bbox = (bbox + np.array([(-x0, -y0, 0), (x0, y0, 0)]))
         return paths, bbox

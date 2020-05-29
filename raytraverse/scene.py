@@ -28,6 +28,9 @@ class Scene(object):
         radiance scene file containing planar geometry of analysis area
     outdir: str
         path to store scene info and output files
+    reload: bool, optional
+        if True attempts to load existing scene files in new instance
+        overrides 'overwrite'
     overwrite: bool, optional
         if True and outdir exists, will overwrite, else raises a FileExistsError
     wea: str, optional
@@ -50,12 +53,14 @@ class Scene(object):
               diffuse horizontal radiation (W/m^2))
     """
 
-    def __init__(self, scene, area, outdir, overwrite=False,
+    def __init__(self, scene, area, outdir, reload=False, overwrite=False,
                  wea=None, loc=None, ptro=0.0, skyro=0.0, weaformat='time'):
         try:
             os.mkdir(outdir)
         except FileExistsError as e:
-            if overwrite:
+            if reload:
+                pass
+            elif overwrite:
                 shutil.rmtree(outdir)
                 os.mkdir(outdir)
             else:
@@ -64,19 +69,20 @@ class Scene(object):
             raise ValueError("Invalid weaformat, choose from: 'time', 'angle'")
         #: {'time', 'angle'}: expected format for sky data
         self.weaformat = weaformat.lower()
-        #: bool: overwrites scene directory
-        self.overwrite = overwrite
+        #: bool: try to reload scene files
+        self.reload = reload
         #: float: ccw rotation (in degrees) for point grid on plane
         self.ptro = ptro
         #: float: ccw rotation (in degrees) for sky
         self.skyro = skyro
         #: str: path to store scene info and output files
         self.outdir = outdir
-        self.solarbounds = None
+        self._solarbounds = None
         self.loc = loc
         self.skydata = wea
         self.scene = scene
         self.area = area
+        self.reload = False
 
     @property
     def scene(self):
@@ -90,46 +96,62 @@ class Scene(object):
 
     @scene.setter
     def scene(self, scene):
-        dims = cst.pipeline([f'getinfo -d {scene}', ])
-        if re.match(scene + r': [\d.-]+ [\d.-]+ [\d.-]+ [\d.-]+', dims.strip()):
-            oconv = f'oconv -i {scene}'
+        o = f'{self.outdir}/scene.oct'
+        if self.reload and os.path.isfile(o):
+            pass
         else:
-            scene = " ".join(parse_file_list(None, scene))
-            oconv = f'oconv -f {scene}'
-        result, err = cst.pipeline([oconv, ],
-                                   outfile=f'{self.outdir}/scene.oct',
-                                   close=True, caperr=True, writemode='wb')
-        if b'fatal' in err:
-            raise ChildProcessError(err.decode(cst.encoding))
-        self._scene = f'{self.outdir}/scene.oct'
+            dims = cst.pipeline([f'getinfo -d {scene}', ])
+            if re.match(scene + r': [\d.-]+ [\d.-]+ [\d.-]+ [\d.-]+',
+                        dims.strip()):
+                oconv = f'oconv -i {scene}'
+            else:
+                scene = " ".join(parse_file_list(None, scene))
+                oconv = f'oconv -f {scene}'
+            result, err = cst.pipeline([oconv, ],
+                                       outfile=o,
+                                       close=True, caperr=True, writemode='wb')
+            if b'fatal' in err:
+                raise ChildProcessError(err.decode(cst.encoding))
+        self._scene = o
 
     @property
     def area(self):
         """analysis area
 
-        :getter: Returns this samplers's area
-        :setter: Sets this samplers's area from file path
+        :getter: Returns this scenes's area
+        :setter: Sets this scenes's area from file path
         :type: raytraverse.spacemapper.SpaceMapper
         """
         return self._area
 
     @area.setter
     def area(self, area):
-        self._area = SpaceMapper(area, self.ptro)
+        a = f'{self.outdir}/area.rad'
+        if self.reload and os.path.isfile(a):
+            pass
+        else:
+            shutil.copy(area, a)
+        self._area = SpaceMapper(a, self.ptro)
 
     @property
     def skydata(self):
         """analysis area
 
-        :getter: Returns this samplers's area
-        :setter: Sets this samplers's area from file path
-        :type: raytraverse.spacemapper.SpaceMapper
+        :getter: Returns this scene's skydata
+        :setter: Sets this scene's skydata from file path
+        :type: np.array
         """
         return self._skydata
 
     @skydata.setter
     def skydata(self, wea):
-        if wea is not None:
+        sd = f'{self.outdir}/skydat.txt'
+        if self.reload and os.path.isfile(sd):
+            try:
+                self._skydata = np.loadtxt(sd)
+            except OSError:
+                self._skydata = None
+        elif wea is not None:
             if self.weaformat == 'time':
                 if self.loc is None:
                     self.loc = sunpos.get_loc_epw(wea)
@@ -137,9 +159,9 @@ class Scene(object):
                 times = sunpos.row_2_datetime64(wdat[:,0:3])
                 angs = sunpos.sunpos_degrees(times, *self.loc, ro=self.skyro)
                 self._skydata = np.hstack((angs, wdat[:, 3:]))
-                np.savetxt(f'{self.outdir}/skydat.txt', self._skydata)
             else:
                 self._skydata = np.loadtxt(wea)
+            np.savetxt(sd, self._skydata)
         else:
             self._skydata = None
 

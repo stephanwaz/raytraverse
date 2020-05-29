@@ -8,6 +8,7 @@ raytraverse (|release|)
    sunpos
    io
    optic
+   sampler
    scene
    spacemapper
    cli
