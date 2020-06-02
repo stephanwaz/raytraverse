@@ -19,6 +19,7 @@ class SpaceMapper(object):
         #: float: ccw rotation (in degrees) for point grid on plane
         self.rotation = rotation
         self._path = None
+        self._sf = 1
         #: np.array: boundary frame for translating between coordinates
         #: [[xmin ymin zmin] [xmax ymax zmax]]
         self.bbox = bbox
@@ -33,14 +34,21 @@ class SpaceMapper(object):
         """list of matplotlib.path.Path: boundary paths"""
         return self._path
 
+    @property
+    def sf(self):
+        """bbox scale factor"""
+        return self._sf
+
     @bbox.setter
     def bbox(self, plane):
         """read radiance geometry file as boundary path"""
         paths, bbox = self._rad_scene_to_bbox(plane)
         self._bbox = bbox
+        self._sf = self.bbox[1, 0:2] - self.bbox[0, 0:2]
         self._path = []
         for pt in paths:
-            xy = Path(np.concatenate((pt, [pt[0]])), closed=True)
+            p = (np.concatenate((pt, [pt[0]])) - bbox[0, 0:2])/self._sf
+            xy = Path(p, closed=True)
             self._path.append(xy)
 
     def ro_pts(self, points, rdir=-1):
@@ -78,7 +86,7 @@ class SpaceMapper(object):
         pt: np.array
             world xyz coordinates of shape (N, 3)
         """
-        sf = self.bbox[1, 0] - self.bbox[0, 0]
+        sf = self.bbox[1] - self.bbox[0]
         uv = np.hstack((uv, np.zeros(len(uv)).reshape(-1, 1)))
         pt = self.bbox[0] + uv * sf
         return self.ro_pts(pt)
@@ -96,8 +104,7 @@ class SpaceMapper(object):
         uv: np.array
             normalized UV coordinates of shape (N, 2)
         """
-        sf = self.bbox[1, 0] - self.bbox[0, 0]
-        uv = (self.ro_pts(xyz, 1) - self.bbox[0])[:, 0:2] / sf
+        uv = (self.ro_pts(xyz, rdir=1) - self.bbox[0])[:, 0:2] / self._sf
         return uv
 
     def _rad_scene_to_bbox(self, plane):
@@ -106,7 +113,6 @@ class SpaceMapper(object):
                   if not bool(re.match(r'#', i))]
             rad = " ".join(dl).split()
         pgs = [i for i, x in enumerate(rad) if x == "polygon"]
-        bbox = []
         z = -1e10
         paths = []
         for pg in pgs:
@@ -115,10 +121,8 @@ class SpaceMapper(object):
                             (npt, 3)).astype(float)
             z = max(z, max(pt[:, 2]))
             pt2 = self.ro_pts(pt, rdir=1)
-            p = Path(pt2[:, 0:2], closed=True)
-            bbox.append(p.get_extents().get_points())
-            paths.append(pt[:, 0:2])
-        bbox = np.array(bbox)
-        bbox = np.array([np.amin(bbox[:, 0], 0), np.amax(bbox[:, 1], 0)])
+            paths.append(pt2[:, 0:2])
+        bbox = np.array(paths)
+        bbox = np.squeeze([np.amin(bbox, 1), np.amax(bbox, 1)])
         bbox = np.hstack([bbox, [[z], [z]]])
         return paths, bbox

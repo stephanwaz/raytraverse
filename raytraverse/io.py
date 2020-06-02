@@ -13,7 +13,6 @@ import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.colors import Normalize
 from raytraverse import translate
-from concurrent.futures import ThreadPoolExecutor
 
 
 def np2bytes(ar, dtype='<f'):
@@ -96,20 +95,13 @@ def bytefile2np(f, shape, dtype='<f'):
     return bytes2np(f.read(), shape, dtype)
 
 
-def _write_npy(pi, uv, vals, sres, prefix):
-    output = np.vstack((pi.T, uv.T, vals.T)).T
+def write_npy(vecs, vals, sres, prefix):
+    output = np.vstack((vecs.T, vals.T)).T
     sb = np.arange(sres[4]**2)
-    output = np.vstack((np.concatenate(((0, 0, 0, 0), sb)).reshape(1, -1), output))
+    output = np.vstack((np.concatenate(((0, 0, 0, 0, 0, 0), sb)).reshape(1, -1),
+                        output))
     shapetxt0 = "_".join([f'{i:04d}' for i in sres])
     np.save(f"{prefix}_{shapetxt0}", output)
-
-
-def write_npy(pi, uv, vals, sres, prefix="UVdata", wait=False):
-    if wait:
-        _write_npy(pi, uv, vals, sres, prefix)
-    else:
-        executor = ThreadPoolExecutor()
-        executor.submit(_write_npy, pi, uv, vals, sres, prefix)
 
 
 def imshow(ax, im, **kwargs):

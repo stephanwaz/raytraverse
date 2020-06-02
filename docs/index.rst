@@ -3,7 +3,7 @@ raytraverse (|release|)
 
 .. toctree::
 
-   raytraverse
+   wavelet
    translate
    sunpos
    io

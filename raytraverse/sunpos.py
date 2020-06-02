@@ -24,7 +24,6 @@ except OSError as ex:
 sun, earth = planets['sun'], planets['earth']
 
 
-
 def read_epw(epw):
     """read daylight sky data from epw or wea file
 
@@ -43,13 +42,9 @@ def read_epw(epw):
             dp = [h[1], h[2], h[3], h[14], h[15]]
             hoff = .5
         else:
-            try:
-                dp = [h[0], h[1], h[2], h[3], h[4]]
-            except IndexError:
-                dp = [h[0], h[1], h[2], h[3], h[4]]
+            dp = [h[0], h[1], h[2], h[3], h[4]]
             hoff = 0
-        data.append([int(i.strip()) for i in dp[0:2]] +
-                    [float(dp[2]) - hoff] +
+        data.append([int(i.strip()) for i in dp[0:2]] + [float(dp[2]) - hoff] +
                     [float(i.strip()) for i in dp[3:]])
     return np.array(data)
 
@@ -70,18 +65,17 @@ def get_loc_epw(epw, name=False):
             loc = hdr[1]
             elev = hdr[-1].strip()
         else:
-            lat = [i.split()[-1] for i in hdr if re.match("latitude.*", i)][0]
-            lon = [i.split()[-1] for i in hdr if re.match("longitude.*", i)][0]
-            tz = [i.split()[-1] for i in hdr if re.match("time_zone.*", i)][0]
-            loc = [i.split()[-1] for i in hdr if re.match("place.*", i)][0]
+            lat = [i.split()[-1] for i in hdr if re.match(r"latitude.*", i)][0]
+            lon = [i.split()[-1] for i in hdr if re.match(r"longitude.*", i)][0]
+            tz = [i.split()[-1] for i in hdr if re.match(r"time_zone.*", i)][0]
+            loc = [i.split()[-1] for i in hdr if re.match(r"place.*", i)][0]
             try:
-                elev = \
-                [i.split()[-1] for i in hdr if re.match("site_elevation.*", i)][
-                    0]
-            except Exception:
+                elev = [i.split()[-1] for i in hdr if
+                        re.match(r"site_elevation.*", i)][0]
+            except IndexError:
                 elev = '0.0'
-    except Exception as ex:
-        raise ValueError("bad epw header", ex)
+    except Exception as e:
+        raise ValueError("bad epw header", e)
     if name:
         return float(lat), float(lon), int(tz), loc, elev
     else:
@@ -126,14 +120,15 @@ def row_2_datetime64(ts, year=2020):
         if len(ts) < 4:
             hm = np.modf(ts[2])
             ts = np.concatenate((ts[0:2], [hm[1], hm[0]*60]))
-        st = ['{}-{:02.00f}-{:02.00f}T{:02.00f}:{:02.00f}'.format(year, *ts),]
+        st = ['{}-{:02.00f}-{:02.00f}T{:02.00f}:{:02.00f}'.format(year, *ts), ]
     else:
         if ts.shape[1] < 4:
             hm = np.modf(ts[:, 2:3])
-            ts = np.hstack((ts[:,0:2], hm[1], hm[0]*60))
+            ts = np.hstack((ts[:, 0:2], hm[1], hm[0]*60))
         st = ['{}-{:02.00f}-{:02.00f}T{:02.00f}:{:02.00f}'.format(year, *t)
               for t in ts]
     return np.array(st).astype('datetime64[m]')
+
 
 def datetime64_2_datetime(timesteps, mer=0.):
     """convert datetime representation and offset for timezone

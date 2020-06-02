@@ -242,11 +242,10 @@ class Scene(object):
             boolean array, shape (N,)
         """
         path = self.area.path
-        xy = self.area.uv2pt(uv)[:,0:2]
         if path is None:
-            return np.full((xy.shape[0]), True)
+            return np.full((uv.shape[0]), True)
         else:
-            result = np.empty((len(path), xy.shape[0]), bool)
+            result = np.empty((len(path), uv.shape[0]), bool)
             for i, p in enumerate(path):
-                result[i] = p.contains_points(xy)
+                result[i] = p.contains_points(uv)
         return np.any(result, 0)

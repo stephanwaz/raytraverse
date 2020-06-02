@@ -11,7 +11,7 @@
 __author__ = """Stephen Wasilewski"""
 __email__ = 'stephanwaz@gmail.com'
 __version__ = '0.1.0'
-__all__ = ['io', 'optic', 'raytraverse', 'translate', 'SpaceMapper',
+__all__ = ['io', 'optic', 'wavelet', 'translate', 'SpaceMapper',
            'Sampler', 'Scene']
 
 from raytraverse.spacemapper import SpaceMapper
