@@ -7,6 +7,7 @@ import pytest
 from raytraverse import translate
 import numpy as np
 
+from clipt import mplt
 
 @pytest.fixture
 def thetas():
@@ -63,3 +64,27 @@ def test_tp2xyz(thetas):
     xyz = translate.tp2xyz(thetas)
     theta2 = translate.xyz2tp(xyz)
     assert np.allclose(thetas, theta2)
+
+
+def test_rotate(thetas):
+    thetas = translate.tpnorm(thetas)
+    xyz = translate.tp2xyz(thetas)
+    rxyz = translate.rotate(xyz, (1, .3434, .44), (1, -1, 0))
+    bxyz = translate.rotate(rxyz, (1, -1, 0), (1, .3434, .44))
+    assert np.allclose(xyz, bxyz)
+    nxyz = translate.rotate(xyz, (1, .3434, .44), (1, .3434, .44))
+    assert np.allclose(xyz, nxyz)
+    oxyz = translate.rotate(xyz, (1, 0, 0), (-1, 0, 0))
+    xyz[:, (0, 1)] *= -1
+    assert np.allclose(xyz, oxyz)
+    oxyz = translate.rotate(xyz, (1, .3434, .44), (-1, -.3434, -.44))
+    xyz[:, (0, 1)] *= -1
+    assert np.allclose(xyz, oxyz)
+
+
+def test_chord():
+    x = np.linspace(0, 1, 200)
+    theta = x*np.pi
+    c = translate.theta2chord(theta)
+    theta2 = translate.chord2theta(c)
+    assert np.allclose(theta, theta2)

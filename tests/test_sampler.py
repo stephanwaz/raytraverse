@@ -63,9 +63,14 @@ def test_sample_idx(tmpdir, scene):
     si, vecs = sampler.sample_idx(np.arange(7680), upsample=False)
     assert vecs.shape[0] == 7680
     l1 = np.prod(sampler.levels[1, 0:4])
-    sampler.idx = 1
+    sampler.idx = 2
     si, vecs = sampler.sample_idx(np.random.choice(np.arange(l1), 10))
     assert vecs.shape[0] == 10*np.prod(np.prod(sampler.levels[2, 0:4]))/np.prod(l1)
 
 
-
+def test_mktree(tmpdir):
+    scene = Scene('test.oct', 'plane.rad', 'test_run', wea='geneva.epw',
+                  reload=True)
+    sampler = Sampler(scene, ipres=1, ptres=2, minrate=.01)
+    s = sampler.mktree()
+    assert s is None

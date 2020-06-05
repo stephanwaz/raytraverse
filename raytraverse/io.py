@@ -8,10 +8,10 @@
 # =======================================================================
 
 """functions for reading and writing SortedArRays"""
-
 import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.colors import Normalize
+
 from raytraverse import translate
 
 
@@ -110,11 +110,11 @@ def imshow(ax, im, **kwargs):
     ax.set_yticks([])
 
 
-def mk_img_setup(lums, decades=7, maxl=-1):
+def mk_img_setup(lums, decades=7, maxl=-1, figsize=[20, 10]):
     lums = np.where(np.isfinite(lums), lums, -decades + maxl)
-    fig, ax = plt.subplots(1, 1, figsize=[20, 10])
+    fig, ax = plt.subplots(1, 1, figsize=figsize)
     norm = Normalize(vmin=-decades + maxl, vmax=maxl)
-    lev = np.arange(-decades, 0, decades/200)
+    lev = np.linspace(-decades + maxl, maxl, 200)
     return lums, fig, ax, norm, lev
 
 
@@ -139,4 +139,15 @@ def mk_img_fish(lums, uv, decades=7, maxl=-1, colors='viridis', mark=True):
                    levels=lev, extend='both')
     if mark:
         ax.plot(uv[:, 0], uv[:, 1], 'or')
+    return fig, ax
+
+
+def mk_img(lums, uv, decades=7, maxl=-1, colors='viridis', mark=True,
+           figsize=[10, 10]):
+    lums, fig, ax, norm, lev = mk_img_setup(lums, decades=decades, maxl=maxl,
+                                            figsize=figsize)
+    ax.tricontourf(uv[:, 0], uv[:, 1], lums, cmap=colors, norm=norm,
+                   levels=lev, extend='both')
+    if mark:
+        ax.scatter(uv[:, 0], uv[:, 1], s=1, marker='o', c='red')
     return fig, ax

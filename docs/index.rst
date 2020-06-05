@@ -9,6 +9,7 @@ raytraverse (|release|)
    io
    optic
    sampler
+   integrator
    scene
    spacemapper
    cli

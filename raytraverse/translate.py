@@ -18,6 +18,11 @@ def norm(v):
     return v/np.sqrt(np.sum(np.square(v), -1)).reshape(-1, 1)
 
 
+def norm1(v):
+    """normalize flat vector"""
+    return v/np.sqrt(np.sum(np.square(v)))
+
+
 def tpnorm(thetaphi):
     """normalize angular vector to 0-pi, 0-2pi"""
     thetaphi[:,0] = np.mod(thetaphi[:,0] + np.pi, np.pi)
@@ -26,7 +31,7 @@ def tpnorm(thetaphi):
 
 
 def uv2xy(uv):
-    """translate from 2 x unit square (0,2),(0,1) to disk (x,y)
+    """translate from unit square (0,1),(0,1) to disk (x,y)
     http://psgraphics.blogspot.com/2011/01/improved-code-for-concentric
     -map.html.
     """
@@ -97,8 +102,17 @@ def xyz2uv(xyz, normalize=False, axes=(0, 1, 2), rhs=True):
     return uv
 
 
-def tp2xyz(thetaphi):
+def xyz2xy(xyz, axes=(0, 1, 2)):
+    r2 = 1 - np.abs(xyz[:, axes[2]])
+    x = xyz[:, axes[0]]/np.sqrt(2 - r2)
+    y = xyz[:, axes[1]]/np.sqrt(2 - r2)
+    return np.stack((x, y)).T
+
+
+def tp2xyz(thetaphi, normalize=True):
     """calculate x,y,z vector from theta (0-pi) and phi (0-2pi) RHS Z-up"""
+    if normalize:
+        thetaphi = tpnorm(thetaphi)
     theta = thetaphi[:, 0]
     phi = thetaphi[:, 1]
     sint = np.sin(theta)
@@ -175,3 +189,90 @@ def resample(samps, ts, gauss=True, radius=None):
         for i, j in enumerate(rs):
             samps = np.take(samps, np.arange(0, samps.shape[i], j), i)
     return samps
+
+
+def rmtx_at(x, theta):
+    """build rotation matrix from axis and angle"""
+    a = np.array([[0, -x[2], x[1]], [x[2], 0, -x[0]], [-x[1], x[0], 0]])
+    return np.identity(3) + np.sin(theta)*a + (1 - np.cos(theta))*a@a
+
+
+def rmtx_vv(v1, v2, up=(0, 0, 1)):
+    """build rotation matrix to translate from v1 to v2"""
+    x = norm1(np.cross(v1, v2))
+    theta = np.arccos(np.dot(v1, v2))
+    if np.isnan(theta) or np.isclose(theta, 0):
+        return None
+    if np.isclose(theta, np.pi):
+        x = np.array(up)
+    return rmtx_at(x, theta)
+
+
+def rotate(xyz, v1, v2, up=(0, 0, 1)):
+    """
+    rotate points about orthogonal axis
+    if v1 and v2 are parallel, but opposite rotation is about z-axis
+    corrects final rotation to align to up vector
+
+    Parameters
+    ----------
+    xyz: np.array
+        points/vectors of shape (N, 3)
+    v1: np.array
+        base vector (3,)
+    v2: np.array
+        dest vector (3,)
+    up: tuple
+        up vector
+
+    Returns
+    -------
+    rxyz: np.array
+        rotated points/vectors of shape (N, 3)
+    """
+    up = np.asarray(up)
+    v1 = norm1(np.asarray(v1))
+    v2 = norm1(np.asarray(v2))
+    rmtx = rmtx_vv(v1, v2, up=up)
+    if rmtx is None:
+        return xyz
+    rxyz = np.matmul(rmtx, xyz.T).T
+    vp = norm1(up - np.dot(up, v2)*v2)
+    tup = (rmtx@up[:, None]).flatten()
+    tup = norm1(tup - np.dot(tup, v2)*v2)
+    if not np.allclose(tup, up):
+        ramtx = rmtx_vv(tup, vp, up=v2)
+        rxyz = np.matmul(ramtx, rxyz.T).T
+    return rxyz
+
+
+def chord2theta(c):
+    """compute angle from chord on unit circle
+
+    Parameters
+    ----------
+    c: float
+        chord or euclidean distance between normalized direction vectors
+
+    Returns
+    -------
+    theta: float
+        angle captured by chord
+    """
+    return 2*np.arcsin(c/2)
+
+
+def theta2chord(theta):
+    """compute chord length on unit sphere from angle
+
+    Parameters
+    ----------
+    theta: float
+        angle
+
+    Returns
+    -------
+    c: float
+        chord or euclidean distance between normalized direction vectors
+    """
+    return 2*np.sin(theta/2)

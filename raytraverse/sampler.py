@@ -7,12 +7,16 @@
 # =======================================================================
 
 import os
+import pickle
 import shlex
+import shutil
+from glob import glob
 from subprocess import Popen, PIPE
 from concurrent.futures import ThreadPoolExecutor
 
 import numpy as np
 import matplotlib.pyplot as plt
+from scipy.spatial import cKDTree
 
 from clasp import script_tools as cst
 from raytraverse import translate, optic, io, wavelet
@@ -112,7 +116,7 @@ class Sampler(object):
     def idx(self, idx):
         self._idx = idx
         self.current_level = self.levels[idx]
-        x = self.idx/(self.levels.shape[1]-1)
+        x = self.idx/(self.levels.shape[0]-1)
         self._sample_t = wavelet.get_uniform_rate(x, self.t0, self.t1)
         self._sample_rate = wavelet.get_sample_rate(x, self.minrate)
 
@@ -162,9 +166,14 @@ class Sampler(object):
         if not os.path.isfile(skyoct):
             skydef = ("void light skyglow 0 0 3 1 1 1 skyglow source sky 0 0 4"
                       " 0 0 1 180")
-            f = open(f'{self.scene.outdir}/sky.oct', 'wb')
-            cst.pipeline([f'oconv -i {self.scene.outdir}/scene.oct -'], inp=skydef,
-                          outfile=f, close=True)
+            skydeg = ("void glow skyglow 0 0 4 1 1 1 0 skyglow source sky 0 0 4"
+                       " 0 0 1 180")
+            f = open(skyoct, 'wb')
+            cst.pipeline([f'oconv -i {self.scene.outdir}/scene.oct -'],
+                         inp=skydeg, outfile=f, close=True)
+            f = open(f'{self.scene.outdir}/sky_pm.oct', 'wb')
+            cst.pipeline([f'oconv -i {self.scene.outdir}/scene.oct -'],
+                         inp=skydef, outfile=f, close=True)
         f = open(f'{self.scene.outdir}/scbins.cal', 'w')
         f.write(scbinscal)
         f.close()
@@ -202,7 +211,7 @@ class Sampler(object):
             force = '-fo-'
         fdr = self.scene.outdir
         cmd = (f'{executable} {opts} -n {nproc} {force} {apos} -apC '
-               f'{fdr}/sky.gpm {nphotons} {fdr}/sky.oct')
+               f'{fdr}/sky.gpm {nphotons} {fdr}/sky_pm.oct')
         r, err = cst.pipeline([cmd], caperr=True)
         if b'fatal' in err:
             raise ChildProcessError(err.decode(cst.encoding))
@@ -214,10 +223,13 @@ class Sampler(object):
         fdr = self.scene.outdir
         if self.skypmap:
             rcopts += f' -ab -1 -ap {fdr}/sky.gpm {bwidth}'
+            octr = f"{fdr}/sky_pm.oct"
+        else:
+            octr = f"{fdr}/sky.oct"
         side = self.levels[self.idx, -1]
         rc = (f"{executable} -V+ -fff {rcopts} -h -n {nproc} -e "
               f"'side:{side}' -f {fdr}/scbins.cal -b bin -bn {side**2} "
-              f"-m skyglow {fdr}/sky.oct")
+              f"-m skyglow {octr}")
         p = Popen(shlex.split(rc), stdout=PIPE,
                   stdin=PIPE).communicate(io.np2bytes(vecs))
         lum = optic.rgb2lum(io.bytes2np(p[0], (-1, 3)))
@@ -241,7 +253,7 @@ class Sampler(object):
             si = np.stack(np.unravel_index(pdraws, shape))
         # convert to UV directions and positions
         uv = si.T[:, 2:]/shape[3]
-        pos = self.scene.area.uv2pt(si.T[:, 0:2])
+        pos = self.scene.area.uv2pt(si.T[:, 0:2] + .5)
         uv += np.random.random(uv.shape)/shape[2]
         xyz = translate.uv2xyz(uv, axes=(0, 2, 1))
         vecs = np.hstack((pos, xyz))
@@ -250,11 +262,11 @@ class Sampler(object):
     def dump(self, vecs, vals, wait=False):
         prefix = f'{self.scene.outdir}/sky'
         if wait:
-            io.write_npy(vecs, vals, self.current_level, prefix)
+            return io.write_npy(vecs, vals, self.current_level, prefix)
         else:
             executor = ThreadPoolExecutor()
-            executor.submit(io.write_npy, vecs, vals, self.current_level,
-                            prefix)
+            return executor.submit(io.write_npy, vecs, vals,
+                                   self.current_level, prefix)
 
     def draw(self, samps):
         # detail is calculated across position and direction seperately and
@@ -283,6 +295,7 @@ class Sampler(object):
     def run(self, **skwargs):
         allc = 0
         samps = np.zeros(self.current_level[0:4])
+        dumps = []
         for i in range(self.idx, self.levels.shape[0]):
             skbins = self.current_level[4]**2
             if i == 0:
@@ -296,19 +309,24 @@ class Sampler(object):
             srate = si.shape[1]/np.prod(self.current_level[0:4])
             print(f"{self.current_level} sampling: {si.shape[1]}\t{srate:.02%}")
             lum = self.sky_sample(vecs, **skwargs)
-            self.dump(vecs, lum)
+            dumps.append(self.dump(vecs, lum))
+            # samps[tuple(si)] = np.max(lum, 1)
             samps[tuple(si)] = np.sum(lum, 1)
-            print(samps.shape)
             a = lum.size
             fig, axes = plt.subplots(1, 1, figsize=[20, 10])
             io.imshow(axes, np.log10(samps[-1, -1]/179), cmap=plt.cm.viridis,
-                      vmin=-3,
+                      vmin=-5,
                       vmax=0)
             plt.tight_layout()
-            plt.show()
+            plt.savefig(f"{self.idx}.png")
             allc += a
         print("--------------------------------------")
         srate = allc/(samps.size*skbins)
         print(f"asamp: {allc}\t{srate:.02%}")
+        for dump in dumps:
+            if dump is None:
+                pass
+            else:
+                wait = dump.result()
 
 

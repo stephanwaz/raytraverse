@@ -38,3 +38,13 @@ def rgb2rad(rgb):
 
 def rgb2lum(rgb):
     return np.einsum('ij,j', rgb, [47.435, 119.93, 11.635])
+
+
+def calc_illum(sensor, rays, omegas, lum):
+    ctheta = np.dot(sensor, rays)
+    tom = np.sum(omegas)
+    if np.abs(np.pi*2 - tom) > np.pi*.1:
+        print("Warning, solid angle estimate off by > 5%! "
+              f"{tom} =/= {np.pi*2}")
+    omeganorm = omegas * 2 * np.pi / tom
+    return np.sum(lum * omeganorm * ctheta, axis=-1)
