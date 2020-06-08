@@ -46,10 +46,12 @@ class Integrator(object):
         lum = lum.reshape(-1, skside, skside)
         return kd, lum, vec
 
-    def __init__(self, scene, levels):
+    def __init__(self, scene, levels, rebuild=False):
         self.scene = scene
         #: np.array: sampling scheme from Sampler
         self.levels = levels
+        #: bool: force rebuild kd-tree
+        self.rebuild = rebuild
         self.kd = scene.outdir
 
     @property
@@ -99,7 +101,7 @@ class Integrator(object):
     def kd(self, outdir):
         """Set this integrator's kd tree and scene data"""
         kdfile = f'{outdir}/kd_data.pickle'
-        if os.path.isfile(kdfile):
+        if os.path.isfile(kdfile) and not self.rebuild:
             f = open(kdfile, 'rb')
             self._kd = pickle.load(f)
             self._lum = pickle.load(f)
@@ -186,7 +188,7 @@ class Integrator(object):
             xyz = translate.rotate(self.vec[i, 3:], v, (0, 1, 0))
             vec = translate.xyz2xy(xyz, axes=(0, 2, 1))
             for j in range(lum.shape[0]):
-                io.mk_img(lum[j, i], vec, decades=decades, maxl=maxl, mark=False)
+                io.mk_img(lum[j, i], vec, decades=decades, maxl=maxl, mark=True)
         plt.show()
 
     def calc_omega(self):
@@ -198,16 +200,21 @@ class Integrator(object):
             estimated solid angles normalized to sphere (should be renormalized
             when subsampling, ie illuminance hemisphere)
         """
-        d, i = self.kd.query(self.kd.data, 2)
-        thetas = translate.chord2theta(d[:,1])
-        omegas = 2*np.pi * (1 - np.cos(thetas))
+        d, i = self.kd.query(self.kd.data, 4)
+        thetas = translate.chord2theta(np.average(d[:,1:], 1))
+        # xyz = self.vec[i[:, 1:], 3:]
+        # ab = xyz[:, 1, :] - xyz[:, 0, :]
+        # ac = xyz[:, 2, :] - xyz[:, 0, :]
+        # omegas = np.linalg.norm(np.cross(ab, ac), axis=1)/2
+        omegas = 2*np.pi * (1 - np.cos(thetas))/2
         tom = np.sum(omegas)
         if np.abs(np.pi*4 - tom) > np.pi*.2:
             print("Warning, solid angle estimate off by > 5%! "
-                  f"{tom} =/= {np.pi*2}")
+                  f"{tom} =/= {np.pi*4}")
         return omegas * 4*np.pi / tom
 
-    def illum(self, vpts, vdirs, skyvecs=None, treecnt=30):
+    def illum(self, vpts, vdirs, skyvecs=None, treecnt=30,
+              normalize_omega=True):
         """calculate illuminance for given sensor locations and skyvecs
 
         Parameters
@@ -221,6 +228,10 @@ class Integrator(object):
         treecnt: int, optional
             number of queries at which a scipy.cKDtree.query_ball_tree is
             used instead of scipy.cKDtree.query_ball_point
+        normalize_omega: bool, optional
+            normalize estimated solid angles assuming a hemisphere is returned
+            if Sampler used a subset of spherical sampling this should be set
+            to False
 
         Returns
         -------
@@ -236,6 +247,6 @@ class Integrator(object):
         omegas = self.calc_omega()
         with ProcessPoolExecutor() as executor:
             futures = [executor.submit(optic.calc_illum, v, self.vec[i, 3:].T,
-                                       omegas[i], lum[:, i])
+                                       omegas[i], lum[:, i], normalize_omega)
                        for i, v in zip(idxs, vdirs)]
         return np.stack([future.result() for future in futures])

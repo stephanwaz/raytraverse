@@ -255,6 +255,7 @@ class Sampler(object):
         uv = si.T[:, 2:]/shape[3]
         pos = self.scene.area.uv2pt(si.T[:, 0:2] + .5)
         uv += np.random.random(uv.shape)/shape[2]
+        # xyz = self.scene.view.uv2xyz(uv)
         xyz = translate.uv2xyz(uv, axes=(0, 2, 1))
         vecs = np.hstack((pos, xyz))
         return si, vecs

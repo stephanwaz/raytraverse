@@ -6,10 +6,7 @@
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 # =======================================================================
-import re
-
 import numpy as np
-from matplotlib.path import Path
 
 from raytraverse import translate
 
@@ -19,30 +16,21 @@ class ViewMapper(object):
 
     Parameters
     ----------
-    dxy: (float, float), optional
-        central view direction (must be horizontal)
-    vh: int, optional
-        horizontal view size (2-360)
-    vv: int, optional
-        vertical view size (2-180)
+    dxyz: (float, float, float), optional
+        central view direction
+    viewangle: int, optional
+        if < 180, the horizontal and vertical view angle, if greater, view
+        becomes 360,180
     """
 
-    def __init__(self, dxy=(1.0, 0.0), vh=360, vv=180, axes=(0, 2, 1)):
-        #: (int, int, int): transform axes for translate.xyz2uv
-        self.axes = axes
-        self._vh = vh
-        self._vv = vv
-        self.dxyz = dxy
+    def __init__(self, dxyz=(0.0, 1.0, 0.0), viewangle=360):
+        self._viewangle = viewangle
+        self.dxyz = dxyz
 
     @property
     def dxyz(self):
         """(float, float, float) central view direction (must be horizontal)"""
         return self._dxyz[0]
-
-    @property
-    def duv(self):
-        """(float, float) central view direction UV coordinates"""
-        return self._duv[0]
 
     @property
     def bbox(self):
@@ -55,40 +43,28 @@ class ViewMapper(object):
         return self._sf
 
     @dxyz.setter
-    def dxyz(self, xy):
+    def dxyz(self, xyz):
         """set view parameters"""
-        self._dxyz = translate.norm(xy + (0.0, ))
-        self._duv = translate.xyz2uv(self._dxyz, axes=self.axes)
-        self._sf = np.array((self._vh/180, self._vv/180))
-        self._bbox = np.stack((self.duv-self._sf/2, self.duv+self._sf/2))
+        self._dxyz = translate.norm(xyz)
+        if np.allclose(self.dxyz, (0, 1, 0)):
+            self._up = (0, 0, 1)
+        else:
+            self._up = (0, 1, 0)
+        if self._viewangle > 180:
+            self._sf = np.array((1, 1))
+            self._bbox = np.stack(((0, 0), (2, 1)))
+        else:
+            self._sf = np.array((self._viewangle/180, self._viewangle/180))
+            self._bbox = np.stack((.5 - self._sf/2, .5 + self._sf/2))
 
-    def uv2view(self, uv):
-        """convert UV --> world
-
-        Parameters
-        ----------
-        uv: np.array
-            normalized UV coordinates of shape (N, 2)
-
-        Returns
-        -------
-        view: np.array
-            world xyz coordinates of shape (N, 3)
-        """
-        return translate.uv2xyz(self.bbox[None, 0] + uv * self.sf[None, :], axes=self.axes)
-
-    def view2uv(self, xyz):
-        """convert world --> UV
-
-        Parameters
-        ----------
-        xyz: np.array
-            world xyz coordinates, shape (N, 3)
-
-        Returns
-        -------
-        uv: np.array
-            normalized UV coordinates of shape (N, 2)
-        """
-        uv = (translate.xyz2uv(xyz, axes=self.axes) - self.bbox[None, 0]) / self.sf[None, :]
+    def xyz2uv(self, xyz):
+        rxyz = translate.rotate(xyz, self.dxyz, (0, 0, 1), (0, 1, 0))
+        uv = translate.xyz2uv(rxyz)
+        uv = (uv - self.bbox[None, 0]) / self.sf[None, :]
         return uv
+
+    def uv2xyz(self, uv):
+        uv = self.bbox[None, 0] + uv * self.sf[None, :]
+        rxyz = translate.uv2xyz(uv)
+        return translate.rotate(rxyz, (0, 0, 1), self.dxyz, self._up)
+

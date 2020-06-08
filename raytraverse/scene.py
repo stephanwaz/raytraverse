@@ -14,7 +14,7 @@ import numpy as np
 
 from clasp import script_tools as cst
 from clasp.click_callbacks import parse_file_list
-from raytraverse import SpaceMapper, sunpos, translate
+from raytraverse import SpaceMapper, sunpos, translate, ViewMapper
 
 
 class Scene(object):
@@ -54,7 +54,8 @@ class Scene(object):
     """
 
     def __init__(self, scene, area, outdir, reload=False, overwrite=False,
-                 wea=None, loc=None, ptro=0.0, skyro=0.0, weaformat='time'):
+                 wea=None, loc=None, ptro=0.0, skyro=0.0, weaformat='time',
+                 viewdir=(0, 1, 0), viewangle=360):
         try:
             os.mkdir(outdir)
         except FileExistsError as e:
@@ -83,6 +84,8 @@ class Scene(object):
         self.scene = scene
         self.area = area
         self.reload = False
+        # raytraverse.viewmapper.ViewMapper: view translation class
+        self.view = ViewMapper(viewdir, viewangle)
 
     @property
     def scene(self):
