@@ -25,12 +25,24 @@ class ViewMapper(object):
 
     def __init__(self, dxyz=(0.0, 1.0, 0.0), viewangle=360):
         self._viewangle = viewangle
+        # float: aspect ratio width/height
+        self.aspect = 1
         self.dxyz = dxyz
 
     @property
     def dxyz(self):
-        """(float, float, float) central view direction (must be horizontal)"""
-        return self._dxyz[0]
+        """(float, float, float) central view direction"""
+        return self._dxyz
+
+    @property
+    def ymtx(self):
+        """yaw rotation matrix (to standard z-direction y-up)"""
+        return self._ymtx
+
+    @property
+    def pmtx(self):
+        """pitch rotation matrix (to standard z-direction y-up)"""
+        return self._pmtx
 
     @property
     def bbox(self):
@@ -45,26 +57,39 @@ class ViewMapper(object):
     @dxyz.setter
     def dxyz(self, xyz):
         """set view parameters"""
-        self._dxyz = translate.norm(xyz)
-        if np.allclose(self.dxyz, (0, 1, 0)):
-            self._up = (0, 0, 1)
-        else:
-            self._up = (0, 1, 0)
+        self._dxyz = translate.norm1(xyz)
+        self._ymtx, self._pmtx = translate.rmtx_yp(self.dxyz)
         if self._viewangle > 180:
             self._sf = np.array((1, 1))
             self._bbox = np.stack(((0, 0), (2, 1)))
+            self.aspect = 2
         else:
             self._sf = np.array((self._viewangle/180, self._viewangle/180))
             self._bbox = np.stack((.5 - self._sf/2, .5 + self._sf/2))
 
+    def view2world(self, xyz):
+        return (self.ymtx.T@(self.pmtx.T@xyz.T)).T
+
+    def world2view(self, xyz):
+        return (self.pmtx@(self.ymtx@xyz.T)).T
+
     def xyz2uv(self, xyz):
-        rxyz = translate.rotate(xyz, self.dxyz, (0, 0, 1), (0, 1, 0))
+        # rotate from world to view space
+        rxyz = self.world2view(xyz)
+        # translate to uv
         uv = translate.xyz2uv(rxyz)
+        # scale to view uv space
         uv = (uv - self.bbox[None, 0]) / self.sf[None, :]
         return uv
 
     def uv2xyz(self, uv):
+        # scale to hemispheric uv
         uv = self.bbox[None, 0] + uv * self.sf[None, :]
+        # translate to xyz with z view direction
         rxyz = translate.uv2xyz(uv)
-        return translate.rotate(rxyz, (0, 0, 1), self.dxyz, self._up)
+        # rotate from this view space to world
+        return self.view2world(rxyz)
 
+    def xyz2xy(self, xyz):
+        rxyz = self.world2view(xyz)
+        return translate.xyz2xy(rxyz)

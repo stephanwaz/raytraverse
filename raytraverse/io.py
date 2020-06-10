@@ -12,8 +12,6 @@ import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.colors import Normalize
 
-from raytraverse import translate
-
 
 def np2bytes(ar, dtype='<f'):
     """format ar as bytestring
@@ -76,7 +74,7 @@ def bytes2np(buf, shape, dtype='<f'):
 
 
 def bytefile2np(f, shape, dtype='<f'):
-    """write binary data to output f
+    """read binary data from f
 
     Parameters
     ----------
@@ -95,17 +93,28 @@ def bytefile2np(f, shape, dtype='<f'):
     return bytes2np(f.read(), shape, dtype)
 
 
-def write_npy(vecs, vals, sres, prefix):
+def write_npy(vecs, vals, outf):
+    """write vectors and values to numpy binary file
+
+    Parameters
+    ----------
+    vecs: np.array
+        shape (N, 6), x,y,z,dx,dy,dz
+    vals: np.array
+        shape (N, S) where S is the number of sky bins
+    outf: str
+        basename of file to write
+
+    Returns
+    -------
+    None
+    """
     output = np.vstack((vecs.T, vals.T)).T
-    sb = np.arange(sres[4]**2)
-    output = np.vstack((np.concatenate(((0, 0, 0, 0, 0, 0), sb)).reshape(1, -1),
-                        output))
-    shapetxt0 = "_".join([f'{i:04d}' for i in sres])
-    np.save(f"{prefix}_{shapetxt0}", output)
+    np.save(outf, output)
 
 
 def imshow(ax, im, **kwargs):
-    ax.imshow(np.flip(im, 1).T, **kwargs)
+    ax.imshow(im.T, origin='lower', **kwargs)
     ax.set_xticks([])
     ax.set_yticks([])
 
@@ -115,6 +124,7 @@ def mk_img_setup(lums, decades=7, maxl=-1, figsize=[20, 10]):
     fig, ax = plt.subplots(1, 1, figsize=figsize)
     norm = Normalize(vmin=-decades + maxl, vmax=maxl)
     lev = np.linspace(-decades + maxl, maxl, 200)
+    ax.set(xlim=(-1, 1), ylim=(-1, 1))
     return lums, fig, ax, norm, lev
 
 
@@ -127,27 +137,12 @@ def mk_img_uv(lums, uv, decades=7, maxl=-1, colors='viridis', mark=True):
     return fig, ax
 
 
-def mk_img_fish(lums, uv, decades=7, maxl=-1, colors='viridis', mark=True):
-    lums, fig, ax, norm, lev = mk_img_setup(lums, decades=decades, maxl=maxl)
-    d = uv[:, 0] > 1
-    dn = np.logical_not(d)
-    uv = translate.uv2xy(uv)
-    uv[d, 0] += 2
-    ax.tricontourf(uv[d,0], uv[d,1], lums[d], cmap=colors, norm=norm,
-                   levels=lev, extend='both')
-    ax.tricontourf(uv[dn, 0], uv[dn, 1], lums[dn], cmap=colors, norm=norm,
-                   levels=lev, extend='both')
-    if mark:
-        ax.plot(uv[:, 0], uv[:, 1], 'or')
-    return fig, ax
-
-
 def mk_img(lums, uv, decades=7, maxl=-1, colors='viridis', mark=True,
-           figsize=[10, 10]):
+           figsize=[10, 10], inclmarks=None):
     lums, fig, ax, norm, lev = mk_img_setup(lums, decades=decades, maxl=maxl,
                                             figsize=figsize)
     ax.tricontourf(uv[:, 0], uv[:, 1], lums, cmap=colors, norm=norm,
                    levels=lev, extend='both')
     if mark:
-        ax.scatter(uv[:, 0], uv[:, 1], s=1, marker='o', c='red')
+        ax.scatter(uv[:inclmarks, 0], uv[:inclmarks, 1], s=1, marker='o', c='red')
     return fig, ax

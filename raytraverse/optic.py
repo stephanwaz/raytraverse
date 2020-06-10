@@ -37,37 +37,40 @@ def rgb2rad(rgb):
 
 
 def rgb2lum(rgb):
+    """calculate luminance from radiance primaries
+
+    Parameters
+    ----------
+    rgb: np.array
+        array of shape (N, 3) contain radiance color primaries
+
+    Returns
+    -------
+    np.array
+        shape (N,) luminance (cd/m^2)
+
+    """
     return np.einsum('ij,j', rgb, [47.435, 119.93, 11.635])
 
 
-def calc_illum(sensor, rays, omegas, lum, normalize_omega=True):
+def calc_illum(sensor, rays, omegas, lum):
     """calculate illuminance from a collection of rays
 
     Parameters
     ----------
     sensor: array like
-        x,y,z,dx,dy,dz for sensor location
+        dx,dy,dz of sensor direction (normalized)
     rays: np.array (N, 3)
-        direction vectors corresponding to omegas/luminances
+        direction vectors corresponding to omegas/luminances (normalized)
     omegas: np.array (N,)
         unnormalized solid angles
     lum: np.array (d, N)
-        luminances of each ray
-    normalize_omega: bool, optional
-            normalize estimated solid angles assuming a hemisphere is returned
-            if Sampler used a subset of spherical sampling this should be set
-            to False
+        luminances of each ray (determines units of outputs)
+
     Returns
     -------
 
     """
     ctheta = np.dot(sensor, rays)
-    if normalize_omega:
-        tom = np.sum(omegas)
-        nc = 2*np.pi/tom
-        if np.abs(np.pi*2 - tom) > np.pi*.1:
-            print("Warning, solid angle estimate off by > 5%! "
-                  f"{tom} =/= {np.pi*2}")
-    else:
-        nc = 1
-    return np.sum(lum * omegas * ctheta, axis=-1) * nc
+    # print(f"{np.sum(omegas*ctheta)/(np.pi):.02%}")
+    return np.sum(lum * omegas * ctheta, axis=-1)

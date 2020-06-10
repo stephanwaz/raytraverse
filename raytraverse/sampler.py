@@ -7,16 +7,11 @@
 # =======================================================================
 
 import os
-import pickle
 import shlex
-import shutil
-from glob import glob
 from subprocess import Popen, PIPE
 from concurrent.futures import ThreadPoolExecutor
 
 import numpy as np
-import matplotlib.pyplot as plt
-from scipy.spatial import cKDTree
 
 from clasp import script_tools as cst
 from raytraverse import translate, optic, io, wavelet
@@ -141,7 +136,7 @@ class Sampler(object):
         uvsize = np.ceil(size/uvpow)*uvpow
         plevels = np.stack([uvsize/2**(uvlevels-i)
                             for i in range(uvlevels+1)])
-        dlevels = np.array([(2**(i+1), 2**i)
+        dlevels = np.array([(2**i*self.scene.view.aspect, 2**i)
                             for i in range(self.idres, dndepth+1, 1)])
         plevels = np.pad(plevels, [(0, dlevels.shape[0] - plevels.shape[0]),
                                    (0, 0)], mode='edge')
@@ -220,6 +215,26 @@ class Sampler(object):
 
     def sky_sample(self, vecs, rcopts='-ab 7 -ad 60000 -as 30000 -lw 1e-7',
                    nproc=12, executable='rcontrib_pm', bwidth=1000):
+        """call rendering engine to sample sky contribution
+
+        Parameters
+        ----------
+        vecs: np.array
+            shape (N, 6) vectors to calculate contributions for
+        rcopts: str, optional
+            option string to send to executable
+        nproc: int, optional
+            number of processes executable should use
+        executable: str, optional
+            rendering engine binary
+        bwidth: int, optional
+            if using photon mapping, the bandwidth parameter
+
+        Returns
+        -------
+        lum: np.array
+            array of shape (N, binnumber) with sky coefficients
+        """
         fdr = self.scene.outdir
         if self.skypmap:
             rcopts += f' -ab -1 -ap {fdr}/sky.gpm {bwidth}'
@@ -232,10 +247,26 @@ class Sampler(object):
               f"-m skyglow {octr}")
         p = Popen(shlex.split(rc), stdout=PIPE,
                   stdin=PIPE).communicate(io.np2bytes(vecs))
-        lum = optic.rgb2lum(io.bytes2np(p[0], (-1, 3)))
+        lum = optic.rgb2rad(io.bytes2np(p[0], (-1, 3)))
         return lum.reshape(-1, side**2)
 
     def sample_idx(self, pdraws, upsample=True):
+        """generate samples vectors from flat draw indices
+
+        Parameters
+        ----------
+        pdraws: np.array
+            flat index positions of samples to generate
+        upsample: bool, optional
+            if the draws should be sampled to next level
+
+        Returns
+        -------
+        si: np.array
+            index array of draws matching samps.shape
+        vecs: np.array
+            sample vectors
+        """
         shape = self.current_level[0:4]
         # index assignment
         # scale and repeat if upsampling
@@ -253,27 +284,54 @@ class Sampler(object):
             si = np.stack(np.unravel_index(pdraws, shape))
         # convert to UV directions and positions
         uv = si.T[:, 2:]/shape[3]
-        pos = self.scene.area.uv2pt(si.T[:, 0:2] + .5)
+        pos = self.scene.area.uv2pt((si.T[:, 0:2] + .5)/shape[0:2])
         uv += np.random.random(uv.shape)/shape[2]
-        # xyz = self.scene.view.uv2xyz(uv)
-        xyz = translate.uv2xyz(uv, axes=(0, 2, 1))
+        xyz = self.scene.view.uv2xyz(uv)
+        # xyz = translate.uv2xyz(uv, axes=(0, 2, 1))
         vecs = np.hstack((pos, xyz))
         return si, vecs
 
     def dump(self, vecs, vals, wait=False):
-        prefix = f'{self.scene.outdir}/sky'
+        """save values to file
+        see io.write_npy
+
+        Parameters
+        ----------
+        vecs: np.array
+            rays to write
+        vals: np.array
+            values to write
+        wait: bool, optional
+            if false, does not wait for files to write before returning
+
+        Returns
+        -------
+        None
+        """
+        outf = f'{self.scene.outdir}/sky_{self.idx}'
         if wait:
-            return io.write_npy(vecs, vals, self.current_level, prefix)
+            return io.write_npy(vecs, vals, outf)
         else:
             executor = ThreadPoolExecutor()
-            return executor.submit(io.write_npy, vecs, vals,
-                                   self.current_level, prefix)
+            return executor.submit(io.write_npy, vecs, vals, outf)
 
     def draw(self, samps):
-        # detail is calculated across position and direction seperately and
-        # combined by product (would be summed otherwise) to avoid drowning out
-        # the signal in the more precise dimensions (assuming a mismatch in step
-        # size and final stopping criteria
+        """draw samples based on detail calculated from samps
+        detail is calculated across position and direction seperately and
+        combined by product (would be summed otherwise) to avoid drowning out
+        the signal in the more precise dimensions (assuming a mismatch in step
+        size and final stopping criteria
+
+        Parameters
+        ----------
+        samps: np.array
+            shape self.current_level[0:4]
+
+        Returns
+        -------
+        pdraws: np.array
+            index array of flattened samps chosed to sample at next level
+        """
         p = np.ones(samps.size)
         self.idx += 1
         dres = self.current_level[2:4]
@@ -283,9 +341,9 @@ class Sampler(object):
             daxes = tuple(range(len(pres), len(pres) + len(dres)))
             p = p*wavelet.get_detail(samps, daxes)
         # position detail
-        if pres[0] > samps.shape[0]:
-            paxes = tuple(range(len(pres)))
-            p = p*wavelet.get_detail(samps, paxes)
+        # if pres[0] > samps.shape[0]:
+        #     paxes = tuple(range(len(pres)))
+        #     p = p*wavelet.get_detail(samps, paxes)
 
         p = p*(1 - self._sample_t) + np.median(p)*self._sample_t
         # draw on pdf
@@ -294,6 +352,14 @@ class Sampler(object):
         return pdraws
 
     def run(self, **skwargs):
+        """execute sampler
+
+        Parameters
+        ----------
+        skwargs
+            keyword arguments passed to self.sky_sample
+
+        """
         allc = 0
         samps = np.zeros(self.current_level[0:4])
         dumps = []
@@ -314,12 +380,6 @@ class Sampler(object):
             # samps[tuple(si)] = np.max(lum, 1)
             samps[tuple(si)] = np.sum(lum, 1)
             a = lum.size
-            fig, axes = plt.subplots(1, 1, figsize=[20, 10])
-            io.imshow(axes, np.log10(samps[-1, -1]/179), cmap=plt.cm.viridis,
-                      vmin=-5,
-                      vmax=0)
-            plt.tight_layout()
-            plt.savefig(f"{self.idx}.png")
             allc += a
         print("--------------------------------------")
         srate = allc/(samps.size*skbins)

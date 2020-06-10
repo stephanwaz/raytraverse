@@ -55,7 +55,7 @@ def test_mkpmap(tmpdir, scene):
 def test_sky_sample(tmpdir, scene):
     sampler = Sampler(scene)
     lum = sampler.sky_sample(np.array([[5, 5, 1.25, 0, -1, 0]]))
-    assert lum.size == 400 and np.sum(lum) > .05
+    assert lum.size == 400 and np.sum(lum) > .05/179
 
 
 def test_sample_idx(tmpdir, scene):
@@ -67,10 +67,3 @@ def test_sample_idx(tmpdir, scene):
     si, vecs = sampler.sample_idx(np.random.choice(np.arange(l1), 10))
     assert vecs.shape[0] == 10*np.prod(np.prod(sampler.levels[2, 0:4]))/np.prod(l1)
 
-
-def test_mktree(tmpdir):
-    scene = Scene('test.oct', 'plane.rad', 'test_run', wea='geneva.epw',
-                  reload=True)
-    sampler = Sampler(scene, ipres=1, ptres=2, minrate=.01)
-    s = sampler.mktree()
-    assert s is None

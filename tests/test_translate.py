@@ -33,16 +33,6 @@ def test_norm(thetas):
     assert np.allclose(translate.norm(xyz), xyz)
 
 
-def test_arrray2uv():
-    ar = np.zeros((1, 1, 10, 5, 10, 10))
-    uv = translate.array2uv(ar, 2, 3)
-    ari = translate.uv2ij(uv, (10, 5))
-    uv2 = translate.bin2uv(np.arange(50), (10,5))
-    assert np.allclose(uv, uv2)
-    assert np.allclose(np.arange(50), translate.uv2bin(uv, (10, 5)))
-    assert np.allclose(uv, ari/5 + .1)
-
-
 def test_xyz2uv(thetas):
     xyz = translate.tp2xyz(thetas)
     uv = translate.xyz2uv(xyz, normalize=True)
@@ -66,25 +56,32 @@ def test_tp2xyz(thetas):
     assert np.allclose(thetas, theta2)
 
 
-def test_rotate(thetas):
-    thetas = translate.tpnorm(thetas)
-    xyz = translate.tp2xyz(thetas)
-    rxyz = translate.rotate(xyz, (1, .3434, .44), (1, -1, 0))
-    bxyz = translate.rotate(rxyz, (1, -1, 0), (1, .3434, .44))
-    assert np.allclose(xyz, bxyz)
-    nxyz = translate.rotate(xyz, (1, .3434, .44), (1, .3434, .44))
-    assert np.allclose(xyz, nxyz)
-    oxyz = translate.rotate(xyz, (1, 0, 0), (-1, 0, 0))
-    xyz[:, (0, 1)] *= -1
-    assert np.allclose(xyz, oxyz)
-    oxyz = translate.rotate(xyz, (1, .3434, .44), (-1, -.3434, -.44))
-    xyz[:, (0, 1)] *= -1
-    assert np.allclose(xyz, oxyz)
-
-
 def test_chord():
     x = np.linspace(0, 1, 200)
     theta = x*np.pi
     c = translate.theta2chord(theta)
     theta2 = translate.chord2theta(c)
     assert np.allclose(theta, theta2)
+
+
+def test_rmtx_world2std():
+    print('world2std')
+    for z in (-1, 0, 1):
+        for a, b in zip([1, 1, 0, -1, -1, -1, 0, 1], [0, 1, 1, 1, 0, -1, -1, -1]):
+            np.set_printoptions(3, suppress=True)
+            v = translate.norm1([a, b, z])
+            ymtx, pmtx = translate.rmtx_yp(v)
+            t = v.reshape(3, -1)
+            t2 = (pmtx@(ymtx@t))
+            t3 = (ymtx.T@(pmtx.T@t2)).T[0]
+            assert np.allclose((0,0,1), t2.T[0])
+            assert np.allclose(v, t3)
+        v = translate.norm1([0, 0, z])
+        if z == 0:
+            with pytest.raises(ValueError):
+                ymtx, pmtx = translate.rmtx_yp(v)
+        else:
+            ymtx, pmtx = translate.rmtx_yp(v)
+            t = v.reshape(3, -1)
+            assert np.allclose((0, 0, 1), (pmtx@(ymtx@t)).T[0])
+

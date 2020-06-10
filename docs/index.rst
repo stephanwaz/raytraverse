@@ -12,6 +12,7 @@ raytraverse (|release|)
    integrator
    scene
    spacemapper
+   viewmapper
    cli
 
 .. include:: ../README.rst

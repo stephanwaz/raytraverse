@@ -6,11 +6,10 @@ import os
 import shutil
 
 import pytest
-from matplotlib import patches
 from raytraverse import Scene
 import numpy as np
 
-from clipt import mplt
+
 
 
 @pytest.fixture(scope="module")
@@ -51,14 +50,6 @@ def test_skydat(tmpdir):
 def test_solarbounds(tmpdir):
     loc = (46.25, -6.13, -15)
     scene = Scene('test.oct', 'plane.rad', 'results', loc=loc, overwrite=True)
-    # ax, fig = mplt.plot_setup()
-    # j, d = scene.solarbounds
-    # cmap = mplt.get_colors('viridis')
-    # mplt.plot_scatter(fig, ax, [j[:,0], d[:,0]], [j[:,1], d[:,1]], [], cmap)
-    # mplt.ticks(ax)
-    # fig.set_size_inches(10,10)
-    # mplt.plt.tight_layout()
-    # mplt.plt.show()
     assert np.all(np.logical_not(scene.in_solarbounds(np.array([[.5,.5], [1.5,.2], [.5,0]]))))
 
 
@@ -73,15 +64,6 @@ def test_area(tmpdir):
     grid_u, grid_v = np.meshgrid(np.arange(.0005, 1, .001), np.arange(.0005, 1, .001))
     uv = np.vstack((grid_u.flatten(), grid_v.flatten())).T
     ia = scene.in_area(uv)
-    ax, fig = mplt.plot_setup()
-    cmap = mplt.get_colors('viridis')
-    mplt.plot_scatter(fig, ax, [uv[ia,0]], [uv[ia,1]], [], cmap, ms=1, lw=0)
-    mplt.ticks(ax)
-    patch = patches.PathPatch(scene.area.path[0], facecolor='none', lw=2)
-    ax.add_patch(patch)
-    fig.set_size_inches(10,10)
-    mplt.plt.tight_layout()
-    mplt.plt.show()
     area = np.prod(scene.area.bbox[1, 0:2] - scene.area.bbox[0, 0:2])*np.sum(ia)/uv.shape[0]
     assert np.isclose(area, 171, atol=.05)
     assert not scene.in_area(np.array([[1, 1]]))

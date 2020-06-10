@@ -26,7 +26,6 @@ def test_uv2xyz():
     r = vm.uv2xyz([[.5, .5], ])
     r2 = vm.uv2xyz([[0, 0], [1, 1]])
     assert np.allclose(r, vm.dxyz)
-    assert np.allclose(translate.rotate(r2, (.45, .45, -.1), (0,0,1), (0,1,0)), translate.uv2xyz(vm.bbox))
 
 
 def test_xyz2uv():

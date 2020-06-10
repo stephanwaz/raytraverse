@@ -51,6 +51,10 @@ class Scene(object):
             - 'angle' - file format four number per line whitespace seperated
               (altitude, azimuth, direct normal radiation (W/m^2),
               diffuse horizontal radiation (W/m^2))
+    viewdir: (float, float, float), optional
+        vector (x,y,z) view direction (orients UV space)
+    viewangle: float, optional
+        should be 1-180 or 360
     """
 
     def __init__(self, scene, area, outdir, reload=False, overwrite=False,
@@ -84,7 +88,7 @@ class Scene(object):
         self.scene = scene
         self.area = area
         self.reload = False
-        # raytraverse.viewmapper.ViewMapper: view translation class
+        #: raytraverse.viewmapper.ViewMapper: view translation class
         self.view = ViewMapper(viewdir, viewangle)
 
     @property

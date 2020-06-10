@@ -13,9 +13,9 @@ from concurrent.futures import ProcessPoolExecutor
 
 import numpy as np
 import matplotlib.pyplot as plt
-from scipy.spatial import cKDTree
+from scipy.spatial import cKDTree, SphericalVoronoi
 
-from raytraverse import translate, io, optic
+from raytraverse import translate, io, optic, ViewMapper
 
 
 class Integrator(object):
@@ -31,8 +31,7 @@ class Integrator(object):
         first = True
         for lf in datafiles:
             lev = np.load(lf)
-            lev = lev[1:]
-            vecn = lev[:, 0:6]
+            vecn = lev[:, 3:6]
             lum2 = lev[:, 6:]
             if not first:
                 lum = np.vstack((lum, lum2))
@@ -41,10 +40,12 @@ class Integrator(object):
                 first = False
                 lum = lum2
                 vec = vecn
-        kd = cKDTree(vec[:, (0, 1, 3, 4, 5)])
+        kd = cKDTree(vec)
+        voronoi = SphericalVoronoi(vec)
+        omegas = voronoi.calculate_areas()
         skside = int(np.sqrt(lum.shape[-1]))
         lum = lum.reshape(-1, skside, skside)
-        return kd, lum, vec
+        return kd, lum, vec, omegas
 
     def __init__(self, scene, levels, rebuild=False):
         self.scene = scene
@@ -71,12 +72,21 @@ class Integrator(object):
 
     @property
     def lum(self):
-        """scene information
+        """luminance array
 
         :getter: Returns luminance array
         :type: np.array
         """
         return self._lum
+
+    @property
+    def omega(self):
+        """solid angles
+
+        :getter: Returns solid angles
+        :type: np.array
+        """
+        return self._omega
 
     @property
     def vec(self):
@@ -106,14 +116,16 @@ class Integrator(object):
             self._kd = pickle.load(f)
             self._lum = pickle.load(f)
             self._vec = pickle.load(f)
+            self._omega = pickle.load(f)
             f.close()
         else:
             dfiles = glob(f'{self.scene.outdir}/*.npy')
-            self._kd, self._lum, self._vec = self.mk_tree(dfiles)
+            self._kd, self._lum, self._vec, self._omega = self.mk_tree(dfiles)
             f = open(kdfile, 'wb')
             pickle.dump(self._kd, f, protocol=4)
             pickle.dump(self._lum, f, protocol=4)
             pickle.dump(self._vec, f, protocol=4)
+            pickle.dump(self._omega, f, protocol=4)
             f.close()
 
     def query(self, vpts, vdirs, viewangle=180.0, treecnt=30):
@@ -142,19 +154,15 @@ class Integrator(object):
         """
         vdirs = translate.norm(vdirs)
         vs = translate.theta2chord(viewangle/360 * np.pi)
-        try:
-            vpn = np.hstack((vpts[:, 0:2], vdirs))
-        except (ValueError, IndexError):
-            vpts = np.broadcast_to(vpts[0:2], (vdirs.shape[0], 2))
-            vpn = np.hstack((vpts, vdirs))
         if vdirs.shape[0] > treecnt:
-            ptree = cKDTree(vpn)
+            ptree = cKDTree(vdirs)
             idxs = ptree.query_ball_tree(self.kd, vs)
         else:
-            idxs = self.kd.query_ball_point(vpn, vs)
+            idxs = self.kd.query_ball_point(vdirs, vs)
         return vdirs, idxs
 
-    def view(self, vpts, vdirs, decades=4, maxl=0.0, skyvecs=None, treecnt=30):
+    def view(self, vpts, vdirs, decades=4, maxl=0.0, skyvecs=None, treecnt=30,
+             ring=150):
         """generate angular fisheye falsecolor luminance views
 
         Parameters
@@ -172,6 +180,8 @@ class Integrator(object):
         treecnt: int, optional
             number of queries at which a scipy.cKDtree.query_ball_tree is
             used instead of scipy.cKDtree.query_ball_point
+        ring: int, optional
+            add points around perimeter to clean up edge, set to 0 to disable
 
         Returns
         -------
@@ -183,38 +193,34 @@ class Integrator(object):
         else:
             skyvecs = skyvecs.reshape(-1, self.lum.shape[1]**2).T
             lum = (self.lum.reshape(-1, self.lum.shape[1]**2)@skyvecs).T
-        lum = np.log10(lum/179)
-        for i, v in zip(idxs, vdirs):
-            xyz = translate.rotate(self.vec[i, 3:], v, (0, 1, 0))
-            vec = translate.xyz2xy(xyz, axes=(0, 2, 1))
+        lum = np.log10(lum)
+        vm = ViewMapper(viewangle=180)
+        if ring > 0:
+            tp = np.stack((np.full(ring, np.pi/2),
+                           np.arange(0,2*np.pi, 2*np.pi/ring))).T
+            rvecs = translate.tp2xyz(tp)
+            rxy = translate.xyz2xy(rvecs)
+        for k, (i, v) in enumerate(zip(idxs, vdirs)):
+            vm.dxyz = v
+            vec = vm.xyz2xy(self.vec[i])
+            if ring > 0:
+                trvecs = vm.view2world(rvecs)
+                d, tri = self.kd.query(trvecs)
+                vec = np.vstack((vec, rxy))
+                vi = np.concatenate((i, tri))
+            else:
+                vi = i
             for j in range(lum.shape[0]):
-                io.mk_img(lum[j, i], vec, decades=decades, maxl=maxl, mark=True)
-        plt.show()
+                try:
+                    fig, ax = io.mk_img(lum[j, vi], vec, inclmarks=len(i),
+                                        decades=decades, maxl=maxl, mark=True)
+                    fig.suptitle(f"{v}")
+                    plt.savefig(f"{k}_{j}.png")
+                    plt.close(fig)
+                except ValueError:
+                    pass
 
-    def calc_omega(self):
-        """calculate solid angle of each ray in self.vec
-
-        Returns
-        -------
-        omegas: np.array
-            estimated solid angles normalized to sphere (should be renormalized
-            when subsampling, ie illuminance hemisphere)
-        """
-        d, i = self.kd.query(self.kd.data, 4)
-        thetas = translate.chord2theta(np.average(d[:,1:], 1))
-        # xyz = self.vec[i[:, 1:], 3:]
-        # ab = xyz[:, 1, :] - xyz[:, 0, :]
-        # ac = xyz[:, 2, :] - xyz[:, 0, :]
-        # omegas = np.linalg.norm(np.cross(ab, ac), axis=1)/2
-        omegas = 2*np.pi * (1 - np.cos(thetas))/2
-        tom = np.sum(omegas)
-        if np.abs(np.pi*4 - tom) > np.pi*.2:
-            print("Warning, solid angle estimate off by > 5%! "
-                  f"{tom} =/= {np.pi*4}")
-        return omegas * 4*np.pi / tom
-
-    def illum(self, vpts, vdirs, skyvecs=None, treecnt=30,
-              normalize_omega=True):
+    def illum(self, vpts, vdirs, skyvecs=None, treecnt=30):
         """calculate illuminance for given sensor locations and skyvecs
 
         Parameters
@@ -228,10 +234,6 @@ class Integrator(object):
         treecnt: int, optional
             number of queries at which a scipy.cKDtree.query_ball_tree is
             used instead of scipy.cKDtree.query_ball_point
-        normalize_omega: bool, optional
-            normalize estimated solid angles assuming a hemisphere is returned
-            if Sampler used a subset of spherical sampling this should be set
-            to False
 
         Returns
         -------
@@ -244,9 +246,8 @@ class Integrator(object):
         else:
             skyvecs = skyvecs.reshape(-1, self.lum.shape[1]**2).T
             lum = (self.lum.reshape(-1, self.lum.shape[1]**2) @ skyvecs).T
-        omegas = self.calc_omega()
         with ProcessPoolExecutor() as executor:
-            futures = [executor.submit(optic.calc_illum, v, self.vec[i, 3:].T,
-                                       omegas[i], lum[:, i], normalize_omega)
+            futures = [executor.submit(optic.calc_illum, v, self.vec[i].T,
+                                       self.omega[i], lum[:, i])
                        for i, v in zip(idxs, vdirs)]
         return np.stack([future.result() for future in futures])
