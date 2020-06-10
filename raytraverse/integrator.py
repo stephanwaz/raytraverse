@@ -26,26 +26,6 @@ class Integrator(object):
     scene: raytraverse.scene.Scene
         scene class containing geometry, location and analysis plane
     """
-    @staticmethod
-    def mk_tree(datafiles):
-        first = True
-        for lf in datafiles:
-            lev = np.load(lf)
-            vecn = lev[:, 3:6]
-            lum2 = lev[:, 6:]
-            if not first:
-                lum = np.vstack((lum, lum2))
-                vec = np.vstack((vec, vecn))
-            else:
-                first = False
-                lum = lum2
-                vec = vecn
-        kd = cKDTree(vec)
-        voronoi = SphericalVoronoi(vec)
-        omegas = voronoi.calculate_areas()
-        skside = int(np.sqrt(lum.shape[-1]))
-        lum = lum.reshape(-1, skside, skside)
-        return kd, lum, vec, omegas
 
     def __init__(self, scene, levels, rebuild=False):
         self.scene = scene
@@ -53,7 +33,7 @@ class Integrator(object):
         self.levels = levels
         #: bool: force rebuild kd-tree
         self.rebuild = rebuild
-        self.kd = scene.outdir
+        self.pt_kd = scene.outdir
 
     @property
     def scene(self):
@@ -72,61 +52,109 @@ class Integrator(object):
 
     @property
     def lum(self):
-        """luminance array
+        """luminance arrays grouped by point
 
         :getter: Returns luminance array
-        :type: np.array
+        :type: list of np.array
         """
         return self._lum
 
     @property
     def omega(self):
-        """solid angles
+        """solid angles grouped by point
 
         :getter: Returns solid angles
-        :type: np.array
+        :type: list of np.array
         """
         return self._omega
 
     @property
     def vec(self):
-        """scene information
+        """direction vectors grouped by point
 
         :getter: Returns vector array
-        :type: np.array
+        :type: list of np.array
         """
         return self._vec
 
     @property
-    def kd(self):
-        """scene information
+    def d_kd(self):
+        """list of direction kdtrees
+
+        :getter: Returns kd tree structure
+        :type: list of scipy.spatial.cKDTree
+        """
+        return self._d_kd
+
+    @property
+    def pt_kd(self):
+        """point kdtree
 
         :getter: Returns kd tree structure
         :setter: Set this integrator's kd tree and scene data
         :type: scipy.spatial.cKDTree
         """
-        return self._kd
+        return self._pt_kd
 
-    @kd.setter
-    def kd(self, outdir):
+    @pt_kd.setter
+    def pt_kd(self, outdir):
         """Set this integrator's kd tree and scene data"""
         kdfile = f'{outdir}/kd_data.pickle'
         if os.path.isfile(kdfile) and not self.rebuild:
             f = open(kdfile, 'rb')
-            self._kd = pickle.load(f)
+            self._pt_kd = pickle.load(f)
+            self._d_kd = pickle.load(f)
             self._lum = pickle.load(f)
             self._vec = pickle.load(f)
             self._omega = pickle.load(f)
             f.close()
         else:
             dfiles = glob(f'{self.scene.outdir}/*.npy')
-            self._kd, self._lum, self._vec, self._omega = self.mk_tree(dfiles)
+            self._pt_kd, self._d_kd, self._lum, self._vec, self._omega = self.mk_tree(dfiles)
             f = open(kdfile, 'wb')
-            pickle.dump(self._kd, f, protocol=4)
-            pickle.dump(self._lum, f, protocol=4)
-            pickle.dump(self._vec, f, protocol=4)
-            pickle.dump(self._omega, f, protocol=4)
+            pickle.dump(self.pt_kd, f, protocol=4)
+            pickle.dump(self.d_kd, f, protocol=4)
+            pickle.dump(self.lum, f, protocol=4)
+            pickle.dump(self.vec, f, protocol=4)
+            pickle.dump(self.omega, f, protocol=4)
             f.close()
+
+    def mk_tree(self, datafiles):
+        first = True
+        for lf in datafiles:
+            lev = np.load(lf)
+            if not first:
+                samps = np.vstack((samps, lev))
+            else:
+                first = False
+                samps = lev
+        samps = samps[samps[:,0].argsort()]
+        pidx = samps[:, 0]
+        pts = self.pts()
+        pt_div = np.searchsorted(pidx, np.arange(len(pts)), side='right')
+        pt_kd = cKDTree(pts)
+        d_kd = [None]*pts.shape[0]
+        vecs = [None]*pts.shape[0]
+        lums = [None]*pts.shape[0]
+        omegas = [None]*pts.shape[0]
+        skside = int(np.sqrt(samps.shape[1] - 4))
+        pt0 = 0
+        for i, pt in enumerate(pt_div):
+            d_kd[i] = cKDTree(samps[pt0:pt, 1:4])
+            vecs[i] = samps[pt0:pt, 1:4]
+            omegas[i] = SphericalVoronoi(samps[pt0:pt, 1:4]).calculate_areas()
+            lums[i] = samps[pt0:pt, 4:].reshape(-1, skside, skside)
+            pt0 = pt
+        return pt_kd, d_kd, lums, vecs, omegas
+
+    def idx2pt(self, idx):
+        shape = self.levels[-1, 0:2]
+        si = np.stack(np.unravel_index(idx, shape)).T
+        return self.scene.area.uv2pt((si + .5)/shape)
+
+    def pts(self):
+        shape = self.levels[-1, 0:2]
+        return self.idx2pt(np.arange(np.product(shape)))
 
     def query(self, vpts, vdirs, viewangle=180.0, treecnt=30):
         """gather all rays from a point within a view cone
@@ -153,13 +181,21 @@ class Integrator(object):
 
         """
         vdirs = translate.norm(vdirs)
-        vs = translate.theta2chord(viewangle/360 * np.pi)
-        if vdirs.shape[0] > treecnt:
-            ptree = cKDTree(vdirs)
-            idxs = ptree.query_ball_tree(self.kd, vs)
-        else:
-            idxs = self.kd.query_ball_point(vdirs, vs)
-        return vdirs, idxs
+        vs = translate.theta2chord(viewangle/360*np.pi)
+        treedir = vdirs.shape[0] > treecnt
+        if treedir:
+            dtree = cKDTree(vdirs)
+        with ProcessPoolExecutor() as executor:
+            perrs, pis = zip(*executor.map(self.pt_kd.query, vpts))
+            # print(pidxs, perr, self.idx2pt(pidxs))
+            futures = []
+            for perr, pi in zip(perrs, pis):
+                if treedir:
+                    futures.append(executor.submit(dtree.query_ball_tree, self.d_kd[pi], vs))
+                else:
+                    futures.append(executor.submit(self.d_kd[pi].query_ball_point, vdirs, vs))
+        idxs = [future.result() for future in futures]
+        return perrs, pis, idxs
 
     def view(self, vpts, vdirs, decades=4, maxl=0.0, skyvecs=None, treecnt=30,
              ring=150):
@@ -187,38 +223,41 @@ class Integrator(object):
         -------
 
         """
-        vdirs, idxs = self.query(vpts, vdirs, treecnt=treecnt)
+        perrs, pis, idxs = self.query(vpts, vdirs, treecnt=treecnt)
         if skyvecs is None:
-            lum = np.sum(self.lum, (1, 2)).reshape(1, -1)
+            lum = [np.sum(self.lum[pi], (1, 2)).reshape(1, -1) for pi in pis]
         else:
-            skyvecs = skyvecs.reshape(-1, self.lum.shape[1]**2).T
-            lum = (self.lum.reshape(-1, self.lum.shape[1]**2)@skyvecs).T
-        lum = np.log10(lum)
+            skyvecs = skyvecs.reshape(-1, self.lum[pis[0]].shape[1]**2).T
+            lum = [(self.lum[pi].reshape(-1, self.lum.shape[1]**2)@skyvecs).T for pi in pis]
+        lum = [np.log10(l) for l in lum]
         vm = ViewMapper(viewangle=180)
         if ring > 0:
             tp = np.stack((np.full(ring, np.pi/2),
                            np.arange(0,2*np.pi, 2*np.pi/ring))).T
             rvecs = translate.tp2xyz(tp)
             rxy = translate.xyz2xy(rvecs)
-        for k, (i, v) in enumerate(zip(idxs, vdirs)):
+        for k, v in enumerate(vdirs):
             vm.dxyz = v
-            vec = vm.xyz2xy(self.vec[i])
             if ring > 0:
                 trvecs = vm.view2world(rvecs)
-                d, tri = self.kd.query(trvecs)
-                vec = np.vstack((vec, rxy))
-                vi = np.concatenate((i, tri))
-            else:
-                vi = i
-            for j in range(lum.shape[0]):
-                try:
-                    fig, ax = io.mk_img(lum[j, vi], vec, inclmarks=len(i),
-                                        decades=decades, maxl=maxl, mark=True)
-                    fig.suptitle(f"{v}")
-                    plt.savefig(f"{k}_{j}.png")
-                    plt.close(fig)
-                except ValueError:
-                    pass
+                d, tri = self.d_kd.query(trvecs)
+            for li, (perr, pi, idx) in enumerate(zip(perrs, pis, idxs)):
+                vec = vm.xyz2xy(self.vec[pi][idx[k]])
+                if ring > 0:
+                    vec = np.vstack((vec, rxy))
+                    vi = np.concatenate((idx[k], tri))
+                else:
+                    vi = idx[k]
+                for j in range(lum[li].shape[0]):
+                    try:
+                        fig, ax = io.mk_img(lum[li][j, vi], vec,
+                                            decades=decades, maxl=maxl, mark=True)
+                        ax.set(xlim=(-.5, .5), ylim=(-.5, .5))
+                        fig.suptitle(f"{self.idx2pt([pi])} {v}")
+                        plt.savefig(f'{pi}_{k}_{j}.png')
+                        plt.close(fig)
+                    except ValueError:
+                        pass
 
     def illum(self, vpts, vdirs, skyvecs=None, treecnt=30):
         """calculate illuminance for given sensor locations and skyvecs

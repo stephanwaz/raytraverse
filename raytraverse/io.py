@@ -93,11 +93,13 @@ def bytefile2np(f, shape, dtype='<f'):
     return bytes2np(f.read(), shape, dtype)
 
 
-def write_npy(vecs, vals, outf):
+def write_npy(ptidx, vecs, vals, outf):
     """write vectors and values to numpy binary file
 
     Parameters
     ----------
+    ptidx: np.array
+        shape (N,) point indices
     vecs: np.array
         shape (N, 6), x,y,z,dx,dy,dz
     vals: np.array
@@ -109,7 +111,7 @@ def write_npy(vecs, vals, outf):
     -------
     None
     """
-    output = np.vstack((vecs.T, vals.T)).T
+    output = np.vstack((ptidx.reshape(1, -1), vecs.T, vals.T)).T
     np.save(outf, output)
 
 

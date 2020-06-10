@@ -134,7 +134,7 @@ class Sampler(object):
         uvlevels = np.floor(np.log2(np.max(size)/self.ipres)).astype(int)
         uvpow = 2**uvlevels
         uvsize = np.ceil(size/uvpow)*uvpow
-        plevels = np.stack([uvsize/2**(uvlevels-i)
+        plevels = np.stack([uvsize #/2**(uvlevels-i)
                             for i in range(uvlevels+1)])
         dlevels = np.array([(2**i*self.scene.view.aspect, 2**i)
                             for i in range(self.idres, dndepth+1, 1)])
@@ -291,14 +291,16 @@ class Sampler(object):
         vecs = np.hstack((pos, xyz))
         return si, vecs
 
-    def dump(self, vecs, vals, wait=False):
+    def dump(self, ptidx, vecs, vals, wait=False):
         """save values to file
         see io.write_npy
 
         Parameters
         ----------
+        ptidx: np.array
+            point indices
         vecs: np.array
-            rays to write
+            ray directions to write
         vals: np.array
             values to write
         wait: bool, optional
@@ -310,10 +312,10 @@ class Sampler(object):
         """
         outf = f'{self.scene.outdir}/sky_{self.idx}'
         if wait:
-            return io.write_npy(vecs, vals, outf)
+            return io.write_npy(ptidx, vecs, vals, outf)
         else:
             executor = ThreadPoolExecutor()
-            return executor.submit(io.write_npy, vecs, vals, outf)
+            return executor.submit(io.write_npy, ptidx, vecs, vals, outf)
 
     def draw(self, samps):
         """draw samples based on detail calculated from samps
@@ -351,6 +353,24 @@ class Sampler(object):
         pdraws = np.random.choice(p.size, nsampc, replace=False, p=p/np.sum(p))
         return pdraws
 
+    def print_sample_cnt(self):
+        an = 0
+        for i, l in enumerate(self.levels):
+            x = i/(self.levels.shape[0] - 1)
+            a = int(wavelet.get_sample_rate(x, self.minrate)*np.product(l[0:4]))
+            an += a
+            print(l, a)
+        print("total", an)
+
+    def idx2pt(self, idx):
+        shape = self.levels[-1, 0:2]
+        si = np.stack(np.unravel_index(idx, shape)).T
+        return self.scene.area.uv2pt((si + .5)/shape)
+
+    def pts(self):
+        shape = self.levels[-1, 0:2]
+        return self.idx2pt(np.arange(np.product(shape)))
+
     def run(self, **skwargs):
         """execute sampler
 
@@ -373,10 +393,11 @@ class Sampler(object):
                 samps = translate.resample(samps, self.current_level[0:4])
                 upsample = True
             si, vecs = self.sample_idx(draws, upsample=upsample)
+            ptidx = np.ravel_multi_index((si[0], si[1]), self.current_level[0:2])
             srate = si.shape[1]/np.prod(self.current_level[0:4])
             print(f"{self.current_level} sampling: {si.shape[1]}\t{srate:.02%}")
             lum = self.sky_sample(vecs, **skwargs)
-            dumps.append(self.dump(vecs, lum))
+            dumps.append(self.dump(ptidx, vecs[:, 3:], lum))
             # samps[tuple(si)] = np.max(lum, 1)
             samps[tuple(si)] = np.sum(lum, 1)
             a = lum.size
