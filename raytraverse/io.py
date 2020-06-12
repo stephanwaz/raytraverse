@@ -148,7 +148,7 @@ def mk_img_uv(lums, uv, decades=7, maxl=-1, colors='viridis', mark=True):
 
 
 def mk_img(lums, uv, decades=7, maxl=-1, colors='viridis', mark=True,
-           figsize=[10, 10], inclmarks=None, ext=1):
+           figsize=[10, 10], inclmarks=None, ext=1, title=None, outf=None):
     lums, fig, ax, norm, lev = mk_img_setup(lums, decades=decades, maxl=maxl,
                                             figsize=figsize, ext=ext)
     ax.tick_params(length=10, width=.5, direction='inout', pad=5)
@@ -164,4 +164,12 @@ def mk_img(lums, uv, decades=7, maxl=-1, colors='viridis', mark=True,
     if mark:
         ax.scatter(uv[:inclmarks, 0], uv[:inclmarks, 1], s=10, marker='o',
                    facecolors='none', edgecolors='w', linewidths=.5)
-    return fig, ax
+    if title is not None:
+        ax.set_title(title)
+    plt.tight_layout()
+    if outf is None:
+        plt.show()
+    else:
+        plt.savefig(outf)
+    plt.close(fig)
+    return outf

@@ -262,3 +262,15 @@ def theta2chord(theta):
         chord or euclidean distance between normalized direction vectors
     """
     return 2*np.sin(theta/2)
+
+
+def mkring(viewangle, ring):
+    if ring > 0:
+        tp = np.stack((np.full(ring, viewangle*np.pi/360),
+                       np.arange(0, 2*np.pi, 2*np.pi/ring))).T
+        rvecs = tp2xyz(tp)
+        rxy = xyz2xy(rvecs)
+    else:
+        rvecs = np.zeros((1, 3))
+        rxy = np.zeros((1, 2))
+    return rvecs, rxy
