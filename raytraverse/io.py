@@ -10,6 +10,7 @@
 """functions for reading and writing SortedArRays"""
 import numpy as np
 import matplotlib.pyplot as plt
+from matplotlib import rcParams
 from matplotlib.colors import Normalize
 
 
@@ -121,12 +122,19 @@ def imshow(ax, im, **kwargs):
     ax.set_yticks([])
 
 
-def mk_img_setup(lums, decades=7, maxl=-1, figsize=[20, 10]):
+def mk_img_setup(lums, decades=7, maxl=-1, figsize=[20, 10], ext=1):
+    defparam = {
+        'font.weight': 'ultralight',
+        'font.family': 'sans-serif',
+        'font.size': 15,
+        'axes.linewidth': 0,
+        }
+    rcParams.update(defparam)
     lums = np.where(np.isfinite(lums), lums, -decades + maxl)
     fig, ax = plt.subplots(1, 1, figsize=figsize)
     norm = Normalize(vmin=-decades + maxl, vmax=maxl)
     lev = np.linspace(-decades + maxl, maxl, 200)
-    ax.set(xlim=(-1, 1), ylim=(-1, 1))
+    ax.set(xlim=(-ext, ext), ylim=(-ext, ext))
     return lums, fig, ax, norm, lev
 
 
@@ -140,11 +148,20 @@ def mk_img_uv(lums, uv, decades=7, maxl=-1, colors='viridis', mark=True):
 
 
 def mk_img(lums, uv, decades=7, maxl=-1, colors='viridis', mark=True,
-           figsize=[10, 10], inclmarks=None):
+           figsize=[10, 10], inclmarks=None, ext=1):
     lums, fig, ax, norm, lev = mk_img_setup(lums, decades=decades, maxl=maxl,
-                                            figsize=figsize)
+                                            figsize=figsize, ext=ext)
+    ax.tick_params(length=10, width=.5, direction='inout', pad=5)
+    ticks = np.linspace(-ext, ext, 7)
+    labs = np.round(np.linspace(-ext*180/np.pi,
+                                            ext*180/np.pi, 7)).astype(int)
+    ax.set_yticks(ticks)
+    ax.set_yticklabels(labs)
+    ax.set_xticks(ticks)
+    ax.set_xticklabels(labs)
     ax.tricontourf(uv[:, 0], uv[:, 1], lums, cmap=colors, norm=norm,
                    levels=lev, extend='both')
     if mark:
-        ax.scatter(uv[:inclmarks, 0], uv[:inclmarks, 1], s=1, marker='o', c='red')
+        ax.scatter(uv[:inclmarks, 0], uv[:inclmarks, 1], s=10, marker='o',
+                   facecolors='none', edgecolors='w', linewidths=.5)
     return fig, ax

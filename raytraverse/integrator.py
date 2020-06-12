@@ -173,11 +173,13 @@ class Integrator(object):
 
         Returns
         -------
-        vdirs: np.array
-            2d array of normalized view directions
-        idxs: list of np.array
-            for each vdir, list contains an array of all idxs in self.kd.data
-            matching the query
+        perrs: list or np.array
+            for each of vpts, the distance to the returned values
+        pis: list np.array
+            for each of vpts, the index of the returned point
+        idxs: list of list of np.array
+            for each of vpts, for each vdir, an array of all idxs in
+            self.kd.data matching the query
 
         """
         vdirs = translate.norm(vdirs)
@@ -185,20 +187,29 @@ class Integrator(object):
         treedir = vdirs.shape[0] > treecnt
         if treedir:
             dtree = cKDTree(vdirs)
-        with ProcessPoolExecutor() as executor:
-            perrs, pis = zip(*executor.map(self.pt_kd.query, vpts))
+        with ProcessPoolExecutor() as exc:
+            perrs, pis = zip(*exc.map(self.pt_kd.query, vpts))
             # print(pidxs, perr, self.idx2pt(pidxs))
             futures = []
             for perr, pi in zip(perrs, pis):
                 if treedir:
-                    futures.append(executor.submit(dtree.query_ball_tree, self.d_kd[pi], vs))
+                    futures.append(exc.submit(dtree.query_ball_tree,
+                                              self.d_kd[pi], vs))
                 else:
-                    futures.append(executor.submit(self.d_kd[pi].query_ball_point, vdirs, vs))
+                    futures.append(exc.submit(self.d_kd[pi].query_ball_point,
+                                              vdirs, vs))
         idxs = [future.result() for future in futures]
         return perrs, pis, idxs
 
+    def apply_skyvecs(self, pis, skyvecs):
+        if skyvecs is None:
+            return [np.sum(self.lum[pi], (1, 2)).reshape(1, -1) for pi in pis]
+        skyvecs = skyvecs.reshape(-1, self.lum[pis[0]].shape[1]**2).T
+        return [(self.lum[pi].reshape(-1, self.lum[pi].shape[1]**2)@skyvecs).T
+                for pi in pis]
+
     def view(self, vpts, vdirs, decades=4, maxl=0.0, skyvecs=None, treecnt=30,
-             ring=150):
+             ring=150, viewangle=180.0):
         """generate angular fisheye falsecolor luminance views
 
         Parameters
@@ -218,21 +229,24 @@ class Integrator(object):
             used instead of scipy.cKDtree.query_ball_point
         ring: int, optional
             add points around perimeter to clean up edge, set to 0 to disable
+        viewangle: float, optional
+            degree opening of view cone
 
         Returns
         -------
 
         """
-        perrs, pis, idxs = self.query(vpts, vdirs, treecnt=treecnt)
-        if skyvecs is None:
-            lum = [np.sum(self.lum[pi], (1, 2)).reshape(1, -1) for pi in pis]
-        else:
-            skyvecs = skyvecs.reshape(-1, self.lum[pis[0]].shape[1]**2).T
-            lum = [(self.lum[pi].reshape(-1, self.lum.shape[1]**2)@skyvecs).T for pi in pis]
-        lum = [np.log10(l) for l in lum]
+        perrs, pis, idxs = self.query(vpts, vdirs, treecnt=treecnt,
+                                      viewangle=viewangle)
+        lum = [np.log10(l) for l in self.apply_skyvecs(pis, skyvecs)]
         vm = ViewMapper(viewangle=180)
+        ext = translate.xyz2xy(translate.tp2xyz(np.array([[viewangle*np.pi/360,
+                                                           np.pi]])))[0, 0]
+        tp = np.stack((np.linspace(0, np.pi/2, 11), np.full(11, np.pi))).T
+        rvecs = translate.tp2xyz(tp)
+        rxy = translate.xyz2xy(rvecs)
         if ring > 0:
-            tp = np.stack((np.full(ring, np.pi/2),
+            tp = np.stack((np.full(ring, viewangle*np.pi/360),
                            np.arange(0,2*np.pi, 2*np.pi/ring))).T
             rvecs = translate.tp2xyz(tp)
             rxy = translate.xyz2xy(rvecs)
@@ -240,10 +254,10 @@ class Integrator(object):
             vm.dxyz = v
             if ring > 0:
                 trvecs = vm.view2world(rvecs)
-                d, tri = self.d_kd.query(trvecs)
             for li, (perr, pi, idx) in enumerate(zip(perrs, pis, idxs)):
                 vec = vm.xyz2xy(self.vec[pi][idx[k]])
                 if ring > 0:
+                    d, tri = self.d_kd[pi].query(trvecs)
                     vec = np.vstack((vec, rxy))
                     vi = np.concatenate((idx[k], tri))
                 else:
@@ -251,9 +265,10 @@ class Integrator(object):
                 for j in range(lum[li].shape[0]):
                     try:
                         fig, ax = io.mk_img(lum[li][j, vi], vec,
-                                            decades=decades, maxl=maxl, mark=True)
-                        ax.set(xlim=(-.5, .5), ylim=(-.5, .5))
-                        fig.suptitle(f"{self.idx2pt([pi])} {v}")
+                                            decades=decades, maxl=maxl,
+                                            mark=True, ext=ext, inclmarks=len(idx[k]))
+                        ax.set_title(f"{self.idx2pt([pi])} {v}")
+                        plt.tight_layout()
                         plt.savefig(f'{pi}_{k}_{j}.png')
                         plt.close(fig)
                     except ValueError:
@@ -279,14 +294,19 @@ class Integrator(object):
         illum: np.array (vdirs.shape[0], skyvecs.shape[0])
             illuminance at each point/direction and sky weighting
         """
-        vdirs, idxs = self.query(vpts, vdirs, treecnt=treecnt)
-        if skyvecs is None:
-            lum = np.sum(self.lum, (1, 2)).reshape(1, -1)
-        else:
-            skyvecs = skyvecs.reshape(-1, self.lum.shape[1]**2).T
-            lum = (self.lum.reshape(-1, self.lum.shape[1]**2) @ skyvecs).T
+        perrs, pis, idxs = self.query(vpts, vdirs, treecnt=treecnt)
+        vdirs = translate.norm(vdirs)
+        lum = self.apply_skyvecs(pis, skyvecs)
+        futures = []
         with ProcessPoolExecutor() as executor:
-            futures = [executor.submit(optic.calc_illum, v, self.vec[i].T,
-                                       self.omega[i], lum[:, i])
-                       for i, v in zip(idxs, vdirs)]
-        return np.stack([future.result() for future in futures])
+            for j in range(lum[0].shape[0]):
+                for li, (perr, pi, idx) in enumerate(zip(perrs, pis, idxs)):
+                    for k, v in enumerate(vdirs):
+                        vec = self.vec[pi][idx[k]]
+                        omega = self.omega[pi][idx[k]]
+                        futures.append(executor.submit(optic.calc_illum, v,
+                                                       vec.T, omega,
+                                                       lum[li][j, idx[k]]))
+        return np.array([fut.result()
+                         for fut in futures]).reshape((skyvecs.shape[1],
+                                                       len(pis), len(vdirs)))
