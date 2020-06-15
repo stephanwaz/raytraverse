@@ -148,7 +148,7 @@ def mk_img_uv(lums, uv, decades=7, maxl=-1, colors='viridis', mark=True):
 
 
 def mk_img(lums, uv, decades=7, maxl=-1, colors='viridis', mark=True,
-           figsize=[10, 10], inclmarks=None, ext=1, title=None, outf=None):
+           figsize=[10, 10], inclmarks=None, ext=1, title=None, outf=None, **kwargs):
     lums, fig, ax, norm, lev = mk_img_setup(lums, decades=decades, maxl=maxl,
                                             figsize=figsize, ext=ext)
     ax.tick_params(length=10, width=.5, direction='inout', pad=5)

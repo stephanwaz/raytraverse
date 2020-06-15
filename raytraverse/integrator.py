@@ -212,7 +212,7 @@ class Integrator(object):
         return lum
 
     def view(self, vpts, vdirs, decades=4, maxl=0.0, skyvecs=None, treecnt=30,
-             ring=150, viewangle=180.0, ringtol=15.0):
+             ring=150, viewangle=180.0, ringtol=15.0, **kwargs):
         """generate angular fisheye falsecolor luminance views
 
         Parameters
@@ -268,9 +268,9 @@ class Integrator(object):
                         vec = np.vstack((vec, rxy[d < ringtol]))
                         vi = np.concatenate((idx[k], tri[d < ringtol]))
                         for j in range(lum[li].shape[0]):
-                            kw = dict(decades=decades, maxl=maxl, mark=True,
+                            kw = dict(decades=decades, maxl=maxl,
                                       inclmarks=len(idx[k]), title=f"{pt} {v}",
-                                      ext=ext, outf=f'{pi}_{k}_{j}.png')
+                                      ext=ext, outf=f'{pi}_{k}_{j}.png', **kwargs)
                             futures.append(exc.submit(io.mk_img, lum[li][j, vi],
                                                       vec, **kw))
         np.set_printoptions(**popts)

@@ -45,6 +45,27 @@ V = (b + 1)/2;
 bin = binl(V, U);
 """)
 
+scxyzcal = """
+x1 = .5;
+x2 = .5;
+
+U = (bin - mod(bin, side)) / 100 + x1/side;
+V = mod(bin, side)/10 + x2/side;
+
+n = if(U - 1, -1, 1);
+ur = if(U - 1, U - 1, U);
+a = 2 * ur - 1;
+b = 2 * V - 1;
+conda = sq(a) - sq(b);
+condb = abs(b) - FTINY;
+r = if(conda, a, if(condb, b, 0));
+phi = if(conda, b/(2*a), if(condb, 1 - a/(2*b), 0)) * PI/2;
+sphterm = r * sqrt(2 - sq(r));
+Dx = n * cos(phi)*sphterm;
+Dy = sin(phi)*sphterm;
+Dz = n * (1 - sq(r));
+"""
+
 
 class Sampler(object):
     """holds scene information and sampling scheme
