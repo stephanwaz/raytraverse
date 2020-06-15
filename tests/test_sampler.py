@@ -47,7 +47,7 @@ def test_cals(tmpdir):
 
 
 def test_genskyvec(tmpdir):
-    result = cst.pipeline(["gendaylit -ang 45 45 -W 900 100 | ./genskyvec.pl"
+    result = cst.pipeline(["gendaylit -ang 45 45 -W 900 100 | genskyvec_sc"
                            " -m 10 -sc -c 1 1 1 | getinfo - | rcalc "
                            "-e '$1=recno-2;cond=$1-1000'"])
     bins = np.array(result.split()).astype(int)
@@ -60,9 +60,9 @@ def test_genskyvec(tmpdir):
 
 
 def test_init(tmpdir, scene):
-    res = np.array([[3,    5,   32,   16,   20,   20],
-                    [6,   10,   64,   32,   20,   20],
-                    [12,   20,  128,   64,   20,   20],
+    res = np.array([[24,    40,   32,   16,   20,   20],
+                    [24,   40,   64,   32,   20,   20],
+                    [24,   40,  128,   64,   20,   20],
                     [24,   40,  256,  128,   20,   20],
                     [24,   40,  512,  256,   20,   20],
                     [24,   40, 1024,  512,   20,   20]])

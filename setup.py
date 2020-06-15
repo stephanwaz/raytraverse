@@ -25,7 +25,7 @@ setup_requirements = ['pytest-runner', ]
 
 test_requirements = ['pytest', ]
 
-data_files = []
+data_files = [('bin', 'raytraverse/genskyvec.pl')]
 package_data = {}
 
 setup(
@@ -43,6 +43,7 @@ setup(
     entry_points={
         'console_scripts': [
             'raytraverse=raytraverse.cli:main',
+            'genskyvec_sc=raytraverse.gsv:main'
         ],
     },
     install_requires=requirements,
