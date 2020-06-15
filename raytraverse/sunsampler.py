@@ -11,35 +11,84 @@ import shlex
 from subprocess import Popen, PIPE
 
 import numpy as np
+# from scipy.ndimage import
 
 from clasp import script_tools as cst
-from raytraverse import optic, io, wavelet, Sampler
+from scipy.interpolate import RectBivariateSpline
+
+from raytraverse import optic, io, wavelet, Sampler, translate
 from raytraverse.sampler import scbinscal
 
 
-class SCBinSampler(Sampler):
-    """sample contributions from the sky hemisphere according to a square grid
-    transformed by shirley-chiu mapping using rcontrib.
+def load_sky_facs(skyb, uvsize):
+    if skyb is None:
+        skyb = np.ones((uvsize, uvsize))
+    elif not isinstance(skyb, np.ndarray):
+        skyb = np.load(skyb)
+    oldc = np.linspace(0, 1, skyb.shape[0])
+    newc = np.linspace(0, 1, uvsize)
+    f = RectBivariateSpline(oldc, oldc, skyb, kx=1, ky=1)
+    return f(newc, newc)
+
+
+class SunSampler(Sampler):
+    """sample contributions from direct suns.
 
     Parameters
     ----------
     scene: raytraverse.scene.Scene
         scene class containing geometry, location and analysis plane
-    srcn: int, optional
-        side of square sky resolution
+    sunres: np.array, path or None, optional
+        np.array (or path to saved np.array) containing sky contribution values
+        to use as probabilty for drawing suns and determining number of suns
+        to calculate, if none, suns are drawn uniformly from sun path of scene
+        and the sunres determines the number.
+    sunres: float, optional
+        minimum average seperation between sources
+    srct: float, optional
+        threshold of sky contribution for determining appropriate srcn
     """
 
-    def __init__(self, scene, srcn=20, **kwargs):
-        #: int: side of square sky resolution
-        self.skres = srcn
-        super(SCBinSampler, self).__init__(scene, srcn=srcn**2, stype='sky',
-                                           **kwargs)
-        #: bool: set to True after call to this.mkpmap
-        self.skypmap = os.path.isfile(f"{scene.outdir}/sky.gpm")
-        self.skydetail = np.zeros(self.srcn)
-        self.mk_sky_files()
+    def __init__(self, scene, skyb=None, sunres=5.0, srct=.01, **kwargs):
+        super(SunSampler, self).__init__(scene, stype='sun',  **kwargs)
+        self.suns = (skyb, sunres, srct)
+        self.mk_sun_files()
 
-    def mk_sky_files(self):
+    @property
+    def suns(self):
+        """holds pdf for importance sampling suns
+
+        :getter: Returns the skydetail array
+        :setter: Set the skydetail array
+        :type: np.array
+        """
+        return self._suns
+
+    @suns.setter
+    def suns(self, skyparams):
+        """set the skydetail array and determine sample count and spacing"""
+        skyb, sunres, srct = skyparams
+        uvsize = int(np.floor(90/sunres)*2)
+        skyb = load_sky_facs(skyb, uvsize)
+        si = np.stack(np.unravel_index(np.arange(skyb.size), skyb.shape))
+        uv = si.T/uvsize
+        ib0 = self.scene.in_solarbounds(uv)
+        ib1 = self.scene.in_solarbounds(uv + np.array([[1, 0]])/uvsize)
+        ib2 = self.scene.in_solarbounds(uv + np.array([[1, 1]])/uvsize)
+        ib3 = self.scene.in_solarbounds(uv + np.array([[0, 1]])/uvsize)
+        ib = (ib0*ib1*ib2*ib3).reshape(skyb.shape)
+        suncount = np.sum(skyb*ib > srct)
+        skyd = wavelet.get_detail(skyb, (0, 1)).reshape(skyb.shape)
+        sb = (skyb + skyd)/np.min(skyb + skyd)
+        sd = (sb * ib).flatten()
+        sdraws = np.random.choice(skyb.size, suncount, replace=False,
+                                  p=sd/np.sum(sd))
+        si = np.stack(np.unravel_index(sdraws, skyb.shape))
+        uv = (si.T + np.random.random(si.T.shape))/uvsize
+        self._suns = translate.uv2xyz(uv)
+
+
+    def mk_sun_files(self):
         skyoct = f'{self.scene.outdir}/{self.stype}.oct'
         if not os.path.isfile(skyoct):
             skydef = ("void light skyglow 0 0 3 1 1 1 skyglow source sky 0 0 4"
@@ -55,45 +104,6 @@ class SCBinSampler(Sampler):
         f = open(f'{self.scene.outdir}/scbins.cal', 'w')
         f.write(scbinscal)
         f.close()
-
-    def mkpmap(self, apo, nproc=12, overwrite=False, nphotons=1e8,
-               executable='mkpmap_dc', opts=''):
-        """makes photon map of skydome with specified photon port modifier
-
-        Parameters
-        ----------
-        apo: str
-            space seperated list of photon port modifiers
-        nproc: int, optional
-            number of processes to run on (the -n option of mkpmap)
-        overwrite: bool, optional
-            if True, passes -fo+ to mkpmap, if false and pmap exists, raises
-            ChildProcessError
-        nphotons: int, optional
-            number of contribution photons
-        executable: str, optional
-            path to mkpmap executable
-        opts: str, optional
-            additional options to feed to mkpmap
-
-        Returns
-        -------
-        str
-            result of getinfo on newly created photon map
-        """
-        apos = '-apo ' + ' -apo '.join(apo.split())
-        if overwrite:
-            force = '-fo+'
-        else:
-            force = '-fo-'
-        fdr = self.scene.outdir
-        cmd = (f'{executable} {opts} -n {nproc} {force} {apos} -apC '
-               f'{fdr}/sky.gpm {nphotons} {fdr}/sky_pm.oct')
-        r, err = cst.pipeline([cmd], caperr=True)
-        if b'fatal' in err:
-            raise ChildProcessError(err.decode(cst.encoding))
-        self.skypmap = True
-        return cst.pipeline([f'getinfo {fdr}/sky.gpm'])
 
     def sample(self, vecs, rcopts='-ab 7 -ad 60000 -as 30000 -lw 1e-7',
                nproc=12, executable='rcontrib_pm', bwidth=1000):

@@ -235,6 +235,26 @@ class Sampler(object):
         pdraws = np.random.choice(p.size, nsampc, replace=False, p=p/np.sum(p))
         return pdraws
 
+    def update_pdf(self, samps, si, lum):
+        """update samps (which holds values used to calculate pdf)
+
+        Parameters
+        ----------
+        samps: np.array
+            array tracking pdf
+        si: np.array
+            multidimensional indices to update
+        lum:
+            values to update with
+
+        """
+        # samps[tuple(si)] = np.max(lum, 1)
+        samps[tuple(si)] = np.sum(lum, 1)
+
+    def save_pdf(self, samps):
+        outf = f'{self.scene.outdir}/{self.stype}_pdf'
+        np.save(outf, samps)
+
     def print_sample_cnt(self):
         an = 0
         for i, l in enumerate(self.levels):
@@ -273,13 +293,13 @@ class Sampler(object):
             print(f"{shape} sampling: {si.shape[1]}\t{srate:.02%}")
             lum = self.sample(vecs, **skwargs)
             dumps.append(self.dump(ptidx, vecs[:, 3:], lum))
-            # samps[tuple(si)] = np.max(lum, 1)
-            samps[tuple(si)] = np.sum(lum, 1)
+            self.update_pdf(samps, si, lum)
             a = lum.shape[0]
             allc += a
         print("--------------------------------------")
         srate = allc/samps.size
         print(f"asamp: {allc}\t{srate:.02%}")
+        self.save_pdf(samps)
         for dump in dumps:
             if dump is None:
                 pass

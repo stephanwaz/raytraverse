@@ -13,7 +13,7 @@ from concurrent.futures import ProcessPoolExecutor
 
 import numpy as np
 from scipy.spatial import cKDTree, SphericalVoronoi
-
+from clasp.click_callbacks import sglob
 from raytraverse import translate, io, optic, ViewMapper
 
 
@@ -24,12 +24,18 @@ class Integrator(object):
     ----------
     scene: raytraverse.scene.Scene
         scene class containing geometry, location and analysis plane
+    rebuild: bool, optional
+        build kd-tree even if one exists
+    prefix: str, optional
+        prefix of data files to integrate
     """
 
-    def __init__(self, scene, rebuild=False):
+    def __init__(self, scene, rebuild=False, prefix='sky'):
         self.scene = scene
         #: bool: force rebuild kd-tree
         self.rebuild = rebuild
+        #: str: prefix of data files from sampler (stype)
+        self.prefix = prefix
         self.pt_kd = scene.outdir
 
     @property
@@ -96,7 +102,7 @@ class Integrator(object):
     @pt_kd.setter
     def pt_kd(self, outdir):
         """Set this integrator's kd tree and scene data"""
-        kdfile = f'{outdir}/kd_data.pickle'
+        kdfile = f'{outdir}/{self.prefix}_kd_data.pickle'
         if os.path.isfile(kdfile) and not self.rebuild:
             f = open(kdfile, 'rb')
             self._pt_kd = pickle.load(f)
@@ -106,7 +112,7 @@ class Integrator(object):
             self._omega = pickle.load(f)
             f.close()
         else:
-            dfiles = glob(f'{self.scene.outdir}/*.npy')
+            dfiles = sglob(f'{self.scene.outdir}/{self.prefix}_[0-9].npy')
             (self._pt_kd, self._d_kd, self._lum,
              self._vec, self._omega) = self.mk_tree(dfiles)
             f = open(kdfile, 'wb')

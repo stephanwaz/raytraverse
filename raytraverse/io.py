@@ -12,6 +12,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib import rcParams
 from matplotlib.colors import Normalize
+from clipt import mplt
 
 
 def np2bytes(ar, dtype='<f'):
@@ -116,10 +117,17 @@ def write_npy(ptidx, vecs, vals, outf):
     np.save(outf, output)
 
 
-def imshow(ax, im, **kwargs):
+def imshow(im, figsize=[10, 10], outf=None, **kwargs):
+    fig, ax = plt.subplots(1, 1, figsize=figsize)
     ax.imshow(im.T, origin='lower', **kwargs)
     ax.set_xticks([])
     ax.set_yticks([])
+    plt.tight_layout()
+    if outf is None:
+        plt.show()
+    else:
+        plt.savefig(outf)
+    plt.close(fig)
 
 
 def mk_img_setup(lums, decades=7, maxl=-1, figsize=[20, 10], ext=1):
@@ -173,3 +181,11 @@ def mk_img(lums, uv, decades=7, maxl=-1, colors='viridis', mark=True,
         plt.savefig(outf)
     plt.close(fig)
     return outf
+
+
+def hist(lums, bins='auto', outf=None, **kwargs):
+    h, binedges = np.histogram(lums.flatten(), bins='auto', **kwargs)
+    print(h, binedges)
+    b = np.repeat(binedges, 2)[1:-1]
+    h = np.repeat(h, 2)
+    mplt.quick_scatter([b], [h], outf=outf)

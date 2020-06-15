@@ -168,6 +168,10 @@ class Scene(object):
     @skydata.setter
     def skydata(self, wea):
         sd = f'{self.outdir}/skydat.txt'
+        try:
+            self.loc = sunpos.get_loc_epw(wea)
+        except ValueError:
+            pass
         if self.reload and os.path.isfile(sd):
             try:
                 self._skydata = np.loadtxt(sd)
@@ -175,8 +179,6 @@ class Scene(object):
                 self._skydata = None
         elif wea is not None:
             if self.weaformat == 'time':
-                if self.loc is None:
-                    self.loc = sunpos.get_loc_epw(wea)
                 wdat = sunpos.read_epw(wea)
                 times = sunpos.row_2_datetime64(wdat[:,0:3])
                 angs = sunpos.sunpos_degrees(times, *self.loc, ro=self.skyro)
