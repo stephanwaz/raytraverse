@@ -6,15 +6,11 @@
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 # =======================================================================
 
-import os
-import shlex
-from subprocess import Popen, PIPE
 from concurrent.futures import ThreadPoolExecutor
 
 import numpy as np
 
-from clasp import script_tools as cst
-from raytraverse import translate, optic, io, wavelet
+from raytraverse import translate, io, wavelet
 
 
 scbinscal = ("""
@@ -68,20 +64,18 @@ Dz = n * (1 - sq(r));
 
 
 class Sampler(object):
-    """holds scene information and sampling scheme
+    """parent sampling class (returns random samples with value == 1)
+
+    overload draw() and sample() to implement
 
     Parameters
     ----------
     scene: raytraverse.scene.Scene
         scene class containing geometry, location and analysis plane
-    ptres: float, optional
-        final spatial resolution in scene geometry units
     dndepth: int, optional
         final directional resolution given as log2(res)
-    skres: int, optional
-        side of square sky resolution (must be even)
-    sunsperpatch: int, optional
-        maximum number of suns per sky patch to sample
+    srcn: int, optional
+        number of sources return per vector by run
     t0: float, optional
         in range 0-1, fraction of uniform random samples taken at first step
     t1: float, optional
@@ -89,34 +83,30 @@ class Sampler(object):
     minrate: float, optional
         in range 0-1, fraction of samples at final step (this is not the total
         sampling rate, which depends on the number of levels).
-    ipres: int, optional
-        minimum position resolution (across maximum length of area)
     idres: int, optional
         initial direction resolution (as log2(res))
+    stype: str, optional
+        sampler type (prefixes output files)
     """
 
-    def __init__(self, scene, ptres=1.0, dndepth=9, skres=20, sunsperpatch=4,
-                 t0=.1, t1=.01, minrate=.05, idres=4, ipres=4):
+    def __init__(self, scene, dndepth=9, srcn=1, t0=.1, t1=.01,
+                 minrate=.05, idres=4, stype='generic'):
         self.scene = scene
-        #: int: minimum position resolution (across maximum length of area)
-        self.ipres = ipres
+        #: int: number of sources return per vector by run
+        self.srcn = srcn
         #: int: initial direction resolution (as log2(res))
         self.idres = idres
-        self.levels = (ptres, dndepth, skres)
-        #: np.array: shape of current sampling level
-        self.current_level = self.levels[0]
-        #: int: maximum number of suns per skypatch
-        self.sunsperpatch = sunsperpatch
+        self.levels = dndepth
         #: float: fraction of uniform random samples taken at first step
         self.t0 = t0
         #: float: fraction of uniform random samples taken at final step
         self.t1 = t1
         #: float: fraction of samples at final step
         self.minrate = minrate
-        #: bool: set to True after call to this.mkpmap
-        self.skypmap = os.path.isfile(f"{scene.outdir}/sky.gpm")
         #: int: index of next level to sample
         self.idx = 0
+        #: str: sampler type
+        self.stype=stype
 
     @property
     def idx(self):
@@ -131,7 +121,6 @@ class Sampler(object):
     @idx.setter
     def idx(self, idx):
         self._idx = idx
-        self.current_level = self.levels[idx]
         x = self.idx/(self.levels.shape[0]-1)
         self._sample_t = wavelet.get_uniform_rate(x, self.t0, self.t1)
         self._sample_rate = wavelet.get_sample_rate(x, self.minrate)
@@ -147,22 +136,10 @@ class Sampler(object):
         return self._levels
 
     @levels.setter
-    def levels(self, res):
+    def levels(self, dndepth):
         """calculate sampling scheme"""
-        ptres, dndepth, skres = res
-        bbox = self.scene.area.bbox[:, 0:2]/ptres
-        size = (bbox[1] - bbox[0])
-        uvlevels = np.floor(np.log2(np.max(size)/self.ipres)).astype(int)
-        uvpow = 2**uvlevels
-        uvsize = np.ceil(size/uvpow)*uvpow
-        plevels = np.stack([uvsize #/2**(uvlevels-i)
-                            for i in range(uvlevels+1)])
-        dlevels = np.array([(2**i*self.scene.view.aspect, 2**i)
-                            for i in range(self.idres, dndepth+1, 1)])
-        plevels = np.pad(plevels, [(0, dlevels.shape[0] - plevels.shape[0]),
-                                   (0, 0)], mode='edge')
-        slevels = np.full(dlevels.shape, skres)
-        self._levels = np.hstack((plevels, dlevels, slevels)).astype(int)
+        self._levels = np.array([(2**i*self.scene.view.aspect, 2**i)
+                                 for i in range(self.idres, dndepth+1, 1)])
 
     @property
     def scene(self):
@@ -178,108 +155,21 @@ class Sampler(object):
     def scene(self, scene):
         """Set this sampler's scene and create sky octree"""
         self._scene = scene
-        skyoct = f'{self.scene.outdir}/sky.oct'
-        if not os.path.isfile(skyoct):
-            skydef = ("void light skyglow 0 0 3 1 1 1 skyglow source sky 0 0 4"
-                      " 0 0 1 180")
-            skydeg = ("void glow skyglow 0 0 4 1 1 1 0 skyglow source sky 0 0 4"
-                       " 0 0 1 180")
-            f = open(skyoct, 'wb')
-            cst.pipeline([f'oconv -i {self.scene.outdir}/scene.oct -'],
-                         inp=skydeg, outfile=f, close=True)
-            f = open(f'{self.scene.outdir}/sky_pm.oct', 'wb')
-            cst.pipeline([f'oconv -i {self.scene.outdir}/scene.oct -'],
-                         inp=skydef, outfile=f, close=True)
-        f = open(f'{self.scene.outdir}/scbins.cal', 'w')
-        f.write(scbinscal)
-        f.close()
 
-    def mkpmap(self, apo, nproc=12, overwrite=False, nphotons=1e8,
-               executable='mkpmap_dc', opts=''):
-        """makes photon map of skydome with specified photon port modifier
-
-        Parameters
-        ----------
-        apo: str
-            space seperated list of photon port modifiers
-        nproc: int, optional
-            number of processes to run on (the -n option of mkpmap)
-        overwrite: bool, optional
-            if True, passes -fo+ to mkpmap, if false and pmap exists, raises
-            ChildProcessError
-        nphotons: int, optional
-            number of contribution photons
-        executable: str, optional
-            path to mkpmap executable
-        opts: str, optional
-            additional options to feed to mkpmap
-
-        Returns
-        -------
-        str
-            result of getinfo on newly created photon map
+    def sample(self, vecs, **kwargs):
+        """dummy sample function
         """
+        lum = np.ones((vecs.shape[0], self.srcn))
+        print(lum.shape)
+        return lum
 
-        apos = '-apo ' + ' -apo '.join(apo.split())
-        if overwrite:
-            force = '-fo+'
-        else:
-            force = '-fo-'
-        fdr = self.scene.outdir
-        cmd = (f'{executable} {opts} -n {nproc} {force} {apos} -apC '
-               f'{fdr}/sky.gpm {nphotons} {fdr}/sky_pm.oct')
-        r, err = cst.pipeline([cmd], caperr=True)
-        if b'fatal' in err:
-            raise ChildProcessError(err.decode(cst.encoding))
-        self.skypmap = True
-        return cst.pipeline([f'getinfo {fdr}/sky.gpm'])
-
-    def sky_sample(self, vecs, rcopts='-ab 7 -ad 60000 -as 30000 -lw 1e-7',
-                   nproc=12, executable='rcontrib_pm', bwidth=1000):
-        """call rendering engine to sample sky contribution
-
-        Parameters
-        ----------
-        vecs: np.array
-            shape (N, 6) vectors to calculate contributions for
-        rcopts: str, optional
-            option string to send to executable
-        nproc: int, optional
-            number of processes executable should use
-        executable: str, optional
-            rendering engine binary
-        bwidth: int, optional
-            if using photon mapping, the bandwidth parameter
-
-        Returns
-        -------
-        lum: np.array
-            array of shape (N, binnumber) with sky coefficients
-        """
-        fdr = self.scene.outdir
-        if self.skypmap:
-            rcopts += f' -ab -1 -ap {fdr}/sky.gpm {bwidth}'
-            octr = f"{fdr}/sky_pm.oct"
-        else:
-            octr = f"{fdr}/sky.oct"
-        side = self.levels[self.idx, -1]
-        rc = (f"{executable} -V+ -fff {rcopts} -h -n {nproc} -e "
-              f"'side:{side}' -f {fdr}/scbins.cal -b bin -bn {side**2} "
-              f"-m skyglow {octr}")
-        p = Popen(shlex.split(rc), stdout=PIPE,
-                  stdin=PIPE).communicate(io.np2bytes(vecs))
-        lum = optic.rgb2rad(io.bytes2np(p[0], (-1, 3)))
-        return lum.reshape(-1, side**2)
-
-    def sample_idx(self, pdraws, upsample=True):
+    def sample_idx(self, pdraws):
         """generate samples vectors from flat draw indices
 
         Parameters
         ----------
         pdraws: np.array
             flat index positions of samples to generate
-        upsample: bool, optional
-            if the draws should be sampled to next level
 
         Returns
         -------
@@ -288,21 +178,9 @@ class Sampler(object):
         vecs: np.array
             sample vectors
         """
-        shape = self.current_level[0:4]
+        shape = np.concatenate((self.scene.ptshape, self.levels[self.idx]))
         # index assignment
-        # scale and repeat if upsampling
-        if upsample:
-            oshape = self.levels[self.idx - 1, 0:4]
-            si = np.stack(np.unravel_index(pdraws, oshape))
-            rs = (shape/oshape).astype(int)
-            si *= rs[:, None]
-            # repeat along position and direction axes
-            for i in range(4):
-                si = np.repeat(si[:, None, :], rs[i], 1)
-                si[i] += np.arange(rs[i]).astype(np.int64)[:, None]
-                si = si.reshape(4, -1)
-        else:
-            si = np.stack(np.unravel_index(pdraws, shape))
+        si = np.stack(np.unravel_index(pdraws, shape))
         # convert to UV directions and positions
         uv = si.T[:, 2:]/shape[3]
         pos = self.scene.area.uv2pt((si.T[:, 0:2] + .5)/shape[0:2])
@@ -331,7 +209,7 @@ class Sampler(object):
         -------
         None
         """
-        outf = f'{self.scene.outdir}/sky_{self.idx}'
+        outf = f'{self.scene.outdir}/{self.stype}_{self.idx}'
         if wait:
             return io.write_npy(ptidx, vecs, vals, outf)
         else:
@@ -339,36 +217,19 @@ class Sampler(object):
             return executor.submit(io.write_npy, ptidx, vecs, vals, outf)
 
     def draw(self, samps):
-        """draw samples based on detail calculated from samps
-        detail is calculated across position and direction seperately and
-        combined by product (would be summed otherwise) to avoid drowning out
-        the signal in the more precise dimensions (assuming a mismatch in step
-        size and final stopping criteria
+        """define pdf generated from samps and draw next set of samples
 
         Parameters
         ----------
         samps: np.array
-            shape self.current_level[0:4]
+            shape self.scene.ptshape + self.levels[self.idx]
 
         Returns
         -------
         pdraws: np.array
             index array of flattened samps chosed to sample at next level
         """
-        p = np.ones(samps.size)
-        self.idx += 1
-        dres = self.current_level[2:4]
-        pres = self.current_level[0:2]
-        # direction detail
-        if dres[0] > samps.shape[-1]:
-            daxes = tuple(range(len(pres), len(pres) + len(dres)))
-            p = p*wavelet.get_detail(samps, daxes)
-        # position detail
-        # if pres[0] > samps.shape[0]:
-        #     paxes = tuple(range(len(pres)))
-        #     p = p*wavelet.get_detail(samps, paxes)
-
-        p = p*(1 - self._sample_t) + np.median(p)*self._sample_t
+        p = np.ones(samps.shape).flatten()
         # draw on pdf
         nsampc = int(self._sample_rate*samps.size)
         pdraws = np.random.choice(p.size, nsampc, replace=False, p=p/np.sum(p))
@@ -377,20 +238,12 @@ class Sampler(object):
     def print_sample_cnt(self):
         an = 0
         for i, l in enumerate(self.levels):
+            shape = np.concatenate((self.scene.ptshape, self.levels[i]))
             x = i/(self.levels.shape[0] - 1)
-            a = int(wavelet.get_sample_rate(x, self.minrate)*np.product(l[0:4]))
+            a = int(wavelet.get_sample_rate(x, self.minrate)*np.product(shape))
             an += a
             print(l, a)
         print("total", an)
-
-    def idx2pt(self, idx):
-        shape = self.levels[-1, 0:2]
-        si = np.stack(np.unravel_index(idx, shape)).T
-        return self.scene.area.uv2pt((si + .5)/shape)
-
-    def pts(self):
-        shape = self.levels[-1, 0:2]
-        return self.idx2pt(np.arange(np.product(shape)))
 
     def run(self, **skwargs):
         """execute sampler
@@ -398,33 +251,34 @@ class Sampler(object):
         Parameters
         ----------
         skwargs
-            keyword arguments passed to self.sky_sample
+            keyword arguments passed to self.sample
 
         """
         allc = 0
-        samps = np.zeros(self.current_level[0:4])
+        samps = np.zeros(np.concatenate((self.scene.ptshape,
+                                         self.levels[self.idx])))
+        print(samps.shape)
         dumps = []
         for i in range(self.idx, self.levels.shape[0]):
-            skbins = self.current_level[4]**2
+            shape = np.concatenate((self.scene.ptshape, self.levels[i]))
             if i == 0:
-                draws = np.arange(np.prod(self.current_level[0:4]))
-                upsample = False
+                draws = np.arange(np.prod(shape))
             else:
+                samps = translate.resample(samps, shape)
+                self.idx += 1
                 draws = self.draw(samps)
-                samps = translate.resample(samps, self.current_level[0:4])
-                upsample = True
-            si, vecs = self.sample_idx(draws, upsample=upsample)
-            ptidx = np.ravel_multi_index((si[0], si[1]), self.current_level[0:2])
-            srate = si.shape[1]/np.prod(self.current_level[0:4])
-            print(f"{self.current_level} sampling: {si.shape[1]}\t{srate:.02%}")
-            lum = self.sky_sample(vecs, **skwargs)
+            si, vecs = self.sample_idx(draws)
+            ptidx = np.ravel_multi_index((si[0], si[1]), self.scene.ptshape)
+            srate = si.shape[1]/np.prod(shape)
+            print(f"{shape} sampling: {si.shape[1]}\t{srate:.02%}")
+            lum = self.sample(vecs, **skwargs)
             dumps.append(self.dump(ptidx, vecs[:, 3:], lum))
             # samps[tuple(si)] = np.max(lum, 1)
             samps[tuple(si)] = np.sum(lum, 1)
-            a = lum.size
+            a = lum.shape[0]
             allc += a
         print("--------------------------------------")
-        srate = allc/(samps.size*skbins)
+        srate = allc/samps.size
         print(f"asamp: {allc}\t{srate:.02%}")
         for dump in dumps:
             if dump is None:

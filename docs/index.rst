@@ -9,6 +9,7 @@ raytraverse (|release|)
    io
    optic
    sampler
+   scbinsampler
    integrator
    scene
    spacemapper

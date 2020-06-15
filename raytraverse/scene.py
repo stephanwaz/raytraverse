@@ -39,6 +39,8 @@ class Scene(object):
     loc: (float, float, int), optional
         location data given as lat, lon, mer with + west of prime meridian
         overrides location data in wea
+    ptres: float, optional
+        final spatial resolution in scene geometry units
     ptro: float, optional
         angle in degrees counter-clockwise to point grid
     skyro: float, optional
@@ -58,8 +60,8 @@ class Scene(object):
     """
 
     def __init__(self, scene, area, outdir, reload=False, overwrite=False,
-                 wea=None, loc=None, ptro=0.0, skyro=0.0, weaformat='time',
-                 viewdir=(0, 1, 0), viewangle=360):
+                 wea=None, loc=None, ptres=1.0, ptro=0.0, skyro=0.0,
+                 weaformat='time', viewdir=(0, 1, 0), viewangle=360):
         try:
             os.mkdir(outdir)
         except FileExistsError as e:
@@ -82,6 +84,8 @@ class Scene(object):
         self.skyro = skyro
         #: str: path to store scene info and output files
         self.outdir = outdir
+        #: float: point resolution for area
+        self.ptres = ptres
         self._solarbounds = None
         self.loc = loc
         self.skydata = wea
@@ -122,6 +126,14 @@ class Scene(object):
         self._scene = o
 
     @property
+    def ptshape(self):
+        """UV point resolution, set by area
+
+        :getter: Returns this scenes's point resolution
+        """
+        return self._ptshape
+
+    @property
     def area(self):
         """analysis area
 
@@ -139,6 +151,9 @@ class Scene(object):
         else:
             shutil.copy(area, a)
         self._area = SpaceMapper(a, self.ptro)
+        bbox = self.area.bbox[:, 0:2]/self.ptres
+        size = (bbox[1] - bbox[0])
+        self._ptshape = np.maximum(np.floor(size - self.ptres), 1).astype(int)
 
     @property
     def skydata(self):
@@ -213,6 +228,15 @@ class Scene(object):
             self._solarbounds = (juv, duv)
         else:
             self._solarbounds = None
+
+    def idx2pt(self, idx):
+        shape = self.ptshape
+        si = np.stack(np.unravel_index(idx, shape)).T
+        return self.area.uv2pt((si + .5)/shape)
+
+    def pts(self):
+        shape = self.ptshape
+        return self.idx2pt(np.arange(np.product(shape)))
 
     def in_solarbounds(self, uv):
         """

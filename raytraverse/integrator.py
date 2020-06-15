@@ -26,10 +26,8 @@ class Integrator(object):
         scene class containing geometry, location and analysis plane
     """
 
-    def __init__(self, scene, levels, rebuild=False):
+    def __init__(self, scene, rebuild=False):
         self.scene = scene
-        #: np.array: sampling scheme from Sampler
-        self.levels = levels
         #: bool: force rebuild kd-tree
         self.rebuild = rebuild
         self.pt_kd = scene.outdir
@@ -130,7 +128,7 @@ class Integrator(object):
                 samps = lev
         samps = samps[samps[:,0].argsort()]
         pidx = samps[:, 0]
-        pts = self.pts()
+        pts = self.scene.pts()
         pt_div = np.searchsorted(pidx, np.arange(len(pts)), side='right')
         pt_kd = cKDTree(pts)
         d_kd = [None]*pts.shape[0]
@@ -146,15 +144,6 @@ class Integrator(object):
             lums[i] = samps[pt0:pt, 4:].reshape(-1, skside, skside)
             pt0 = pt
         return pt_kd, d_kd, lums, vecs, omegas
-
-    def idx2pt(self, idx):
-        shape = self.levels[-1, 0:2]
-        si = np.stack(np.unravel_index(idx, shape)).T
-        return self.scene.area.uv2pt((si + .5)/shape)
-
-    def pts(self):
-        shape = self.levels[-1, 0:2]
-        return self.idx2pt(np.arange(np.product(shape)))
 
     def query(self, vpts, vdirs, viewangle=180.0, treecnt=30):
         """gather all rays from a point within a view cone
@@ -257,7 +246,7 @@ class Integrator(object):
                 vm.dxyz = v
                 trvecs = vm.view2world(rvecs)
                 for li, (perr, pi, idx) in enumerate(zip(perrs, pis, idxs)):
-                    pt = self.idx2pt([pi])[0]
+                    pt = self.scene.idx2pt([pi])[0]
                     if len(idx[k]) == 0:
                         print(f'Warning: No rays found at point: {pt} '
                               f'direction: {v}')
