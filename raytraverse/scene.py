@@ -240,26 +240,33 @@ class Scene(object):
         shape = self.ptshape
         return self.idx2pt(np.arange(np.product(shape)))
 
-    def in_solarbounds(self, uv):
+    def in_solarbounds(self, uv, size=0.0):
         """
-        default method for checking if src direction is in solar transit
+        for checking if src direction is in solar transit
 
         Parameters
         ----------
         uv: np.array
             source directions
+        size: float
+            offset around UV to test
 
         Returns
         -------
         result: np.array
             Truth of ray.src within solar transit
         """
+        o = size/2
         juv, duv = self.solarbounds
-        vlow = duv[np.searchsorted(duv[:, 0], uv[:, 0]) - 1]
-        vup = juv[np.searchsorted(juv[:, 0], uv[:, 0]) - 1]
-        inbounds = np.logical_and(np.logical_and(vlow[:, 1] <= uv[:, 1],
-                                  uv[:, 1] <= vup[:, 1]), uv[:, 0] < 1)
-        return inbounds
+        vlowleft = duv[np.searchsorted(duv[:, 0], uv[:, 0] - o) - 1]
+        vlowright = duv[np.searchsorted(duv[:, 0], uv[:, 0] - o) - 1]
+        vupleft = juv[np.searchsorted(juv[:, 0], uv[:, 0] + o) - 1]
+        vupright = juv[np.searchsorted(juv[:, 0], uv[:, 0] + o) - 1]
+        inbounds = np.stack((vlowleft[:, 1] <= uv[:, 1] - o,
+                             vlowright[:, 1] <= uv[:, 1] - o,
+                             uv[:, 1] + o <= vupleft[:, 1],
+                             uv[:, 1] + o <= vupright[:, 1]))
+        return np.all(inbounds, 0)
 
     def in_area(self, uv):
         """check if point is in boundary path

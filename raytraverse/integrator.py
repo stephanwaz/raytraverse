@@ -8,7 +8,6 @@
 
 import os
 import pickle
-from glob import glob
 from concurrent.futures import ProcessPoolExecutor
 
 import numpy as np
@@ -30,7 +29,7 @@ class Integrator(object):
         prefix of data files to integrate
     """
 
-    def __init__(self, scene, rebuild=False, prefix='sky'):
+    def __init__(self, scene, rebuild=False, prefix='generic', **kwargs):
         self.scene = scene
         #: bool: force rebuild kd-tree
         self.rebuild = rebuild
@@ -113,6 +112,10 @@ class Integrator(object):
             f.close()
         else:
             dfiles = sglob(f'{self.scene.outdir}/{self.prefix}_[0-9].npy')
+            if len(dfiles) == 0:
+                raise FileNotFoundError("No results files found, have you run"
+                                        f" a Sampler of type {self.prefix} for"
+                                        f" scene {self.scene.outdir}?")
             (self._pt_kd, self._d_kd, self._lum,
              self._vec, self._omega) = self.mk_tree(dfiles)
             f = open(kdfile, 'wb')
@@ -141,13 +144,12 @@ class Integrator(object):
         vecs = [None]*pts.shape[0]
         lums = [None]*pts.shape[0]
         omegas = [None]*pts.shape[0]
-        skside = int(np.sqrt(samps.shape[1] - 4))
         pt0 = 0
         for i, pt in enumerate(pt_div):
             d_kd[i] = cKDTree(samps[pt0:pt, 1:4])
             vecs[i] = samps[pt0:pt, 1:4]
             omegas[i] = SphericalVoronoi(samps[pt0:pt, 1:4]).calculate_areas()
-            lums[i] = samps[pt0:pt, 4:].reshape(-1, skside, skside)
+            lums[i] = samps[pt0:pt, 4:].reshape(-1, samps.shape[1] - 4)
             pt0 = pt
         return pt_kd, d_kd, lums, vecs, omegas
 
@@ -196,17 +198,11 @@ class Integrator(object):
         idxs = [future.result() for future in futures]
         return perrs, pis, idxs
 
-    def apply_skyvecs(self, pis, skyvecs):
-        if skyvecs is None:
-            lum = [np.sum(self.lum[pi], (1, 2)).reshape(1, -1) for pi in pis]
-        else:
-            skyvecs = skyvecs.reshape(-1, self.lum[pis[0]].shape[1]**2).T
-            lum = [(self.lum[pi].reshape(-1,
-                                         self.lum[pi].shape[1]**2)@skyvecs).T
-                   for pi in pis]
+    def apply_coefs(self, pis, **kwargs):
+        lum = [np.sum(self.lum[pi], (1, 2)).reshape(1, -1) for pi in pis]
         return lum
 
-    def view(self, vpts, vdirs, decades=4, maxl=0.0, skyvecs=None, treecnt=30,
+    def view(self, vpts, vdirs, decades=4, maxl=0.0, coefs=None, treecnt=30,
              ring=150, viewangle=180.0, ringtol=15.0, **kwargs):
         """generate angular fisheye falsecolor luminance views
 
@@ -220,8 +216,9 @@ class Integrator(object):
             number of log decades below max for minimum of color scale
         maxl: real, optional
             maximum log10(lum/179) for color scale
-        skyvecs: np.array
-            array of (N,) + lum.shape[1:] (sky vector)
+        coefs: np.array
+            array of (N,) + lum.shape[1:] (coefficient vector)
+            or array of (N, 2) (index and coefficient)
         treecnt: int, optional
             number of queries at which a scipy.cKDtree.query_ball_tree is
             used instead of scipy.cKDtree.query_ball_point
@@ -243,7 +240,7 @@ class Integrator(object):
                                                            np.pi]])))[0, 0]
         perrs, pis, idxs = self.query(vpts, vdirs, treecnt=treecnt,
                                       viewangle=viewangle)
-        lum = self.apply_skyvecs(pis, skyvecs)
+        lum = self.apply_coefs(pis, coefs=coefs)
         lum = [np.log10(l) for l in lum]
         rvecs, rxy = translate.mkring(viewangle, ring)
         futures = []
@@ -265,13 +262,13 @@ class Integrator(object):
                         for j in range(lum[li].shape[0]):
                             kw = dict(decades=decades, maxl=maxl,
                                       inclmarks=len(idx[k]), title=f"{pt} {v}",
-                                      ext=ext, outf=f'{pi}_{k}_{j}.png', **kwargs)
+                                      ext=ext, outf=f'{self.prefix}_{pi}_{k}_{j}.png', **kwargs)
                             futures.append(exc.submit(io.mk_img, lum[li][j, vi],
                                                       vec, **kw))
         np.set_printoptions(**popts)
         return [fut.result() for fut in futures]
 
-    def illum(self, vpts, vdirs, skyvecs=None, treecnt=30):
+    def illum(self, vpts, vdirs, coefs=None, treecnt=30):
         """calculate illuminance for given sensor locations and skyvecs
 
         Parameters
@@ -280,8 +277,9 @@ class Integrator(object):
             points to search for (broadcastable to directions)
         vdirs: np.array
             directions to search for
-        skyvecs: np.array
-            array of (N,) + lum.shape[1:] (sky vector)
+        coefs: np.array
+            array of (N,) + lum.shape[1:] (coefficient vector)
+            or array of (N, 2) (index and coefficient)
         treecnt: int, optional
             number of queries at which a scipy.cKDtree.query_ball_tree is
             used instead of scipy.cKDtree.query_ball_point
@@ -293,7 +291,7 @@ class Integrator(object):
         """
         perrs, pis, idxs = self.query(vpts, vdirs, treecnt=treecnt)
         vdirs = translate.norm(vdirs)
-        lum = self.apply_skyvecs(pis, skyvecs)
+        lum = self.apply_coefs(pis, coefs=coefs)
         futures = []
         with ProcessPoolExecutor() as exc:
             for j in range(lum[0].shape[0]):

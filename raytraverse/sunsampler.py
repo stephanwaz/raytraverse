@@ -11,24 +11,12 @@ import shlex
 from subprocess import Popen, PIPE
 
 import numpy as np
-# from scipy.ndimage import
+from scipy.interpolate import RectBivariateSpline
 
 from clasp import script_tools as cst
-from scipy.interpolate import RectBivariateSpline
 
 from raytraverse import optic, io, wavelet, Sampler, translate
 from raytraverse.sampler import scbinscal
-
-
-def load_sky_facs(skyb, uvsize):
-    if skyb is None:
-        skyb = np.ones((uvsize, uvsize))
-    elif not isinstance(skyb, np.ndarray):
-        skyb = np.load(skyb)
-    oldc = np.linspace(0, 1, skyb.shape[0])
-    newc = np.linspace(0, 1, uvsize)
-    f = RectBivariateSpline(oldc, oldc, skyb, kx=1, ky=1)
-    return f(newc, newc)
 
 
 class SunSampler(Sampler):
@@ -44,15 +32,31 @@ class SunSampler(Sampler):
         to calculate, if none, suns are drawn uniformly from sun path of scene
         and the sunres determines the number.
     sunres: float, optional
-        minimum average seperation between sources
+        minimum average seperation between sources (twice desired error)
     srct: float, optional
         threshold of sky contribution for determining appropriate srcn
     """
 
-    def __init__(self, scene, skyb=None, sunres=5.0, srct=.01, **kwargs):
-        super(SunSampler, self).__init__(scene, stype='sun',  **kwargs)
-        self.suns = (skyb, sunres, srct)
-        self.mk_sun_files()
+    @staticmethod
+    def load_sky_facs(skyb, uvsize):
+        if skyb is None:
+            skyb = np.ones((uvsize, uvsize))
+        elif not isinstance(skyb, np.ndarray):
+            skyb = np.load(skyb)
+        oldc = np.linspace(0, 1, skyb.shape[0])
+        newc = np.linspace(0, 1, uvsize)
+        f = RectBivariateSpline(oldc, oldc, skyb, kx=1, ky=1)
+        return f(newc, newc)
+
+    def __init__(self, scene, skyb=None, sunres=5.0, srct=.01, reload=True,
+                 t0=.1, t1=.05, minrate=.01, **kwargs):
+        super(SunSampler, self).__init__(scene, stype='sun',  t0=t0, t1=t1,
+                                         minrate=minrate, **kwargs)
+        self.reload = reload
+        self.sunres = sunres
+        self.srct = srct
+        self.suns = skyb
+        self.init_weights()
 
     @property
     def suns(self):
@@ -65,48 +69,85 @@ class SunSampler(Sampler):
         return self._suns
 
     @suns.setter
-    def suns(self, skyparams):
+    def suns(self, skyb):
         """set the skydetail array and determine sample count and spacing"""
-        skyb, sunres, srct = skyparams
-        uvsize = int(np.floor(90/sunres)*2)
-        skyb = load_sky_facs(skyb, uvsize)
-        si = np.stack(np.unravel_index(np.arange(skyb.size), skyb.shape))
-        uv = si.T/uvsize
-        ib0 = self.scene.in_solarbounds(uv)
-        ib1 = self.scene.in_solarbounds(uv + np.array([[1, 0]])/uvsize)
-        ib2 = self.scene.in_solarbounds(uv + np.array([[1, 1]])/uvsize)
-        ib3 = self.scene.in_solarbounds(uv + np.array([[0, 1]])/uvsize)
-        ib = (ib0*ib1*ib2*ib3).reshape(skyb.shape)
-        suncount = np.sum(skyb*ib > srct)
-        skyd = wavelet.get_detail(skyb, (0, 1)).reshape(skyb.shape)
-        sb = (skyb + skyd)/np.min(skyb + skyd)
-        sd = (sb * ib).flatten()
-        sdraws = np.random.choice(skyb.size, suncount, replace=False,
-                                  p=sd/np.sum(sd))
-        si = np.stack(np.unravel_index(sdraws, skyb.shape))
-        uv = (si.T + np.random.random(si.T.shape))/uvsize
-        self._suns = translate.uv2xyz(uv)
+        sunfile = f"{self.scene.outdir}/suns.rad"
+        if os.path.isfile(sunfile) and self.reload:
+            self.load_suns(sunfile)
+        else:
+            uvsize = int(np.floor(90/self.sunres)*2)
+            skyb = self.load_sky_facs(skyb, uvsize)
+            si = np.stack(np.unravel_index(np.arange(skyb.size), skyb.shape))
+            uv = si.T/uvsize
+            ib = self.scene.in_solarbounds(uv + .5/uvsize,
+                                           size=1/uvsize).reshape(skyb.shape)
+            suncount = np.sum(skyb*ib > self.srct)
+            skyd = wavelet.get_detail(skyb, (0, 1)).reshape(skyb.shape)
+            sb = (skyb + skyd)/np.min(skyb + skyd)
+            sd = (sb * ib).flatten()
+            sdraws = np.random.choice(skyb.size, suncount, replace=False,
+                                      p=sd/np.sum(sd))
+            si = np.stack(np.unravel_index(sdraws, skyb.shape))
+            uv = (si.T + np.random.random(si.T.shape))/uvsize
+            self._suns = translate.uv2xyz(uv, xsign=1)
+            self.write_suns(sunfile)
+        self.srcn = self.suns.shape[0]
 
+    def load_suns(self, sunfile):
+        """load suns from file
 
-    def mk_sun_files(self):
-        skyoct = f'{self.scene.outdir}/{self.stype}.oct'
-        if not os.path.isfile(skyoct):
-            skydef = ("void light skyglow 0 0 3 1 1 1 skyglow source sky 0 0 4"
-                      " 0 0 1 180")
-            skydeg = ("void glow skyglow 0 0 4 1 1 1 0 skyglow source sky 0 0 4"
-                      " 0 0 1 180")
-            f = open(skyoct, 'wb')
-            cst.pipeline([f'oconv -i {self.scene.outdir}/scene.oct -'],
-                         inp=skydeg, outfile=f, close=True)
-            f = open(f'{self.scene.outdir}/sky_pm.oct', 'wb')
-            cst.pipeline([f'oconv -i {self.scene.outdir}/scene.oct -'],
-                         inp=skydef, outfile=f, close=True)
-        f = open(f'{self.scene.outdir}/scbins.cal', 'w')
-        f.write(scbinscal)
+        void light solar00001 0 0 3 1 1 1
+        solar00001 source sun00001 0 0 4 X Y Z 0.533
+        .
+        .
+        .
+        void light solarNNNNN 0 0 3 1 1 1
+        solarNNNNN source sunNNNNN 0 0 4 X Y Z 0.533
+
+        Parameters
+        ----------
+        sunfile
+        """
+        f = open(sunfile, 'r')
+        sund = f.read().split('source')[1:]
+        self._suns = np.array([s.split()[4:7] for s in sund]).astype(float)
+
+    def write_suns(self, sunfile):
+        """write suns to file and make sun octree
+
+        Parameters
+        ----------
+        sunfile
+        """
+        sunoct = f'{self.scene.outdir}/{self.stype}.oct'
+        f = open(sunfile, 'w')
+        g = open(f'{self.scene.outdir}/{self.stype}_modlist.txt', 'w')
+        for i, s in enumerate(self.suns):
+            mod = f"solar{i:05d}"
+            name = f"sun{i:05d}"
+            d = f"{s[0]} {s[1]} {s[2]}"
+            print(mod, file=g)
+            print(f"void light {mod} 0 0 3 1 1 1", file=f)
+            print(f"{mod} source {name} 0 0 4 {d} 0.533", file=f)
         f.close()
+        g.close()
+        f = open(sunoct, 'wb')
+        cst.pipeline([f'oconv -f -i {self.scene.outdir}/scene.oct {sunfile}'],
+                     outfile=f, close=True)
+
+    def init_weights(self):
+        try:
+            skypdf = np.load(f"{self.scene.outdir}/sky_pdf.npy")
+        except FileNotFoundError:
+            print('Warning! sunsampler initialized without guiding weights')
+        else:
+            cap = np.minimum(skypdf, self.srct*2)
+            self.weights = translate.resample(cap, radius=1)
+            self.idx = np.searchsorted(self.levels[:, -1],
+                                       self.weights.shape[-1])
 
     def sample(self, vecs, rcopts='-ab 7 -ad 60000 -as 30000 -lw 1e-7',
-               nproc=12, executable='rcontrib_pm', bwidth=1000):
+               nproc=12, executable='rcontrib'):
         """call rendering engine to sample sky contribution
 
         Parameters
@@ -119,58 +160,45 @@ class SunSampler(Sampler):
             number of processes executable should use
         executable: str, optional
             rendering engine binary
-        bwidth: int, optional
-            if using photon mapping, the bandwidth parameter
 
         Returns
         -------
         lum: np.array
-            array of shape (N, binnumber) with sky coefficients
+            array of shape (N, binnumber) with sun coefficients
         """
         fdr = self.scene.outdir
-        if self.skypmap:
-            rcopts += f' -ab -1 -ap {fdr}/sky.gpm {bwidth}'
-            octr = f"{fdr}/sky_pm.oct"
-        else:
-            octr = f"{fdr}/sky.oct"
-        rc = (f"{executable} -V+ -fff {rcopts} -h -n {nproc} -e "
-              f"'side:{self.skres}' -f {fdr}/scbins.cal -b bin -bn {self.srcn} "
-              f"-m skyglow {octr}")
+        octr = f"{fdr}/{self.stype}.oct"
+        rc = (f"{executable} -fff {rcopts} -h -n {nproc} "
+              f"-M {fdr}/{self.stype}_modlist.txt {octr}")
         p = Popen(shlex.split(rc), stdout=PIPE,
                   stdin=PIPE).communicate(io.np2bytes(vecs))
         lum = optic.rgb2rad(io.bytes2np(p[0], (-1, 3)))
         return lum.reshape(-1, self.srcn)
 
-    def draw(self, samps):
-        """draw samples based on detail calculated from samps
-        detail is calculated across position and direction seperately and
-        combined by product (would be summed otherwise) to avoid drowning out
-        the signal in the more precise dimensions (assuming a mismatch in step
-        size and final stopping criteria
-
-        Parameters
-        ----------
-        samps: np.array
-            shape self.scene.ptshape + self.levels[self.idx]
+    def draw(self):
+        """draw samples based on detail calculated from weights
+        detail is calculated across direction only as it is the most precise
+        dimension
 
         Returns
         -------
         pdraws: np.array
-            index array of flattened samps chosed to sample at next level
+            index array of flattened samples chosen to sample at next level
         """
-        dres = self.levels[self.idx]
-        pres = self.scene.ptshape
+        # dres = self.levels[self.idx]
+        # pres = self.scene.ptshape
         # direction detail
-        daxes = tuple(range(len(pres), len(pres) + len(dres)))
-        p = wavelet.get_detail(samps, daxes)
+        # daxes = tuple(range(len(pres), len(pres) + len(dres)))
+        # p = wavelet.get_detail(self.weights, daxes)
+        p = self.weights.flatten()
         p = p*(1 - self._sample_t) + np.median(p)*self._sample_t
         # draw on pdf
-        nsampc = int(self._sample_rate*samps.size)
+        nsampc = int(self._sample_rate*self.weights.size)
         pdraws = np.random.choice(p.size, nsampc, replace=False, p=p/np.sum(p))
         return pdraws
 
-    def update_pdf(self, samps, si, lum):
-        """update samps (which holds values used to calculate pdf)
+    def update_pdf(self, si, lum):
+        """update self.weights (which holds values used to calculate pdf)
 
         Parameters
         ----------
@@ -178,13 +206,6 @@ class SunSampler(Sampler):
             multidimensional indices to update
         lum:
             values to update with
-
         """
-        self.skydetail = np.maximum(self.skydetail, np.max(lum, 0))
-        samps[tuple(si)] = np.max(lum, 1)
-
-    def save_pdf(self, samps):
-        outf = f'{self.scene.outdir}/{self.stype}_pdf'
-        np.save(outf, samps)
-        outf = f'{self.scene.outdir}/{self.stype}_skydetail'
-        np.save(outf, self.skydetail.reshape(self.skres, self.skres))
+        lumcap = np.minimum(lum, self.srct*2)
+        self.weights[tuple(si)] = np.max(lumcap, 1)

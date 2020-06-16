@@ -51,7 +51,7 @@ def uv2xy(uv):
     return xy
 
 
-def uv2xyz(uv, axes=(0, 1, 2)):
+def uv2xyz(uv, axes=(0, 1, 2), xsign=-1):
     """translate from 2 x unit square (0,2),(0,1) to unit sphere (x,y,z)
     http://psgraphics.blogspot.com/2011/01/improved-code-for-concentric
     -map.html.
@@ -71,7 +71,7 @@ def uv2xyz(uv, axes=(0, 1, 2)):
     phi = np.where(cond, b/(2*a), np.where(b == 0, 0, 1 - a/(2*b)))*np.pi/2
     sphterm = r*np.sqrt(2 - r*r)
     # flip back x in positive z space
-    xyz[:, axes[0]] = -n*np.cos(phi)*sphterm
+    xyz[:, axes[0]] = xsign*n*np.cos(phi)*sphterm
     xyz[:, axes[1]] = np.sin(phi)*sphterm
     # add sign to z
     xyz[:, axes[2]] = n*(1 - r*r)
@@ -149,14 +149,14 @@ def uv2tp(uv):
     return xyz2tp(uv2xyz(uv))
 
 
-def resample(samps, ts, gauss=True, radius=None):
+def resample(samps, ts=None, gauss=True, radius=None):
     """simple array resampling. requires whole number multiple scaling.
 
     Parameters
     ----------
     samps: np.array
         array to resample along each axis
-    ts: tuple
+    ts: tuple, optional
         shape of output array, should be multiple of samps.shape
     gauss: bool, optional
         apply gaussian filter to upsampling
@@ -169,6 +169,8 @@ def resample(samps, ts, gauss=True, radius=None):
         to resampled array
 
     """
+    if ts is None:
+        ts = samps.shape
     rs = np.array(ts)/np.array(samps.shape)
     if np.prod(rs) > 1:
         for i in range(len(rs)):
@@ -183,6 +185,8 @@ def resample(samps, ts, gauss=True, radius=None):
         samps = uniform_filter(samps, rs, origin=og)
         for i, j in enumerate(rs):
             samps = np.take(samps, np.arange(0, samps.shape[i], j), i)
+    elif gauss and radius is not None:
+        samps = gaussian_filter(samps, radius)
     return samps
 
 

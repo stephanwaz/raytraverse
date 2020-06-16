@@ -106,7 +106,10 @@ class Sampler(object):
         #: int: index of next level to sample
         self.idx = 0
         #: str: sampler type
-        self.stype=stype
+        self.stype = stype
+        #: np.array: holds weights for self.draw
+        self.weights = np.zeros(np.concatenate((self.scene.ptshape,
+                                                self.levels[self.idx])))
 
     @property
     def idx(self):
@@ -216,44 +219,36 @@ class Sampler(object):
             executor = ThreadPoolExecutor()
             return executor.submit(io.write_npy, ptidx, vecs, vals, outf)
 
-    def draw(self, samps):
+    def draw(self):
         """define pdf generated from samps and draw next set of samples
-
-        Parameters
-        ----------
-        samps: np.array
-            shape self.scene.ptshape + self.levels[self.idx]
 
         Returns
         -------
         pdraws: np.array
             index array of flattened samps chosed to sample at next level
         """
-        p = np.ones(samps.shape).flatten()
+        p = np.ones(self.weights.shape).flatten()
         # draw on pdf
-        nsampc = int(self._sample_rate*samps.size)
+        nsampc = int(self._sample_rate*self.weights.size)
         pdraws = np.random.choice(p.size, nsampc, replace=False, p=p/np.sum(p))
         return pdraws
 
-    def update_pdf(self, samps, si, lum):
-        """update samps (which holds values used to calculate pdf)
+    def update_pdf(self, si, lum):
+        """update self.weights (which holds values used to calculate pdf)
 
         Parameters
         ----------
-        samps: np.array
-            array tracking pdf
         si: np.array
             multidimensional indices to update
         lum:
             values to update with
 
         """
-        # samps[tuple(si)] = np.max(lum, 1)
-        samps[tuple(si)] = np.sum(lum, 1)
+        self.weights[tuple(si)] = np.max(lum, 1)
 
-    def save_pdf(self, samps):
+    def save_pdf(self):
         outf = f'{self.scene.outdir}/{self.stype}_pdf'
-        np.save(outf, samps)
+        np.save(outf, self.weights)
 
     def print_sample_cnt(self):
         an = 0
@@ -275,31 +270,29 @@ class Sampler(object):
 
         """
         allc = 0
-        samps = np.zeros(np.concatenate((self.scene.ptshape,
-                                         self.levels[self.idx])))
-        print(samps.shape)
+
         dumps = []
         for i in range(self.idx, self.levels.shape[0]):
             shape = np.concatenate((self.scene.ptshape, self.levels[i]))
             if i == 0:
                 draws = np.arange(np.prod(shape))
             else:
-                samps = translate.resample(samps, shape)
-                self.idx += 1
-                draws = self.draw(samps)
+                self.weights = translate.resample(self.weights, shape)
+                self.idx = i
+                draws = self.draw()
             si, vecs = self.sample_idx(draws)
             ptidx = np.ravel_multi_index((si[0], si[1]), self.scene.ptshape)
             srate = si.shape[1]/np.prod(shape)
             print(f"{shape} sampling: {si.shape[1]}\t{srate:.02%}")
             lum = self.sample(vecs, **skwargs)
             dumps.append(self.dump(ptidx, vecs[:, 3:], lum))
-            self.update_pdf(samps, si, lum)
+            self.update_pdf(si, lum)
             a = lum.shape[0]
             allc += a
         print("--------------------------------------")
-        srate = allc/samps.size
+        srate = allc/self.weights.size
         print(f"asamp: {allc}\t{srate:.02%}")
-        self.save_pdf(samps)
+        self.save_pdf()
         for dump in dumps:
             if dump is None:
                 pass

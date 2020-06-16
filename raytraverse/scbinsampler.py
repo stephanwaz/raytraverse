@@ -131,36 +131,29 @@ class SCBinSampler(Sampler):
         lum = optic.rgb2rad(io.bytes2np(p[0], (-1, 3)))
         return lum.reshape(-1, self.srcn)
 
-    def draw(self, samps):
-        """draw samples based on detail calculated from samps
-        detail is calculated across position and direction seperately and
-        combined by product (would be summed otherwise) to avoid drowning out
-        the signal in the more precise dimensions (assuming a mismatch in step
-        size and final stopping criteria
-
-        Parameters
-        ----------
-        samps: np.array
-            shape self.scene.ptshape + self.levels[self.idx]
+    def draw(self):
+        """draw samples based on detail calculated from weights
+        detail is calculated across direction only as it is the most precise
+        dimension
 
         Returns
         -------
         pdraws: np.array
-            index array of flattened samps chosed to sample at next level
+            index array of flattened samples chosen to sample at next level
         """
         dres = self.levels[self.idx]
         pres = self.scene.ptshape
         # direction detail
         daxes = tuple(range(len(pres), len(pres) + len(dres)))
-        p = wavelet.get_detail(samps, daxes)
+        p = wavelet.get_detail(self.weights, daxes)
         p = p*(1 - self._sample_t) + np.median(p)*self._sample_t
         # draw on pdf
-        nsampc = int(self._sample_rate*samps.size)
+        nsampc = int(self._sample_rate*self.weights.size)
         pdraws = np.random.choice(p.size, nsampc, replace=False, p=p/np.sum(p))
         return pdraws
 
-    def update_pdf(self, samps, si, lum):
-        """update samps (which holds values used to calculate pdf)
+    def update_pdf(self, si, lum):
+        """update self.weights (which holds values used to calculate pdf)
 
         Parameters
         ----------
@@ -171,10 +164,10 @@ class SCBinSampler(Sampler):
 
         """
         self.skydetail = np.maximum(self.skydetail, np.max(lum, 0))
-        samps[tuple(si)] = np.max(lum, 1)
+        self.weights[tuple(si)] = np.max(lum, 1)
 
-    def save_pdf(self, samps):
+    def save_pdf(self):
         outf = f'{self.scene.outdir}/{self.stype}_pdf'
-        np.save(outf, samps)
+        np.save(outf, self.weights)
         outf = f'{self.scene.outdir}/{self.stype}_skydetail'
         np.save(outf, self.skydetail.reshape(self.skres, self.skres))
