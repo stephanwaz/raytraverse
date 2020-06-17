@@ -10,6 +10,7 @@
 """functions for translating between coordinate spaces and resolutions"""
 
 import numpy as np
+from scipy.interpolate import RectBivariateSpline
 from scipy.ndimage.filters import gaussian_filter, uniform_filter
 
 
@@ -149,6 +150,23 @@ def uv2tp(uv):
     return xyz2tp(uv2xyz(uv))
 
 
+def uv2ij(uv, side):
+    ij = np.mod(np.floor(side*uv), side)
+    ij[:, 0] += (uv[:, 0] >= 1) * side
+    return ij.astype(int)
+
+
+def uv2bin(uv, side):
+    buv = uv2ij(uv, side)
+    return buv[:, 0]*side + buv[:, 1]
+
+
+def bin2uv(bin, side):
+    u = (bin - np.mod(bin, side))/(side*side)
+    v = np.mod(bin, side)/side
+    return np.stack((u,v)).T
+
+
 def resample(samps, ts=None, gauss=True, radius=None):
     """simple array resampling. requires whole number multiple scaling.
 
@@ -185,9 +203,21 @@ def resample(samps, ts=None, gauss=True, radius=None):
         samps = uniform_filter(samps, rs, origin=og)
         for i, j in enumerate(rs):
             samps = np.take(samps, np.arange(0, samps.shape[i], j), i)
-    elif gauss and radius is not None:
-        samps = gaussian_filter(samps, radius)
+    elif radius is not None:
+        if gauss:
+            samps = gaussian_filter(samps, radius)
+        else:
+            samps = uniform_filter(samps, radius)
     return samps
+
+
+def interpolate2d(a, s):
+    oldcx = np.linspace(0, 1, a.shape[0])
+    newcx = np.linspace(0, 1, s[0])
+    oldcy = np.linspace(0, 1, a.shape[1])
+    newcy = np.linspace(0, 1, s[1])
+    f = RectBivariateSpline(oldcx, oldcy, a, kx=1, ky=1)
+    return f(newcx, newcy)
 
 
 def rmtx_yp(v):
@@ -278,3 +308,4 @@ def mkring(viewangle, ring):
         rvecs = np.zeros((1, 3))
         rxy = np.zeros((1, 2))
     return rvecs, rxy
+

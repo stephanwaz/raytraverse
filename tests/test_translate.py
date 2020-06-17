@@ -85,3 +85,14 @@ def test_rmtx_world2std():
             t = v.reshape(3, -1)
             assert np.allclose((0, 0, 1), (pmtx@(ymtx@t)).T[0])
 
+
+def test_bin2uv():
+    bins = np.arange(200)
+    ij = np.stack(np.unravel_index(bins, (20, 10))).T
+    uv = translate.bin2uv(bins, 10)
+    ij2 = translate.uv2ij(uv, 10)
+    assert np.allclose(ij, ij2)
+    bins2 = translate.uv2bin(uv, 10)
+    bins3 = translate.uv2bin(uv + .999/10, 10)
+    assert np.allclose(bins, bins2)
+    assert np.allclose(bins3, bins2)

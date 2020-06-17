@@ -45,8 +45,8 @@ scxyzcal = """
 x1 = .5;
 x2 = .5;
 
-U = (bin - mod(bin, side)) / 100 + x1/side;
-V = mod(bin, side)/10 + x2/side;
+U = ((bin - mod(bin, side)) / side + x1)/side;
+V = (mod(bin, side) + x2)/side;
 
 n = if(U - 1, -1, 1);
 ur = if(U - 1, U - 1, U);
@@ -81,6 +81,8 @@ class Sampler(object):
     t1: float, optional
         in range 0-t0, fraction of uniform random samples taken at final step
     minrate: float, optional
+        in range 0-1, fraction of samples at first step.
+    minrate: float, optional
         in range 0-1, fraction of samples at final step (this is not the total
         sampling rate, which depends on the number of levels).
     idres: int, optional
@@ -89,7 +91,7 @@ class Sampler(object):
         sampler type (prefixes output files)
     """
 
-    def __init__(self, scene, dndepth=9, srcn=1, t0=.1, t1=.01,
+    def __init__(self, scene, dndepth=9, srcn=1, t0=.1, t1=.01, maxrate=1.0,
                  minrate=.05, idres=4, stype='generic'):
         self.scene = scene
         #: int: number of sources return per vector by run
@@ -101,6 +103,8 @@ class Sampler(object):
         self.t0 = t0
         #: float: fraction of uniform random samples taken at final step
         self.t1 = t1
+        #: float: fraction of samples at first step
+        self.maxrate = maxrate
         #: float: fraction of samples at final step
         self.minrate = minrate
         #: int: index of next level to sample
@@ -108,8 +112,8 @@ class Sampler(object):
         #: str: sampler type
         self.stype = stype
         #: np.array: holds weights for self.draw
-        self.weights = np.zeros(np.concatenate((self.scene.ptshape,
-                                                self.levels[self.idx])))
+        self.weights = np.full(np.concatenate((self.scene.ptshape,
+                                               self.levels[0])), 1e-7)
 
     @property
     def idx(self):
@@ -124,9 +128,13 @@ class Sampler(object):
     @idx.setter
     def idx(self, idx):
         self._idx = idx
-        x = self.idx/(self.levels.shape[0]-1)
+        try:
+            x = self.idx/(self.levels.shape[0]-1)
+        except ZeroDivisionError:
+            x = 1
         self._sample_t = wavelet.get_uniform_rate(x, self.t0, self.t1)
-        self._sample_rate = wavelet.get_sample_rate(x, self.minrate)
+        self._sample_rate = wavelet.get_sample_rate(x, self.minrate,
+                                                    self.maxrate)
 
     @property
     def levels(self):
@@ -274,7 +282,7 @@ class Sampler(object):
         dumps = []
         for i in range(self.idx, self.levels.shape[0]):
             shape = np.concatenate((self.scene.ptshape, self.levels[i]))
-            if i == 0:
+            if self._sample_rate > .999:
                 draws = np.arange(np.prod(shape))
             else:
                 self.weights = translate.resample(self.weights, shape)

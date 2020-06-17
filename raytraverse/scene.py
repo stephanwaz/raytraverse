@@ -273,8 +273,8 @@ class Scene(object):
 
         Parameters
         ----------
-        xy: np.array
-            world xy coordinates, shape (N, 2)
+        uv: np.array
+            uv coordinates, shape (N, 2)
 
         Returns
         -------
@@ -289,3 +289,21 @@ class Scene(object):
             for i, p in enumerate(path):
                 result[i] = p.contains_points(uv)
         return np.any(result, 0)
+
+    def in_view(self, uv):
+        """check if uv direction is in view
+
+        Parameters
+        ----------
+        uv: np.array
+            view uv coordinates, shape (N, 2)
+
+        Returns
+        -------
+        mask: np.array
+            boolean array, shape (N,)
+        """
+        inbounds = np.stack((uv[:, 0] >= 0, uv[:, 0] < self.view.aspect,
+                             uv[:, 1] >= 0, uv[:, 1] < 1))
+        return np.all(inbounds, 0)
+

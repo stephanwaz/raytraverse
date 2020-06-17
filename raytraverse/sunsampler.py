@@ -11,12 +11,10 @@ import shlex
 from subprocess import Popen, PIPE
 
 import numpy as np
-from scipy.interpolate import RectBivariateSpline
 
 from clasp import script_tools as cst
 
 from raytraverse import optic, io, wavelet, Sampler, translate
-from raytraverse.sampler import scbinscal
 
 
 class SunSampler(Sampler):
@@ -37,46 +35,78 @@ class SunSampler(Sampler):
         threshold of sky contribution for determining appropriate srcn
     """
 
-    @staticmethod
-    def load_sky_facs(skyb, uvsize):
-        if skyb is None:
-            skyb = np.ones((uvsize, uvsize))
-        elif not isinstance(skyb, np.ndarray):
-            skyb = np.load(skyb)
-        oldc = np.linspace(0, 1, skyb.shape[0])
-        newc = np.linspace(0, 1, uvsize)
-        f = RectBivariateSpline(oldc, oldc, skyb, kx=1, ky=1)
-        return f(newc, newc)
-
-    def __init__(self, scene, skyb=None, sunres=5.0, srct=.01, reload=True,
-                 t0=.1, t1=.05, minrate=.01, **kwargs):
-        super(SunSampler, self).__init__(scene, stype='sun',  t0=t0, t1=t1,
-                                         minrate=minrate, **kwargs)
-        self.reload = reload
-        self.sunres = sunres
+    def __init__(self, scene, sunres=5.0, srct=.01, maxspec=.3,
+                 dndepth=12, t0=.05, t1=.01, maxrate=.01, minrate=.005, idres=10,
+                 **kwargs):
+        super(SunSampler, self).__init__(scene, stype='sun', dndepth=dndepth,
+                                         t0=t0, t1=t1, minrate=minrate,
+                                         maxrate=maxrate, idres=idres, **kwargs)
         self.srct = srct
-        self.suns = skyb
-        self.init_weights()
+        if sunres < .61:
+            print('Warning! minimum sunres is .65 to avoid overlap and allow')
+            print('for jittering position, sunres set to .65')
+            sunres = .65
+        self.suns = sunres
+        self.maxspec = maxspec
+        self.sweights = self.init_weights()
+
+    def init_weights(self):
+        shape = np.concatenate((self.scene.ptshape, self.levels[self.idx]))
+        skypdf = f"{self.scene.outdir}/sky_pdf.npy"
+        try:
+            skypdf = np.load(skypdf)
+        except FileNotFoundError:
+            print('Warning! sunsampler initialized without vector weights')
+            self._weights = np.full(shape, 1e-7)
+            vis = np.ones(shape)
+        else:
+            vis = translate.resample(skypdf, shape)
+            skypdf[skypdf > self.maxspec] = 0
+            self.weights = translate.resample(skypdf*.25, shape)
+        return vis
+
+    @property
+    def sweights(self):
+        return self._sweights
+
+    @property
+    def ndsamps(self):
+        return self._ndsamps
+
+    @sweights.setter
+    def sweights(self, vis):
+        boxres = 1/self.levels[self.idx, -1]*180
+        diameter = int(np.ceil(.533/boxres) + 3)
+        shape = np.concatenate((self.scene.ptshape, self.levels[self.idx]))
+        sunuv = self.scene.view.xyz2uv(self.suns)
+        inview = self.scene.in_view(sunuv)
+        suni = translate.uv2ij(sunuv[inview], shape[-1]).T
+        suns = np.zeros(shape)
+        s = np.s_[..., suni[0], suni[1]]
+        isviz = vis[s] > self.srct/2
+        suns[s] = isviz*100
+        self._sweights = translate.resample(suns, radius=diameter, gauss=False)
+        self._ndsamps = np.sum(self.sweights > 0)
 
     @property
     def suns(self):
-        """holds pdf for importance sampling suns
+        """holds pdf for sampling suns
 
-        :getter: Returns the skydetail array
-        :setter: Set the skydetail array
+        :getter: Returns the sun source array
+        :setter: Set the sun source array and write to files
         :type: np.array
         """
         return self._suns
 
     @suns.setter
-    def suns(self, skyb):
+    def suns(self, sunres):
         """set the skydetail array and determine sample count and spacing"""
         sunfile = f"{self.scene.outdir}/suns.rad"
-        if os.path.isfile(sunfile) and self.reload:
+        if os.path.isfile(sunfile):
             self.load_suns(sunfile)
         else:
-            uvsize = int(np.floor(90/self.sunres)*2)
-            skyb = self.load_sky_facs(skyb, uvsize)
+            uvsize = int(np.floor(90/sunres)*2)
+            skyb = self.load_sky_facs(uvsize)
             si = np.stack(np.unravel_index(np.arange(skyb.size), skyb.shape))
             uv = si.T/uvsize
             ib = self.scene.in_solarbounds(uv + .5/uvsize,
@@ -88,7 +118,9 @@ class SunSampler(Sampler):
             sdraws = np.random.choice(skyb.size, suncount, replace=False,
                                       p=sd/np.sum(sd))
             si = np.stack(np.unravel_index(sdraws, skyb.shape))
-            uv = (si.T + np.random.random(si.T.shape))/uvsize
+            border = .3*uvsize/180
+            j = np.random.default_rng().uniform(border, 1-border, si.T.shape)
+            uv = (si.T + j)/uvsize
             self._suns = translate.uv2xyz(uv, xsign=1)
             self.write_suns(sunfile)
         self.srcn = self.suns.shape[0]
@@ -135,16 +167,15 @@ class SunSampler(Sampler):
         cst.pipeline([f'oconv -f -i {self.scene.outdir}/scene.oct {sunfile}'],
                      outfile=f, close=True)
 
-    def init_weights(self):
+    def load_sky_facs(self, uvsize):
         try:
-            skypdf = np.load(f"{self.scene.outdir}/sky_pdf.npy")
+            skyb = np.load(f'{self.scene.outdir}/sky_skydetail.npy')
         except FileNotFoundError:
-            print('Warning! sunsampler initialized without guiding weights')
+            print('Warning! sunsampler initialized without sky weights')
+            skyb = np.ones((uvsize, uvsize))
         else:
-            cap = np.minimum(skypdf, self.srct*2)
-            self.weights = translate.resample(cap, radius=1)
-            self.idx = np.searchsorted(self.levels[:, -1],
-                                       self.weights.shape[-1])
+            skyb = translate.resample(skyb, (uvsize, uvsize))
+        return skyb
 
     def sample(self, vecs, rcopts='-ab 7 -ad 60000 -as 30000 -lw 1e-7',
                nproc=12, executable='rcontrib'):
@@ -191,11 +222,17 @@ class SunSampler(Sampler):
         # daxes = tuple(range(len(pres), len(pres) + len(dres)))
         # p = wavelet.get_detail(self.weights, daxes)
         p = self.weights.flatten()
+        d = translate.resample(self.sweights, self.weights.shape,
+                               radius=0).flatten()
         p = p*(1 - self._sample_t) + np.median(p)*self._sample_t
-        # draw on pdf
         nsampc = int(self._sample_rate*self.weights.size)
-        pdraws = np.random.choice(p.size, nsampc, replace=False, p=p/np.sum(p))
-        return pdraws
+        # draw on pdf
+        pdraws = np.random.choice(p.size, nsampc, replace=False,
+                                  p=p/np.sum(p))
+        # add additional samples for direct sun view rays
+        ddraws = np.random.choice(p.size, self.ndsamps, replace=False,
+                                  p=d/np.sum(d))
+        return np.concatenate((pdraws, ddraws))
 
     def update_pdf(self, si, lum):
         """update self.weights (which holds values used to calculate pdf)
@@ -207,5 +244,6 @@ class SunSampler(Sampler):
         lum:
             values to update with
         """
-        lumcap = np.minimum(lum, self.srct*2)
-        self.weights[tuple(si)] = np.max(lumcap, 1)
+        lum[lum > self.maxspec] = 0
+        self.weights[tuple(si)] = np.max(lum, 1)
+        io.imshow(self.weights[0, 0])

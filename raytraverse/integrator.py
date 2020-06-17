@@ -29,7 +29,7 @@ class Integrator(object):
         prefix of data files to integrate
     """
 
-    def __init__(self, scene, rebuild=False, prefix='generic', **kwargs):
+    def __init__(self, scene, rebuild=False, prefix='sky'):
         self.scene = scene
         #: bool: force rebuild kd-tree
         self.rebuild = rebuild
@@ -98,6 +98,15 @@ class Integrator(object):
         """
         return self._pt_kd
 
+    @property
+    def svs(self):
+        """spherical voronoi at each point
+
+        :getter: Return list of spherical voronoi
+        :type: list of scipy.spatial.SphericalVoronoi
+        """
+        return self._pt_kd
+
     @pt_kd.setter
     def pt_kd(self, outdir):
         """Set this integrator's kd tree and scene data"""
@@ -109,6 +118,7 @@ class Integrator(object):
             self._lum = pickle.load(f)
             self._vec = pickle.load(f)
             self._omega = pickle.load(f)
+            self._svs = pickle.load(f)
             f.close()
         else:
             dfiles = sglob(f'{self.scene.outdir}/{self.prefix}_[0-9].npy')
@@ -117,13 +127,14 @@ class Integrator(object):
                                         f" a Sampler of type {self.prefix} for"
                                         f" scene {self.scene.outdir}?")
             (self._pt_kd, self._d_kd, self._lum,
-             self._vec, self._omega) = self.mk_tree(dfiles)
+             self._vec, self._omega, self._svs) = self.mk_tree(dfiles)
             f = open(kdfile, 'wb')
             pickle.dump(self.pt_kd, f, protocol=4)
             pickle.dump(self.d_kd, f, protocol=4)
             pickle.dump(self.lum, f, protocol=4)
             pickle.dump(self.vec, f, protocol=4)
             pickle.dump(self.omega, f, protocol=4)
+            pickle.dump(self.svs, f, protocol=4)
             f.close()
 
     def mk_tree(self, datafiles):
@@ -143,15 +154,17 @@ class Integrator(object):
         d_kd = [None]*pts.shape[0]
         vecs = [None]*pts.shape[0]
         lums = [None]*pts.shape[0]
+        svs = [None]*pts.shape[0]
         omegas = [None]*pts.shape[0]
         pt0 = 0
         for i, pt in enumerate(pt_div):
             d_kd[i] = cKDTree(samps[pt0:pt, 1:4])
             vecs[i] = samps[pt0:pt, 1:4]
-            omegas[i] = SphericalVoronoi(samps[pt0:pt, 1:4]).calculate_areas()
+            svs[i] = SphericalVoronoi(samps[pt0:pt, 1:4])
+            omegas[i] = svs[i].calculate_areas()
             lums[i] = samps[pt0:pt, 4:].reshape(-1, samps.shape[1] - 4)
             pt0 = pt
-        return pt_kd, d_kd, lums, vecs, omegas
+        return pt_kd, d_kd, lums, vecs, omegas, svs
 
     def query(self, vpts, vdirs, viewangle=180.0, treecnt=30):
         """gather all rays from a point within a view cone
@@ -198,13 +211,24 @@ class Integrator(object):
         idxs = [future.result() for future in futures]
         return perrs, pis, idxs
 
-    def apply_coefs(self, pis, **kwargs):
-        lum = [np.sum(self.lum[pi], (1, 2)).reshape(1, -1) for pi in pis]
+    def apply_coefs(self, pis, coefs=None):
+        cnt = self.lum[pis[0]].shape[1]
+        if coefs is None:
+            lum = [np.sum(self.lum[pi], 1).reshape(1, -1) for pi in pis]
+        elif coefs.shape[-1] == cnt:
+            skyvecs = coefs.reshape(-1, cnt).T
+            lum = [(self.lum[pi].reshape(-1, cnt)@skyvecs).T for pi in pis]
+        else:
+            coefs = coefs.reshape(-1, 2).T
+            bins = coefs[0].astype(int)
+            c = coefs[1]
+            lum = [(self.lum[pi].reshape(-1, cnt)[:, bins]*c).T for pi in pis]
         return lum
 
     def view(self, vpts, vdirs, decades=4, maxl=0.0, coefs=None, treecnt=30,
-             ring=150, viewangle=180.0, ringtol=15.0, **kwargs):
+             ring=150, viewangle=180.0, ringtol=15.0, voronoi=False, **kwargs):
         """generate angular fisheye falsecolor luminance views
+        additional kwargs passed to io.mk_img
 
         Parameters
         ----------
@@ -228,6 +252,8 @@ class Integrator(object):
             degree opening of view cone
         ringtol: float, optional
             tolerance (in degrees) for adding ring points
+        voronoi: bool, optional
+            plot as voronoi regions
         Returns
         -------
 
@@ -253,6 +279,8 @@ class Integrator(object):
                     if len(idx[k]) == 0:
                         print(f'Warning: No rays found at point: {pt} '
                               f'direction: {v}')
+                    elif voronoi:
+                        pass
                     else:
                         vec = vm.xyz2xy(self.vec[pi][idx[k]])
                         d, tri = self.d_kd[pi].query(trvecs,

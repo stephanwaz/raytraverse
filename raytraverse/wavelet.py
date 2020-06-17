@@ -17,13 +17,13 @@ def get_uniform_rate(x, t0, t1):
     return (t0 - t1)*(x - 1)**2 + t1
 
 
-def get_sample_rate(x, min_srate):
+def get_sample_rate(x, minrate, maxrate=1.0):
     """fraction of new samples to draw
     (temperature cools over time x in (0-1)"""
     # non parametric version:
     # Tle = (l + .01)*level_error
     # nsampc = int(np.sum(nsamps > np.min(np.std(samps, axis=(1, 2))*Tle)))
-    return np.exp(x*np.log(min_srate))
+    return maxrate*np.exp(x*np.log(minrate/maxrate))
 
 
 def get_detail(samps, axes):
