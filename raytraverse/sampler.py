@@ -11,7 +11,7 @@ from concurrent.futures import ThreadPoolExecutor
 import numpy as np
 
 from raytraverse import translate, io, wavelet
-
+from memory_profiler import profile
 
 scbinscal = ("""
 { map U/V axis to bin divisions }
@@ -132,6 +132,9 @@ class Sampler(object):
             x = self.idx/(self.levels.shape[0]-1)
         except ZeroDivisionError:
             x = 1
+        self.set_rates(x)
+
+    def set_rates(self, x):
         self._sample_t = wavelet.get_uniform_rate(x, self.t0, self.t1)
         self._sample_rate = wavelet.get_sample_rate(x, self.minrate,
                                                     self.maxrate)
@@ -195,7 +198,9 @@ class Sampler(object):
         # convert to UV directions and positions
         uv = si.T[:, 2:]/shape[3]
         pos = self.scene.area.uv2pt((si.T[:, 0:2] + .5)/shape[0:2])
-        uv += np.random.random(uv.shape)/shape[2]
+
+        uv += (np.random.default_rng().random(uv.shape))/shape[3]
+        # uv += .5/shape[3]
         xyz = self.scene.view.uv2xyz(uv)
         # xyz = translate.uv2xyz(uv, axes=(0, 2, 1))
         vecs = np.hstack((pos, xyz))
@@ -235,10 +240,10 @@ class Sampler(object):
         pdraws: np.array
             index array of flattened samps chosed to sample at next level
         """
-        p = np.ones(self.weights.shape).flatten()
+        p = np.ones(self.weights.size)
         # draw on pdf
         nsampc = int(self._sample_rate*self.weights.size)
-        pdraws = np.random.choice(p.size, nsampc, replace=False, p=p/np.sum(p))
+        pdraws = np.random.default_rng().choice(p.size, nsampc, replace=False, p=p/np.sum(p))
         return pdraws
 
     def update_pdf(self, si, lum):
@@ -260,14 +265,18 @@ class Sampler(object):
 
     def print_sample_cnt(self):
         an = 0
+        print("shape\tguided\tuniform\ttotal")
         for i, l in enumerate(self.levels):
             shape = np.concatenate((self.scene.ptshape, self.levels[i]))
             x = i/(self.levels.shape[0] - 1)
-            a = int(wavelet.get_sample_rate(x, self.minrate)*np.product(shape))
+            a = int(wavelet.get_sample_rate(x, self.minrate,
+                                            self.maxrate)*np.product(shape))
+            t = wavelet.get_uniform_rate(x, self.t0, self.t1)
             an += a
-            print(l, a)
+            print(f"{l}\t{int(a*(1-t))}\t{int(a*t)}\t{a}")
         print("total", an)
 
+    # @profile
     def run(self, **skwargs):
         """execute sampler
 
@@ -282,12 +291,9 @@ class Sampler(object):
         dumps = []
         for i in range(self.idx, self.levels.shape[0]):
             shape = np.concatenate((self.scene.ptshape, self.levels[i]))
-            if self._sample_rate > .999:
-                draws = np.arange(np.prod(shape))
-            else:
-                self.weights = translate.resample(self.weights, shape)
-                self.idx = i
-                draws = self.draw()
+            self.idx = i
+            self.weights = translate.resample(self.weights, shape)
+            draws = self.draw()
             si, vecs = self.sample_idx(draws)
             ptidx = np.ravel_multi_index((si[0], si[1]), self.scene.ptshape)
             srate = si.shape[1]/np.prod(shape)

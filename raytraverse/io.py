@@ -10,9 +10,11 @@
 """functions for reading and writing SortedArRays"""
 import numpy as np
 import matplotlib.pyplot as plt
+from clipt.plot import get_colors
 from matplotlib import rcParams
 from matplotlib.colors import Normalize
 from clipt import mplt
+from matplotlib.patches import Polygon
 
 
 def np2bytes(ar, dtype='<f'):
@@ -183,8 +185,67 @@ def mk_img(lums, uv, decades=7, maxl=-1, colors='viridis', mark=True,
     return outf
 
 
+def mk_img_scatter(lums, uv, decades=7, maxl=-1, colors='viridis',
+           figsize=[10, 10], ext=1, title=None, outf=None, **kwargs):
+    lums, fig, ax, norm, lev = mk_img_setup(lums, decades=decades, maxl=maxl,
+                                            figsize=figsize, ext=ext)
+    ax.tick_params(length=10, width=.5, direction='inout', pad=5)
+    ticks = np.linspace(-ext, ext, 7)
+    labs = np.round(np.linspace(-ext*180/np.pi,
+                                ext*180/np.pi, 7)).astype(int)
+    ax.set_yticks(ticks)
+    ax.set_yticklabels(labs)
+    ax.set_xticks(ticks)
+    ax.set_xticklabels(labs)
+    ax.scatter(uv[:, 0], uv[:, 1], marker='o', s=3, c=lums, cmap=colors, norm=norm)
+    ax.set_facecolor((0,0,0))
+    if title is not None:
+        ax.set_title(title)
+    plt.tight_layout()
+    if outf is None:
+        plt.show()
+    else:
+        plt.savefig(outf)
+    plt.close(fig)
+    return outf
+
+
+def mk_img_voronoi(lums, uv, verts, regions, vi, decades=7, maxl=-1, colors='viridis', mark=True,
+                   figsize=[10, 10], inclmarks=None, ext=1, title=None, outf=None, **kwargs):
+    lums, fig, ax, norm, lev = mk_img_setup(lums, decades=decades, maxl=maxl,
+                                            figsize=figsize, ext=ext)
+    ax.tick_params(length=10, width=.5, direction='inout', pad=5)
+    ticks = np.linspace(-ext, ext, 7)
+    labs = np.round(np.linspace(-ext*180/np.pi,
+                                            ext*180/np.pi, 7)).astype(int)
+    ax.set_yticks(ticks)
+    ax.set_yticklabels(labs)
+    ax.set_xticks(ticks)
+    ax.set_xticklabels(labs)
+
+    colormap = get_colors(colors)
+    colormap.set_norm(norm)
+    for v in vi:
+        r = verts[regions[v]]
+        polygon = Polygon(r, closed=True, lw=.5, color=colormap.to_rgba(lums[v]), zorder=-1)
+        ax.add_patch(polygon)
+
+    if mark:
+        ax.scatter(uv[:inclmarks, 0], uv[:inclmarks, 1], s=10, marker='o',
+                   facecolors='none', edgecolors=(1, 1, 1, .5), linewidths=.5)
+    if title is not None:
+        ax.set_title(title)
+    plt.tight_layout()
+    if outf is None:
+        plt.show()
+    else:
+        plt.savefig(outf)
+    plt.close(fig)
+    return outf
+
+
 def hist(lums, bins='auto', outf=None, **kwargs):
-    h, binedges = np.histogram(lums.flatten(), bins='auto', **kwargs)
+    h, binedges = np.histogram(lums.ravel(), bins=bins, **kwargs)
     print(h, binedges)
     b = np.repeat(binedges, 2)[1:-1]
     h = np.repeat(h, 2)

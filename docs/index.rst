@@ -10,6 +10,7 @@ raytraverse (|release|)
    optic
    sampler
    scbinsampler
+   sunsampler
    integrator
    scene
    spacemapper

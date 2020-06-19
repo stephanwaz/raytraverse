@@ -143,13 +143,17 @@ class SCBinSampler(Sampler):
         """
         dres = self.levels[self.idx]
         pres = self.scene.ptshape
-        # direction detail
-        daxes = tuple(range(len(pres), len(pres) + len(dres)))
-        p = wavelet.get_detail(self.weights, daxes)
-        p = p*(1 - self._sample_t) + np.median(p)*self._sample_t
-        # draw on pdf
-        nsampc = int(self._sample_rate*self.weights.size)
-        pdraws = np.random.choice(p.size, nsampc, replace=False, p=p/np.sum(p))
+        if self._sample_rate == 1:
+            pdraws = np.arange(np.prod(dres) * np.prod(pres))
+        else:
+            # direction detail
+            daxes = tuple(range(len(pres), len(pres) + len(dres)))
+            p = wavelet.get_detail(self.weights, daxes)
+            p = p*(1 - self._sample_t) + np.median(p)*self._sample_t
+            # draw on pdf
+            nsampc = int(self._sample_rate*self.weights.size)
+            pdraws = np.random.default_rng().choice(p.size, nsampc,
+                                                    replace=False, p=p/np.sum(p))
         return pdraws
 
     def update_pdf(self, si, lum):

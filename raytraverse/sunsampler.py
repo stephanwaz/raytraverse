@@ -13,8 +13,11 @@ from subprocess import Popen, PIPE
 import numpy as np
 
 from clasp import script_tools as cst
+from scipy.ndimage import maximum_filter
 
 from raytraverse import optic, io, wavelet, Sampler, translate
+
+from memory_profiler import profile
 
 
 class SunSampler(Sampler):
@@ -38,6 +41,7 @@ class SunSampler(Sampler):
     def __init__(self, scene, sunres=5.0, srct=.01, maxspec=.3,
                  dndepth=12, t0=.05, t1=.01, maxrate=.01, minrate=.005, idres=10,
                  **kwargs):
+        self.ndsamps = 0
         super(SunSampler, self).__init__(scene, stype='sun', dndepth=dndepth,
                                          t0=t0, t1=t1, minrate=minrate,
                                          maxrate=maxrate, idres=idres, **kwargs)
@@ -48,7 +52,8 @@ class SunSampler(Sampler):
             sunres = .65
         self.suns = sunres
         self.maxspec = maxspec
-        self.sweights = self.init_weights()
+        self.sweights = 0
+        self.init_weights()
 
     def init_weights(self):
         shape = np.concatenate((self.scene.ptshape, self.levels[self.idx]))
@@ -63,30 +68,25 @@ class SunSampler(Sampler):
             vis = translate.resample(skypdf, shape)
             skypdf[skypdf > self.maxspec] = 0
             self.weights = translate.resample(skypdf*.25, shape)
-        return vis
+        self.init_sweights(vis)
 
-    @property
-    def sweights(self):
-        return self._sweights
-
-    @property
-    def ndsamps(self):
-        return self._ndsamps
-
-    @sweights.setter
-    def sweights(self, vis):
-        boxres = 1/self.levels[self.idx, -1]*180
-        diameter = int(np.ceil(.533/boxres) + 3)
-        shape = np.concatenate((self.scene.ptshape, self.levels[self.idx]))
+    def init_sweights(self, vis):
+        """at resolution 512 a 5x5 square will enclose and box in the solar
+        disk"""
+        sh0 = np.concatenate((self.scene.ptshape,
+                             (1024*self.scene.view.aspect, 1024)))
+        sh1 = np.concatenate((self.scene.ptshape, self.levels[self.idx]))
+        vis = translate.resample(vis, sh0)
         sunuv = self.scene.view.xyz2uv(self.suns)
         inview = self.scene.in_view(sunuv)
-        suni = translate.uv2ij(sunuv[inview], shape[-1]).T
-        suns = np.zeros(shape)
+        suni = translate.uv2ij(sunuv[inview], 1024).T
+        suns = np.zeros(sh0)
         s = np.s_[..., suni[0], suni[1]]
         isviz = vis[s] > self.srct/2
-        suns[s] = isviz*100
-        self._sweights = translate.resample(suns, radius=diameter, gauss=False)
-        self._ndsamps = np.sum(self.sweights > 0)
+        suns[s] = isviz
+        suns = maximum_filter(suns, (1, 1, 7, 7), mode='wrap')
+        self.sweights = translate.resample(suns, sh1, gauss=False)
+        self.ndsamps = np.sum(self.sweights > 0)
 
     @property
     def suns(self):
@@ -112,10 +112,11 @@ class SunSampler(Sampler):
             ib = self.scene.in_solarbounds(uv + .5/uvsize,
                                            size=1/uvsize).reshape(skyb.shape)
             suncount = np.sum(skyb*ib > self.srct)
+            print(suncount)
             skyd = wavelet.get_detail(skyb, (0, 1)).reshape(skyb.shape)
             sb = (skyb + skyd)/np.min(skyb + skyd)
-            sd = (sb * ib).flatten()
-            sdraws = np.random.choice(skyb.size, suncount, replace=False,
+            sd = (sb * ib).ravel()
+            sdraws = np.random.default_rng().choice(skyb.size, suncount, replace=False,
                                       p=sd/np.sum(sd))
             si = np.stack(np.unravel_index(sdraws, skyb.shape))
             border = .3*uvsize/180
@@ -124,6 +125,13 @@ class SunSampler(Sampler):
             self._suns = translate.uv2xyz(uv, xsign=1)
             self.write_suns(sunfile)
         self.srcn = self.suns.shape[0]
+
+    def set_rates(self, x):
+        super(SunSampler, self).set_rates(x)
+        self._sample_drate = self.sun_sample_rate(x)
+
+    def sun_sample_rate(self, x):
+        return 1/(1 + (x > 0)*3)
 
     def load_suns(self, sunfile):
         """load suns from file
@@ -177,6 +185,16 @@ class SunSampler(Sampler):
             skyb = translate.resample(skyb, (uvsize, uvsize))
         return skyb
 
+    def print_sample_cnt(self):
+        super(SunSampler, self).print_sample_cnt()
+        print(f'direct view samples:')
+        for i in range(len(self.levels)):
+            try:
+                x = i/(self.levels.shape[0] - 1)
+            except ZeroDivisionError:
+                x = 1
+            print(f"level {i}: {self.ndsamps * self.sun_sample_rate(x)}")
+
     def sample(self, vecs, rcopts='-ab 7 -ad 60000 -as 30000 -lw 1e-7',
                nproc=12, executable='rcontrib'):
         """call rendering engine to sample sky contribution
@@ -206,6 +224,7 @@ class SunSampler(Sampler):
         lum = optic.rgb2rad(io.bytes2np(p[0], (-1, 3)))
         return lum.reshape(-1, self.srcn)
 
+    # @profile
     def draw(self):
         """draw samples based on detail calculated from weights
         detail is calculated across direction only as it is the most precise
@@ -216,21 +235,25 @@ class SunSampler(Sampler):
         pdraws: np.array
             index array of flattened samples chosen to sample at next level
         """
-        # dres = self.levels[self.idx]
-        # pres = self.scene.ptshape
-        # direction detail
-        # daxes = tuple(range(len(pres), len(pres) + len(dres)))
-        # p = wavelet.get_detail(self.weights, daxes)
-        p = self.weights.flatten()
-        d = translate.resample(self.sweights, self.weights.shape,
-                               radius=0).flatten()
+        self.sweights = translate.resample(self.sweights, self.weights.shape, radius=0)
+        if self.idx > 0:
+            dres = self.levels[self.idx]
+            pres = self.scene.ptshape
+            # direction detail
+            daxes = tuple(range(len(pres), len(pres) + len(dres)))
+            p = wavelet.get_detail(self.weights, daxes)
+            d = wavelet.get_detail(self.sweights, daxes)
+        else:
+            p = self.weights.ravel()
+            d = self.sweights.ravel()
         p = p*(1 - self._sample_t) + np.median(p)*self._sample_t
         nsampc = int(self._sample_rate*self.weights.size)
+        nsampd = int(self._sample_drate*self.ndsamps)
         # draw on pdf
-        pdraws = np.random.choice(p.size, nsampc, replace=False,
+        pdraws = np.random.default_rng().choice(p.size, nsampc, replace=False,
                                   p=p/np.sum(p))
         # add additional samples for direct sun view rays
-        ddraws = np.random.choice(p.size, self.ndsamps, replace=False,
+        ddraws = np.random.default_rng().choice(p.size, nsampd, replace=False,
                                   p=d/np.sum(d))
         return np.concatenate((pdraws, ddraws))
 
@@ -244,6 +267,7 @@ class SunSampler(Sampler):
         lum:
             values to update with
         """
-        lum[lum > self.maxspec] = 0
-        self.weights[tuple(si)] = np.max(lum, 1)
-        io.imshow(self.weights[0, 0])
+        # lum[lum > self.maxspec] = 0
+        self.weights[tuple(si[:, :self.ndsamps])] = np.max(lum[:self.ndsamps], 1)
+        self.sweights[tuple(si[:, -self.ndsamps:])] = np.max(lum[-self.ndsamps:], 1)
+

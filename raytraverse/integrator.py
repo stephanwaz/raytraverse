@@ -105,7 +105,7 @@ class Integrator(object):
         :getter: Return list of spherical voronoi
         :type: list of scipy.spatial.SphericalVoronoi
         """
-        return self._pt_kd
+        return self._svs
 
     @pt_kd.setter
     def pt_kd(self, outdir):
@@ -226,7 +226,7 @@ class Integrator(object):
         return lum
 
     def view(self, vpts, vdirs, decades=4, maxl=0.0, coefs=None, treecnt=30,
-             ring=150, viewangle=180.0, ringtol=15.0, voronoi=False, **kwargs):
+             ring=150, viewangle=180.0, ringtol=15.0, scatter=False, **kwargs):
         """generate angular fisheye falsecolor luminance views
         additional kwargs passed to io.mk_img
 
@@ -252,8 +252,7 @@ class Integrator(object):
             degree opening of view cone
         ringtol: float, optional
             tolerance (in degrees) for adding ring points
-        voronoi: bool, optional
-            plot as voronoi regions
+
         Returns
         -------
 
@@ -270,6 +269,10 @@ class Integrator(object):
         lum = [np.log10(l) for l in lum]
         rvecs, rxy = translate.mkring(viewangle, ring)
         futures = []
+        if scatter:
+            func = io.mk_img_scatter
+        else:
+            func = io.mk_img
         with ProcessPoolExecutor() as exc:
             for k, v in enumerate(vdirs):
                 vm.dxyz = v
@@ -279,8 +282,6 @@ class Integrator(object):
                     if len(idx[k]) == 0:
                         print(f'Warning: No rays found at point: {pt} '
                               f'direction: {v}')
-                    elif voronoi:
-                        pass
                     else:
                         vec = vm.xyz2xy(self.vec[pi][idx[k]])
                         d, tri = self.d_kd[pi].query(trvecs,
@@ -291,8 +292,70 @@ class Integrator(object):
                             kw = dict(decades=decades, maxl=maxl,
                                       inclmarks=len(idx[k]), title=f"{pt} {v}",
                                       ext=ext, outf=f'{self.prefix}_{pi}_{k}_{j}.png', **kwargs)
-                            futures.append(exc.submit(io.mk_img, lum[li][j, vi],
+                            futures.append(exc.submit(func, lum[li][j, vi],
                                                       vec, **kw))
+        np.set_printoptions(**popts)
+        return [fut.result() for fut in futures]
+
+    def voronoi(self, vpts, vdirs, decades=4, maxl=0.0, coefs=None, treecnt=30,
+                viewangle=180.0, **kwargs):
+        """generate angular fisheye falsecolor luminance views
+        additional kwargs passed to io.mk_img
+
+        Parameters
+        ----------
+        vpts: np.array
+            points to search for (broadcastable to directions)
+        vdirs: np.array
+            directions to search for
+        decades: real, optional
+            number of log decades below max for minimum of color scale
+        maxl: real, optional
+            maximum log10(lum/179) for color scale
+        coefs: np.array
+            array of (N,) + lum.shape[1:] (coefficient vector)
+            or array of (N, 2) (index and coefficient)
+        treecnt: int, optional
+            number of queries at which a scipy.cKDtree.query_ball_tree is
+            used instead of scipy.cKDtree.query_ball_point
+        viewangle: float, optional
+            degree opening of view cone
+
+        Returns
+        -------
+
+        """
+        popts = np.get_printoptions()
+        np.set_printoptions(2)
+        vm = ViewMapper(viewangle=viewangle)
+        ext = translate.xyz2xy(translate.tp2xyz(np.array([[viewangle*np.pi/360,
+                                                           np.pi]])))[0, 0]
+        perrs, pis, idxs = self.query(vpts, vdirs, treecnt=treecnt,
+                                      viewangle=viewangle)
+        lum = self.apply_coefs(pis, coefs=coefs)
+        lum = [np.log10(l) for l in lum]
+        futures = []
+        with ProcessPoolExecutor() as exc:
+            for k, v in enumerate(vdirs):
+                vm.dxyz = v
+                for li, (perr, pi, idx) in enumerate(zip(perrs, pis, idxs)):
+                    pt = self.scene.idx2pt([pi])[0]
+                    if len(idx[k]) == 0:
+                        print(f'Warning: No rays found at point: {pt} '
+                              f'direction: {v}')
+                    else:
+                        vi = idx[k]
+                        vec = vm.xyz2xy(self.vec[pi][vi])
+                        verts = vm.xyz2xy(self.svs[pi].vertices)
+                        regions = self.svs[pi].regions
+                        for j in range(lum[li].shape[0]):
+                            kw = dict(decades=decades, maxl=maxl,
+                                      title=f"{pt} {v}", ext=ext,
+                                      outf=f'{self.prefix}_{pi}_{k}_{j}.png',
+                                      **kwargs)
+                            futures.append(
+                                exc.submit(io.mk_img_voronoi, lum[li][j],
+                                           vec, verts, regions, vi, **kw))
         np.set_printoptions(**popts)
         return [fut.result() for fut in futures]
 
