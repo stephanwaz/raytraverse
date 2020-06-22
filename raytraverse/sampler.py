@@ -94,6 +94,8 @@ class Sampler(object):
     def __init__(self, scene, dndepth=9, srcn=1, t0=.1, t1=.01, maxrate=1.0,
                  minrate=.05, idres=4, stype='generic'):
         self.scene = scene
+        #: func: mapper to use for sampling
+        self.samplemap = self.scene.view
         #: int: number of sources return per vector by run
         self.srcn = srcn
         #: int: initial direction resolution (as log2(res))
@@ -177,6 +179,9 @@ class Sampler(object):
         print(lum.shape)
         return lum
 
+    def _uv2xyz(self, uv, si):
+        return self.samplemap.uv2xyz(uv)
+
     def sample_idx(self, pdraws):
         """generate samples vectors from flat draw indices
 
@@ -196,13 +201,10 @@ class Sampler(object):
         # index assignment
         si = np.stack(np.unravel_index(pdraws, shape))
         # convert to UV directions and positions
-        uv = si.T[:, 2:]/shape[3]
+        uv = si.T[:, -2:]/shape[3]
         pos = self.scene.area.uv2pt((si.T[:, 0:2] + .5)/shape[0:2])
-
         uv += (np.random.default_rng().random(uv.shape))/shape[3]
-        # uv += .5/shape[3]
-        xyz = self.scene.view.uv2xyz(uv)
-        # xyz = translate.uv2xyz(uv, axes=(0, 2, 1))
+        xyz = self._uv2xyz(uv, si)
         vecs = np.hstack((pos, xyz))
         return si, vecs
 
@@ -243,7 +245,8 @@ class Sampler(object):
         p = np.ones(self.weights.size)
         # draw on pdf
         nsampc = int(self._sample_rate*self.weights.size)
-        pdraws = np.random.default_rng().choice(p.size, nsampc, replace=False, p=p/np.sum(p))
+        pdraws = np.random.default_rng().choice(p.size, nsampc, replace=False,
+                                                p=p/np.sum(p))
         return pdraws
 
     def update_pdf(self, si, lum):

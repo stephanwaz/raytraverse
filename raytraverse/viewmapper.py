@@ -12,7 +12,8 @@ from raytraverse import translate
 
 
 class ViewMapper(object):
-    """translate between view and normalized UV space
+    """translate between world and normalized UV space based on direction
+    and view angle
 
     Parameters
     ----------
@@ -57,8 +58,8 @@ class ViewMapper(object):
     @dxyz.setter
     def dxyz(self, xyz):
         """set view parameters"""
-        self._dxyz = translate.norm1(xyz)
-        self._ymtx, self._pmtx = translate.rmtx_yp(self.dxyz)
+        self._dxyz = translate.norm(xyz)
+        self._ymtx, self._pmtx = zip(*[translate.rmtx_yp(x) for x in self.dxyz])
         if self._viewangle > 180:
             self._sf = np.array((1, 1))
             self._bbox = np.stack(((0, 0), (2, 1)))
@@ -67,29 +68,34 @@ class ViewMapper(object):
             self._sf = np.array((self._viewangle/180, self._viewangle/180))
             self._bbox = np.stack((.5 - self._sf/2, .5 + self._sf/2))
 
-    def view2world(self, xyz):
-        return (self.ymtx.T@(self.pmtx.T@xyz.T)).T
+    def view2world(self, xyz, i=0):
+        return (self.ymtx[i].T@(self.pmtx[i].T@xyz.T)).T
 
-    def world2view(self, xyz):
-        return (self.pmtx@(self.ymtx@xyz.T)).T
+    def world2view(self, xyz, i=0):
+        return (self.pmtx[i]@(self.ymtx[i]@xyz.T)).T
 
-    def xyz2uv(self, xyz):
+    def xyz2uv(self, xyz, i=0):
         # rotate from world to view space
-        rxyz = self.world2view(xyz)
+        rxyz = self.world2view(xyz, i)
         # translate to uv
         uv = translate.xyz2uv(rxyz)
         # scale to view uv space
-        uv = (uv - self.bbox[None, 0]) / self.sf[None, :]
+        uv = (uv - self.bbox[None, 0])/self.sf[None, :]
         return uv
 
-    def uv2xyz(self, uv):
+    def uv2xyz(self, uv, i=0):
         # scale to hemispheric uv
-        uv = self.bbox[None, 0] + uv * self.sf[None, :]
+        uv = self.bbox[None, 0] + uv*self.sf[None, :]
         # translate to xyz with z view direction
         rxyz = translate.uv2xyz(uv)
         # rotate from this view space to world
-        return self.view2world(rxyz)
+        if np.asarray(i).size > 1:
+            xyz = np.concatenate([self.view2world(r.reshape(1, -1), j)
+                                  for r, j in zip(rxyz, i)])
+        else:
+            xyz = self.view2world(rxyz, i)
+        return xyz
 
-    def xyz2xy(self, xyz):
-        rxyz = self.world2view(xyz)
+    def xyz2xy(self, xyz, i=0):
+        rxyz = self.world2view(xyz, i)
         return translate.xyz2xy(rxyz)

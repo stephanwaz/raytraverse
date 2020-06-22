@@ -11,10 +11,12 @@ raytraverse (|release|)
    sampler
    scbinsampler
    sunsampler
+   sunviewsampler
    integrator
    scene
    spacemapper
    viewmapper
+   sunmapper
    cli
 
 .. include:: ../README.rst

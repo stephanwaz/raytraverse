@@ -160,8 +160,14 @@ class Integrator(object):
         for i, pt in enumerate(pt_div):
             d_kd[i] = cKDTree(samps[pt0:pt, 1:4])
             vecs[i] = samps[pt0:pt, 1:4]
-            svs[i] = SphericalVoronoi(samps[pt0:pt, 1:4])
-            omegas[i] = svs[i].calculate_areas()
+            try:
+                svs[i] = SphericalVoronoi(samps[pt0:pt, 1:4])
+            except ValueError as e:
+                print(f'Warning, SphericalVoronoi not set at point {i}:')
+                print(e)
+                print(f'Source Solid angle calculation failed')
+            else:
+                omegas[i] = svs[i].calculate_areas()
             lums[i] = samps[pt0:pt, 4:].reshape(-1, samps.shape[1] - 4)
             pt0 = pt
         return pt_kd, d_kd, lums, vecs, omegas, svs

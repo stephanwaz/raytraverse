@@ -12,6 +12,7 @@ import numpy as np
 from clasp import script_tools as cst
 
 from raytraverse import wavelet, translate
+from raytraverse.sunmapper import SunMapper
 
 
 class SunSetter(object):
@@ -32,11 +33,12 @@ class SunSetter(object):
         self.srct = srct
         #: raytraverse.scene.Scene
         self.scene = scene
-        if sunres < .61:
-            print('Warning! minimum sunres is .65 to avoid overlap and allow')
-            print('for jittering position, sunres set to .65')
-            sunres = .65
+        if sunres < .7:
+            print('Warning! minimum sunres is .7 to avoid overlap and allow')
+            print('for jittering position, sunres set to .7')
+            sunres = .7
         self.suns = sunres
+        self.map = SunMapper(self.suns)
 
     @property
     def suns(self):

@@ -11,13 +11,14 @@ from subprocess import Popen, PIPE
 
 import numpy as np
 
-from scipy.ndimage import maximum_filter
-
 from raytraverse import optic, io, wavelet, Sampler, translate
 
 
 class SunViewSampler(Sampler):
     """sample view rays to direct suns.
+
+    here idres and dndepth are sampled on a per sun basis for a view centered
+    on each sun direction with a view angle of .7 degrees.
 
     Parameters
     ----------
@@ -28,11 +29,11 @@ class SunViewSampler(Sampler):
     """
 
     def __init__(self, scene, suns):
-        self.ndsamps = 0
         self.suns = suns
         super(SunViewSampler, self).__init__(scene, stype='sunview', idres=4,
                                              dndepth=7, t0=0, t1=0, minrate=.25,
                                              maxrate=1)
+        self.samplemap = self.suns.map
         self.srcn = self.suns.suns.shape[0]
         self.init_weights()
 
@@ -71,26 +72,7 @@ class SunViewSampler(Sampler):
         suns = np.zeros((*isviz.shape, 8, 8))
         suns[isviz, :, :] = 1
         self._viz = np.sum(isviz)
-        self._wcoords = sunuv
         self.weights = suns
-        self.ndsamps = np.sum(self.weights > 0)
-
-    # def set_rates(self, x):
-    #     self._sample_rate = self.sun_sample_rate(x)
-    #
-    # def sun_sample_rate(self, x):
-    #     # return 1/(1 + (x > 0))
-    #     return 1 + x*2.5
-
-    # def print_sample_cnt(self):
-    #     an = 0
-    #     print("shape\tsamples")
-    #     for i, l in enumerate(self.levels):
-    #         x = i/(self.levels.shape[0] - 1)
-    #         a = int(self.sun_sample_rate(x)*self.ndsamps)
-    #         an += a
-    #         print(f"{l}\t{a}")
-    #     print(f"total\t{an} samples for {self.suns.suns.shape[0]} visible suns")
 
     def sample(self, vecs, rcopts='-ab 0',
                nproc=12, executable='rcontrib'):
@@ -121,32 +103,8 @@ class SunViewSampler(Sampler):
         lum = optic.rgb2rad(io.bytes2np(p[0], (-1, 3)))
         return lum.reshape(-1, self.srcn)
 
-    def sample_idx(self, pdraws):
-        """generate samples vectors from flat draw indices
-
-        Parameters
-        ----------
-        pdraws: np.array
-            flat index positions of samples to generate
-
-        Returns
-        -------
-        si: np.array
-            index array of draws matching samps.shape
-        vecs: np.array
-            sample vectors
-        """
-        shape = np.concatenate((self.scene.ptshape, self.levels[self.idx]))
-        # index assignment
-        si = np.stack(np.unravel_index(pdraws, shape))
-        uvsize = (shape[3] * 2**7)
-        # convert to UV directions and positions (offset to each sun position)
-        uv = self._wcoords[si[2]] + si.T[:, 3:]/uvsize - 4/1024
-        pos = self.scene.area.uv2pt((si.T[:, 0:2] + .5)/shape[0:2])
-        uv += (np.random.default_rng().uniform(0, 1/uvsize, uv.shape))
-        xyz = self.scene.view.uv2xyz(uv)
-        vecs = np.hstack((pos, xyz))
-        return si, vecs
+    def _uv2xyz(self, uv, si):
+        return self.samplemap.uv2xyz(uv, si[2])
 
     def draw(self):
         """draw samples based on detail calculated from weights
@@ -163,18 +121,17 @@ class SunViewSampler(Sampler):
         else:
             p = self.weights.ravel()
 
-        ss = [np.s_[i:i + 10] for i in range(0, 100, 10)]
-        side = self.levels[self.idx][-1]
-        for i in range(self.weights.shape[1]):
-            a = p.reshape(self.weights.shape)[0][i][0:100]
-            b = self.weights[0][i][0:100]
-            im = np.hstack([a[s].reshape(side*10, side) for s in ss]).reshape(
-                side*10, side*10).T
-            io.imshow(im, [10, 10])
-            print(np.sum(b > .6)/(25*side*side))
+        # ss = [np.s_[i:i + 10] for i in range(0, 100, 10)]
+        # side = self.levels[self.idx][-1]
+        # for i in range(self.weights.shape[1]):
+        #     a = p.reshape(self.weights.shape)[0][i][0:100]
+        #     b = self.weights[0][i][0:100]
+        #     im = np.hstack([a[s].reshape(side*10, side) for s in ss]).reshape(
+        #         side*10, side*10).T
+        #     io.imshow(im, [10, 10])
 
         nsampc = int(self._sample_rate*self._viz*self.levels[self.idx, 2]**2)
-        nsampc = min(nsampc, (np.sum(p > 0)))
+        nsampc = min(nsampc, np.sum(p > 0))
         # draw on pdf
         pdraws = np.random.default_rng().choice(p.size, nsampc, replace=False,
                                                 p=p/np.sum(p))
