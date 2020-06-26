@@ -6,9 +6,6 @@
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 # =======================================================================
-import numpy as np
-
-from raytraverse import translate
 from raytraverse.viewmapper import ViewMapper
 
 
@@ -22,8 +19,4 @@ class SunMapper(ViewMapper):
     """
 
     def __init__(self, suns):
-        super(SunMapper, self).__init__(suns, .65)
-        self._viewangle = .7
-        # float: aspect ratio width/height
-        self.aspect = 1
-        self.dxyz = suns
+        super(SunMapper, self).__init__(suns, .533)

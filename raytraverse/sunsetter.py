@@ -28,9 +28,11 @@ class SunSetter(object):
         threshold of sky contribution for determining appropriate srcn
     """
 
-    def __init__(self, scene, sunres=5.0, srct=.01):
+    def __init__(self, scene, sunres=5.0, srct=.01, reload=True, **kwargs):
         #: float: threshold of sky contribution for determining appropriate srcn
         self.srct = srct
+        #: bool: reuse existing sun positions (if found)
+        self.reload = reload
         #: raytraverse.scene.Scene
         self.scene = scene
         if sunres < .7:
@@ -54,7 +56,7 @@ class SunSetter(object):
     def suns(self, sunres):
         """set the skydetail array and determine sample count and spacing"""
         sunfile = f"{self.scene.outdir}/suns.rad"
-        if os.path.isfile(sunfile):
+        if os.path.isfile(sunfile) and self.reload:
             self.load_suns(sunfile)
         else:
             uvsize = int(np.floor(90/sunres)*2)

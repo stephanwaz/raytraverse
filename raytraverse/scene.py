@@ -22,12 +22,12 @@ class Scene(object):
 
     Parameters
     ----------
-    scene: str
-        space separated list of radiance scene files (no sky) or octree
-    area: str
-        radiance scene file containing planar geometry of analysis area
     outdir: str
         path to store scene info and output files
+    scene: str, optional (required if not reload)
+        space separated list of radiance scene files (no sky) or octree
+    area: str, optional (required if not reload)
+        radiance scene file containing planar geometry of analysis area
     reload: bool, optional
         if True attempts to load existing scene files in new instance
         overrides 'overwrite'
@@ -59,9 +59,10 @@ class Scene(object):
         should be 1-180 or 360
     """
 
-    def __init__(self, scene, area, outdir, reload=False, overwrite=False,
-                 wea=None, loc=None, ptres=1.0, ptro=0.0, skyro=0.0,
-                 weaformat='time', viewdir=(0, 1, 0), viewangle=360):
+    def __init__(self, outdir, scene=None, area=None, reload=False,
+                 overwrite=False, wea=None, loc=None, ptres=1.0, ptro=0.0,
+                 skyro=0.0, weaformat='time', viewdir=(0, 1, 0), viewangle=360,
+                 **kwargs):
         try:
             os.mkdir(outdir)
         except FileExistsError as e:
@@ -112,8 +113,13 @@ class Scene(object):
             pass
         else:
             dims = cst.pipeline([f'getinfo -d {scene}', ])
-            if re.match(scene + r': [\d.-]+ [\d.-]+ [\d.-]+ [\d.-]+',
-                        dims.strip()):
+            try:
+                m = re.match(scene + r': [\d.-]+ [\d.-]+ [\d.-]+ [\d.-]+',
+                             dims.strip())
+            except TypeError:
+                raise ValueError(f'{o} does not exist, Scene() must be invoked'
+                                 ' with a scene= argument')
+            if m:
                 oconv = f'oconv -i {scene}'
             else:
                 scene = " ".join(parse_file_list(None, scene))

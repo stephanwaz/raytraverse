@@ -8,13 +8,49 @@
 # =======================================================================
 
 """functions for reading and writing SortedArRays"""
+import shlex
+from subprocess import Popen, PIPE
+import warnings
+
 import numpy as np
 import matplotlib.pyplot as plt
 from clipt.plot import get_colors
 from matplotlib import rcParams
+from matplotlib.figure import Figure
 from matplotlib.colors import Normalize
 from clipt import mplt
 from matplotlib.patches import Polygon
+
+from raytraverse import optic
+
+
+def call_sampler(outf, command, vecs):
+    """make subprocess call to sampler given as command, expects rgb value
+    as return for each vec
+
+    Parameters
+    ----------
+    outf: str
+        path to write out to
+    command: str
+        command line with executable and options
+    vecs: np.array
+        vectors to pass as stdin to command
+
+    Returns
+    -------
+    lums: np.array
+        of length vectors.shape[0]
+
+    """
+    f = open(outf, 'a+b')
+    lum_file_pos = f.tell()
+    p = Popen(shlex.split(command), stdout=f, stdin=PIPE)
+    p.communicate(np2bytes(vecs))
+    f.seek(lum_file_pos)
+    lum = optic.rgb2rad(bytes2np(f.read(), (-1, 3)))
+    f.close()
+    return lum
 
 
 def np2bytes(ar, dtype='<f'):
@@ -141,7 +177,8 @@ def mk_img_setup(lums, decades=7, maxl=-1, figsize=[20, 10], ext=1):
         }
     rcParams.update(defparam)
     lums = np.where(np.isfinite(lums), lums, -decades + maxl)
-    fig, ax = plt.subplots(1, 1, figsize=figsize)
+    fig = Figure(figsize=figsize)
+    ax = fig.add_subplot()
     norm = Normalize(vmin=-decades + maxl, vmax=maxl)
     lev = np.linspace(-decades + maxl, maxl, 200)
     ax.set(xlim=(-ext, ext), ylim=(-ext, ext))
@@ -157,38 +194,7 @@ def mk_img_uv(lums, uv, decades=7, maxl=-1, colors='viridis', mark=True):
     return fig, ax
 
 
-def mk_img(lums, uv, decades=7, maxl=-1, colors='viridis', mark=True,
-           figsize=[10, 10], inclmarks=None, ext=1, title=None, outf=None, **kwargs):
-    lums, fig, ax, norm, lev = mk_img_setup(lums, decades=decades, maxl=maxl,
-                                            figsize=figsize, ext=ext)
-    ax.tick_params(length=10, width=.5, direction='inout', pad=5)
-    ticks = np.linspace(-ext, ext, 7)
-    labs = np.round(np.linspace(-ext*180/np.pi,
-                                            ext*180/np.pi, 7)).astype(int)
-    ax.set_yticks(ticks)
-    ax.set_yticklabels(labs)
-    ax.set_xticks(ticks)
-    ax.set_xticklabels(labs)
-    ax.tricontourf(uv[:, 0], uv[:, 1], lums, cmap=colors, norm=norm,
-                   levels=lev, extend='both')
-    if mark:
-        ax.scatter(uv[:inclmarks, 0], uv[:inclmarks, 1], s=10, marker='o',
-                   facecolors='none', edgecolors='w', linewidths=.5)
-    if title is not None:
-        ax.set_title(title)
-    plt.tight_layout()
-    if outf is None:
-        plt.show()
-    else:
-        plt.savefig(outf)
-    plt.close(fig)
-    return outf
-
-
-def mk_img_scatter(lums, uv, decades=7, maxl=-1, colors='viridis',
-           figsize=[10, 10], ext=1, title=None, outf=None, **kwargs):
-    lums, fig, ax, norm, lev = mk_img_setup(lums, decades=decades, maxl=maxl,
-                                            figsize=figsize, ext=ext)
+def set_ang_ticks(ax, ext):
     ax.tick_params(length=10, width=.5, direction='inout', pad=5)
     ticks = np.linspace(-ext, ext, 7)
     labs = np.round(np.linspace(-ext*180/np.pi,
@@ -197,16 +203,39 @@ def mk_img_scatter(lums, uv, decades=7, maxl=-1, colors='viridis',
     ax.set_yticklabels(labs)
     ax.set_xticks(ticks)
     ax.set_xticklabels(labs)
+
+
+def save_img(fig, ax, title, outf):
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        fig.tight_layout()
+        if title is not None:
+            ax.set_title(title)
+        fig.savefig(outf)
+
+
+def mk_img(lums, uv, outf, decades=7, maxl=-1, colors='viridis', mark=True,
+           figsize=[10, 10], inclmarks=None, ext=1, title=None, **kwargs):
+    lums, fig, ax, norm, lev = mk_img_setup(lums, decades=decades, maxl=maxl,
+                                            figsize=figsize, ext=ext)
+    set_ang_ticks(ax, ext)
+    ax.tricontourf(uv[:, 0], uv[:, 1], lums, cmap=colors, norm=norm,
+                   levels=lev, extend='both')
+    if mark:
+        ax.scatter(uv[:inclmarks, 0], uv[:inclmarks, 1], s=10, marker='o',
+                   facecolors='none', edgecolors='w', linewidths=.5)
+    save_img(fig, ax, title, outf)
+    return outf
+
+
+def mk_img_scatter(lums, uv, outf, decades=7, maxl=-1, colors='viridis',
+           figsize=[10, 10], ext=1, title=None, **kwargs):
+    lums, fig, ax, norm, lev = mk_img_setup(lums, decades=decades, maxl=maxl,
+                                            figsize=figsize, ext=ext)
+    set_ang_ticks(ax, ext)
     ax.scatter(uv[:, 0], uv[:, 1], marker='o', s=3, c=lums, cmap=colors, norm=norm)
     ax.set_facecolor((0,0,0))
-    if title is not None:
-        ax.set_title(title)
-    plt.tight_layout()
-    if outf is None:
-        plt.show()
-    else:
-        plt.savefig(outf)
-    plt.close(fig)
+    save_img(fig, ax, title, outf)
     return outf
 
 

@@ -72,7 +72,7 @@ class Sampler(object):
     ----------
     scene: raytraverse.scene.Scene
         scene class containing geometry, location and analysis plane
-    dndepth: int, optional
+    fdres: int, optional
         final directional resolution given as log2(res)
     srcn: int, optional
         number of sources return per vector by run
@@ -89,10 +89,13 @@ class Sampler(object):
         initial direction resolution (as log2(res))
     stype: str, optional
         sampler type (prefixes output files)
+    append: bool, optional
+        append results of run to existing sample files (if present in scene)
+        otherwise overwrites with call to run
     """
 
-    def __init__(self, scene, dndepth=9, srcn=1, t0=.1, t1=.01, maxrate=1.0,
-                 minrate=.05, idres=4, stype='generic'):
+    def __init__(self, scene, fdres=9, srcn=1, t0=.1, t1=.01, maxrate=1.0,
+                 minrate=.05, idres=4, stype='generic', append=False, **kwargs):
         self.scene = scene
         #: func: mapper to use for sampling
         self.samplemap = self.scene.view
@@ -100,7 +103,7 @@ class Sampler(object):
         self.srcn = srcn
         #: int: initial direction resolution (as log2(res))
         self.idres = idres
-        self.levels = dndepth
+        self.levels = fdres
         #: float: fraction of uniform random samples taken at first step
         self.t0 = t0
         #: float: fraction of uniform random samples taken at final step
@@ -113,6 +116,8 @@ class Sampler(object):
         self.idx = 0
         #: str: sampler type
         self.stype = stype
+        # bool: overwrites existing results files when false
+        self.append = append
         #: np.array: holds weights for self.draw
         self.weights = np.full(np.concatenate((self.scene.ptshape,
                                                self.levels[0])), 1e-7)
@@ -146,16 +151,16 @@ class Sampler(object):
         """sampling scheme
 
         :getter: Returns the sampling scheme
-        :setter: Set the sampling scheme from (ptres, dndepth, skres)
+        :setter: Set the sampling scheme from (ptres, fdres, skres)
         :type: np.array
         """
         return self._levels
 
     @levels.setter
-    def levels(self, dndepth):
+    def levels(self, fdres):
         """calculate sampling scheme"""
         self._levels = np.array([(2**i*self.scene.view.aspect, 2**i)
-                                 for i in range(self.idres, dndepth+1, 1)])
+                                 for i in range(self.idres, fdres+1, 1)])
 
     @property
     def scene(self):
@@ -176,7 +181,6 @@ class Sampler(object):
         """dummy sample function
         """
         lum = np.ones((vecs.shape[0], self.srcn))
-        print(lum.shape)
         return lum
 
     def _uv2xyz(self, uv, si):
@@ -208,31 +212,22 @@ class Sampler(object):
         vecs = np.hstack((pos, xyz))
         return si, vecs
 
-    def dump(self, ptidx, vecs, vals, wait=False):
-        """save values to file
+    def dump_vecs(self, si, vecs):
+        """save vectors to file
         see io.write_npy
 
         Parameters
         ----------
-        ptidx: np.array
-            point indices
+        si: np.array
+            sample indices
         vecs: np.array
             ray directions to write
-        vals: np.array
-            values to write
-        wait: bool, optional
-            if false, does not wait for files to write before returning
-
-        Returns
-        -------
-        None
         """
-        outf = f'{self.scene.outdir}/{self.stype}_{self.idx}'
-        if wait:
-            return io.write_npy(ptidx, vecs, vals, outf)
-        else:
-            executor = ThreadPoolExecutor()
-            return executor.submit(io.write_npy, ptidx, vecs, vals, outf)
+        ptidx = np.ravel_multi_index((si[0], si[1]), self.scene.ptshape)
+        outf = f'{self.scene.outdir}/{self.stype}_vecs.out'
+        f = open(outf, 'ab')
+        f.write(io.np2bytes(np.vstack((ptidx.reshape(1, -1), vecs.T)).T))
+        f.close()
 
     def draw(self):
         """define pdf generated from samps and draw next set of samples
@@ -260,11 +255,21 @@ class Sampler(object):
             values to update with
 
         """
-        self.weights[tuple(si)] = np.max(lum, 1)
+        self.weights[tuple(si)] = lum
 
     def save_pdf(self):
         outf = f'{self.scene.outdir}/{self.stype}_pdf'
         np.save(outf, self.weights)
+
+    def get_scheme(self):
+        scheme = np.ones((self.levels.shape[0], 5))
+        scheme[:, 2:4] = self.levels
+        scheme[:, 0:2] = self.scene.ptshape
+        for i in range(scheme.shape[0]):
+            x = i/(self.levels.shape[0] - 1)
+            a = wavelet.get_sample_rate(x, self.minrate, self.maxrate)
+            scheme[i, 4] = a*np.product(scheme[i])
+        return scheme.astype(int)
 
     def print_sample_cnt(self):
         an = 0
@@ -289,31 +294,32 @@ class Sampler(object):
             keyword arguments passed to self.sample
 
         """
-        allc = 0
 
-        dumps = []
+        allc = 0
+        if not self.append:
+            f = open(f'{self.scene.outdir}/{self.stype}_vecs.out', 'wb')
+            f.close()
+            f = open(f'{self.scene.outdir}/{self.stype}_vals.out', 'wb')
+            f.close()
         for i in range(self.idx, self.levels.shape[0]):
             shape = np.concatenate((self.scene.ptshape, self.levels[i]))
             self.idx = i
             self.weights = translate.resample(self.weights, shape)
             draws = self.draw()
             si, vecs = self.sample_idx(draws)
-            ptidx = np.ravel_multi_index((si[0], si[1]), self.scene.ptshape)
             srate = si.shape[1]/np.prod(shape)
             print(f"{shape} sampling: {si.shape[1]}\t{srate:.02%}")
+            self.dump_vecs(si, vecs[:, 3:])
             lum = self.sample(vecs, **skwargs)
-            dumps.append(self.dump(ptidx, vecs[:, 3:], lum))
             self.update_pdf(si, lum)
             a = lum.shape[0]
             allc += a
         print("--------------------------------------")
         srate = allc/self.weights.size
-        print(f"asamp: {allc}\t{srate:.02%}")
+        print(f"total sampling: {allc}\t{srate:.02%}")
         self.save_pdf()
-        for dump in dumps:
-            if dump is None:
-                pass
-            else:
-                wait = dump.result()
+        outf = f'{self.scene.outdir}/{self.stype}_scheme'
+        np.save(outf, self.get_scheme())
+
 
 

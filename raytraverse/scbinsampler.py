@@ -7,13 +7,11 @@
 # =======================================================================
 
 import os
-import shlex
-from subprocess import Popen, PIPE
 
 import numpy as np
 
 from clasp import script_tools as cst
-from raytraverse import optic, io, wavelet, Sampler
+from raytraverse import io, wavelet, Sampler
 from raytraverse.sampler import scbinscal
 
 
@@ -42,58 +40,14 @@ class SCBinSampler(Sampler):
     def mk_sky_files(self):
         skyoct = f'{self.scene.outdir}/{self.stype}.oct'
         if not os.path.isfile(skyoct):
-            skydef = ("void light skyglow 0 0 3 1 1 1 skyglow source sky 0 0 4"
-                      " 0 0 1 180")
             skydeg = ("void glow skyglow 0 0 4 1 1 1 0 skyglow source sky 0 0 4"
                       " 0 0 1 180")
             f = open(skyoct, 'wb')
             cst.pipeline([f'oconv -i {self.scene.outdir}/scene.oct -'],
                          inp=skydeg, outfile=f, close=True)
-            f = open(f'{self.scene.outdir}/sky_pm.oct', 'wb')
-            cst.pipeline([f'oconv -i {self.scene.outdir}/scene.oct -'],
-                         inp=skydef, outfile=f, close=True)
         f = open(f'{self.scene.outdir}/scbins.cal', 'w')
         f.write(scbinscal)
         f.close()
-
-    def mkpmap(self, apo, nproc=12, overwrite=False, nphotons=1e8,
-               executable='mkpmap_dc', opts=''):
-        """makes photon map of skydome with specified photon port modifier
-
-        Parameters
-        ----------
-        apo: str
-            space seperated list of photon port modifiers
-        nproc: int, optional
-            number of processes to run on (the -n option of mkpmap)
-        overwrite: bool, optional
-            if True, passes -fo+ to mkpmap, if false and pmap exists, raises
-            ChildProcessError
-        nphotons: int, optional
-            number of contribution photons
-        executable: str, optional
-            path to mkpmap executable
-        opts: str, optional
-            additional options to feed to mkpmap
-
-        Returns
-        -------
-        str
-            result of getinfo on newly created photon map
-        """
-        apos = '-apo ' + ' -apo '.join(apo.split())
-        if overwrite:
-            force = '-fo+'
-        else:
-            force = '-fo-'
-        fdr = self.scene.outdir
-        cmd = (f'{executable} {opts} -n {nproc} {force} {apos} -apC '
-               f'{fdr}/sky.gpm {nphotons} {fdr}/sky_pm.oct')
-        r, err = cst.pipeline([cmd], caperr=True)
-        if b'fatal' in err:
-            raise ChildProcessError(err.decode(cst.encoding))
-        self.skypmap = True
-        return cst.pipeline([f'getinfo {fdr}/sky.gpm'])
 
     def sample(self, vecs, rcopts='-ab 7 -ad 60000 -as 30000 -lw 1e-7',
                nproc=12, executable='rcontrib_pm', bwidth=1000):
@@ -115,21 +69,20 @@ class SCBinSampler(Sampler):
         Returns
         -------
         lum: np.array
-            array of shape (N, binnumber) with sky coefficients
+            array of shape (N,) to update weights
         """
-        fdr = self.scene.outdir
         if self.skypmap:
-            rcopts += f' -ab -1 -ap {fdr}/sky.gpm {bwidth}'
-            octr = f"{fdr}/sky_pm.oct"
+            rcopts += f' -ab -1 -ap {self.scene.outdir}/sky.gpm {bwidth}'
+            octr = f"{self.scene.outdir}/sky_pm.oct"
         else:
-            octr = f"{fdr}/sky.oct"
+            octr = f"{self.scene.outdir}/sky.oct"
         rc = (f"{executable} -V+ -fff {rcopts} -h -n {nproc} -e "
-              f"'side:{self.skres}' -f {fdr}/scbins.cal -b bin -bn {self.srcn} "
+              f"'side:{self.skres}' -f "
+              f"{self.scene.outdir}/scbins.cal -b bin -bn {self.srcn} "
               f"-m skyglow {octr}")
-        p = Popen(shlex.split(rc), stdout=PIPE,
-                  stdin=PIPE).communicate(io.np2bytes(vecs))
-        lum = optic.rgb2rad(io.bytes2np(p[0], (-1, 3)))
-        return lum.reshape(-1, self.srcn)
+        outf = f'{self.scene.outdir}/{self.stype}_vals.out'
+        lum = io.call_sampler(outf, rc, vecs)
+        return np.max(lum.reshape(-1, self.srcn), 1)
 
     def draw(self):
         """draw samples based on detail calculated from weights
@@ -153,7 +106,8 @@ class SCBinSampler(Sampler):
             # draw on pdf
             nsampc = int(self._sample_rate*self.weights.size)
             pdraws = np.random.default_rng().choice(p.size, nsampc,
-                                                    replace=False, p=p/np.sum(p))
+                                                    replace=False,
+                                                    p=p/np.sum(p))
         return pdraws
 
     def update_pdf(self, si, lum):
@@ -168,10 +122,10 @@ class SCBinSampler(Sampler):
 
         """
         self.skydetail = np.maximum(self.skydetail, np.max(lum, 0))
-        self.weights[tuple(si)] = np.max(lum, 1)
+        self.weights[tuple(si)] = lum
 
     def save_pdf(self):
-        outf = f'{self.scene.outdir}/{self.stype}_pdf'
+        outf = f'{self.scene.outdir}/{self.stype}_vis'
         np.save(outf, self.weights)
         outf = f'{self.scene.outdir}/{self.stype}_skydetail'
         np.save(outf, self.skydetail.reshape(self.skres, self.skres))

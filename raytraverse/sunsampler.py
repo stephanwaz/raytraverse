@@ -5,17 +5,11 @@
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 # =======================================================================
-
-import os
-import shlex
-from subprocess import Popen, PIPE
-
 import numpy as np
 
-from clasp import script_tools as cst
-from scipy.ndimage import maximum_filter
+import clasp.script_tools as cst
 
-from raytraverse import optic, io, wavelet, Sampler, translate
+from raytraverse import io, Sampler, translate
 
 from memory_profiler import profile
 
@@ -33,28 +27,27 @@ class SunSampler(Sampler):
         maximum expected value of non reflected and/or scattered light
     """
 
-    def __init__(self, scene, suns, maxspec=.3, idres=10,
-                 dndepth=12, maxrate=.01, minrate=.005, wpow=.5,
+    def __init__(self, scene, suns, idres=10,
+                 fdres=12, maxrate=.01, minrate=.005,
                  **kwargs):
         self.suns = suns
         super(SunSampler, self).__init__(scene, stype='sunreflect',
-                                         dndepth=dndepth,
+                                         fdres=fdres,
                                          t0=0, t1=0, minrate=minrate,
                                          maxrate=maxrate, idres=idres, **kwargs)
         self.srcn = self.suns.suns.shape[0]
-        self.wpow = wpow
-        self.init_weights(maxspec)
+        self.init_weights()
 
-    def init_weights(self, maxspec):
+    def init_weights(self):
         shape = np.concatenate((self.scene.ptshape, self.levels[self.idx]))
-        skypdf = f"{self.scene.outdir}/sky_pdf.npy"
         try:
-            skypdf = np.load(skypdf)
+            skypdf = np.load(f"{self.scene.outdir}/sky_pdf.npy")
         except FileNotFoundError:
             print('Warning! sunsampler initialized without vector weights')
         else:
-            skypdf = np.where(skypdf > maxspec, 0, np.power(skypdf, self.wpow))
-            self.weights = translate.resample(skypdf, shape)
+            self.weights = np.clip(translate.resample(skypdf, shape), 0, 1)
+
+
 
     def sample(self, vecs, rcopts='-ab 7 -ad 60000 -as 30000 -lw 1e-7',
                nproc=12, executable='rcontrib'):
@@ -74,16 +67,54 @@ class SunSampler(Sampler):
         Returns
         -------
         lum: np.array
-            array of shape (N, binnumber) with sun coefficients
+            array of shape (N,) to update weights
         """
         fdr = self.scene.outdir
         octr = f"{fdr}/sun.oct"
         rc = (f"{executable} -fff {rcopts} -h -n {nproc} "
               f"-M {fdr}/sun_modlist.txt {octr}")
-        p = Popen(shlex.split(rc), stdout=PIPE,
-                  stdin=PIPE).communicate(io.np2bytes(vecs))
-        lum = optic.rgb2rad(io.bytes2np(p[0], (-1, 3)))
-        return lum.reshape(-1, self.srcn)
+        outf = f'{self.scene.outdir}/{self.stype}_vals.out'
+        lum = io.call_sampler(outf, rc, vecs)
+        return np.max(lum.reshape(-1, self.srcn), 1)
+
+    def mkpmap(self, apo, nproc=12, overwrite=False, nphotons=1e8,
+               executable='mkpmap_dc', opts=''):
+        """makes photon map of skydome with specified photon port modifier
+
+        Parameters
+        ----------
+        apo: str
+            space seperated list of photon port modifiers
+        nproc: int, optional
+            number of processes to run on (the -n option of mkpmap)
+        overwrite: bool, optional
+            if True, passes -fo+ to mkpmap, if false and pmap exists, raises
+            ChildProcessError
+        nphotons: int, optional
+            number of contribution photons
+        executable: str, optional
+            path to mkpmap executable
+        opts: str, optional
+            additional options to feed to mkpmap
+
+        Returns
+        -------
+        str
+            result of getinfo on newly created photon map
+        """
+        apos = '-apo ' + ' -apo '.join(apo.split())
+        if overwrite:
+            force = '-fo+'
+        else:
+            force = '-fo-'
+        fdr = self.scene.outdir
+        cmd = (f'{executable} {opts} -n {nproc} {force} {apos} -apC '
+               f'{fdr}/sky.gpm {nphotons} {fdr}/sky_pm.oct')
+        r, err = cst.pipeline([cmd], caperr=True)
+        if b'fatal' in err:
+            raise ChildProcessError(err.decode(cst.encoding))
+        self.skypmap = True
+        return cst.pipeline([f'getinfo {fdr}/sky.gpm'])
 
     # @profile
     def draw(self):
@@ -96,14 +127,7 @@ class SunSampler(Sampler):
         pdraws: np.array
             index array of flattened samples chosen to sample at next level
         """
-        if self.idx > 0:
-            p = translate.gaussian_filter(self.weights, 1).ravel()
-        else:
-            p = self.weights.ravel()
-
-        # io.imshow(self.weights[0,0], [10, 10])
-        io.imshow(p.reshape(self.weights.shape)[0,0])
-        print(np.sum(p > .01))
+        p = self.weights.ravel()
         nsampc = int(self._sample_rate*self.weights.size)
         # draw on pdf
         pdraws = np.random.default_rng().choice(p.size, nsampc, replace=False,
@@ -121,4 +145,4 @@ class SunSampler(Sampler):
             values to update with
 
         """
-        self.weights[tuple(si)] = np.power(np.max(lum, 1), self.wpow)
+        self.weights[tuple(si)] += lum

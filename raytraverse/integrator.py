@@ -12,7 +12,7 @@ from concurrent.futures import ProcessPoolExecutor
 
 import numpy as np
 from scipy.spatial import cKDTree, SphericalVoronoi
-from clasp.click_callbacks import sglob
+import clasp.script_tools as cst
 from raytraverse import translate, io, optic, ViewMapper
 
 
@@ -60,6 +60,24 @@ class Integrator(object):
         :type: list of np.array
         """
         return self._lum
+
+    @property
+    def isort(self):
+        """indexes used to sort from sampling to points
+
+        :getter: Returns sort indices array
+        :type: np.array
+        """
+        return self._isort
+
+    @property
+    def pidx(self):
+        """point indices of samples
+
+        :getter: Returns point indices array
+        :type: np.array
+        """
+        return self._pidx
 
     @property
     def omega(self):
@@ -119,15 +137,19 @@ class Integrator(object):
             self._vec = pickle.load(f)
             self._omega = pickle.load(f)
             self._svs = pickle.load(f)
+            self._pidx = pickle.load(f)
+            self._isort = pickle.load(f)
             f.close()
         else:
-            dfiles = sglob(f'{self.scene.outdir}/{self.prefix}_[0-9].npy')
-            if len(dfiles) == 0:
+            dfile = f'{self.scene.outdir}/{self.prefix}_vals.out'
+            vfile = f'{self.scene.outdir}/{self.prefix}_vecs.out'
+            if not (os.path.isfile(dfile) and os.path.isfile(vfile)):
                 raise FileNotFoundError("No results files found, have you run"
                                         f" a Sampler of type {self.prefix} for"
                                         f" scene {self.scene.outdir}?")
             (self._pt_kd, self._d_kd, self._lum,
-             self._vec, self._omega, self._svs) = self.mk_tree(dfiles)
+             self._vec, self._omega, self._svs,
+             self._pidx, self._isort) = self.mk_tree(vfile, dfile)
             f = open(kdfile, 'wb')
             pickle.dump(self.pt_kd, f, protocol=4)
             pickle.dump(self.d_kd, f, protocol=4)
@@ -135,19 +157,17 @@ class Integrator(object):
             pickle.dump(self.vec, f, protocol=4)
             pickle.dump(self.omega, f, protocol=4)
             pickle.dump(self.svs, f, protocol=4)
+            pickle.dump(self.pidx, f, protocol=4)
+            pickle.dump(self.isort, f, protocol=4)
             f.close()
 
-    def mk_tree(self, datafiles):
-        first = True
-        for lf in datafiles:
-            lev = np.load(lf)
-            if not first:
-                samps = np.vstack((samps, lev))
-            else:
-                first = False
-                samps = lev
-        samps = samps[samps[:,0].argsort()]
-        pidx = samps[:, 0]
+    def mk_tree(self, vfile, dfile):
+        fvecs = io.bytefile2np(open(vfile, 'rb'), (-1, 4))
+        sorting = fvecs[:, 0].argsort()
+        fvals = optic.rgb2rad(io.bytefile2np(open(dfile, 'rb'), (-1, 3)))
+        fvals = fvals.reshape(fvecs.shape[0], -1)[sorting]
+        fvecs = fvecs[sorting]
+        pidx = fvecs[:, 0]
         pts = self.scene.pts()
         pt_div = np.searchsorted(pidx, np.arange(len(pts)), side='right')
         pt_kd = cKDTree(pts)
@@ -158,19 +178,19 @@ class Integrator(object):
         omegas = [None]*pts.shape[0]
         pt0 = 0
         for i, pt in enumerate(pt_div):
-            d_kd[i] = cKDTree(samps[pt0:pt, 1:4])
-            vecs[i] = samps[pt0:pt, 1:4]
+            d_kd[i] = cKDTree(fvecs[pt0:pt, 1:4])
+            vecs[i] = fvecs[pt0:pt, 1:4]
             try:
-                svs[i] = SphericalVoronoi(samps[pt0:pt, 1:4])
+                svs[i] = SphericalVoronoi(fvecs[pt0:pt, 1:4])
             except ValueError as e:
                 print(f'Warning, SphericalVoronoi not set at point {i}:')
                 print(e)
                 print(f'Source Solid angle calculation failed')
             else:
                 omegas[i] = svs[i].calculate_areas()
-            lums[i] = samps[pt0:pt, 4:].reshape(-1, samps.shape[1] - 4)
+            lums[i] = fvals[pt0:pt]
             pt0 = pt
-        return pt_kd, d_kd, lums, vecs, omegas, svs
+        return pt_kd, d_kd, lums, vecs, omegas, svs, pidx, sorting
 
     def query(self, vpts, vdirs, viewangle=180.0, treecnt=30):
         """gather all rays from a point within a view cone
@@ -279,6 +299,29 @@ class Integrator(object):
             func = io.mk_img_scatter
         else:
             func = io.mk_img
+        # for k, v in enumerate(vdirs):
+        #     vm.dxyz = v
+        #     trvecs = vm.view2world(rvecs)
+        #     for li, (perr, pi, idx) in enumerate(zip(perrs, pis, idxs)):
+        #         pt = self.scene.idx2pt([pi])[0]
+        #         if len(idx[k]) == 0:
+        #             print(f'Warning: No rays found at point: {pt} '
+        #                   f'direction: {v}')
+        #         else:
+        #             vec = vm.xyz2xy(self.vec[pi][idx[k]])
+        #             d, tri = self.d_kd[pi].query(trvecs,
+        #                                          distance_upper_bound=rt)
+        #             vec = np.vstack((vec, rxy[d < ringtol]))
+        #             vi = np.concatenate((idx[k], tri[d < ringtol]))
+        #             for j in range(lum[li].shape[0]):
+        #                 kw = dict(decades=decades, maxl=maxl,
+        #                           inclmarks=len(idx[k]), title=f"{pt} {v}",
+        #                           ext=ext,
+        #                           outf=f'{self.prefix}_{pi}_{k}_{j}.png',
+        #                           **kwargs)
+        #                 func(lum[li][j, vi], vec, **kw)
+        # #
+        # #
         with ProcessPoolExecutor() as exc:
             for k, v in enumerate(vdirs):
                 vm.dxyz = v
@@ -297,9 +340,9 @@ class Integrator(object):
                         for j in range(lum[li].shape[0]):
                             kw = dict(decades=decades, maxl=maxl,
                                       inclmarks=len(idx[k]), title=f"{pt} {v}",
-                                      ext=ext, outf=f'{self.prefix}_{pi}_{k}_{j}.png', **kwargs)
+                                      ext=ext, **kwargs)
                             futures.append(exc.submit(func, lum[li][j, vi],
-                                                      vec, **kw))
+                                                      vec, f'{self.prefix}_{pi}_{k}_{j}.png', **kw))
         np.set_printoptions(**popts)
         return [fut.result() for fut in futures]
 
