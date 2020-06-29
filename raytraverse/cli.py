@@ -8,6 +8,7 @@
 
 
 """Console script for raytraverse."""
+
 import numpy as np
 
 from clasp import click
@@ -19,24 +20,12 @@ from raytraverse import SCBinSampler, SkyIntegrator
 __version__ = raytraverse.__version__
 
 
-def invoke_dependency(ctx, cmd, objkey, obj):
-    kws = ctx.parent.command.commands[cmd].context_settings['default_map']
-    for p in ctx.parent.command.commands[cmd].params:
-        try:
-            kws[p.name] = p.process_value(ctx, kws[p.name])
-        except KeyError:
-            kws[p.name] = p.get_default(ctx)
-    kws.update(reload=True, overwrite=False)
-    s = obj(ctx.obj[objkey], **kws)
-    ctx.obj[cmd] = s
-
-
 def invoke_scene(ctx):
-    invoke_dependency(ctx, 'scene', 'out', Scene)
+    clk.invoke_dependency(ctx, 'scene', 'out', Scene)
 
 
 def invoke_suns(ctx):
-    invoke_dependency(ctx, 'suns', 'scene', SunSetter)
+    clk.invoke_dependency(ctx, 'suns', 'scene', SunSetter)
 
 
 @click.group(chain=True, invoke_without_command=True)
@@ -62,25 +51,11 @@ def main(ctx, out, config, outconfig, **kwargs):
 @click.option('-ptres', default=2.0)
 @click.option('--reload/--no-reload', default=True)
 @click.option('--overwrite/--no-overwrite', default=False)
-@clk.shared_decs(clk.command_decs(__version__))
+@clk.shared_decs(clk.command_decs(__version__, wrap=True))
 def scene(ctx, **kwargs):
     """load scene"""
-    kwargs['opts'] = kwargs['opts'] or ctx.parent.params['opts']
-    kwargs['debug'] = kwargs['debug'] or ctx.parent.params['debug']
-    if kwargs['opts']:
-        kwargs['opts'] = False
-        click.echo('\nscbin options:\n', err=True)
-        clk.echo_args(**kwargs)
-    else:
-        try:
-            s = Scene(ctx.obj['out'], **kwargs)
-            ctx.obj['scene'] = s
-        except click.Abort:
-            raise
-        except Exception as ex:
-            clk.print_except(ex, kwargs['debug'])
-            raise click.Abort
-    return 'scene', kwargs, ctx
+    s = Scene(ctx.obj['out'], **kwargs)
+    ctx.obj['scene'] = s
 
 
 @main.command()
@@ -88,32 +63,18 @@ def scene(ctx, **kwargs):
 @click.option('-srct', default=.01)
 @click.option('-maxspec', default=.3)
 @click.option('--reload/--no-reload', default=True)
-@clk.shared_decs(clk.command_decs(__version__))
+@clk.shared_decs(clk.command_decs(__version__, wrap=True))
 def suns(ctx, **kwargs):
-    """run scbinsampler"""
-    kwargs['opts'] = kwargs['opts'] or ctx.parent.params['opts']
-    kwargs['debug'] = kwargs['debug'] or ctx.parent.params['debug']
-    if kwargs['opts']:
-        kwargs['opts'] = False
-        click.echo('\nsuns options:\n', err=True)
-        clk.echo_args(**kwargs)
-    else:
-        try:
-            if 'scene' not in ctx.obj:
-                invoke_scene(ctx)
-            s = SunSetter(ctx.obj['scene'], **kwargs)
-            click.echo(f'scene has {s.suns.shape[0]} sun positions', err=True)
-            click.echo("rewriting sky_pdf", err=True)
-            skyint = SkyIntegrator(ctx.obj['scene'])
-            skyint.filter_sky_pdf(s.suns, maxspec=kwargs['maxspec'],
-                                  reload=kwargs['reload'])
-            ctx.obj['suns'] = s
-        except click.Abort:
-            raise
-        except Exception as ex:
-            clk.print_except(ex, kwargs['debug'])
-            raise click.Abort
-    return 'suns', kwargs, ctx
+    """create sun positions"""
+    if 'scene' not in ctx.obj:
+        invoke_scene(ctx)
+    skyint = SkyIntegrator(ctx.obj['scene'])
+    skyint.write_skydetail(reload=kwargs['reload'])
+    s = SunSetter(ctx.obj['scene'], **kwargs)
+    click.echo(f'scene has {s.suns.shape[0]} sun positions', err=True)
+    skyint.filter_sky_pdf(s.suns, maxspec=kwargs['maxspec'],
+                          reload=kwargs['reload'])
+    ctx.obj['suns'] = s
 
 
 @main.command()
@@ -124,56 +85,28 @@ def suns(ctx, **kwargs):
 @click.option('-fdres', default=9)
 @click.option('-srcn', default=20)
 @click.option('-rcopts', default='-ab 2 -ad 1024 -as 0 -lw 1e-5 -st 0 -ss 16')
-@clk.shared_decs(clk.command_decs(__version__))
+@clk.shared_decs(clk.command_decs(__version__, wrap=True))
 def sky(ctx, **kwargs):
     """run scbinsampler"""
-    kwargs['opts'] = kwargs['opts'] or ctx.parent.params['opts']
-    kwargs['debug'] = kwargs['debug'] or ctx.parent.params['debug']
-    if kwargs['opts']:
-        kwargs['opts'] = False
-        click.echo('\nsky options:\n', err=True)
-        clk.echo_args(**kwargs)
-    else:
-        try:
-            if 'scene' not in ctx.obj:
-                invoke_scene(ctx)
-            sampler = SCBinSampler(ctx.obj['scene'], **kwargs)
-            sampler.run(rcopts=kwargs['rcopts'], executable='rcontrib')
-            click.echo("building kd-tree and evaluation data", err=True)
-            SkyIntegrator(ctx.obj['scene'])
-        except click.Abort:
-            raise
-        except Exception as ex:
-            clk.print_except(ex, kwargs['debug'])
-            raise click.Abort
-    return 'sky', kwargs, ctx
+    if 'scene' not in ctx.obj:
+        invoke_scene(ctx)
+    sampler = SCBinSampler(ctx.obj['scene'], **kwargs)
+    sampler.run(rcopts=kwargs['rcopts'], executable='rcontrib')
+    click.echo("building kd-tree and evaluation data", err=True)
+    SkyIntegrator(ctx.obj['scene'])
 
 
 @main.command()
 @click.option('-rcopts', default='-ab 0')
-@clk.shared_decs(clk.command_decs(__version__))
+@clk.shared_decs(clk.command_decs(__version__, wrap=True))
 def sunview(ctx, **kwargs):
     """run sunviewsampler"""
-    kwargs['opts'] = kwargs['opts'] or ctx.parent.params['opts']
-    kwargs['debug'] = kwargs['debug'] or ctx.parent.params['debug']
-    if kwargs['opts']:
-        kwargs['opts'] = False
-        click.echo('\nsunview options:\n', err=True)
-        clk.echo_args(**kwargs)
-    else:
-        try:
-            if 'scene' not in ctx.obj:
-                invoke_scene(ctx)
-            if 'suns' not in ctx.obj:
-                invoke_suns(ctx)
-            sampler = SunViewSampler(ctx.obj['scene'], ctx.obj['suns'])
-            sampler.run(rcopts=kwargs['rcopts'])
-        except click.Abort:
-            raise
-        except Exception as ex:
-            clk.print_except(ex, kwargs['debug'])
-            raise click.Abort
-    return 'sunview', kwargs, ctx
+    if 'scene' not in ctx.obj:
+        invoke_scene(ctx)
+    if 'suns' not in ctx.obj:
+        invoke_suns(ctx)
+    sampler = SunViewSampler(ctx.obj['scene'], ctx.obj['suns'])
+    sampler.run(rcopts=kwargs['rcopts'])
 
 
 @main.command()
@@ -184,62 +117,36 @@ def sunview(ctx, **kwargs):
 @click.option('-maxspec', default=.3)
 @click.option('-wpow', default=.5)
 @click.option('-rcopts', default='-ab 2 -ad 1024 -as 0 -lw 1e-5 -st 0 -ss 16')
-@clk.shared_decs(clk.command_decs(__version__))
-def sunrefl(ctx, **kwargs):
+@click.option('--mkpmap/--no-mkpmap', default=False)
+@click.option('-apo', default='', callback=clk.split_str)
+@clk.shared_decs(clk.command_decs(__version__, wrap=True))
+def sunrefl(ctx, mkpmap=False, apo=[], **kwargs):
     """run sunsampler"""
-    kwargs['opts'] = kwargs['opts'] or ctx.parent.params['opts']
-    kwargs['debug'] = kwargs['debug'] or ctx.parent.params['debug']
-    if kwargs['opts']:
-        kwargs['opts'] = False
-        click.echo('\nsunrefl options:\n', err=True)
-        clk.echo_args(**kwargs)
-    else:
-        try:
-            if 'scene' not in ctx.obj:
-                invoke_scene(ctx)
-            if 'suns' not in ctx.obj:
-                invoke_suns(ctx)
-            sampler = SunSampler(ctx.obj['scene'], ctx.obj['suns'], **kwargs)
-            sampler.run(rcopts=kwargs['rcopts'])
-        except click.Abort:
-            raise
-        except Exception as ex:
-            clk.print_except(ex, kwargs['debug'])
-            raise click.Abort
-    return 'sunrefl', kwargs, ctx
+    if 'scene' not in ctx.obj:
+        invoke_scene(ctx)
+    if 'suns' not in ctx.obj:
+        invoke_suns(ctx)
+    sampler = SunSampler(ctx.obj['scene'], ctx.obj['suns'], **kwargs)
+    if mkpmap:
+        sampler.mkpmap(apo)
+    sampler.run(rcopts=kwargs['rcopts'])
 
 
 @main.command()
-@click.argument('prefix', type=click.Choice(['sky', 'sunreflect', 'sunview']))
 @click.option('--rebuild/--no-rebuild', default=False)
-@clk.shared_decs(clk.command_decs(__version__))
-def image(ctx, prefix, **kwargs):
+@clk.shared_decs(clk.command_decs(__version__, wrap=True))
+def image(ctx, rebuild=False, **kwargs):
     """build integrator and make images"""
-    kwargs['opts'] = kwargs['opts'] or ctx.parent.params['opts']
-    kwargs['debug'] = kwargs['debug'] or ctx.parent.params['debug']
-    if kwargs['opts']:
-        kwargs['opts'] = False
-        click.echo('\nimage options:\n', err=True)
-        clk.echo_args(**kwargs)
-    else:
-        try:
-            if 'scene' not in ctx.obj:
-                invoke_scene(ctx)
-            if 'suns' not in ctx.obj:
-                invoke_suns(ctx)
-            itg = Integrator(ctx.obj['scene'], prefix=prefix,
-                             rebuild=kwargs['rebuild'])
-            if prefix is 'sunreflect':
-                coefs = np.array([(i, 1)
-                                  for i in range(len(ctx.obj['suns'].suns))])
-            itg.view(ctx.obj['scene'].pts(), np.array([[0, -1, 0]]),
-                     coefs=coefs, maxl=-1, decades=5, mark=False, viewangle=180)
-        except click.Abort:
-            raise
-        except Exception as ex:
-            clk.print_except(ex, kwargs['debug'])
-            raise click.Abort
-    return 'image', kwargs, ctx
+    if 'scene' not in ctx.obj:
+        invoke_scene(ctx)
+    if 'suns' not in ctx.obj:
+        invoke_suns(ctx)
+    # ski = SkyIntegrator(ctx.obj['scene'], rebuild=rebuild)
+    # svi = SunViewIntegrator(ctx.obj['scene'], rebuild=rebuild)
+    sri = Integrator(ctx.obj['scene'], rebuild=rebuild, prefix='sunreflect')
+    coefs = np.array([(i, 1) for i in range(ctx.obj['suns'].suns.shape[0])])
+    sri.view(ctx.obj['scene'].pts(), np.array([[0, -1, 0]]),
+             coefs=coefs, maxl=-2, decades=5, mark=False, viewangle=180)
 
 
 @main.resultcallback()

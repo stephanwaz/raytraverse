@@ -37,6 +37,7 @@ class SunSampler(Sampler):
                                          maxrate=maxrate, idres=idres, **kwargs)
         self.srcn = self.suns.suns.shape[0]
         self.init_weights()
+        self.skypmap = False
 
     def init_weights(self):
         shape = np.concatenate((self.scene.ptshape, self.levels[self.idx]))
@@ -47,10 +48,9 @@ class SunSampler(Sampler):
         else:
             self.weights = np.clip(translate.resample(skypdf, shape), 0, 1)
 
-
-
     def sample(self, vecs, rcopts='-ab 7 -ad 60000 -as 30000 -lw 1e-7',
-               nproc=12, executable='rcontrib'):
+               nproc=12, executable='rcontrib', pmexecutable='rcontrib_pm',
+               usepmap=True, bps=200):
         """call rendering engine to sample sky contribution
 
         Parameters
@@ -63,6 +63,12 @@ class SunSampler(Sampler):
             number of processes executable should use
         executable: str, optional
             rendering engine binary
+        pmexecutable: str, optional
+            rendering engine binary for photon map use
+        usepmap: bool, optional
+            set to false to override use of any existing sun.gpm
+        bps: int, optional
+            if using photon mapping, the bandwidth per source
 
         Returns
         -------
@@ -70,6 +76,10 @@ class SunSampler(Sampler):
             array of shape (N,) to update weights
         """
         fdr = self.scene.outdir
+        if self.skypmap and usepmap:
+            bwidth = int(bps*self.srcn)
+            rcopts += f' -ab -1 -ap {fdr}/sky.gpm {bwidth}'
+            executable = pmexecutable
         octr = f"{fdr}/sun.oct"
         rc = (f"{executable} -fff {rcopts} -h -n {nproc} "
               f"-M {fdr}/sun_modlist.txt {octr}")
@@ -77,21 +87,22 @@ class SunSampler(Sampler):
         lum = io.call_sampler(outf, rc, vecs)
         return np.max(lum.reshape(-1, self.srcn), 1)
 
-    def mkpmap(self, apo, nproc=12, overwrite=False, nphotons=1e8,
+    def mkpmap(self, apo=[], nproc=12, overwrite=False, fps=2e6,
                executable='mkpmap_dc', opts=''):
         """makes photon map of skydome with specified photon port modifier
 
         Parameters
         ----------
-        apo: str
-            space seperated list of photon port modifiers
+        apo: list, optional
+            list of photon port modifiers, if not given or empty runs without
+            ports
         nproc: int, optional
             number of processes to run on (the -n option of mkpmap)
         overwrite: bool, optional
             if True, passes -fo+ to mkpmap, if false and pmap exists, raises
             ChildProcessError
-        nphotons: int, optional
-            number of contribution photons
+        fps: int, optional
+            number of contribution photons per sun
         executable: str, optional
             path to mkpmap executable
         opts: str, optional
@@ -102,14 +113,18 @@ class SunSampler(Sampler):
         str
             result of getinfo on newly created photon map
         """
-        apos = '-apo ' + ' -apo '.join(apo.split())
+        nphotons = int(fps*self.srcn)
+        if len(apo) > 0:
+            apos = '-apo ' + ' -apo '.join(apo)
+        else:
+            apos = ''
         if overwrite:
             force = '-fo+'
         else:
             force = '-fo-'
         fdr = self.scene.outdir
         cmd = (f'{executable} {opts} -n {nproc} {force} {apos} -apC '
-               f'{fdr}/sky.gpm {nphotons} {fdr}/sky_pm.oct')
+               f'{fdr}/sun.gpm {nphotons} {fdr}/sun.oct')
         r, err = cst.pipeline([cmd], caperr=True)
         if b'fatal' in err:
             raise ChildProcessError(err.decode(cst.encoding))

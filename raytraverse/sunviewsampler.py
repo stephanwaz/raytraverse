@@ -31,7 +31,6 @@ class SunViewSampler(Sampler):
                                              fdres=6, t0=0, t1=0, minrate=.05,
                                              maxrate=1)
         self.samplemap = self.suns.map
-        self.srcn = self.suns.suns.shape[0]
         self.init_weights()
 
     @property
@@ -82,8 +81,6 @@ class SunViewSampler(Sampler):
             option string to send to executable
         nproc: int, optional
             number of processes executable should use
-        executable: str, optional
-            rendering engine binary
 
         Returns
         -------
@@ -115,15 +112,15 @@ class SunViewSampler(Sampler):
         else:
             p = self.weights.ravel()
 
-        sq = int(np.sqrt(self.suns.suns.shape[0]))
-        ss = [np.s_[i:i + sq] for i in range(0, sq*sq, sq)]
-        side = self.levels[self.idx][-1]
-        for i in range(self.weights.shape[1]):
-            a = p.reshape(self.weights.shape)[0][i][0:sq*sq]
-            b = self.weights[0][i][0:sq*sq]
-            im = np.hstack([b[s].reshape(side*sq, side) for s in ss]).reshape(
-                side*sq, side*sq).T
-            io.imshow(im, [10, 10])
+        # sq = int(np.sqrt(self.suns.suns.shape[0]))
+        # ss = [np.s_[i:i + sq] for i in range(0, sq*sq, sq)]
+        # side = self.levels[self.idx][-1]
+        # for i in range(self.weights.shape[1]):
+        #     a = p.reshape(self.weights.shape)[0][i][0:sq*sq]
+        #     b = self.weights[0][i][0:sq*sq]
+        #     im = np.hstack([b[s].reshape(side*sq, side) for s in ss]).reshape(
+        #         side*sq, side*sq).T
+        #     io.imshow(im, [10, 10])
 
         nsampc = int(self._sample_rate*self._viz*self.levels[self.idx, 2]**2)
         nsampc = max(min(nsampc, np.sum(p > 0.0001)), 2)

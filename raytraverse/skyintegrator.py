@@ -37,6 +37,7 @@ class SkyIntegrator(Integrator):
         ----------
         suns
         maxspec: float, optional
+        reload: bool, optional
         """
         outf = f'{self.scene.outdir}/sky_pdf.npy'
         if os.path.isfile(outf) and reload:
@@ -65,3 +66,12 @@ class SkyIntegrator(Integrator):
             l0 = l1
         np.save(outf, pdf)
         return pdf
+
+    def write_skydetail(self, reload=False):
+        outf = f'{self.scene.outdir}/sky_skydetail.npy'
+        if os.path.isfile(outf) and reload:
+            return np.load(outf)
+        side = int(np.sqrt(self.lum[0].shape[1]))
+        skydetail = np.max(np.array(self.lum), (0, 1)).reshape(side, side)
+        np.save(outf, skydetail)
+        return skydetail

@@ -34,7 +34,6 @@ class SCBinSampler(Sampler):
                                            **kwargs)
         #: bool: set to True after call to this.mkpmap
         self.skypmap = os.path.isfile(f"{scene.outdir}/sky.gpm")
-        self.skydetail = np.zeros(self.srcn)
         self.mk_sky_files()
 
     def mk_sky_files(self):
@@ -50,7 +49,7 @@ class SCBinSampler(Sampler):
         f.close()
 
     def sample(self, vecs, rcopts='-ab 7 -ad 60000 -as 30000 -lw 1e-7',
-               nproc=12, executable='rcontrib_pm', bwidth=1000):
+               nproc=12, executable='rcontrib'):
         """call rendering engine to sample sky contribution
 
         Parameters
@@ -63,19 +62,13 @@ class SCBinSampler(Sampler):
             number of processes executable should use
         executable: str, optional
             rendering engine binary
-        bwidth: int, optional
-            if using photon mapping, the bandwidth parameter
 
         Returns
         -------
         lum: np.array
             array of shape (N,) to update weights
         """
-        if self.skypmap:
-            rcopts += f' -ab -1 -ap {self.scene.outdir}/sky.gpm {bwidth}'
-            octr = f"{self.scene.outdir}/sky_pm.oct"
-        else:
-            octr = f"{self.scene.outdir}/sky.oct"
+        octr = f"{self.scene.outdir}/sky.oct"
         rc = (f"{executable} -V+ -fff {rcopts} -h -n {nproc} -e "
               f"'side:{self.skres}' -f "
               f"{self.scene.outdir}/scbins.cal -b bin -bn {self.srcn} "
@@ -110,22 +103,8 @@ class SCBinSampler(Sampler):
                                                     p=p/np.sum(p))
         return pdraws
 
-    def update_pdf(self, si, lum):
-        """update self.weights (which holds values used to calculate pdf)
-
-        Parameters
-        ----------
-        si: np.array
-            multidimensional indices to update
-        lum:
-            values to update with
-
-        """
-        self.skydetail = np.maximum(self.skydetail, np.max(lum, 0))
-        self.weights[tuple(si)] = lum
-
     def save_pdf(self):
         outf = f'{self.scene.outdir}/{self.stype}_vis'
         np.save(outf, self.weights)
-        outf = f'{self.scene.outdir}/{self.stype}_skydetail'
-        np.save(outf, self.skydetail.reshape(self.skres, self.skres))
+        outf = f'{self.scene.outdir}/{self.stype}_scheme'
+        np.save(outf, self.get_scheme())

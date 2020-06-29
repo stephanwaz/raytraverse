@@ -299,29 +299,6 @@ class Integrator(object):
             func = io.mk_img_scatter
         else:
             func = io.mk_img
-        # for k, v in enumerate(vdirs):
-        #     vm.dxyz = v
-        #     trvecs = vm.view2world(rvecs)
-        #     for li, (perr, pi, idx) in enumerate(zip(perrs, pis, idxs)):
-        #         pt = self.scene.idx2pt([pi])[0]
-        #         if len(idx[k]) == 0:
-        #             print(f'Warning: No rays found at point: {pt} '
-        #                   f'direction: {v}')
-        #         else:
-        #             vec = vm.xyz2xy(self.vec[pi][idx[k]])
-        #             d, tri = self.d_kd[pi].query(trvecs,
-        #                                          distance_upper_bound=rt)
-        #             vec = np.vstack((vec, rxy[d < ringtol]))
-        #             vi = np.concatenate((idx[k], tri[d < ringtol]))
-        #             for j in range(lum[li].shape[0]):
-        #                 kw = dict(decades=decades, maxl=maxl,
-        #                           inclmarks=len(idx[k]), title=f"{pt} {v}",
-        #                           ext=ext,
-        #                           outf=f'{self.prefix}_{pi}_{k}_{j}.png',
-        #                           **kwargs)
-        #                 func(lum[li][j, vi], vec, **kw)
-        # #
-        # #
         with ProcessPoolExecutor() as exc:
             for k, v in enumerate(vdirs):
                 vm.dxyz = v

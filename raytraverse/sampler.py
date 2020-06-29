@@ -262,13 +262,13 @@ class Sampler(object):
         np.save(outf, self.weights)
 
     def get_scheme(self):
-        scheme = np.ones((self.levels.shape[0], 5))
-        scheme[:, 2:4] = self.levels
+        scheme = np.ones((self.levels.shape[0], self.levels.shape[1] + 3))
+        scheme[:, 2:-1] = self.levels
         scheme[:, 0:2] = self.scene.ptshape
         for i in range(scheme.shape[0]):
             x = i/(self.levels.shape[0] - 1)
             a = wavelet.get_sample_rate(x, self.minrate, self.maxrate)
-            scheme[i, 4] = a*np.product(scheme[i])
+            scheme[i, -1] = a*np.product(scheme[i])
         return scheme.astype(int)
 
     def print_sample_cnt(self):
@@ -301,6 +301,10 @@ class Sampler(object):
             f.close()
             f = open(f'{self.scene.outdir}/{self.stype}_vals.out', 'wb')
             f.close()
+        print('Sampling...')
+        hdr = ['level', 'shape', 'samples', 'rate', 'filesize (MB)']
+        print('{:>8}  {:>25}  {:<10}  {:<8}  {}'.format(*hdr))
+        fsize = 0
         for i in range(self.idx, self.levels.shape[0]):
             shape = np.concatenate((self.scene.ptshape, self.levels[i]))
             self.idx = i
@@ -308,18 +312,17 @@ class Sampler(object):
             draws = self.draw()
             si, vecs = self.sample_idx(draws)
             srate = si.shape[1]/np.prod(shape)
-            print(f"{shape} sampling: {si.shape[1]}\t{srate:.02%}")
+            fsize += 12*self.srcn*si.shape[1]/1000000
+            row = [f'{i+1} of {self.levels.shape[0]}', str(shape), si.shape[1],
+                   f"{srate:.02%}", fsize]
+            print('{:>8}  {:>25}  {:<10}  {:<8}  {:.03f}'.format(*row))
             self.dump_vecs(si, vecs[:, 3:])
             lum = self.sample(vecs, **skwargs)
             self.update_pdf(si, lum)
             a = lum.shape[0]
             allc += a
-        print("--------------------------------------")
+        print("-"*70)
         srate = allc/self.weights.size
-        print(f"total sampling: {allc}\t{srate:.02%}")
+        row = ['total sampling:', allc, f"{srate:.02%}", fsize]
+        print('{:<35}  {:<10}  {:<8}  {:.03f}'.format(*row))
         self.save_pdf()
-        outf = f'{self.scene.outdir}/{self.stype}_scheme'
-        np.save(outf, self.get_scheme())
-
-
-

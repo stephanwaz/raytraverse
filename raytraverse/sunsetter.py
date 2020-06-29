@@ -11,7 +11,7 @@ import os
 import numpy as np
 from clasp import script_tools as cst
 
-from raytraverse import wavelet, translate
+from raytraverse import wavelet, translate, io
 from raytraverse.sunmapper import SunMapper
 
 
@@ -129,5 +129,7 @@ class SunSetter(object):
             print('Warning! sunsetter initialized without sky weights')
             skyb = np.ones((uvsize, uvsize))
         else:
+            print(np.percentile(skyb, (0, 50, 100)), skyb.shape, uvsize)
             skyb = translate.interpolate2d(skyb, (uvsize, uvsize))
+            print(np.percentile(skyb, (0, 50, 100)))
         return skyb
