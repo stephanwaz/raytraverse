@@ -5,12 +5,14 @@
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 # =======================================================================
-
+import os
 from concurrent.futures import ThreadPoolExecutor
 
 import numpy as np
 
+import clasp.script_tools as cst
 from raytraverse import translate, io, wavelet
+from clipt import mplt
 from memory_profiler import profile
 
 scbinscal = ("""
@@ -24,8 +26,8 @@ binl(u, v) : axis(u)*side + axis(v);
 pi4 : PI/4;
 n = if(Dz, 1, -1);
 r2 = 1 - n*Dz;
-x = Dx/sqrt(2 - r2);
-y = Dy/sqrt(2 - r2);
+x = -Dx/sqrt(2 - r2);
+y = -Dy/sqrt(2 - r2);
 r = sqrt( sq(x) + sq(y));
 ph = atan2(x, y);
 phi = ph + if(-pi4 - ph, 2*PI, 0);
@@ -35,7 +37,7 @@ b = if(pi4 - phi, phi*r/pi4, if(3*pi4 - phi, r, if(5*pi4 - phi, """
              """-(phi - PI)*r/pi4, -r)));
 
 { map to (0,2),(0,1) matches raytraverse.translate.xyz2uv}
-U = (a*n + if(n, 1, 3))/2;
+U = (if(n, 1, 3) - a*n)/2;
 V = (b + 1)/2;
 
 bin = binl(V, U);
@@ -95,7 +97,8 @@ class Sampler(object):
     """
 
     def __init__(self, scene, fdres=9, srcn=1, t0=.1, t1=.01, maxrate=1.0,
-                 minrate=.05, idres=4, stype='generic', append=False, **kwargs):
+                 minrate=.05, idres=4, stype='generic', append=False,
+                 srcdef=None, **kwargs):
         self.scene = scene
         #: func: mapper to use for sampling
         self.samplemap = self.scene.view
@@ -121,6 +124,32 @@ class Sampler(object):
         #: np.array: holds weights for self.draw
         self.weights = np.full(np.concatenate((self.scene.ptshape,
                                                self.levels[0])), 1e-7)
+        self.compiledscene = srcdef
+
+    def __del__(self):
+        try:
+            os.remove(self.compiledscene)
+        except (IOError, TypeError):
+            pass
+
+    @property
+    def compiledscene(self):
+        return self._compiledscene
+
+    @compiledscene.setter
+    def compiledscene(self, src):
+        self._compiledscene = f'{self.scene.outdir}/{self.stype}.oct'
+        if src is None:
+            pass
+        else:
+            if os.path.isfile(src):
+                ocom = f'oconv -f -i {self.scene.outdir}/scene.oct {src}'
+                inp = None
+            else:
+                ocom = f'oconv -f -i {self.scene.outdir}/scene.oct -'
+                inp = src
+            f = open(self.compiledscene, 'wb')
+            cst.pipeline([ocom], outfile=f, inp=inp, close=True)
 
     @property
     def idx(self):
@@ -208,6 +237,7 @@ class Sampler(object):
         uv = si.T[:, -2:]/shape[3]
         pos = self.scene.area.uv2pt((si.T[:, 0:2] + .5)/shape[0:2])
         uv += (np.random.default_rng().random(uv.shape))/shape[3]
+        # mplt.quick_scatter([uv[:, 0]], [uv[:, 1]], ms=3, lw=0)
         xyz = self._uv2xyz(uv, si)
         vecs = np.hstack((pos, xyz))
         return si, vecs
@@ -257,14 +287,14 @@ class Sampler(object):
         """
         self.weights[tuple(si)] = lum
 
-    def save_pdf(self):
-        outf = f'{self.scene.outdir}/{self.stype}_pdf'
-        np.save(outf, self.weights)
+    def run_callback(self):
+        pass
 
     def get_scheme(self):
-        scheme = np.ones((self.levels.shape[0], self.levels.shape[1] + 3))
-        scheme[:, 2:-1] = self.levels
+        scheme = np.ones((self.levels.shape[0], self.levels.shape[1] + 4))
+        scheme[:, 2:-2] = self.levels
         scheme[:, 0:2] = self.scene.ptshape
+        scheme[:, -2] = self.srcn
         for i in range(scheme.shape[0]):
             x = i/(self.levels.shape[0] - 1)
             a = wavelet.get_sample_rate(x, self.minrate, self.maxrate)
@@ -325,4 +355,4 @@ class Sampler(object):
         srate = allc/self.weights.size
         row = ['total sampling:', allc, f"{srate:.02%}", fsize]
         print('{:<35}  {:<10}  {:<8}  {:.03f}'.format(*row))
-        self.save_pdf()
+        self.run_callback()

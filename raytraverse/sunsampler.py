@@ -31,10 +31,10 @@ class SunSampler(Sampler):
                  fdres=12, maxrate=.01, minrate=.005,
                  **kwargs):
         self.suns = suns
-        super(SunSampler, self).__init__(scene, stype='sunreflect',
-                                         fdres=fdres,
-                                         t0=0, t1=0, minrate=minrate,
-                                         maxrate=maxrate, idres=idres, **kwargs)
+        sunfile = f"{scene.outdir}/suns.rad"
+        super().__init__(scene, stype='sunreflect', fdres=fdres, t0=0, t1=0,
+                         minrate=minrate, maxrate=maxrate, idres=idres,
+                         srcdef=sunfile, **kwargs)
         self.srcn = self.suns.suns.shape[0]
         self.init_weights()
         self.skypmap = False
@@ -80,9 +80,8 @@ class SunSampler(Sampler):
             bwidth = int(bps*self.srcn)
             rcopts += f' -ab -1 -ap {fdr}/sky.gpm {bwidth}'
             executable = pmexecutable
-        octr = f"{fdr}/sun.oct"
         rc = (f"{executable} -fff {rcopts} -h -n {nproc} "
-              f"-M {fdr}/sun_modlist.txt {octr}")
+              f"-M {fdr}/sun_modlist.txt {self.compiledscene}")
         outf = f'{self.scene.outdir}/{self.stype}_vals.out'
         lum = io.call_sampler(outf, rc, vecs)
         return np.max(lum.reshape(-1, self.srcn), 1)

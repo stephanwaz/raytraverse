@@ -182,12 +182,11 @@ class Integrator(object):
             vecs[i] = fvecs[pt0:pt, 1:4]
             try:
                 svs[i] = SphericalVoronoi(fvecs[pt0:pt, 1:4])
+                omegas[i] = svs[i].calculate_areas()
             except ValueError as e:
                 print(f'Warning, SphericalVoronoi not set at point {i}:')
                 print(e)
                 print(f'Source Solid angle calculation failed')
-            else:
-                omegas[i] = svs[i].calculate_areas()
             lums[i] = fvals[pt0:pt]
             pt0 = pt
         return pt_kd, d_kd, lums, vecs, omegas, svs, pidx, sorting

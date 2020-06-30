@@ -45,6 +45,7 @@ def call_sampler(outf, command, vecs):
     """
     f = open(outf, 'a+b')
     lum_file_pos = f.tell()
+    print(command)
     p = Popen(shlex.split(command), stdout=f, stdin=PIPE)
     p.communicate(np2bytes(vecs))
     f.seek(lum_file_pos)
@@ -223,7 +224,7 @@ def mk_img(lums, uv, outf, decades=7, maxl=-1, colors='viridis', mark=True,
                    levels=lev, extend='both')
     if mark:
         ax.scatter(uv[:inclmarks, 0], uv[:inclmarks, 1], s=10, marker='o',
-                   facecolors='none', edgecolors='w', linewidths=.5)
+                   facecolors='none', edgecolors=(1,1,1,.2), linewidths=.5)
     save_img(fig, ax, title, outf)
     return outf
 

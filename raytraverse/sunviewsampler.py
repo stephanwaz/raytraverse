@@ -27,9 +27,9 @@ class SunViewSampler(Sampler):
 
     def __init__(self, scene, suns):
         self.suns = suns
-        super(SunViewSampler, self).__init__(scene, stype='sunview', idres=4,
-                                             fdres=6, t0=0, t1=0, minrate=.05,
-                                             maxrate=1)
+        sunfile = f"{scene.outdir}/suns.rad"
+        super().__init__(scene, stype='sunview', idres=4, fdres=6, t0=0, t1=0,
+                         minrate=.05, srcdef=sunfile, maxrate=1)
         self.samplemap = self.suns.map
         self.init_weights()
 
@@ -87,9 +87,7 @@ class SunViewSampler(Sampler):
         lum: np.array
             array of shape (N,) to update weights
         """
-        fdr = self.scene.outdir
-        octr = f"{fdr}/sun.oct"
-        rc = f"rtrace -fff {rcopts} -h -n {nproc} {octr}"
+        rc = f"rtrace -fff {rcopts} -h -n {nproc} {self.compiledscene}"
         outf = f'{self.scene.outdir}/{self.stype}_vals.out'
         lum = io.call_sampler(outf, rc, vecs)
         return lum
@@ -112,15 +110,15 @@ class SunViewSampler(Sampler):
         else:
             p = self.weights.ravel()
 
-        # sq = int(np.sqrt(self.suns.suns.shape[0]))
-        # ss = [np.s_[i:i + sq] for i in range(0, sq*sq, sq)]
-        # side = self.levels[self.idx][-1]
-        # for i in range(self.weights.shape[1]):
-        #     a = p.reshape(self.weights.shape)[0][i][0:sq*sq]
-        #     b = self.weights[0][i][0:sq*sq]
-        #     im = np.hstack([b[s].reshape(side*sq, side) for s in ss]).reshape(
-        #         side*sq, side*sq).T
-        #     io.imshow(im, [10, 10])
+        sq = int(np.sqrt(self.suns.suns.shape[0]))
+        ss = [np.s_[i:i + sq] for i in range(0, sq*sq, sq)]
+        side = self.levels[self.idx][-1]
+        for i in range(self.weights.shape[1]):
+            a = p.reshape(self.weights.shape)[0][i][0:sq*sq]
+            b = self.weights[0][i][0:sq*sq]
+            im = np.hstack([b[s].reshape(side*sq, side) for s in ss]).reshape(
+                side*sq, side*sq).T
+            io.imshow(im, [10, 10])
 
         nsampc = int(self._sample_rate*self._viz*self.levels[self.idx, 2]**2)
         nsampc = max(min(nsampc, np.sum(p > 0.0001)), 2)

@@ -308,4 +308,3 @@ def mkring(viewangle, ring):
         rvecs = np.zeros((1, 3))
         rxy = np.zeros((1, 2))
     return rvecs, rxy
-

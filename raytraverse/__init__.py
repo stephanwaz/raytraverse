@@ -13,7 +13,8 @@ __email__ = 'stephanwaz@gmail.com'
 __version__ = '0.1.0'
 __all__ = ['io', 'optic', 'wavelet', 'translate', 'SpaceMapper',
            'Sampler', 'Scene', 'Integrator', 'ViewMapper', 'SCBinSampler',
-           'SunSampler', 'SunViewSampler', 'SunSetter', 'SkyIntegrator']
+           'SunSampler', 'SunViewSampler', 'SunSetter', 'SkyIntegrator',
+           'SunRunner']
 
 from raytraverse.spacemapper import SpaceMapper
 from raytraverse.viewmapper import ViewMapper
@@ -25,3 +26,4 @@ from raytraverse.integrator import Integrator
 from raytraverse.skyintegrator import SkyIntegrator
 from raytraverse.scene import Scene
 from raytraverse.sunsetter import SunSetter
+from raytraverse.sunrunner import SunRunner

@@ -30,23 +30,20 @@ class SCBinSampler(Sampler):
     def __init__(self, scene, srcn=20, **kwargs):
         #: int: side of square sky resolution
         self.skres = srcn
-        super(SCBinSampler, self).__init__(scene, srcn=srcn**2, stype='sky',
-                                           **kwargs)
-        #: bool: set to True after call to this.mkpmap
-        self.skypmap = os.path.isfile(f"{scene.outdir}/sky.gpm")
-        self.mk_sky_files()
-
-    def mk_sky_files(self):
-        skyoct = f'{self.scene.outdir}/{self.stype}.oct'
-        if not os.path.isfile(skyoct):
-            skydeg = ("void glow skyglow 0 0 4 1 1 1 0 skyglow source sky 0 0 4"
-                      " 0 0 1 180")
-            f = open(skyoct, 'wb')
-            cst.pipeline([f'oconv -i {self.scene.outdir}/scene.oct -'],
-                         inp=skydeg, outfile=f, close=True)
-        f = open(f'{self.scene.outdir}/scbins.cal', 'w')
+        f = open(f'{scene.outdir}/scbins.cal', 'w')
         f.write(scbinscal)
         f.close()
+        skydeg = ("void glow skyglow 0 0 4 1 1 1 0 skyglow source sky 0 0 4"
+                  " 0 0 1 180")
+        super().__init__(scene, srcn=srcn**2, stype='sky', srcdef=skydeg,
+                         **kwargs)
+
+    def __del__(self):
+        super().__del__()
+        try:
+            os.remove(f'{self.scene.outdir}/scbins.cal')
+        except (IOError, TypeError):
+            pass
 
     def sample(self, vecs, rcopts='-ab 7 -ad 60000 -as 30000 -lw 1e-7',
                nproc=12, executable='rcontrib'):
@@ -103,7 +100,7 @@ class SCBinSampler(Sampler):
                                                     p=p/np.sum(p))
         return pdraws
 
-    def save_pdf(self):
+    def run_callback(self):
         outf = f'{self.scene.outdir}/{self.stype}_vis'
         np.save(outf, self.weights)
         outf = f'{self.scene.outdir}/{self.stype}_scheme'

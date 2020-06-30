@@ -68,6 +68,9 @@ class SunSetter(object):
             suncount = np.sum(skyb*ib > self.srct)
             skyd = wavelet.get_detail(skyb, (0, 1)).reshape(skyb.shape)
             sb = (skyb + skyd)/np.min(skyb + skyd)
+            io.imshow(sb)
+            io.imshow(skyb)
+            io.imshow(sb*ib)
             sd = (sb * ib).ravel()
             sdraws = np.random.default_rng().choice(skyb.size, suncount,
                                                     replace=False,
@@ -77,7 +80,7 @@ class SunSetter(object):
             border = .3*uvsize/180
             j = np.random.default_rng().uniform(border, 1-border, si.T.shape)
             uv = (si.T + j)/uvsize
-            self._suns = translate.uv2xyz(uv, xsign=1)
+            self._suns = translate.uv2xyz(uv)
             self.write_suns(sunfile)
 
     def load_suns(self, sunfile):
@@ -99,28 +102,30 @@ class SunSetter(object):
         sund = f.read().split('source')[1:]
         self._suns = np.array([s.split()[4:7] for s in sund]).astype(float)
 
+    def write_sun(self, i):
+        s = self.suns[i]
+        mod = f"solar{i:05d}"
+        name = f"sun{i:05d}"
+        d = f"{s[0]} {s[1]} {s[2]}"
+        dec = f"void light {mod} 0 0 3 1 1 1\n"
+        dec += f"{mod} source {name} 0 0 4 {d} 0.533\n"
+        return dec, mod
+
     def write_suns(self, sunfile):
-        """write suns to file and make sun octree
+        """write suns to file
 
         Parameters
         ----------
         sunfile
         """
-        sunoct = f'{self.scene.outdir}/sun.oct'
         f = open(sunfile, 'w')
         g = open(f'{self.scene.outdir}/sun_modlist.txt', 'w')
-        for i, s in enumerate(self.suns):
-            mod = f"solar{i:05d}"
-            name = f"sun{i:05d}"
-            d = f"{s[0]} {s[1]} {s[2]}"
+        for i in range(self.suns.shape[0]):
+            dec, mod = self.write_sun(i)
+            print(dec, file=f)
             print(mod, file=g)
-            print(f"void light {mod} 0 0 3 1 1 1", file=f)
-            print(f"{mod} source {name} 0 0 4 {d} 0.533", file=f)
         f.close()
         g.close()
-        f = open(sunoct, 'wb')
-        cst.pipeline([f'oconv -f -i {self.scene.outdir}/scene.oct {sunfile}'],
-                     outfile=f, close=True)
 
     def load_sky_facs(self, uvsize):
         try:
@@ -129,7 +134,5 @@ class SunSetter(object):
             print('Warning! sunsetter initialized without sky weights')
             skyb = np.ones((uvsize, uvsize))
         else:
-            print(np.percentile(skyb, (0, 50, 100)), skyb.shape, uvsize)
             skyb = translate.interpolate2d(skyb, (uvsize, uvsize))
-            print(np.percentile(skyb, (0, 50, 100)))
         return skyb
