@@ -9,7 +9,8 @@ import numpy as np
 
 import clasp.script_tools as cst
 
-from raytraverse import io, Sampler, translate
+from raytraverse import io, translate
+from raytraverse.sampler.sampler import Sampler
 
 from memory_profiler import profile
 

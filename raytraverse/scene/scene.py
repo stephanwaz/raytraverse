@@ -14,7 +14,8 @@ import numpy as np
 
 from clasp import script_tools as cst
 from clasp.click_callbacks import parse_file_list
-from raytraverse import SpaceMapper, sunpos, translate, ViewMapper
+from raytraverse import sunpos, translate
+from raytraverse.mapper import SpaceMapper, ViewMapper
 
 
 class Scene(object):

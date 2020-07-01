@@ -1,22 +1,15 @@
 # -*- coding: utf-8 -*-
-
-# Copyright (c) 2019 Stephen Wasilewski
+# Copyright (c) 2020 Stephen Wasilewski
 # =======================================================================
 # This Source Code Form is subject to the terms of the Mozilla Public
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 # =======================================================================
-from raytraverse.viewmapper import ViewMapper
 
+"""mapper objects"""
 
-class SunMapper(ViewMapper):
-    """translate between view and normalized UV space
+__all__ = ['SpaceMapper', 'ViewMapper', 'SunMapper']
 
-    Parameters
-    ----------
-    suns: np.array
-        dx,dy,dz sun positions
-    """
-
-    def __init__(self, suns):
-        super(SunMapper, self).__init__(suns, .533)
+from raytraverse.mapper.viewmapper import ViewMapper
+from raytraverse.mapper.sunmapper import SunMapper
+from raytraverse.mapper.spacemapper import SpaceMapper

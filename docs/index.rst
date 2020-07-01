@@ -3,20 +3,16 @@ raytraverse (|release|)
 
 .. toctree::
 
-   wavelet
-   translate
-   sunpos
+   scene
+   mapper
+   sampler
+   field
+   integrator
    io
    optic
-   sampler
-   scbinsampler
-   sunsampler
-   sunviewsampler
-   integrator
-   scene
-   spacemapper
-   viewmapper
-   sunmapper
+   sunpos
+   translate
+   wavelet
    cli
 
 .. include:: ../README.rst

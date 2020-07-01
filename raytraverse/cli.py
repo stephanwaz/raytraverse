@@ -16,8 +16,12 @@ import numpy as np
 from clasp import click
 import clasp.click_ext as clk
 import raytraverse
-from raytraverse import SunViewSampler, SunSetter, SunSampler, Scene, translate
-from raytraverse import SCBinSampler, SkyIntegrator, Integrator, SunRunner
+from raytraverse import translate, sunpos, io
+from raytraverse.sampler import SCBinSampler, SunViewSampler, SunSampler, SunRunner
+from raytraverse.integrator import SunViewIntegrator, SkyIntegrator, Integrator
+from raytraverse.scene import Scene, SunSetter
+from raytraverse.field import SunView
+from clipt import mplt
 
 __version__ = raytraverse.__version__
 
@@ -28,6 +32,7 @@ def invoke_scene(ctx):
 
 def invoke_suns(ctx):
     clk.invoke_dependency(ctx, 'suns', 'scene', SunSetter)
+
 
 @click.group(chain=True, invoke_without_command=True)
 @click.argument('out')
@@ -101,42 +106,6 @@ def sky(ctx, **kwargs):
 
 
 @main.command()
-@click.option('-rcopts', default='-ab 0')
-@clk.shared_decs(clk.command_decs(__version__, wrap=True))
-def sunview(ctx, **kwargs):
-    """run sunviewsampler"""
-    if 'scene' not in ctx.obj:
-        invoke_scene(ctx)
-    if 'suns' not in ctx.obj:
-        invoke_suns(ctx)
-    sampler = SunViewSampler(ctx.obj['scene'], ctx.obj['suns'])
-    sampler.run(rcopts=kwargs['rcopts'])
-
-
-@main.command()
-@click.option('-minrate', default=.005)
-@click.option('-maxrate', default=.01)
-@click.option('-idres', default=10)
-@click.option('-fdres', default=12)
-@click.option('-maxspec', default=.3)
-@click.option('-wpow', default=.5)
-@click.option('-rcopts', default='-ab 2 -ad 1024 -as 0 -lw 1e-5 -st 0 -ss 16')
-@click.option('--mkpmap/--no-mkpmap', default=False)
-@click.option('-apo', default='', callback=clk.split_str)
-@clk.shared_decs(clk.command_decs(__version__, wrap=True))
-def sunrefl(ctx, mkpmap=False, apo=[], **kwargs):
-    """run sunsampler"""
-    if 'scene' not in ctx.obj:
-        invoke_scene(ctx)
-    if 'suns' not in ctx.obj:
-        invoke_suns(ctx)
-    sampler = SunSampler(ctx.obj['scene'], ctx.obj['suns'], **kwargs)
-    if mkpmap:
-        sampler.mkpmap(apo)
-    sampler.run(rcopts=kwargs['rcopts'])
-
-
-@main.command()
 @click.option('-minrate', default=.005)
 @click.option('-maxrate', default=.01)
 @click.option('-idres', default=9)
@@ -207,9 +176,23 @@ def sunview(ctx, rebuild=False, mark=False, **kwargs):
         invoke_scene(ctx)
     if 'suns' not in ctx.obj:
         invoke_suns(ctx)
-    ski = Integrator(ctx.obj['scene'], prefix='sunview', rebuild=True)
-    ski.view(ctx.obj['scene'].pts(), np.array([[0, -1, 0]]),
-             maxl=0, decades=5, mark=mark, viewangle=180, scatter=True, ring=0, colors='spring')
+    ski = SunView(ctx.obj['scene'], ctx.obj['suns'], rebuild=rebuild)
+    np.set_printoptions(2)
+    sxyz = translate.aa2xyz(ctx.obj['scene'].skydata[:, 0:2])
+    xyz = sxyz[sxyz[:,2] > 0]
+    idx, err = ski.query(ctx.obj['scene'].pts(), xyz)
+    hour = np.mod(np.arange(8760), 24)
+    xy = translate.xyz2xy(xyz, flip=False)
+    sxy = translate.xyz2xy(ctx.obj['suns'].suns, flip=False)
+    mplt.quick_scatter([xy[:,0], sxy[:,0]], [xy[:,1], sxy[:,1]], lw=0, ms=(2, 5), cs=[err[:, 1], np.zeros(50)])
+    # print(sxyz[sxyz[:,2] > 0])
+
+    # # perr, pis, serr, sis = ski.query(ctx.obj['suns'].suns[1:5], ctx.obj['scene'].pts())
+    # # for pi in pis:
+    # #     for si in sis:
+    # #         print(ski.vec[pi][si].shape, ski.lum[pi][si].shape)
+    # ski.view_together(ctx.obj['scene'].pts(), ctx.obj['suns'].suns, np.array([[0, -1, 0]]),
+    #                   maxl=0, decades=5, mark=mark, viewangle=180, colors='spring')
 
 
 @main.resultcallback()

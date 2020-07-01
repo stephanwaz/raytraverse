@@ -12,7 +12,8 @@ import shutil
 import numpy as np
 import clasp.script_tools as cst
 
-from raytraverse import translate, Integrator
+from raytraverse import translate
+from raytraverse.integrator import Integrator
 
 
 class SkyIntegrator(Integrator):

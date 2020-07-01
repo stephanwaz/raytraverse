@@ -13,7 +13,8 @@ from concurrent.futures import ProcessPoolExecutor
 import numpy as np
 from scipy.spatial import cKDTree, SphericalVoronoi
 import clasp.script_tools as cst
-from raytraverse import translate, io, optic, ViewMapper
+from raytraverse import translate, io, optic
+from raytraverse.mapper import ViewMapper
 
 
 class Integrator(object):
@@ -224,9 +225,8 @@ class Integrator(object):
             dtree = cKDTree(vdirs)
         with ProcessPoolExecutor() as exc:
             perrs, pis = zip(*exc.map(self.pt_kd.query, vpts))
-            # print(pidxs, perr, self.idx2pt(pidxs))
             futures = []
-            for perr, pi in zip(perrs, pis):
+            for pi in pis:
                 if treedir:
                     futures.append(exc.submit(dtree.query_ball_tree,
                                               self.d_kd[pi], vs))

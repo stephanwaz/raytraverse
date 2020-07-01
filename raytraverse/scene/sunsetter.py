@@ -12,7 +12,7 @@ import numpy as np
 from clasp import script_tools as cst
 
 from raytraverse import wavelet, translate, io
-from raytraverse.sunmapper import SunMapper
+from raytraverse.mapper import SunMapper
 
 
 class SunSetter(object):

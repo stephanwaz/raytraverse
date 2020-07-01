@@ -7,7 +7,7 @@
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 # =======================================================================
 
-"""functions for reading and writing SortedArRays"""
+"""functions for reading and writing"""
 import shlex
 from subprocess import Popen, PIPE
 import warnings
@@ -19,7 +19,8 @@ from matplotlib import rcParams
 from matplotlib.figure import Figure
 from matplotlib.colors import Normalize
 from clipt import mplt
-from matplotlib.patches import Polygon
+from matplotlib.patches import Polygon, Circle
+from matplotlib.container import Container
 
 from raytraverse import optic
 
@@ -230,11 +231,23 @@ def mk_img(lums, uv, outf, decades=7, maxl=-1, colors='viridis', mark=True,
 
 
 def mk_img_scatter(lums, uv, outf, decades=7, maxl=-1, colors='viridis',
-           figsize=[10, 10], ext=1, title=None, **kwargs):
+                   figsize=[10, 10], ext=1, title=None, radius=None, **kwargs):
     lums, fig, ax, norm, lev = mk_img_setup(lums, decades=decades, maxl=maxl,
                                             figsize=figsize, ext=ext)
     set_ang_ticks(ax, ext)
-    ax.scatter(uv[:, 0], uv[:, 1], marker='o', s=3, c=lums, cmap=colors, norm=norm)
+    if radius is None:
+        ax.scatter(uv[:, 0], uv[:, 1], marker='o', s=3, c=lums, cmap=colors,
+                   norm=norm)
+    else:
+        radius = np.broadcast_to(radius, lums.shape)
+        colormap = get_colors(colors)
+        colormap.set_norm(norm)
+        cc = []
+        for r, lum, pt in zip(radius, lums, uv):
+            c = Circle(pt, radius=r, linewidth=0, color=colormap.to_rgba(lum))
+            cc.append(c)
+            ax.add_patch(c)
+        ax.add_container(Container(cc))
     ax.set_facecolor((0,0,0))
     save_img(fig, ax, title, outf)
     return outf

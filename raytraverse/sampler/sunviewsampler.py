@@ -5,10 +5,12 @@
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 # =======================================================================
+import pickle
 
 import numpy as np
 
-from raytraverse import io, wavelet, Sampler, translate
+from raytraverse import io, wavelet, translate
+from raytraverse.sampler import Sampler
 
 
 class SunViewSampler(Sampler):
@@ -95,6 +97,24 @@ class SunViewSampler(Sampler):
     def _uv2xyz(self, uv, si):
         return self.samplemap.uv2xyz(uv, si[2])
 
+    def dump_vecs(self, si, vecs):
+        """save vectors to file
+
+        Parameters
+        ----------
+        si: np.array
+            sample indices
+        vecs: np.array
+            ray directions to write
+        """
+        ptidx = np.ravel_multi_index((si[0], si[1]), self.scene.ptshape)
+        sunidx = si[2]
+        outf = f'{self.scene.outdir}/{self.stype}_vecs.out'
+        f = open(outf, 'ab')
+        f.write(io.np2bytes(np.vstack((ptidx.reshape(1, -1),
+                                       sunidx.reshape(1, -1), vecs.T)).T))
+        f.close()
+
     def draw(self):
         """draw samples based on detail calculated from weights
         detail is calculated across direction only as it is the most precise
@@ -110,15 +130,15 @@ class SunViewSampler(Sampler):
         else:
             p = self.weights.ravel()
 
-        sq = int(np.sqrt(self.suns.suns.shape[0]))
-        ss = [np.s_[i:i + sq] for i in range(0, sq*sq, sq)]
-        side = self.levels[self.idx][-1]
-        for i in range(self.weights.shape[1]):
-            a = p.reshape(self.weights.shape)[0][i][0:sq*sq]
-            b = self.weights[0][i][0:sq*sq]
-            im = np.hstack([b[s].reshape(side*sq, side) for s in ss]).reshape(
-                side*sq, side*sq).T
-            io.imshow(im, [10, 10])
+        # sq = int(np.sqrt(self.suns.suns.shape[0]))
+        # ss = [np.s_[i:i + sq] for i in range(0, sq*sq, sq)]
+        # side = self.levels[self.idx][-1]
+        # for i in range(self.weights.shape[1]):
+        #     a = p.reshape(self.weights.shape)[0][i][0:sq*sq]
+        #     b = self.weights[0][i][0:sq*sq]
+        #     im = np.hstack([b[s].reshape(side*sq, side) for s in ss]).reshape(
+        #         side*sq, side*sq).T
+        #     io.imshow(im, [10, 10])
 
         nsampc = int(self._sample_rate*self._viz*self.levels[self.idx, 2]**2)
         nsampc = max(min(nsampc, np.sum(p > 0.0001)), 2)
@@ -126,3 +146,32 @@ class SunViewSampler(Sampler):
         pdraws = np.random.default_rng().choice(p.size, nsampc, replace=False,
                                                 p=p/np.sum(p))
         return pdraws
+
+    def run_callback(self):
+        shape = self.levels[self.idx, -2:]
+        size = np.prod(shape)
+        vals = self.weights.reshape(-1, self.weights.shape[2], size)
+        si = np.stack(np.unravel_index(np.arange(size), shape)).T
+        uv = ((si + .5)/shape)
+        vecs = []
+        lums = []
+        for i in range(vals.shape[0]):
+            ptv = []
+            ptl = []
+            for j in range(vals.shape[1]):
+                valid = vals[i, j] > 1e-8
+                cnt = np.sum(valid)
+                if cnt > 0:
+                    ptv.append(uv[valid])
+                    ptl.append(vals[i, j][valid])
+                else:
+                    ptv.append(np.arange(0))
+                    ptl.append(np.arange(0))
+            lums.append(ptl)
+            vecs.append(ptv)
+        outf = f'{self.scene.outdir}/{self.stype}_result.pickle'
+        f = open(outf, 'wb')
+        pickle.dump(vecs, f, protocol=4)
+        pickle.dump(lums, f, protocol=4)
+        pickle.dump(shape, f, protocol=4)
+        f.close()

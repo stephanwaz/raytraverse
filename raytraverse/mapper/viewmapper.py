@@ -19,12 +19,12 @@ class ViewMapper(object):
     ----------
     dxyz: (float, float, float), optional
         central view direction
-    viewangle: int, optional
+    viewangle: float, optional
         if < 180, the horizontal and vertical view angle, if greater, view
         becomes 360,180
     """
 
-    def __init__(self, dxyz=(0.0, 1.0, 0.0), viewangle=360):
+    def __init__(self, dxyz=(0.0, 1.0, 0.0), viewangle=360.0):
         self._viewangle = viewangle
         # float: aspect ratio width/height
         self.aspect = 1
@@ -34,6 +34,11 @@ class ViewMapper(object):
     def dxyz(self):
         """(float, float, float) central view direction"""
         return self._dxyz
+
+    @property
+    def viewangle(self):
+        """view angle"""
+        return self._viewangle
 
     @property
     def ymtx(self):

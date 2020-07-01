@@ -11,8 +11,8 @@ import os
 import numpy as np
 
 from clasp import script_tools as cst
-from raytraverse import io, wavelet, Sampler
-from raytraverse.sampler import scbinscal
+from raytraverse import io, wavelet, translate
+from raytraverse.sampler.sampler import Sampler
 
 
 class SCBinSampler(Sampler):
@@ -31,7 +31,7 @@ class SCBinSampler(Sampler):
         #: int: side of square sky resolution
         self.skres = srcn
         f = open(f'{scene.outdir}/scbins.cal', 'w')
-        f.write(scbinscal)
+        f.write(translate.scbinscal)
         f.close()
         skydeg = ("void glow skyglow 0 0 4 1 1 1 0 skyglow source sky 0 0 4"
                   " 0 0 1 180")

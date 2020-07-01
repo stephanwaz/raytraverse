@@ -7,8 +7,8 @@
 # =======================================================================
 import numpy as np
 
-from raytraverse import translate, SunViewSampler, SunSampler
-from raytraverse.singlesunsampler import SingleSunSampler
+from raytraverse import translate
+from raytraverse.sampler import SingleSunSampler, SunViewSampler, SunSampler
 
 from memory_profiler import profile
 
@@ -41,8 +41,8 @@ class SunRunner(object):
     def run(self, **skwargs):
         print("Sampling Sun Visibility")
         self.viewsampler.run(rcopts='-ab 0')
-        print("Sampling Ambient Direct Sun contribution")
-        self.basesampler.run(**skwargs)
+        # print("Sampling Ambient Direct Sun contribution")
+        # self.basesampler.run(**skwargs)
         # for sidx, sb in enumerate(self.sunbin):
         #     print(f"Sampling Sun Reflections {sidx+1} of {self.sunbin.size}")
         #     self.reflsampler = SingleSunSampler(self.scene, self.suns, sidx, sb,

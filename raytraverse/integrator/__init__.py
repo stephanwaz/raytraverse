@@ -6,10 +6,10 @@
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 # =======================================================================
 
-"""Top-level package for raytraverse."""
+"""mapper objects"""
 
-__author__ = """Stephen Wasilewski"""
-__email__ = 'stephanwaz@gmail.com'
-__version__ = '0.1.0'
-__all__ = ['io', 'optic', 'sunpos', 'translate', 'wavelet',
-           'field', 'integrator', 'mapper', 'sampler', 'scene']
+__all__ = ['Integrator', 'SkyIntegrator', 'SunViewIntegrator']
+
+from raytraverse.integrator.integrator import Integrator
+from raytraverse.integrator.skyintegrator import SkyIntegrator
+from raytraverse.integrator.sunviewintegrator import SunViewIntegrator

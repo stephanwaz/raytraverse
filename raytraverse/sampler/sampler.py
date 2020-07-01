@@ -15,55 +15,6 @@ from raytraverse import translate, io, wavelet
 from clipt import mplt
 from memory_profiler import profile
 
-scbinscal = ("""
-{ map U/V axis to bin divisions }
-axis(x) : mod(floor(side * x), side);
-
-{ get bin of u,v }
-binl(u, v) : axis(u)*side + axis(v);
-
-{ shirley-chiu disk to square (with spherical term) }
-pi4 : PI/4;
-n = if(Dz, 1, -1);
-r2 = 1 - n*Dz;
-x = -Dx/sqrt(2 - r2);
-y = -Dy/sqrt(2 - r2);
-r = sqrt( sq(x) + sq(y));
-ph = atan2(x, y);
-phi = ph + if(-pi4 - ph, 2*PI, 0);
-a = if(pi4 - phi, r, if(3*pi4 - phi, -(phi - PI/2)*r/pi4, if(5*pi4 - phi,"""
-             """ -r, (phi - 3*PI/2)*r/pi4)));
-b = if(pi4 - phi, phi*r/pi4, if(3*pi4 - phi, r, if(5*pi4 - phi, """
-             """-(phi - PI)*r/pi4, -r)));
-
-{ map to (0,2),(0,1) matches raytraverse.translate.xyz2uv}
-U = (if(n, 1, 3) - a*n)/2;
-V = (b + 1)/2;
-
-bin = binl(V, U);
-""")
-
-scxyzcal = """
-x1 = .5;
-x2 = .5;
-
-U = ((bin - mod(bin, side)) / side + x1)/side;
-V = (mod(bin, side) + x2)/side;
-
-n = if(U - 1, -1, 1);
-ur = if(U - 1, U - 1, U);
-a = 2 * ur - 1;
-b = 2 * V - 1;
-conda = sq(a) - sq(b);
-condb = abs(b) - FTINY;
-r = if(conda, a, if(condb, b, 0));
-phi = if(conda, b/(2*a), if(condb, 1 - a/(2*b), 0)) * PI/2;
-sphterm = r * sqrt(2 - sq(r));
-Dx = n * cos(phi)*sphterm;
-Dy = sin(phi)*sphterm;
-Dz = n * (1 - sq(r));
-"""
-
 
 class Sampler(object):
     """parent sampling class (returns random samples with value == 1)
@@ -244,7 +195,6 @@ class Sampler(object):
 
     def dump_vecs(self, si, vecs):
         """save vectors to file
-        see io.write_npy
 
         Parameters
         ----------

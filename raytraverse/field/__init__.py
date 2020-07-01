@@ -6,10 +6,8 @@
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 # =======================================================================
 
-"""Top-level package for raytraverse."""
+"""light field storage/query objects"""
 
-__author__ = """Stephen Wasilewski"""
-__email__ = 'stephanwaz@gmail.com'
-__version__ = '0.1.0'
-__all__ = ['io', 'optic', 'sunpos', 'translate', 'wavelet',
-           'field', 'integrator', 'mapper', 'sampler', 'scene']
+__all__ = ['SunView']
+
+from raytraverse.field.sunview import SunView
