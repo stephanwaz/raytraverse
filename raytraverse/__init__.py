@@ -12,4 +12,4 @@ __author__ = """Stephen Wasilewski"""
 __email__ = 'stephanwaz@gmail.com'
 __version__ = '0.1.0'
 __all__ = ['io', 'optic', 'sunpos', 'translate', 'wavelet',
-           'field', 'integrator', 'mapper', 'sampler', 'scene']
+           'lightfield', 'integrator', 'mapper', 'sampler', 'scene']

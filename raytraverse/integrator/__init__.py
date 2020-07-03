@@ -8,8 +8,7 @@
 
 """mapper objects"""
 
-__all__ = ['Integrator', 'SkyIntegrator', 'SunViewIntegrator']
+__all__ = ['Integrator']
 
 from raytraverse.integrator.integrator import Integrator
-from raytraverse.integrator.skyintegrator import SkyIntegrator
-from raytraverse.integrator.sunviewintegrator import SunViewIntegrator
+

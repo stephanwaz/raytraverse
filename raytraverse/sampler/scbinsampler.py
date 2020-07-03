@@ -27,15 +27,13 @@ class SCBinSampler(Sampler):
         side of square sky resolution
     """
 
-    def __init__(self, scene, srcn=20, **kwargs):
-        #: int: side of square sky resolution
-        self.skres = srcn
+    def __init__(self, scene, **kwargs):
         f = open(f'{scene.outdir}/scbins.cal', 'w')
         f.write(translate.scbinscal)
         f.close()
         skydeg = ("void glow skyglow 0 0 4 1 1 1 0 skyglow source sky 0 0 4"
                   " 0 0 1 180")
-        super().__init__(scene, srcn=srcn**2, stype='sky', srcdef=skydeg,
+        super().__init__(scene, srcn=scene.skyres**2, stype='sky', srcdef=skydeg,
                          **kwargs)
 
     def __del__(self):
@@ -67,7 +65,7 @@ class SCBinSampler(Sampler):
         """
         octr = f"{self.scene.outdir}/sky.oct"
         rc = (f"{executable} -V+ -fff {rcopts} -h -n {nproc} -e "
-              f"'side:{self.skres}' -f "
+              f"'side:{self.scene.skyres}' -f "
               f"{self.scene.outdir}/scbins.cal -b bin -bn {self.srcn} "
               f"-m skyglow {octr}")
         outf = f'{self.scene.outdir}/{self.stype}_vals.out'

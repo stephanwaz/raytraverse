@@ -6,10 +6,11 @@ raytraverse (|release|)
    scene
    mapper
    sampler
-   field
+   lightfield
    integrator
    io
    optic
+   plot
    sunpos
    translate
    wavelet

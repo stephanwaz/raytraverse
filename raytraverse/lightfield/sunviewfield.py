@@ -8,7 +8,6 @@
 
 import os
 import pickle
-from functools import reduce
 import itertools
 
 from concurrent.futures import ProcessPoolExecutor
@@ -17,13 +16,23 @@ import numpy as np
 from scipy.spatial import cKDTree
 from scipy.spatial.qhull import ConvexHull
 from scipy.cluster.hierarchy import fclusterdata
-from matplotlib.path import Path
 
-from raytraverse import translate
+from raytraverse import translate, plot
+from raytraverse.lightfield.lightfield import LightField
 
 
-class SunView(object):
-    """loads scene and sampling data for processing
+class ArrayDict(dict):
+    def __init__(self, d, tsize=2):
+        self.tsize = tsize
+        super(ArrayDict, self).__init__(d)
+
+    def __getitem__(self, item):
+        return np.vstack([super(ArrayDict, self).__getitem__(tuple(i)) for i in
+                          np.reshape(item, (-1, self.tsize))])
+
+
+class SunViewField(LightField):
+    """container for sun view data
 
     Parameters
     ----------
@@ -34,19 +43,34 @@ class SunView(object):
     rebuild: bool, optional
         build kd-tree even if one exists
     """
+    nullvlo = np.zeros((1, 5))
 
     def __init__(self, scene, suns, rebuild=False):
         #: np.array: sun positions
         self.suns = suns.suns
         #: raytraverse.sunmapper.SunMapper
         self.sunmap = suns.map
-        #: str: prefix
-        self.prefix = 'sunview'
-        #: bool: force rebuild kd-tree
-        self.rebuild = rebuild
-        self.iterator = itertools.product(range(np.product(scene.ptshape)),
-                                          range(self.suns.shape[0]))
-        self.scene = scene
+        super().__init__(scene, rebuild=rebuild, prefix='sunview')
+
+    @property
+    def vlo(self):
+        """sunview data indexed by (point, sun)
+
+        key (i, j) val: np.array (N, 5) x, y, z, lum, omega
+
+        :type: raytraverse.lightfield.sunviewfield.ArrayDict
+        """
+        return self._vlo
+
+    @property
+    def paths(self):
+        """boundary paths indexed by (point, sun)
+
+        key: (i, j) val: list of matplotlib.path.Path
+
+        :type: dict
+        """
+        return self._paths
 
     @property
     def scene(self):
@@ -81,7 +105,7 @@ class SunView(object):
             f = open(dfile, 'rb')
             vls = [pickle.load(f) for i in range(3)]
             f.close()
-            self._vlo, self._paths = self.build_clusters(*vls)
+            self._vlo, self._paths = self._build_clusters(*vls)
             f = open(kdfile, 'wb')
             pickle.dump(self._pt_kd, f, protocol=4)
             pickle.dump(self._sun_kd, f, protocol=4)
@@ -110,88 +134,102 @@ class SunView(object):
             if len(ptxy) > 2:
                 ch = ConvexHull(ptxy)
                 vlo.append([*np.mean(ptxyz, 0), np.mean(lgrp),
-                             ch.volume*scalefac])
-                path.append(Path(uv[ch.vertices], closed=True))
+                            ch.volume*scalefac])
+                path.append(uv[ch.vertices])
             else:
                 for k in range(len(lgrp)):
                     vlo.append([*ptxyz[k], lgrp[k], omega0])
-                    path.append(Path(p0 + uv[k], closed=True))
+                    path.append(p0 + uv[k])
         return np.array(vlo), path
 
-    def build_clusters(self, vecs, lums, shape):
+    def _build_clusters(self, vecs, lums, shape):
         """loop through points/suns and group adjacent rays"""
-        vlo = {}
-        paths = {}
-        vlo[-1] = None
-        paths[-1] = None
-        for i, j in self.iterator:
+        vlo = ArrayDict({(-1, -1): self.nullvlo})
+        paths = {(-1, -1): None}
+        iterator = itertools.product(range(np.product(self.scene.ptshape)),
+                                     range(self.suns.shape[0]))
+        for i, j in iterator:
             if len(vecs[i][j]) > 0:
                 v, p = self._cluster(vecs[i][j], lums[i][j], shape, j)
                 vlo[(i, j)] = v
                 paths[(i, j)] = p
         return vlo, paths
 
-    @property
-    def vlo(self):
-        """sunview data indexed by (point, sun)
-
-        :type: dict key (i, j) val: np.array (N, 5) x, y, z, lum, omega
-        """
-        return self._vlo
-
-    @property
-    def paths(self):
-        """boundary paths indexed by (point, sun)
-
-        :type: dict key: (i, j) val: matplotlib.path.Path
-        """
-        return self._paths
-
-    def query(self, vpts, suns, dtol=1.0, stol=10.0):
+    def query(self, vpts, suns, vdirs=((0, 0, 1), ), viewangle=180.0, dtol=1.0,
+              stol=10.0):
         """return indices for matching point and sun pairs
 
         Parameters
         ----------
         vpts: np.array
-            points to search for (broadcastable to directions)
+            points to search for
         suns: np.array
-            sun positions to search for (broadcastable to directions)
+            sun positions to search for
+        vdirs: np.array, optional
+            directions to search for
+        viewangle: float, optional
+            degree opening of view cone
+        dtol: float, optional
+            distance tolerance for point query
+        stol: float, optional
+            angle (degrees) tolorence for direct sun query
 
         Returns
         -------
-        idxs: list
-            tuple indices to index self.lum and self.vec
-        errs: list
-            tuples of position and sun errors for each item
-        pis: list np.array
-            for each of vpts, the index of the returned point
-        idxs: list of list of np.array
-            for each of vpts, for each vdir, an array of all idxs in
-            self.kd.data matching the query
-
+        idxs: np.array
+            shape: (pts, suns, views, 2) item[:, :, :, 0] is point index,
+            item[:, :, :, 1] is sun index, returns (-1, -1) (null vector) if
+            sun is not visible
+        errs: np.array
+            tuples of position and sun errors for each item, err=-1 where sun
+            is not visible (or beyond tolerance)
         """
+        vdirs = translate.norm(vdirs)
+        suns = translate.norm(suns)
+        a, b = np.broadcast_arrays(suns, vdirs[:, None, :])
+        vizs = np.arccos(np.einsum('ijk,ijk->ij', a, b))*180/np.pi < viewangle/2
         stol = translate.theta2chord(stol*np.pi/180)
         with ProcessPoolExecutor() as exc:
             perrs, pis = zip(*exc.map(self._pt_kd.query, vpts))
             serrs, sis = zip(*exc.map(self._sun_kd.query, suns))
         idx = []
         errs = []
-        for pi, perr in zip(pis, perrs):
-            for si, serr in zip(sis, serrs):
-                if (pi, si) in self.vlo.keys() and serr < stol and perr < dtol:
+        iterator = itertools.product(zip(pis, perrs), zip(sis, serrs, vizs.T))
+        for (pi, perr), (si, serr, viz) in iterator:
+            mk = serr < stol and perr < dtol and (pi, si) in self.vlo.keys()
+            for i in range(vdirs.shape[0]):
+                if mk and viz[i]:
                     idx.append((pi, si))
+                    errs.append((perr, serr))
                 else:
-                    idx.append(-1)
-                errs.append((perr, serr))
+                    idx.append((-1, -1))
+                    errs.append((-1, -1))
+        idxs = np.array(idx).reshape((len(pis), len(suns), len(vdirs), 2))
+        return idxs, np.array(errs)
 
-        return idx, np.array(errs)
-
-    def apply_coefs(self, pis, sis, coefs):
-        lum = []
-        idx = []
-        coefs = np.broadcast_to(coefs, len(sis))
-        for pi in pis:
-            for i, si in enumerate(sis):
-                idx.append((pi, si))
-                lum.append(self.lum[pi][si] * coefs[i])
-        return lum, idx
+    def direct_view(self, vpts):
+        """create a summary image of all sun discs from each of vpts"""
+        idx, errs = self.query(vpts, self.suns)
+        ssq = int(np.ceil(np.sqrt(self.suns.shape[0])))
+        square = np.array([[0,0], [0, 1], [1, 1], [1, 0]])
+        block = []
+        for i in np.arange(self.suns.shape[0], ssq**2):
+            sxy = np.unravel_index(i, (ssq, ssq))
+            sxy = np.array((sxy[1], sxy[0]))
+            block.append(((1,1,1), square + sxy))
+        for i, pt in enumerate(vpts):
+            sidx = idx[idx[..., 0] == i]
+            lums, fig, ax, norm, lev = plot.mk_img_setup([0,1], ext=(0, ssq))
+            cmap = plot.colormap('viridis', norm)
+            patches = block[:]
+            for j in sidx:
+                sxy = np.unravel_index(j[1], (ssq, ssq))
+                sxy = np.array((sxy[1], sxy[0]))
+                lums = cmap.to_rgba(self.vlo[j][:, 3])
+                paths = self.paths[tuple(j)]
+                xy = [(translate.uv2xy(p)+1)/2 + sxy for p in paths]
+                patches += list(zip(lums, xy))
+            plot.plot_patches(ax, patches)
+            ax.set_facecolor((0, 0, 0))
+            outf = f"{self.scene.outdir}_{self.prefix}_{i:04d}.png"
+            plot.save_img(fig, ax, outf, title=pt)

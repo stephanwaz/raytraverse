@@ -58,12 +58,14 @@ class Scene(object):
         vector (x,y,z) view direction (orients UV space)
     viewangle: float, optional
         should be 1-180 or 360
+    skyres: float, optional
+        approximate square patch size (sets sun resolution too)
     """
 
     def __init__(self, outdir, scene=None, area=None, reload=False,
                  overwrite=False, wea=None, loc=None, ptres=1.0, ptro=0.0,
                  skyro=0.0, weaformat='time', viewdir=(0, 1, 0), viewangle=360,
-                 **kwargs):
+                 skyres=10.0, **kwargs):
         try:
             os.mkdir(outdir)
         except FileExistsError as e:
@@ -96,6 +98,19 @@ class Scene(object):
         self.reload = False
         #: raytraverse.viewmapper.ViewMapper: view translation class
         self.view = ViewMapper(viewdir, viewangle)
+        if skyres < .7:
+            print('Warning! minimum sunres is .7 to avoid overlap and allow')
+            print('for jittering position, sunres set to .7')
+            skyres = .7
+        self.skyres = skyres
+
+    @property
+    def skyres(self):
+        return self._skyres
+
+    @skyres.setter
+    def skyres(self, s):
+        self._skyres = int(np.floor(90/s)*2)
 
     @property
     def scene(self):

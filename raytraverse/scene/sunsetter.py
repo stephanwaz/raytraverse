@@ -7,11 +7,11 @@
 # =======================================================================
 
 import os
+import shutil
 
 import numpy as np
-from clasp import script_tools as cst
 
-from raytraverse import wavelet, translate, io
+from raytraverse import wavelet, translate, io, optic, plot
 from raytraverse.mapper import SunMapper
 
 
@@ -22,25 +22,21 @@ class SunSetter(object):
     ----------
     scene: raytraverse.scene.Scene
         scene class containing geometry, location and analysis plane
-    sunres: float, optional
-        minimum average seperation between sources (twice desired error)
     srct: float, optional
         threshold of sky contribution for determining appropriate srcn
     """
 
-    def __init__(self, scene, sunres=5.0, srct=.01, reload=True, **kwargs):
+    def __init__(self, scene, srct=.01, reload=True, **kwargs):
         #: float: threshold of sky contribution for determining appropriate srcn
         self.srct = srct
         #: bool: reuse existing sun positions (if found)
         self.reload = reload
         #: raytraverse.scene.Scene
         self.scene = scene
-        if sunres < .7:
-            print('Warning! minimum sunres is .7 to avoid overlap and allow')
-            print('for jittering position, sunres set to .7')
-            sunres = .7
-        self.suns = sunres
+        sunfile = f"{self.scene.outdir}/suns.rad"
+        self._suns = self.init_suns(sunfile)
         self.map = SunMapper(self.suns)
+        self._write_suns(sunfile)
 
     @property
     def suns(self):
@@ -52,15 +48,15 @@ class SunSetter(object):
         """
         return self._suns
 
-    @suns.setter
-    def suns(self, sunres):
+    def init_suns(self, sunfile):
         """set the skydetail array and determine sample count and spacing"""
-        sunfile = f"{self.scene.outdir}/suns.rad"
         if os.path.isfile(sunfile) and self.reload:
-            self.load_suns(sunfile)
+            f = open(sunfile, 'r')
+            sund = f.read().split('source')[1:]
+            xyz = np.array([s.split()[4:7] for s in sund]).astype(float)
         else:
-            uvsize = int(np.floor(90/sunres)*2)
-            skyb = self.load_sky_facs(uvsize)
+            uvsize = self.scene.skyres
+            skyb = self.load_sky_facs()
             si = np.stack(np.unravel_index(np.arange(skyb.size), skyb.shape))
             uv = si.T/uvsize
             ib = self.scene.in_solarbounds(uv + .5/uvsize,
@@ -68,9 +64,6 @@ class SunSetter(object):
             suncount = np.sum(skyb*ib > self.srct)
             skyd = wavelet.get_detail(skyb, (0, 1)).reshape(skyb.shape)
             sb = (skyb + skyd)/np.min(skyb + skyd)
-            io.imshow(sb)
-            io.imshow(skyb)
-            io.imshow(sb*ib)
             sd = (sb * ib).ravel()
             sdraws = np.random.default_rng().choice(skyb.size, suncount,
                                                     replace=False,
@@ -80,29 +73,66 @@ class SunSetter(object):
             border = .3*uvsize/180
             j = np.random.default_rng().uniform(border, 1-border, si.T.shape)
             uv = (si.T + j)/uvsize
-            self._suns = translate.uv2xyz(uv)
-            self.write_suns(sunfile)
+            xyz = translate.uv2xyz(uv)
+        return xyz
 
-    def load_suns(self, sunfile):
-        """load suns from file
+    def load_sky_facs(self):
+        outf = f'{self.scene.outdir}/sky_skydetail.npy'
+        if os.path.isfile(outf) and self.reload:
+            return np.load(outf)
+        dfile = f'{self.scene.outdir}/sky_vals.out'
+        fvals = optic.rgb2rad(io.bytefile2np(open(dfile, 'rb'), (-1, 3)))
+        sd = np.max(fvals.reshape(-1, self.scene.skyres, self.scene.skyres), 0)
+        np.save(outf, sd)
+        return sd
 
-        void light solar00001 0 0 3 1 1 1
-        solar00001 source sun00001 0 0 4 X Y Z 0.533
-        .
-        .
-        .
-        void light solarNNNNN 0 0 3 1 1 1
-        solarNNNNN source sunNNNNN 0 0 4 X Y Z 0.533
+    def write_sun_pdfs(self, maxspec=0.3, reload=True):
+        """update sky_pdf to only consider sky patches with direct sun
 
         Parameters
         ----------
-        sunfile
+        maxspec: float, optional
+        reload: bool, optional
         """
-        f = open(sunfile, 'r')
-        sund = f.read().split('source')[1:]
-        self._suns = np.array([s.split()[4:7] for s in sund]).astype(float)
+        outd = f'{self.scene.outdir}/sunpdfs'
+        if not reload:
+            shutil.rmtree(outd, ignore_errors=True)
+        if not os.path.exists(outd):
+            try:
+                os.mkdir(outd)
+            except FileExistsError:
+                raise FileExistsError('sun pdfs already exists, use '
+                                      'reload=False to regenerate')
+            scheme = np.load(f'{self.scene.outdir}/sky_scheme.npy').astype(int)
+            side = self.scene.skyres
+            sunuv = translate.xyz2uv(self.suns)
+            sunbin = translate.uv2bin(sunuv, side).astype(int)
+            dfile = f'{self.scene.outdir}/sky_vals.out'
+            fvals = optic.rgb2rad(io.bytefile2np(open(dfile, 'rb'), (-1, 3)))
+            vfile = f'{self.scene.outdir}/sky_vecs.out'
+            fvecs = io.bytefile2np(open(vfile, 'rb'), (-1, 4))
+            vec = fvecs[:, 1:4]
+            pidx = fvecs[:, 0]
+            uv = self.scene.view.xyz2uv(vec)
+            lums = fvals.reshape(-1, side*side)
+            lum = np.max(lums[:, sunbin], 1)
+            pdf = self._lift_samples(pidx, uv, lum, scheme, maxspec)
+            np.save(f'{self.scene.outdir}/sky_pdf', pdf)
+            for i, sb in enumerate(sunbin):
+                lum = lums[:, sb]
+                pdf = self._lift_samples(pidx, uv, lum, scheme, maxspec)
+                np.save(f'{outd}/{i:04d}_{sb:04d}', pdf)
 
-    def write_sun(self, i):
+    def direct_view(self):
+        sxy = translate.xyz2xy(self.suns, flip=False)
+        lums, fig, ax, norm, lev = plot.mk_img_setup([0, 1], ext=1)
+        ax.scatter(sxy[:, 0], sxy[:, 1], s=15,
+                   marker='o', facecolors='yellow')
+        ax.set_facecolor((0, 0, 0))
+        outf = f"{self.scene.outdir}_suns.png"
+        plot.save_img(fig, ax, outf)
+
+    def _write_sun(self, i):
         s = self.suns[i]
         mod = f"solar{i:05d}"
         name = f"sun{i:05d}"
@@ -111,7 +141,7 @@ class SunSetter(object):
         dec += f"{mod} source {name} 0 0 4 {d} 0.533\n"
         return dec, mod
 
-    def write_suns(self, sunfile):
+    def _write_suns(self, sunfile):
         """write suns to file
 
         Parameters
@@ -121,18 +151,23 @@ class SunSetter(object):
         f = open(sunfile, 'w')
         g = open(f'{self.scene.outdir}/sun_modlist.txt', 'w')
         for i in range(self.suns.shape[0]):
-            dec, mod = self.write_sun(i)
+            dec, mod = self._write_sun(i)
             print(dec, file=f)
             print(mod, file=g)
         f.close()
         g.close()
 
-    def load_sky_facs(self, uvsize):
-        try:
-            skyb = np.load(f'{self.scene.outdir}/sky_skydetail.npy')
-        except FileNotFoundError:
-            print('Warning! sunsetter initialized without sky weights')
-            skyb = np.ones((uvsize, uvsize))
-        else:
-            skyb = translate.interpolate2d(skyb, (uvsize, uvsize))
-        return skyb
+    def _lift_samples(self, pidx, uv, lum, scheme, maxspec):
+        lum = np.where(lum > maxspec, 0, lum)
+        pdf = np.zeros(scheme[0, 0:4])
+        l0 = 0
+        pts = np.prod(self.scene.ptshape)
+        for l in scheme:
+            l1 = l0 + l[5]
+            pdf = translate.resample(pdf, l[0:4]).reshape(pts, *l[2:4])
+            ij = translate.uv2ij(uv[l0:l1], l[3]).reshape(-1, 2)
+            si = np.vstack((pidx[l0:l1], ij.T)).astype(int)
+            pdf[tuple(si)] = lum[l0:l1]
+            pdf = pdf.reshape(l[0:4])
+            l0 = l1
+        return pdf

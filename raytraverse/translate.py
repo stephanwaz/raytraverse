@@ -159,7 +159,7 @@ def xyz2uv(xyz, normalize=False, axes=(0, 1, 2)):
 
 def xyz2xy(xyz, axes=(0, 1, 2), flip=True):
     r = np.arctan2(np.sqrt(np.sum(np.square(xyz[:, axes[0:2]]), -1)),
-                   xyz[:, axes[2]])
+                   xyz[:, axes[2]])/(np.pi/2)
     phi = np.arctan2(xyz[:, axes[0]], xyz[:, axes[1]])
     x = r * np.sin(phi)
     y = r * np.cos(phi)

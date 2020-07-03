@@ -19,7 +19,7 @@ with open('HISTORY.rst') as history_file:
     history = history_file.read()
 
 requirements = ['clasp', 'numpy', 'scipy', 'pywavelets', 'matplotlib',
-                'skyfield']
+                'skyfield', 'clipt']
 
 setup_requirements = ['pytest-runner', ]
 

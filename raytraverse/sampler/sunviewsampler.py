@@ -159,7 +159,7 @@ class SunViewSampler(Sampler):
             ptv = []
             ptl = []
             for j in range(vals.shape[1]):
-                valid = vals[i, j] > 1e-8
+                valid = vals[i, j] > self.suns.srct
                 cnt = np.sum(valid)
                 if cnt > 0:
                     ptv.append(uv[valid])

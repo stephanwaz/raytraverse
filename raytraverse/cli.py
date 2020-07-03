@@ -16,11 +16,9 @@ import numpy as np
 from clasp import click
 import clasp.click_ext as clk
 import raytraverse
-from raytraverse import translate, sunpos, io
-from raytraverse.sampler import SCBinSampler, SunViewSampler, SunSampler, SunRunner
-from raytraverse.integrator import SunViewIntegrator, SkyIntegrator, Integrator
+from raytraverse.sampler import SCBinSampler, SunRunner
 from raytraverse.scene import Scene, SunSetter
-from raytraverse.field import SunView
+from raytraverse.lightfield import SCBinField, SunViewField
 from clipt import mplt
 
 __version__ = raytraverse.__version__
@@ -57,6 +55,7 @@ def main(ctx, out, config, outconfig, **kwargs):
               'analysis area')
 @click.option('-wea', help='path to epw or wea file, if loc not set attempts to'
               ' extract location data')
+@click.option('-skyres', default=10.0)
 @click.option('-ptres', default=2.0)
 @click.option('--reload/--no-reload', default=True)
 @click.option('--overwrite/--no-overwrite', default=False)
@@ -68,7 +67,6 @@ def scene(ctx, **kwargs):
 
 
 @main.command()
-@click.option('-sunres', default=5.0)
 @click.option('-srct', default=.01)
 @click.option('-maxspec', default=.3)
 @click.option('--reload/--no-reload', default=True)
@@ -77,12 +75,10 @@ def suns(ctx, **kwargs):
     """create sun positions"""
     if 'scene' not in ctx.obj:
         invoke_scene(ctx)
-    skyint = SkyIntegrator(ctx.obj['scene'])
-    skyint.write_skydetail(reload=kwargs['reload'])
     s = SunSetter(ctx.obj['scene'], **kwargs)
+    s.write_sun_pdfs()
+    s.direct_view()
     click.echo(f'scene has {s.suns.shape[0]} sun positions', err=True)
-    skyint.write_sun_pdfs(s.suns, maxspec=kwargs['maxspec'],
-                          reload=kwargs['reload'])
     ctx.obj['suns'] = s
 
 
@@ -92,7 +88,6 @@ def suns(ctx, **kwargs):
 @click.option('-t1', default=0)
 @click.option('-idres', default=4)
 @click.option('-fdres', default=9)
-@click.option('-srcn', default=20)
 @click.option('-rcopts', default='-ab 2 -ad 1024 -as 0 -lw 1e-5 -st 0 -ss 16')
 @clk.shared_decs(clk.command_decs(__version__, wrap=True))
 def sky(ctx, **kwargs):
@@ -101,8 +96,8 @@ def sky(ctx, **kwargs):
         invoke_scene(ctx)
     sampler = SCBinSampler(ctx.obj['scene'], **kwargs)
     sampler.run(rcopts=kwargs['rcopts'], executable='rcontrib')
-    click.echo("building kd-tree and evaluation data", err=True)
-    SkyIntegrator(ctx.obj['scene'])
+    # click.echo("building kd-tree and evaluation data", err=True)
+    # SkyIntegrator(ctx.obj['scene'])
 
 
 @main.command()
@@ -126,48 +121,6 @@ def sunrun(ctx, **kwargs):
 
 @main.command()
 @click.option('--rebuild/--no-rebuild', default=False)
-@click.option('-sidx', default=0)
-@click.option('--mark/--no-mark', default=False)
-@clk.shared_decs(clk.command_decs(__version__, wrap=True))
-def sunimage(ctx, rebuild=False, sidx=0, mark=False, **kwargs):
-    """build integrator and make images"""
-    if 'scene' not in ctx.obj:
-        invoke_scene(ctx)
-    if 'suns' not in ctx.obj:
-        invoke_suns(ctx)
-    ski = SkyIntegrator(ctx.obj['scene'], rebuild=rebuild)
-    coefs = np.zeros(400)
-    sunuv = translate.xyz2uv(ctx.obj['suns'].suns)
-    side = 20
-    sunbin = translate.uv2bin(sunuv, side).astype(int)
-    print(sunbin[sidx])
-    coefs[sunbin[sidx]] = 1
-    ski.view(ctx.obj['scene'].pts(), np.array([[0, -1, 0]]),
-             maxl=-1, decades=5, mark=mark, viewangle=180, coefs=coefs)
-    # svi = SunViewIntegrator(ctx.obj['scene'], rebuild=rebuild)
-    sri = Integrator(ctx.obj['scene'], rebuild=rebuild, prefix=f'sunr_{sidx:04d}')
-    sri.view(ctx.obj['scene'].pts(), np.array([[0, -1, 0]]),
-             maxl=-1, decades=5, mark=mark, viewangle=180)
-
-
-@main.command()
-@click.option('--rebuild/--no-rebuild', default=False)
-@click.option('-prefix', default='sky')
-@click.option('--mark/--no-mark', default=False)
-@clk.shared_decs(clk.command_decs(__version__, wrap=True))
-def image(ctx, rebuild=False, prefix='sky', mark=False, **kwargs):
-    """build integrator and make images"""
-    if 'scene' not in ctx.obj:
-        invoke_scene(ctx)
-    if 'suns' not in ctx.obj and prefix is not 'sky':
-        invoke_suns(ctx)
-    ski = Integrator(ctx.obj['scene'], prefix=prefix, rebuild=rebuild)
-    ski.view(ctx.obj['scene'].pts(), np.array([[0, -1, 0]]),
-             maxl=0, decades=5, mark=mark, viewangle=180)
-
-
-@main.command()
-@click.option('--rebuild/--no-rebuild', default=False)
 @click.option('--mark/--no-mark', default=False)
 @clk.shared_decs(clk.command_decs(__version__, wrap=True))
 def sunview(ctx, rebuild=False, mark=False, **kwargs):
@@ -176,15 +129,35 @@ def sunview(ctx, rebuild=False, mark=False, **kwargs):
         invoke_scene(ctx)
     if 'suns' not in ctx.obj:
         invoke_suns(ctx)
-    ski = SunView(ctx.obj['scene'], ctx.obj['suns'], rebuild=rebuild)
-    np.set_printoptions(2)
-    sxyz = translate.aa2xyz(ctx.obj['scene'].skydata[:, 0:2])
-    xyz = sxyz[sxyz[:,2] > 0]
-    idx, err = ski.query(ctx.obj['scene'].pts(), xyz)
-    hour = np.mod(np.arange(8760), 24)
-    xy = translate.xyz2xy(xyz, flip=False)
-    sxy = translate.xyz2xy(ctx.obj['suns'].suns, flip=False)
-    mplt.quick_scatter([xy[:,0], sxy[:,0]], [xy[:,1], sxy[:,1]], lw=0, ms=(2, 5), cs=[err[:, 1], np.zeros(50)])
+    sk = SCBinField(ctx.obj['scene'], rebuild=rebuild)
+    sk.direct_view(ctx.obj['scene'].pts())
+    # idx, err = sk.query(ctx.obj['scene'].pts(), np.eye(3))
+    # print(err, idx.shape)
+    ski = SunViewField(ctx.obj['scene'], ctx.obj['suns'], rebuild=rebuild)
+    ski.direct_view(ctx.obj['scene'].pts())
+    # idx, err, mask = ski.query(ctx.obj['scene'].pts(), ski.suns)
+    # a = ski.get_paths(idx)
+    # print([i.shape for i in a])
+    # np.set_printoptions(2)
+    # sxyz = translate.aa2xyz(ctx.obj['scene'].skydata[:, 0:2])
+    # xyz = sxyz[sxyz[:,2] > 0]
+    # idx, err, mask = ski.query(ctx.obj['scene'].pts(), xyz)
+    # lx = []
+    # ly = []
+    # xy = translate.xyz2xy(xyz, flip=False)
+    # sxy = translate.xyz2xy(ctx.obj['suns'].suns, flip=False)
+    # for i, x in zip(idx, xy[mask[0]]):
+    #     lx.append([x[0], sxy[i[1], 0]])
+    #     ly.append([x[1], sxy[i[1], 1]])
+    # m = np.argsort(err[:, 1])
+    # lx = [xy[np.logical_not(mask[0])][:, 0]] + list(np.array(lx)[m])
+    # ly = [xy[np.logical_not(mask[0])][:, 1]] + list(np.array(ly)[m])
+    # # hour = np.mod(np.arange(8760), 24)
+    # # xy = translate.xyz2xy(xyz[mask[0]], flip=False)
+    # # sxy = translate.xyz2xy(ctx.obj['suns'].suns, flip=False)
+    # # mplt.quick_scatter([xy[:, 0], sxy[:, 0]], [xy[:, 1], sxy[:, 1]], lw=0,
+    # #                    ms=(2, 5), cs=[err[:, 1], np.zeros(50)])
+    # mplt.quick_scatter(lx, ly, lw=[0, .5], ms=[.5, 5])
     # print(sxyz[sxyz[:,2] > 0])
 
     # # perr, pis, serr, sis = ski.query(ctx.obj['suns'].suns[1:5], ctx.obj['scene'].pts())
