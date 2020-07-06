@@ -5,15 +5,10 @@
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 # =======================================================================
-import os
-
 import numpy as np
 
-import clasp.script_tools as cst
-from raytraverse import io, translate
+from raytraverse import translate
 from raytraverse.sampler.sampler import Sampler
-
-from memory_profiler import profile
 
 
 class SingleSunSampler(Sampler):
@@ -32,7 +27,7 @@ class SingleSunSampler(Sampler):
         self.sunpos = suns.suns[sidx]
         self.sidx = sidx
         dec, mod = suns.write_sun(sidx)
-        super().__init__(scene, stype=f"sunr_{sidx:04d}", fdres=fdres, t0=0,
+        super().__init__(scene, stype=f"sun_{sidx:04d}", fdres=fdres, t0=0,
                          t1=0, minrate=minrate, maxrate=maxrate,
                          idres=idres, srcdef=dec, **kwargs)
         self.init_weights(sb)
@@ -67,9 +62,7 @@ class SingleSunSampler(Sampler):
             array of shape (N,) to update weights
         """
         rc = f"rtrace -fff {rcopts} -h -n {nproc} {self.compiledscene}"
-        outf = f'{self.scene.outdir}/{self.stype}_vals.out'
-        lum = io.call_sampler(outf, rc, vecs)
-        return lum
+        return super().sample(vecs, call=rc)
 
     # @profile
     def draw(self):
@@ -83,7 +76,6 @@ class SingleSunSampler(Sampler):
             index array of flattened samples chosen to sample at next level
         """
         p = self.weights.ravel()
-        # io.imshow(self.weights[0,0])
         nsampc = int(min(self._sample_rate*self.weights.size, np.sum(p > .001)))
         nsampc = max(nsampc, 2)
         # draw on pdf

@@ -20,10 +20,10 @@ SunViewField
     :show-inheritance:
     :private-members:
 
-SCBinField
+SrcBinField
 ---------------------------------
 
-.. autoclass:: raytraverse.lightfield.SCBinField
+.. autoclass:: raytraverse.lightfield.SrcBinField
     :members:
     :undoc-members:
     :show-inheritance:

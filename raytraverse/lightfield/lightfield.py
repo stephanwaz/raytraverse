@@ -20,7 +20,7 @@ class LightField(object):
         prefix of data files to map
     """
 
-    def __init__(self, scene, rebuild=False, prefix='light'):
+    def __init__(self, scene, rebuild=False, prefix='sky'):
         #: bool: force rebuild kd-tree
         self.rebuild = rebuild
         #: str: prefix of data files from sampler (stype)

@@ -63,6 +63,16 @@ Dz = n * (1 - sq(r));
 """
 
 
+class ArrayDict(dict):
+    def __init__(self, d, tsize=2):
+        self.tsize = tsize
+        super(ArrayDict, self).__init__(d)
+
+    def __getitem__(self, item):
+        return np.vstack([super(ArrayDict, self).__getitem__(tuple(i)) for i in
+                          np.reshape(item, (-1, self.tsize))])
+
+
 def norm(v):
     """normalize 2D array of vectors along last dimension"""
     return v/np.sqrt(np.sum(np.square(v), -1)).reshape(-1, 1)

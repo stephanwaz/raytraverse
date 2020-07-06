@@ -11,15 +11,15 @@ from concurrent.futures import ThreadPoolExecutor
 import numpy as np
 
 import clasp.script_tools as cst
-from raytraverse import translate, io, wavelet
+from raytraverse import translate, io, wavelet, quickplot
 from clipt import mplt
 from memory_profiler import profile
 
 
 class Sampler(object):
-    """parent sampling class (returns random samples with value == 1)
+    """parent sampling class
 
-    overload draw() and sample() to implement
+    overload sample() to implement
 
     Parameters
     ----------
@@ -157,10 +157,14 @@ class Sampler(object):
         """Set this sampler's scene and create sky octree"""
         self._scene = scene
 
-    def sample(self, vecs, **kwargs):
+    def sample(self, vecs, call=None, **kwargs):
         """dummy sample function
         """
-        lum = np.ones((vecs.shape[0], self.srcn))
+        if call is None:
+            raise NotImplementedError(f'{self.__class__} does'
+                                      ' not have a valid sample method')
+        outf = f'{self.scene.outdir}/{self.stype}_vals.out'
+        lum = io.call_sampler(outf, call, vecs)
         return lum
 
     def _uv2xyz(self, uv, si):
@@ -210,18 +214,29 @@ class Sampler(object):
         f.close()
 
     def draw(self):
-        """define pdf generated from samps and draw next set of samples
+        """draw samples based on detail calculated from weights
+        detail is calculated across direction only as it is the most precise
+        dimension
 
         Returns
         -------
         pdraws: np.array
-            index array of flattened samps chosed to sample at next level
+            index array of flattened samples chosen to sample at next level
         """
-        p = np.ones(self.weights.size)
-        # draw on pdf
-        nsampc = int(self._sample_rate*self.weights.size)
-        pdraws = np.random.default_rng().choice(p.size, nsampc, replace=False,
-                                                p=p/np.sum(p))
+        dres = self.levels[self.idx]
+        pres = self.scene.ptshape
+        if self._sample_rate == 1:
+            pdraws = np.arange(np.prod(dres)*np.prod(pres))
+        else:
+            # direction detail
+            daxes = (len(pres) + len(dres) - 2, len(pres) + len(dres) - 1)
+            p = wavelet.get_detail(self.weights, daxes)
+            p = p*(1 - self._sample_t) + np.median(p)*self._sample_t
+            # draw on pdf
+            nsampc = int(self._sample_rate*self.weights.size)
+            pdraws = np.random.default_rng().choice(p.size, nsampc,
+                                                    replace=False,
+                                                    p=p/np.sum(p))
         return pdraws
 
     def update_pdf(self, si, lum):

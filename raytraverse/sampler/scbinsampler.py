@@ -63,40 +63,12 @@ class SCBinSampler(Sampler):
         lum: np.array
             array of shape (N,) to update weights
         """
-        octr = f"{self.scene.outdir}/sky.oct"
         rc = (f"{executable} -V+ -fff {rcopts} -h -n {nproc} -e "
               f"'side:{self.scene.skyres}' -f "
               f"{self.scene.outdir}/scbins.cal -b bin -bn {self.srcn} "
-              f"-m skyglow {octr}")
-        outf = f'{self.scene.outdir}/{self.stype}_vals.out'
-        lum = io.call_sampler(outf, rc, vecs)
+              f"-m skyglow {self.compiledscene}")
+        lum = super().sample(vecs, call=rc)
         return np.max(lum.reshape(-1, self.srcn), 1)
-
-    def draw(self):
-        """draw samples based on detail calculated from weights
-        detail is calculated across direction only as it is the most precise
-        dimension
-
-        Returns
-        -------
-        pdraws: np.array
-            index array of flattened samples chosen to sample at next level
-        """
-        dres = self.levels[self.idx]
-        pres = self.scene.ptshape
-        if self._sample_rate == 1:
-            pdraws = np.arange(np.prod(dres) * np.prod(pres))
-        else:
-            # direction detail
-            daxes = tuple(range(len(pres), len(pres) + len(dres)))
-            p = wavelet.get_detail(self.weights, daxes)
-            p = p*(1 - self._sample_t) + np.median(p)*self._sample_t
-            # draw on pdf
-            nsampc = int(self._sample_rate*self.weights.size)
-            pdraws = np.random.default_rng().choice(p.size, nsampc,
-                                                    replace=False,
-                                                    p=p/np.sum(p))
-        return pdraws
 
     def run_callback(self):
         outf = f'{self.scene.outdir}/{self.stype}_vis'

@@ -9,7 +9,7 @@ import pickle
 
 import numpy as np
 
-from raytraverse import io, wavelet, translate
+from raytraverse import io, translate
 from raytraverse.sampler import Sampler
 
 
@@ -90,9 +90,7 @@ class SunViewSampler(Sampler):
             array of shape (N,) to update weights
         """
         rc = f"rtrace -fff {rcopts} -h -n {nproc} {self.compiledscene}"
-        outf = f'{self.scene.outdir}/{self.stype}_vals.out'
-        lum = io.call_sampler(outf, rc, vecs)
-        return lum
+        return super().sample(vecs, call=rc)
 
     def _uv2xyz(self, uv, si):
         return self.samplemap.uv2xyz(uv, si[2])
@@ -114,38 +112,6 @@ class SunViewSampler(Sampler):
         f.write(io.np2bytes(np.vstack((ptidx.reshape(1, -1),
                                        sunidx.reshape(1, -1), vecs.T)).T))
         f.close()
-
-    def draw(self):
-        """draw samples based on detail calculated from weights
-        detail is calculated across direction only as it is the most precise
-        dimension
-
-        Returns
-        -------
-        pdraws: np.array
-            index array of flattened samples chosen to sample at next level
-        """
-        if self.idx > 0:
-            p = wavelet.get_detail(self.weights, (3, 4))
-        else:
-            p = self.weights.ravel()
-
-        # sq = int(np.sqrt(self.suns.suns.shape[0]))
-        # ss = [np.s_[i:i + sq] for i in range(0, sq*sq, sq)]
-        # side = self.levels[self.idx][-1]
-        # for i in range(self.weights.shape[1]):
-        #     a = p.reshape(self.weights.shape)[0][i][0:sq*sq]
-        #     b = self.weights[0][i][0:sq*sq]
-        #     im = np.hstack([b[s].reshape(side*sq, side) for s in ss]).reshape(
-        #         side*sq, side*sq).T
-        #     io.imshow(im, [10, 10])
-
-        nsampc = int(self._sample_rate*self._viz*self.levels[self.idx, 2]**2)
-        nsampc = max(min(nsampc, np.sum(p > 0.0001)), 2)
-        # draw on pdf
-        pdraws = np.random.default_rng().choice(p.size, nsampc, replace=False,
-                                                p=p/np.sum(p))
-        return pdraws
 
     def run_callback(self):
         shape = self.levels[self.idx, -2:]

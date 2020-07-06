@@ -8,13 +8,13 @@
 
 """sampler objects"""
 
-__all__ = ['Sampler', 'SCBinSampler', 'SunSampler', 'SunViewSampler',
-           'SunRunner']
+__all__ = ['Sampler', 'SCBinSampler', 'SunAmbientSampler', 'SunViewSampler',
+           'SunSampler', 'SingleSunSampler']
 
 from raytraverse.sampler.sampler import Sampler
 from raytraverse.sampler.scbinsampler import SCBinSampler
-from raytraverse.sampler.sunsampler import SunSampler
+from raytraverse.sampler.sunambientsampler import SunAmbientSampler
 from raytraverse.sampler.singlesunsampler import SingleSunSampler
 from raytraverse.sampler.sunviewsampler import SunViewSampler
-from raytraverse.sampler.sunrunner import SunRunner
+from raytraverse.sampler.sunsampler import SunSampler
 

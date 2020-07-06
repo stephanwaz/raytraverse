@@ -36,7 +36,8 @@ class SunSetter(object):
         sunfile = f"{self.scene.outdir}/suns.rad"
         self._suns = self.init_suns(sunfile)
         self.map = SunMapper(self.suns)
-        self._write_suns(sunfile)
+        if not (os.path.isfile(sunfile) and self.reload):
+            self._write_suns(sunfile)
 
     @property
     def suns(self):
@@ -132,7 +133,7 @@ class SunSetter(object):
         outf = f"{self.scene.outdir}_suns.png"
         plot.save_img(fig, ax, outf)
 
-    def _write_sun(self, i):
+    def write_sun(self, i):
         s = self.suns[i]
         mod = f"solar{i:05d}"
         name = f"sun{i:05d}"
@@ -151,7 +152,7 @@ class SunSetter(object):
         f = open(sunfile, 'w')
         g = open(f'{self.scene.outdir}/sun_modlist.txt', 'w')
         for i in range(self.suns.shape[0]):
-            dec, mod = self._write_sun(i)
+            dec, mod = self.write_sun(i)
             print(dec, file=f)
             print(mod, file=g)
         f.close()

@@ -19,20 +19,20 @@ SCBinSampler
     :show-inheritance:
     :private-members:
 
-SunRunner
+SunSampler
 --------------------------------
 
-.. autoclass:: raytraverse.sampler.SunRunner
+.. autoclass:: raytraverse.sampler.SunSampler
     :members:
     :undoc-members:
     :show-inheritance:
     :private-members:
 
 
-SunSampler
+SunAmbientSampler
 --------------------------------
 
-.. autoclass:: raytraverse.sampler.SunSampler
+.. autoclass:: raytraverse.sampler.SunAmbientSampler
     :members:
     :undoc-members:
     :show-inheritance:

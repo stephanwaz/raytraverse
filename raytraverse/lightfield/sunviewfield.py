@@ -21,16 +21,6 @@ from raytraverse import translate, plot
 from raytraverse.lightfield.lightfield import LightField
 
 
-class ArrayDict(dict):
-    def __init__(self, d, tsize=2):
-        self.tsize = tsize
-        super(ArrayDict, self).__init__(d)
-
-    def __getitem__(self, item):
-        return np.vstack([super(ArrayDict, self).__getitem__(tuple(i)) for i in
-                          np.reshape(item, (-1, self.tsize))])
-
-
 class SunViewField(LightField):
     """container for sun view data
 
@@ -58,7 +48,7 @@ class SunViewField(LightField):
 
         key (i, j) val: np.array (N, 5) x, y, z, lum, omega
 
-        :type: raytraverse.lightfield.sunviewfield.ArrayDict
+        :type: raytraverse.translate.ArrayDict
         """
         return self._vlo
 
@@ -95,20 +85,20 @@ class SunViewField(LightField):
         if os.path.isfile(kdfile) and not self.rebuild:
             f = open(kdfile, 'rb')
             self._pt_kd = pickle.load(f)
-            self._sun_kd = pickle.load(f)
+            self.sun_kd = pickle.load(f)
             self._vlo = pickle.load(f)
             self._paths = pickle.load(f)
             f.close()
         else:
             self._pt_kd = cKDTree(self.scene.pts())
-            self._sun_kd = cKDTree(self.suns)
+            self.sun_kd = cKDTree(self.suns)
             f = open(dfile, 'rb')
             vls = [pickle.load(f) for i in range(3)]
             f.close()
             self._vlo, self._paths = self._build_clusters(*vls)
             f = open(kdfile, 'wb')
-            pickle.dump(self._pt_kd, f, protocol=4)
-            pickle.dump(self._sun_kd, f, protocol=4)
+            pickle.dump(self.pt_kd, f, protocol=4)
+            pickle.dump(self.sun_kd, f, protocol=4)
             pickle.dump(self.vlo, f, protocol=4)
             pickle.dump(self.paths, f, protocol=4)
             f.close()
@@ -144,7 +134,7 @@ class SunViewField(LightField):
 
     def _build_clusters(self, vecs, lums, shape):
         """loop through points/suns and group adjacent rays"""
-        vlo = ArrayDict({(-1, -1): self.nullvlo})
+        vlo = translate.ArrayDict({(-1, -1): self.nullvlo})
         paths = {(-1, -1): None}
         iterator = itertools.product(range(np.product(self.scene.ptshape)),
                                      range(self.suns.shape[0]))
@@ -191,7 +181,7 @@ class SunViewField(LightField):
         stol = translate.theta2chord(stol*np.pi/180)
         with ProcessPoolExecutor() as exc:
             perrs, pis = zip(*exc.map(self._pt_kd.query, vpts))
-            serrs, sis = zip(*exc.map(self._sun_kd.query, suns))
+            serrs, sis = zip(*exc.map(self.sun_kd.query, suns))
         idx = []
         errs = []
         iterator = itertools.product(zip(pis, perrs), zip(sis, serrs, vizs.T))

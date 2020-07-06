@@ -10,15 +10,17 @@
 """Console script for raytraverse."""
 from io import StringIO
 import sys
+import os
+import shutil
 
 import numpy as np
 
 from clasp import click
 import clasp.click_ext as clk
 import raytraverse
-from raytraverse.sampler import SCBinSampler, SunRunner
+from raytraverse.sampler import SCBinSampler, SunSampler
 from raytraverse.scene import Scene, SunSetter
-from raytraverse.lightfield import SCBinField, SunViewField
+from raytraverse.lightfield import SrcBinField, SunViewField, SunField
 from clipt import mplt
 
 __version__ = raytraverse.__version__
@@ -59,11 +61,53 @@ def main(ctx, out, config, outconfig, **kwargs):
 @click.option('-ptres', default=2.0)
 @click.option('--reload/--no-reload', default=True)
 @click.option('--overwrite/--no-overwrite', default=False)
+@click.option('--info/--no-info', default=False, help='print info on scene')
 @clk.shared_decs(clk.command_decs(__version__, wrap=True))
 def scene(ctx, **kwargs):
     """load scene"""
     s = Scene(ctx.obj['out'], **kwargs)
     ctx.obj['scene'] = s
+    if kwargs['info']:
+        print(f'\nScene {s.outdir}:')
+        print('='*60 + '\n')
+        print('Scene Geometry:')
+        os.system(f'getinfo {s.scene}')
+        print('Analysis Area:')
+        print('-'*60)
+        print(f'extents:\n{s.area.bbox}')
+        print(f'resolution: {s.area.sf/s.ptshape}')
+        print(f'number of points: {s.ptshape[0]*s.ptshape[1]}')
+        try:
+            suncount = len(open(f'{s.outdir}/sun_modlist.txt').readlines())
+            print(f'scene has {suncount} suns')
+        except FileNotFoundError:
+            print('sun setter not initialized')
+        print('\nSimulation Data:')
+        print('-'*60)
+        try:
+            if os.path.isfile(f'{s.outdir}/sky_vals.out'):
+                print('Sky simulation data exists!')
+                scheme = np.load(f'{s.outdir}/sky_scheme.npy').astype(int)
+                print(f'Sampling scheme:\n{scheme}')
+            else:
+                print('no simulation data exists!')
+                ctx.exit()
+            if os.path.isfile(f'{s.outdir}/sunview_vals.out'):
+                print('Sun view simulation data exists!')
+                print('Sun sampling file size: ' +
+                      str(os.path.getsize(f'{s.outdir}/sunview_vals.out')) +
+                      ' bytes')
+            else:
+                print('no sun view data')
+        except FileNotFoundError as e:
+            print(f'Bad simulation data, file should exist: {e}')
+            ctx.exit()
+        print('\n Lightfield Data:')
+        print('-'*60)
+        print('Has sky lightfield data:',
+              os.path.isfile(f'{s.outdir}/sky_kd_data.pickle'))
+        print('Has sunview lightfield data:',
+              os.path.isfile(f'{s.outdir}/sunview_kd_data.pickle'))
 
 
 @main.command()
@@ -108,6 +152,10 @@ def sky(ctx, **kwargs):
 @click.option('-maxspec', default=.3)
 @click.option('-wpow', default=.5)
 @click.option('-rcopts', default='-ab 1 -ad 1024 -aa 0 -as 0 -lw 1e-5 -st 0 -ss 4')
+@click.option('--view/--no-view', default=True)
+@click.option('--ambient/--no-ambient', default=True)
+@click.option('--reflection/--no-reflection', default=True)
+@click.option('-apo', callback=clk.split_str)
 @clk.shared_decs(clk.command_decs(__version__, wrap=True))
 def sunrun(ctx, **kwargs):
     """run sunsampler"""
@@ -115,8 +163,8 @@ def sunrun(ctx, **kwargs):
         invoke_scene(ctx)
     if 'suns' not in ctx.obj:
         invoke_suns(ctx)
-    sampler = SunRunner(ctx.obj['scene'], ctx.obj['suns'], **kwargs)
-    sampler.run(rcopts=kwargs['rcopts'])
+    sampler = SunSampler(ctx.obj['scene'], ctx.obj['suns'], **kwargs)
+    sampler.run(**kwargs)
 
 
 @main.command()
@@ -129,12 +177,19 @@ def sunview(ctx, rebuild=False, mark=False, **kwargs):
         invoke_scene(ctx)
     if 'suns' not in ctx.obj:
         invoke_suns(ctx)
-    sk = SCBinField(ctx.obj['scene'], rebuild=rebuild)
-    sk.direct_view(ctx.obj['scene'].pts())
+    # sk = SrcBinField(ctx.obj['scene'], rebuild=rebuild, prefix='sky')
+    # sk.direct_view(ctx.obj['scene'].pts())
+    # sk = SrcBinField(ctx.obj['scene'], rebuild=rebuild, prefix='sky')
+    # sk.direct_view(ctx.obj['scene'].pts())
+
+    su = SunField(ctx.obj['scene'], ctx.obj['suns'], rebuild=rebuild)
+    su.direct_view(ctx.obj['scene'].pts())
+
+    # ski = SunViewField(ctx.obj['scene'], ctx.obj['suns'], rebuild=rebuild)
+    # ski.direct_view(ctx.obj['scene'].pts())
     # idx, err = sk.query(ctx.obj['scene'].pts(), np.eye(3))
     # print(err, idx.shape)
-    ski = SunViewField(ctx.obj['scene'], ctx.obj['suns'], rebuild=rebuild)
-    ski.direct_view(ctx.obj['scene'].pts())
+
     # idx, err, mask = ski.query(ctx.obj['scene'].pts(), ski.suns)
     # a = ski.get_paths(idx)
     # print([i.shape for i in a])
