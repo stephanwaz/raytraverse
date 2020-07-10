@@ -14,7 +14,7 @@ import numpy as np
 
 from clasp import script_tools as cst
 from clasp.click_callbacks import parse_file_list
-from raytraverse import sunpos, translate
+from raytraverse import skycalc, translate
 from raytraverse.mapper import SpaceMapper, ViewMapper
 
 
@@ -60,12 +60,15 @@ class Scene(object):
         should be 1-180 or 360
     skyres: float, optional
         approximate square patch size (sets sun resolution too)
+    maxspec: float, optional
+        maximum specular transmission in scene
+        (used to clip pdf for sun sampling)
     """
 
     def __init__(self, outdir, scene=None, area=None, reload=False,
                  overwrite=False, wea=None, loc=None, ptres=1.0, ptro=0.0,
                  skyro=0.0, weaformat='time', viewdir=(0, 1, 0), viewangle=360,
-                 skyres=10.0, **kwargs):
+                 skyres=10.0, maxspec=0.3, **kwargs):
         try:
             os.mkdir(outdir)
         except FileExistsError as e:
@@ -90,6 +93,8 @@ class Scene(object):
         self.outdir = outdir
         #: float: point resolution for area
         self.ptres = ptres
+        #: float: maximum specular transmission in scene
+        self.maxspec = maxspec
         self._solarbounds = None
         self.loc = loc
         self.skydata = wea
@@ -190,10 +195,11 @@ class Scene(object):
     @skydata.setter
     def skydata(self, wea):
         sd = f'{self.outdir}/skydat.txt'
-        try:
-            self.loc = sunpos.get_loc_epw(wea)
-        except ValueError:
-            pass
+        if self.loc is None:
+            try:
+                self.loc = skycalc.get_loc_epw(wea)
+            except ValueError:
+                pass
         if self.reload and os.path.isfile(sd):
             try:
                 self._skydata = np.loadtxt(sd)
@@ -201,9 +207,9 @@ class Scene(object):
                 self._skydata = None
         elif wea is not None:
             if self.weaformat == 'time':
-                wdat = sunpos.read_epw(wea)
-                times = sunpos.row_2_datetime64(wdat[:,0:3])
-                angs = sunpos.sunpos_degrees(times, *self.loc, ro=self.skyro)
+                wdat = skycalc.read_epw(wea)
+                times = skycalc.row_2_datetime64(wdat[:, 0:3])
+                angs = skycalc.sunpos_degrees(times, *self.loc, ro=self.skyro)
                 self._skydata = np.hstack((angs, wdat[:, 3:]))
             else:
                 self._skydata = np.loadtxt(wea)
@@ -243,8 +249,8 @@ class Scene(object):
                             dtype='datetime64[m]')
             dec = np.arange('2020-12-21', '2020-12-22', 5,
                             dtype='datetime64[m]')
-            jxyz = sunpos.sunpos_xyz(jun, *loc, ro=self.skyro)
-            dxyz = sunpos.sunpos_xyz(dec, *loc, ro=self.skyro)
+            jxyz = skycalc.sunpos_xyz(jun, *loc, ro=self.skyro)
+            dxyz = skycalc.sunpos_xyz(dec, *loc, ro=self.skyro)
             juv = translate.xyz2uv(jxyz[jxyz[:,2] > 0])
             duv = translate.xyz2uv(dxyz[dxyz[:,2] > 0])
             juv = juv[juv[:, 0].argsort()]

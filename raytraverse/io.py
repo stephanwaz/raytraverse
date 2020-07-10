@@ -45,6 +45,16 @@ def call_sampler(outf, command, vecs):
     return lum
 
 
+def call_generic(commands, n=1):
+    pops = [0]*len(commands)
+    stdin = None
+    for i in range(len(commands)):
+        pops[i] = Popen(shlex.split(commands[i]), stdin=stdin, stdout=PIPE)
+        stdin = pops[i].stdout
+    a = stdin.read()
+    return np.fromstring(a, sep=' ').reshape(-1, n)
+
+
 def np2bytes(ar, dtype='<f'):
     """format ar as bytestring
 

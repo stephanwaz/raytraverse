@@ -129,6 +129,6 @@ def colormap(colors, norm):
     return cmap
 
 
-def plot_patches(ax, patches, lw=.5):
+def plot_patches(ax, patches, patchargs={}):
     for lum, p in patches:
-        ax.add_patch(Polygon(p, closed=True, lw=lw, color=lum))
+        ax.add_patch(Polygon(p, closed=True, color=lum, **patchargs))

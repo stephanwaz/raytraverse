@@ -8,6 +8,7 @@ raytraverse (|release|)
    sampler
    lightfield
    integrator
+   helpers
    io
    optic
    plot

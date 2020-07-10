@@ -28,14 +28,19 @@ class SunSampler(object):
     def __init__(self, scene, suns, **kwargs):
         self.scene = scene
         self.suns = suns
+        #: raytraverse.sampler.SunViewSampler
         self.viewsampler = SunViewSampler(scene, suns)
+        #: dict: sampling arguments for SingleSunSampler
         self.sampleargs = dict(idres=10, fdres=12, maxrate=.01, minrate=.005)
         sunuv = translate.xyz2uv(self.suns.suns)
         scheme = np.load(f'{self.scene.outdir}/sky_scheme.npy').astype(int)
         side = int(np.sqrt(scheme[0, 4]))
+        #: np.array: sun bins for each sun position (used to match naming)
         self.sunbin = translate.uv2bin(sunuv, side).astype(int)
+        #: raytraverse.sampler.SunAmbientSampler
         self.ambsampler = SunAmbientSampler(self.scene, self.suns, idres=4,
                                             fdres=6, maxrate=1, minrate=.1)
+        #: raytraverse.sampler.SingleSunSampler
         self.reflsampler = None
         self.sampleargs.update(**kwargs)
 
@@ -54,6 +59,7 @@ class SunSampler(object):
             for sidx, sb in enumerate(self.sunbin):
                 print(f"Sampling Sun Reflections {sidx+1} of "
                       f"{self.sunbin.size}")
+                print(f'Sun Position: {self.suns.suns[sidx]}')
                 self.reflsampler = SingleSunSampler(self.scene, self.suns, sidx,
                                                     sb, **self.sampleargs)
                 self.reflsampler.run(rcopts=rcopts)

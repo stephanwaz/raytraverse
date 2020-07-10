@@ -24,8 +24,12 @@ class SingleSunSampler(Sampler):
 
     def __init__(self, scene, suns, sidx, sb, idres=10, fdres=12,
                  maxrate=.01, minrate=.005, **kwargs):
+        #: np.array: sun position x,y,z
         self.sunpos = suns.suns[sidx]
+        #: int: sun index of sunpos from associated SunSetter (for naming)
         self.sidx = sidx
+        #: float: controls sampling limit in case of limited contribution
+        self.slimit = suns.srct*.01
         dec, mod = suns.write_sun(sidx)
         super().__init__(scene, stype=f"sun_{sidx:04d}", fdres=fdres, t0=0,
                          t1=0, minrate=minrate, maxrate=maxrate,
@@ -76,22 +80,23 @@ class SingleSunSampler(Sampler):
             index array of flattened samples chosen to sample at next level
         """
         p = self.weights.ravel()
-        nsampc = int(min(self._sample_rate*self.weights.size, np.sum(p > .001)))
+        nsampc = int(min(self._sample_rate*self.weights.size,
+                         np.sum(p > self.slimit)))
         nsampc = max(nsampc, 2)
         # draw on pdf
         pdraws = np.random.default_rng().choice(p.size, nsampc, replace=False,
                                                 p=p/np.sum(p))
         return pdraws
 
-    def update_pdf(self, si, lum):
-        """update self.weights (which holds values used to calculate pdf)
-
-        Parameters
-        ----------
-        si: np.array
-            multidimensional indices to update
-        lum:
-            values to update with
-
-        """
-        self.weights[tuple(si)] += lum
+    # def update_pdf(self, si, lum):
+    #     """update self.weights (which holds values used to calculate pdf)
+    #
+    #     Parameters
+    #     ----------
+    #     si: np.array
+    #         multidimensional indices to update
+    #     lum:
+    #         values to update with
+    #
+    #     """
+    #     self.weights[tuple(si)] += lum

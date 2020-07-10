@@ -24,7 +24,7 @@ binl(u, v) : axis(u)*side + axis(v);
 pi4 : PI/4;
 n = if(Dz, 1, -1);
 r2 = 1 - n*Dz;
-x = -Dx/sqrt(2 - r2);
+x = Dx/sqrt(2 - r2);
 y = -Dy/sqrt(2 - r2);
 r = sqrt( sq(x) + sq(y));
 ph = atan2(x, y);
@@ -61,16 +61,6 @@ Dx = n * cos(phi)*sphterm;
 Dy = sin(phi)*sphterm;
 Dz = n * (1 - sq(r));
 """
-
-
-class ArrayDict(dict):
-    def __init__(self, d, tsize=2):
-        self.tsize = tsize
-        super(ArrayDict, self).__init__(d)
-
-    def __getitem__(self, item):
-        return np.vstack([super(ArrayDict, self).__getitem__(tuple(i)) for i in
-                          np.reshape(item, (-1, self.tsize))])
 
 
 def norm(v):
@@ -220,10 +210,10 @@ def uv2bin(uv, side):
     return buv[:, 0]*side + buv[:, 1]
 
 
-def bin2uv(bin, side):
-    u = (bin - np.mod(bin, side))/(side*side)
-    v = np.mod(bin, side)/side
-    return np.stack((u,v)).T
+def bin2uv(bn, side):
+    u = (bn - np.mod(bn, side))/(side*side)
+    v = np.mod(bn, side)/side
+    return np.stack((u, v)).T
 
 
 def resample(samps, ts=None, gauss=True, radius=None):

@@ -10,8 +10,12 @@ my $windoz = ($^O eq "MSWin32" or $^O eq "MSWin64");
 my @skycolor = (0.960, 1.004, 1.118);
 my $mf = 4;
 my $dosky = 1;
+my $dosun = 1;
 my $dofive = 0;
 #SW edit
+my $onepatch = 0;
+my $brightness = 0;
+my $ncomp = 3;
 my $shirleychiu = 0;
 my $headout = 1;
 my @origARGV = @ARGV;
@@ -24,9 +28,15 @@ while ($#ARGV >= 0) {
 		shift @ARGV;
 	} elsif ("$ARGV[0]" eq "-d") {
 		$dosky = 0;
+    } elsif ("$ARGV[0]" eq "-s") {
+        $dosun = 0;
 	} elsif ("$ARGV[0]" eq "-5") {
 		$dofive = 1;
 	# SW edit
+    } elsif ("$ARGV[0]" eq "-1") {
+        $onepatch = 1;
+    } elsif ("$ARGV[0]" eq "-b") {
+        $brightness = 1;
 	} elsif ("$ARGV[0]" eq "-sc") {
 		$shirleychiu = 1;
 	} elsif ("$ARGV[0]" eq "-h") {
@@ -35,6 +45,10 @@ while ($#ARGV >= 0) {
 		die "Unexpected command-line argument: $ARGV[0]\n";
 	}
 	shift @ARGV;
+}
+if ($brightness) {
+    @skycolor = (1.0, 1.0, 1.0);
+    $ncomp = 1;
 }
 # Load sky description into line array, separating sun if one
 my @skydesc;
@@ -51,7 +65,7 @@ while (<>) {
 		$lightline = $#skydesc;
 	} elsif (defined($srcmod) && /^($srcmod)\s+source\s/) {
 		@sunval = split(' ', $skydesc[$lightline + 3]);
-		shift @sunval;
+        @sunval = @sunval[1..$ncomp];
 		$sunline = $#skydesc;
 	} elsif (/\sskyfunc\s*$/) {
 		$skyOK = 1;
@@ -140,10 +154,18 @@ if ($windoz) {
 	$nbins = `rcalc -n -e MF:$mf -e \'$rhcal\' -e \'\$1=Rmax+1\'`;
 	chomp $nbins;
 	$octree = "/tmp/gtv$$.oct";
-	$tregcommand = "cnt $nbins 16 | rcalc -of -e MF:$mf -e '$rhcal' " .
-		q{-e 'Rbin=$1;x1=rand(recno*.37-5.3);x2=rand(recno*-1.47+.86)' } .
+    # $tregcommand = "cnt $nbins | rcalc -of -e MF:$mf -e '$rhcal' " .
+	# 	q{-e 'Rbin=$1;' } .
+	# 	q{-e '$1=0;$2=0;$3=0;$4=Dx;$5=Dy;$6=Dz' } .
+	# 	"| rtrace -h -ff -ab 0 -w $octree | total -if3 -1 -m";
+    $tregcommand = "cnt $nbins 16 | rcalc -of -e MF:$mf -e '$rhcal' " .
+		q{-e 'Rbin=$1;bn=mod(recno, 16);x1=(bn - mod(bn, 4))/16 + .5/4;x2=mod(bn, 4)/4 + .5/4' } .
 		q{-e '$1=0;$2=0;$3=0;$4=Dx;$5=Dy;$6=Dz' } .
 		"| rtrace -h -ff -ab 0 -w $octree | total -if3 -16 -m";
+	# $tregcommand = "cnt $nbins 16 | rcalc -of -e MF:$mf -e '$rhcal' " .
+	# 	q{-e 'Rbin=$1;x1=rand(recno*.37-5.3);x2=rand(recno*-1.47+.86)' } .
+	# 	q{-e '$1=0;$2=0;$3=0;$4=Dx;$5=Dy;$6=Dz' } .
+	# 	"| rtrace -h -ff -ab 0 -w $octree | total -if3 -16 -m";
 	if (@sundir) {
 		$suncmd = "cnt " . ($nbins-1) .
 			" | rcalc -e MF:$mf -e '$rhcal' -e Rbin=recno " .
@@ -151,6 +173,11 @@ if ($windoz) {
 			"-e 'cond=dot-.866' " .
 			q{-e '$1=if(1-dot,acos(dot),0);$2=Romega;$3=recno' };
 	}
+}
+my $empty = "0\t0\t0\n";
+if ($brightness) {
+    $tregcommand .= q{ | rcalc -e '$1=$1'};
+    $empty = "0\n";
 }
 my @tregval;
 if ($dosky) {
@@ -164,7 +191,7 @@ if ($dosky) {
 	@tregval = `$tregcommand`;
 	unlink $octree;
 } else {
-	push @tregval, "0\t0\t0\n" for (1..$nbins);
+	push @tregval, $empty for (1..$nbins);
 }
 # Find closest patch(es) to sun and divvy up direct solar contribution
 sub numSort1 {
@@ -175,32 +202,44 @@ sub numSort1 {
 if (@sundir) {
 	my @bestdir = `$suncmd`;
 	@bestdir = sort numSort1 @bestdir;
-	if ($dofive) {
-		my ($ang, $dom, $ndx);
-		($ang, $dom, $ndx) = split(' ', $bestdir[0]);
-		$tregval[$ndx] = "$sunval[0]\t$sunval[1]\t$sunval[2]\n";
-	} else {
-		my (@ang, @dom, @ndx);
-		my $somega = ($sundir[3]/360)**2 * 3.141592654**3;
-		my $wtot = 0;
-		for my $i (0..2) {
-			($ang[$i], $dom[$i], $ndx[$i]) = split(' ', $bestdir[$i]);
-			$wtot += 1./($ang[$i]+.02);
-		}
-		for my $i (0..2) {
-			my $wt = 1./($ang[$i]+.02)/$wtot * $somega / $dom[$i];
-			my @scolor = split(' ', $tregval[$ndx[$i]]);
-			for my $j (0..2) { $scolor[$j] += $wt * $sunval[$j]; }
-			$tregval[$ndx[$i]] = "$scolor[0]\t$scolor[1]\t$scolor[2]\n";
-		}
-	}
+    #SW edit
+    if ($dosun) {
+        if ($onepatch) {
+            my ($ang, $dom, $ndx);
+            ($ang, $dom, $ndx) = split(' ', $bestdir[0]);
+            my $somega = ($sundir[3] / 360) ** 2 * 3.141592654 ** 3;
+            my @scolor = split(' ', $tregval[$ndx]);
+            for (my $j = 0; $j < $ncomp; $j++) {$scolor[$j] += $sunval[$j] * $somega / $dom;}
+            $tregval[$ndx] = join("\t", @scolor) . "\n";
+        }
+        elsif ($dofive) {
+            my ($ang, $dom, $ndx);
+            ($ang, $dom, $ndx) = split(' ', $bestdir[0]);
+            $tregval[$ndx] = join("\t", @sunval) . "\n";
+        }
+        else {
+            my (@ang, @dom, @ndx);
+            my $somega = ($sundir[3] / 360) ** 2 * 3.141592654 ** 3;
+            my $wtot = 0;
+            for my $i (0 .. 2) {
+                ($ang[$i], $dom[$i], $ndx[$i]) = split(' ', $bestdir[$i]);
+                $wtot += 1. / ($ang[$i] + .02);
+            }
+            for my $i (0 .. 2) {
+                my $wt = 1. / ($ang[$i] + .02) / $wtot * $somega / $dom[$i];
+                my @scolor = split(' ', $tregval[$ndx[$i]]);
+                for (my $j = 0; $j < $ncomp; $j++) {$scolor[$j] += $wt * $sunval[$j];}
+                $tregval[$ndx[$i]] = join("\t", @scolor) . "\n";
+            }
+        }
+    }
 }
 # Output header if requested
 if ($headout) {
 	print "#?RADIANCE\n";
 	print "genskyvec @origARGV\n";
 	print "NROWS=", $#tregval+1, "\n";
-	print "NCOLS=1\nNCOMP=3\n";
+	print "NCOLS=1\nNCOMP=", $ncomp,"\n";
 	print "FORMAT=ascii\n";
 	print "\n";
 }

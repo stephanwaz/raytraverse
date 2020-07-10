@@ -18,6 +18,7 @@ from scipy.spatial.qhull import ConvexHull
 from scipy.cluster.hierarchy import fclusterdata
 
 from raytraverse import translate, plot
+from raytraverse.helpers import ArrayDict
 from raytraverse.lightfield.lightfield import LightField
 
 
@@ -134,7 +135,7 @@ class SunViewField(LightField):
 
     def _build_clusters(self, vecs, lums, shape):
         """loop through points/suns and group adjacent rays"""
-        vlo = translate.ArrayDict({(-1, -1): self.nullvlo})
+        vlo = ArrayDict({(-1, -1): self.nullvlo})
         paths = {(-1, -1): None}
         iterator = itertools.product(range(np.product(self.scene.ptshape)),
                                      range(self.suns.shape[0]))
@@ -194,7 +195,7 @@ class SunViewField(LightField):
                 else:
                     idx.append((-1, -1))
                     errs.append((-1, -1))
-        idxs = np.array(idx).reshape((len(pis), len(suns), len(vdirs), 2))
+        idxs = np.array(idx).reshape((-1, len(vdirs), 2))
         return idxs, np.array(errs)
 
     def direct_view(self, vpts):
@@ -208,7 +209,7 @@ class SunViewField(LightField):
             sxy = np.array((sxy[1], sxy[0]))
             block.append(((1,1,1), square + sxy))
         for i, pt in enumerate(vpts):
-            sidx = idx[idx[..., 0] == i]
+            sidx = idx[idx[:, :, 0] == i]
             lums, fig, ax, norm, lev = plot.mk_img_setup([0,1], ext=(0, ssq))
             cmap = plot.colormap('viridis', norm)
             patches = block[:]
@@ -223,3 +224,24 @@ class SunViewField(LightField):
             ax.set_facecolor((0, 0, 0))
             outf = f"{self.scene.outdir}_{self.prefix}_{i:04d}.png"
             plot.save_img(fig, ax, outf, title=pt)
+
+    def has_proxy_src(self, tsuns, tol=10.0):
+        """check if sun directions have matching source in SunSetter
+
+        Parameters
+        ----------
+        tsuns: np.array
+            (N, 3) array containing sun source vectors to check
+        tol: float
+            tolerance (in degrees)
+
+        Returns
+        -------
+        np.array
+            (N,) boolean array if sun has a match
+        """
+        stol = translate.theta2chord(tol*np.pi/180)
+        suns = translate.norm(tsuns)
+        with ProcessPoolExecutor() as exc:
+            serrs, sis = zip(*exc.map(self.sun_kd.query, suns))
+        return serrs < stol

@@ -74,7 +74,7 @@ class SunSetter(object):
             border = .3*uvsize/180
             j = np.random.default_rng().uniform(border, 1-border, si.T.shape)
             uv = (si.T + j)/uvsize
-            xyz = translate.uv2xyz(uv)
+            xyz = translate.uv2xyz(uv, xsign=1)
         return xyz
 
     def load_sky_facs(self):
@@ -87,7 +87,7 @@ class SunSetter(object):
         np.save(outf, sd)
         return sd
 
-    def write_sun_pdfs(self, maxspec=0.3, reload=True):
+    def write_sun_pdfs(self, reload=True):
         """update sky_pdf to only consider sky patches with direct sun
 
         Parameters
@@ -117,11 +117,12 @@ class SunSetter(object):
             uv = self.scene.view.xyz2uv(vec)
             lums = fvals.reshape(-1, side*side)
             lum = np.max(lums[:, sunbin], 1)
-            pdf = self._lift_samples(pidx, uv, lum, scheme, maxspec)
+            pdf = self._lift_samples(pidx, uv, lum, scheme, self.scene.maxspec)
             np.save(f'{self.scene.outdir}/sky_pdf', pdf)
             for i, sb in enumerate(sunbin):
                 lum = lums[:, sb]
-                pdf = self._lift_samples(pidx, uv, lum, scheme, maxspec)
+                pdf = self._lift_samples(pidx, uv, lum, scheme,
+                                         self.scene.maxspec)
                 np.save(f'{outd}/{i:04d}_{sb:04d}', pdf)
 
     def direct_view(self):
