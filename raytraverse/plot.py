@@ -115,14 +115,6 @@ def mk_img_voronoi(lums, uv, verts, regions, vi, bounds=None, colors='viridis', 
     return outf
 
 
-def hist(lums, bins='auto', outf=None, **kwargs):
-    h, binedges = np.histogram(lums.ravel(), bins=bins, **kwargs)
-    print(h, binedges)
-    b = np.repeat(binedges, 2)[1:-1]
-    h = np.repeat(h, 2)
-    mplt.quick_scatter([b], [h], outf=outf)
-
-
 def colormap(colors, norm):
     cmap = get_colors(colors)
     cmap.set_norm(norm)

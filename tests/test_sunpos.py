@@ -12,47 +12,47 @@ import clasp.script_tools as cst
 import numpy as np
 
 
-# @pytest.fixture(scope="module")
-# def tmpdir(tmp_path_factory):
-#     data = str(tmp_path_factory.mktemp("data"))
-#     shutil.copytree('tests/test/', data + '/test')
-#     cpath = os.getcwd()
-#     os.chdir(data + '/test')
-#     yield data + '/test'
-#     os.chdir(cpath)
-#
-#
-# @pytest.fixture
-# def epw(tmpdir):
-#     return sunpos.read_epw('geneva.epw')
-#
-#
-# def test_row_2_datetime64(epw):
-#     times = sunpos.row_2_datetime64(epw[:, 0:3])
-#     assert times.size == 8760
-#
-#
-# def test_sunpos_utc(epw, tmpdir):
-#     lat, lon, mer = sunpos.get_loc_epw('geneva.epw')
-#     times = sunpos.row_2_datetime64(epw[:, 0:3])
-#     dt = sunpos.datetime64_2_datetime(times, mer)
-#     alt, az = sunpos.sunpos_utc(dt, lat, lon)
-#     aa = sunpos.sunpos_degrees(times, lat, lon, mer)
-#     assert np.allclose(alt.degrees, aa[:,0])
-#     assert np.allclose(az.degrees, aa[:,1] + 180)
-#
-#
-# def test_sunpos_ro(epw, tmpdir):
-#     lat, lon, mer = sunpos.get_loc_epw('geneva.epw')
-#     times = sunpos.row_2_datetime64(epw[:, 0:3])
-#     ro = -33
-#     aa0 = sunpos.sunpos_degrees(times, lat, lon, mer)
-#     aa1 = sunpos.sunpos_degrees(times, lat, lon, mer, ro=ro)
-#     aa2 = sunpos.sunpos_radians(times, lat, lon, mer, ro=ro*np.pi/180)
-#     xyz = sunpos.sunpos_xyz(times, lat, lon, mer, ro=ro)
-#     aa3 = np.pi/2 - translate.xyz2tp(xyz) - np.pi
-#     assert np.allclose(translate.tpnorm(aa2), translate.tpnorm(aa3))
-#     assert np.allclose(aa1[:, 1], aa0[:, 1] - ro)
+@pytest.fixture(scope="module")
+def tmpdir(tmp_path_factory):
+    data = str(tmp_path_factory.mktemp("data"))
+    shutil.copytree('tests/test/', data + '/test')
+    cpath = os.getcwd()
+    os.chdir(data + '/test')
+    yield data + '/test'
+    os.chdir(cpath)
+
+
+@pytest.fixture
+def epw(tmpdir):
+    return skycalc.read_epw('geneva.epw')
+
+
+def test_row_2_datetime64(epw):
+    times = skycalc.row_2_datetime64(epw[:, 0:3])
+    assert times.size == 8760
+
+
+def test_sunpos_utc(epw, tmpdir):
+    lat, lon, mer = skycalc.get_loc_epw('geneva.epw')
+    times = skycalc.row_2_datetime64(epw[:, 0:3])
+    dt = skycalc.datetime64_2_datetime(times, mer)
+    alt, az = skycalc.sunpos_utc(dt, lat, lon)
+    aa = skycalc.sunpos_degrees(times, lat, lon, mer)
+    assert np.allclose(alt.degrees, aa[:,0])
+    assert np.allclose(az.degrees, aa[:,1] + 180)
+
+
+def test_sunpos_ro(epw, tmpdir):
+    lat, lon, mer = skycalc.get_loc_epw('geneva.epw')
+    times = skycalc.row_2_datetime64(epw[:, 0:3])
+    ro = -33
+    aa0 = skycalc.sunpos_degrees(times, lat, lon, mer)
+    aa1 = skycalc.sunpos_degrees(times, lat, lon, mer, ro=ro)
+    aa2 = skycalc.sunpos_radians(times, lat, lon, mer, ro=ro*np.pi/180)
+    xyz = skycalc.sunpos_xyz(times, lat, lon, mer, ro=ro)
+    aa3 = np.pi/2 - translate.xyz2tp(xyz) - np.pi
+    assert np.allclose(translate.tpnorm(aa2), translate.tpnorm(aa3))
+    assert np.allclose(aa1[:, 1], aa0[:, 1] - ro)
 
 
 coms = ['gendaylit -ang  025.7720 -097.5262 -W  0305.00  0169.00',
@@ -114,72 +114,42 @@ def check():
         except IndexError:
             suni.append(0)
         at.append([float(j) for j in a.strip().split()[-10:]])
-    return np.array(at)
+    return np.array(at), np.array(suni)
 
 
 def test_perez(check):
-    sxyz = check[:, -3:]
-    result = skycalc.perez(sxyz, dirdif)
-    irerr = (result - check)/check
+    sxyz = check[0][:, -3:]
+    result, suni = skycalc.perez(sxyz, dirdif)
+    irerr = (result - check[0])/check[0]
     np.set_printoptions(4, suppress=True)
     print()
     print('Coefficients:')
     print('avg abs relative error:\n', np.average(np.abs(irerr), 0)[:-3])
     print('avg relative error:\n', np.average(irerr, 0)[:-3])
     print('max abs relative error:\n', np.max(np.abs(irerr), 0)[:-3])
-    assert np.allclose(result, check, atol=0.001, rtol=.001)
+    serr = (suni[check[1] > 0] - check[1][check[1] > 0])/check[1][check[1] > 0]
+    print('sun error (min, med, max):\n', np.percentile(np.abs(serr), (0, 50, 100)))
+    assert np.allclose(result, check[0], atol=0.001, rtol=.001)
+    assert np.allclose(suni[check[1] > 0], check[1][check[1] > 0], atol=0.001, rtol=.001)
 
 
-# def test_sky_mtx(check):
-#     sxyz = check[:, -3:]
-#     side = 20
-#     lum, grnd, _ = skycalc.sky_mtx(sxyz, dirdif, side)
-#     print(lum.shape, grnd.shape)
-#     gsv = [f'genskyvec_sc -sc -m {side} -h -1 -b -s']*45
-#     with ProcessPoolExecutor() as exc:
-#         cols = exc.map(io.call_generic, zip(coms, gsv))
-#     smtx = np.hstack(list(cols)).T
-#     irerr = (lum - smtx[:, 1:])/smtx[:, 1:]
-#     print('Sky Matrix:')
-#     print('max avg abs error:', np.max(np.average(np.abs(irerr), -1)))
-#     print('max avg error:', np.max(np.average(irerr, -1)))
-#     print('max abs error:', np.max(np.abs(irerr)))
-#     assert np.allclose(lum, smtx[:, 1:], atol=0.001, rtol=.001)
+def test_sky_mtx(check):
+    sxyz = check[0][:, -3:]
+    suncheck = check[1]
+    side = 20
+    lum, grnd, suni = skycalc.sky_mtx(sxyz, dirdif, side)
+    print(lum.shape, grnd.shape)
+    gsv = [f'genskyvec_sc -sc -m {side} -h -1 -b -s']*45
+    with ProcessPoolExecutor() as exc:
+        cols = exc.map(io.call_generic, zip(coms, gsv))
+    smtx = np.hstack(list(cols)).T
+    irerr = (lum - smtx[:, 1:])/smtx[:, 1:]
+    print('Sky Matrix:')
+    print('max avg abs error:', np.max(np.average(np.abs(irerr), -1)))
+    print('max avg error:', np.max(np.average(irerr, -1)))
+    print('max abs error:', np.max(np.abs(irerr)))
+    assert np.allclose(lum, smtx[:, 1:], atol=0.001, rtol=.001)
+    assert np.allclose(suni[check[1] > 0], check[1][check[1] > 0], atol=0.001,
+                       rtol=.001)
 
-# def test_angle():
-#     tp = np.stack((90 - skycalc.perez_constants['theta'], skycalc.perez_constants['phi']))
-#     tp = tp*np.pi/180
-#     xyz = np.stack((-np.sin(tp[1])*np.cos(tp[0]),
-#                     -np.cos(tp[1])*np.cos(tp[0]),
-#                     np.sin(tp[0]))).T
-#
-#     xp = np.copy(xyz)
-#     xp[:, 2] = 0
-#     xp = translate.norm(xp)
-#
-#     # for i, a in zip(xp, skycalc.perez_constants['phi']) :
-#     #     print(i, a)
-#     sxyz = translate.norm(np.array([[0, -1, 1]]))
-#     n = 39
-#     x = np.linspace(0, np.pi*2, n)
-#     phi = 270 - x*180/np.pi
-#     print(phi)
-#     theta = np.full(phi.shape, 45)
-#     # xyz = translate.norm(np.stack((np.cos(x), np.sin(x), np.ones(n))).T)
-#     # # sxyz = xyz[5:6]
-#     # # print(sxyz)
-#     # # print(sxyz)
-#     # # xp = np.copy(xyz)
-#     # # xp[:, 2] = 0
-#     # # xp = translate.norm(xp)
-#     # # for i in xyz:
-#     # #     print(i)
-#     # print(xyz)
-#     np.set_printoptions(4, suppress=True)
-#     # g1, g2 = skycalc.angles(xyz, sxyz, theta, phi)
-#     g1, g2 = skycalc.angles(xyz, sxyz)
-#     g1 = g1.flatten()*180/np.pi
-#     g2 = g2.flatten()*180/np.pi
-#     for i in np.stack((g1, g2)).T:
-#         print(i)
 

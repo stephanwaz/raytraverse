@@ -1,7 +1,7 @@
-raytraverse.sunpos
+raytraverse.skycalc
 ==========================================================
 
-.. automodule:: raytraverse.sunpos
+.. automodule:: raytraverse.skycalc
     :members:
     :undoc-members:
     :show-inheritance:

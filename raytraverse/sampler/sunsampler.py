@@ -53,7 +53,7 @@ class SunSampler(object):
             print("Building photon map for ambient sampling")
             print(self.ambsampler.mkpmap(apo=apo))
         if ambient:
-            print("Sampling Ambient Direct Sun contribution")
+            print("Sampling Ambient Sun contribution")
             self.ambsampler.run(rcopts=rcopts)
         if reflection:
             for sidx, sb in enumerate(self.sunbin):

@@ -13,7 +13,7 @@ from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor
 import numpy as np
 from scipy.spatial import cKDTree, SphericalVoronoi
 import clasp.script_tools as cst
-from raytraverse import translate, io, optic
+from raytraverse import translate, io, optic, skycalc
 from raytraverse.lightfield import SunField, SrcBinField
 from raytraverse.mapper import ViewMapper
 
@@ -37,48 +37,37 @@ class Integrator(object):
         self.sunfield = SunField(scene, suns)
         self.skyfield = SrcBinField(scene, prefix='sky')
         self.dayhours = self.scene.skydata[:, 0] > 0
-        xyz = translate.aa2xyz(self.scene.skydata[self.dayhours, 0:2])
-        self.hassun = self.sunfield.has_proxy_src(xyz, tol=self.stol)
 
-    def get_sky_commands(self):
-        sd = self.scene.skydata[self.dayhours]
-        sc = 'gendaylit -ang {:0= 9.4f} {:0= 9.4f} -W {:0= 8.2f} {:0= 8.2f} {}'
-        flag = np.full(sd.shape[0], '  ', dtype='U2')
-        flag[self.hassun] = '-s'
-        skycoms = np.empty(sd.shape[0], 'U58')
-        for i in range(sd.shape[0]):
-            skycoms[i] = sc.format(*sd[i], flag[i])
-        return skycoms
+    # def get_sky_commands(self):
+    #     sd = self.scene.skydata[self.dayhours]
+    #     sc = 'gendaylit -ang {:0= 9.4f} {:0= 9.4f} -W {:0= 8.2f} {:0= 8.2f} {}'
+    #     flag = np.full(sd.shape[0], '  ', dtype='U2')
+    #     flag[self.hassun] = '-s'
+    #     skycoms = np.empty(sd.shape[0], 'U58')
+    #     for i in range(sd.shape[0]):
+    #         skycoms[i] = sc.format(*sd[i], flag[i])
+    #     return skycoms
 
     def get_sky_mtx(self):
-        skycoms = self.get_sky_commands()
-        at = []
-        sc = np.random.choice(skycoms, 30)
-        # for i in sc:
-        #     a = cst.pipeline([i,])
-        #     at.append([float(j) for j in a.strip().split()[-10:]])
-        print(sc)
-        print(at)
-        # gsv = np.full(1, f'genskyvec_sc -sc -m {self.scene.skyres} -h -1 -b')
-        # gsvcoms = np.broadcast_to(gsv, skycoms.shape)
-        # with ThreadPoolExecutor() as ex:
-        #     cols = ex.map(io.call_generic, zip(skycoms[0:1000], gsvcoms))
-        # smtx = np.hstack(cols)
-        # print(smtx.shape)
+        sxyz = translate.aa2xyz(self.scene.skydata[self.dayhours, 0:2])
+        hassun, si = self.sunfield.proxy_src(sxyz, tol=self.stol)
+        nosun = np.arange(hassun.size)[np.logical_not(hassun)]
+        sunbins = translate.uv2bin(translate.xyz2uv(sxyz[nosun]),
+                                   self.scene.skyres)
+        dirdif = self.scene.skydata[self.dayhours, 2:]
+        smtx, grnd, sun = skycalc.sky_mtx(sxyz, dirdif, self.scene.skyres)
+        # ratio between actual solar disc and patch
+        omegar = np.square(0.2665 * np.pi * self.scene.skyres / 180) * .5
+        plum = sun[nosun] * omegar
+        smtx[nosun, sunbins] += plum
+        return smtx, grnd, sun, hassun
 
-    # def apply_coefs(self, pis, coefs=None):
-    #     cnt = self.lum[pis[0]].shape[1]
-    #     if coefs is None:
-    #         lum = [np.sum(self.lum[pi], 1).reshape(1, -1) for pi in pis]
-    #     elif coefs.shape[-1] == cnt:
-    #         skyvecs = coefs.reshape(-1, cnt).T
-    #         lum = [(self.lum[pi].reshape(-1, cnt)@skyvecs).T for pi in pis]
-    #     else:
-    #         coefs = coefs.reshape(-1, 2).T
-    #         bins = coefs[0].astype(int)
-    #         c = coefs[1]
-    #         lum = [(self.lum[pi].reshape(-1, cnt)[:, bins]*c).T for pi in pis]
-    #     return lum
+    def apply_sky_mtx(self, pis, smtx):
+        lum = []
+        for pi in pis:
+            coefs = self.skyfield.vlo[pi][:, 3:-1]
+            lum.append(smtx[:, None, :] * coefs[None, ...])
+        return lum
     #
     # def view(self, vpts, vdirs, decades=4, maxl=0.0, coefs=None, treecnt=30,
     #          ring=150, viewangle=180.0, ringtol=15.0, scatter=False, **kwargs):

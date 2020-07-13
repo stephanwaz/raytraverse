@@ -256,7 +256,7 @@ def sunpos_xyz(timesteps, lat, lon, mer, builtin=True, ro=0.0):
 # of Radiance:
 
 # The Radiance Software License, Version 1.0
-# 
+#
 # Copyright (c) 1990 - 2018 The Regents of the University of California,
 # through Lawrence Berkeley National Laboratory.   All rights reserved.
 #
@@ -511,7 +511,8 @@ def perez(sxyz, dirdif, md=None):
     groundbr = zenithbr*normfactor
     groundbr[skyclear > 1] += (6.8e-5/np.pi*solarrad*sxyz[:, 2])[skyclear > 1]
     groundbr *= 0.2
-    return np.hstack((diffnorm[:, None], groundbr[:, None], cperez, sxyz))
+    coefs = np.hstack((diffnorm[:, None], groundbr[:, None], cperez, sxyz))
+    return coefs, solarrad
 
 
 def sky_mtx(sxyz, dirdif, side, jn=4):
@@ -538,11 +539,11 @@ def sky_mtx(sxyz, dirdif, side, jn=4):
         (N, 2) - column zero is bin number of direct sun, column
         1 is sun value, needs to be normalized to area of patch
     """
-    coefs = perez(sxyz, dirdif)
+    coefs, suni = perez(sxyz, dirdif)
     uv = translate.bin2uv(np.arange(side*side), side)
     jitter = translate.bin2uv(np.arange(jn*jn), jn) + .5/jn
     uvj = uv[:, None, :] + jitter/side
     xyz = translate.uv2xyz(uvj.reshape(-1, 2), xsign=1).reshape(-1, 3)
     lum = perez_lum(xyz, coefs).reshape(coefs.shape[0], -1, jn*jn)
-    return np.average(lum, -1), coefs[:, 2], coefs[:, 2]
+    return np.average(lum, -1), coefs[:, 2], suni
 

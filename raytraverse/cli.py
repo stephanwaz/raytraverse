@@ -180,7 +180,9 @@ def integrate(ctx, **kwargs):
     if 'suns' not in ctx.obj:
         invoke_suns(ctx)
     itg = Integrator(ctx.obj['scene'], ctx.obj['suns'])
-    print(itg.get_sky_mtx())
+    smtx, grnd, sun, hassun = itg.get_sky_mtx()
+    itg.skyfield.direct_view(itg.scene.pts())
+    print(smtx.shape, itg.skyfield.vlo[0].shape)
 
 
 @main.resultcallback()

@@ -225,7 +225,7 @@ class SunViewField(LightField):
             outf = f"{self.scene.outdir}_{self.prefix}_{i:04d}.png"
             plot.save_img(fig, ax, outf, title=pt)
 
-    def has_proxy_src(self, tsuns, tol=10.0):
+    def proxy_src(self, tsuns, tol=10.0):
         """check if sun directions have matching source in SunSetter
 
         Parameters
@@ -239,9 +239,11 @@ class SunViewField(LightField):
         -------
         np.array
             (N,) boolean array if sun has a match
+        np.array
+            (N,) index to proxy src
         """
         stol = translate.theta2chord(tol*np.pi/180)
         suns = translate.norm(tsuns)
         with ProcessPoolExecutor() as exc:
             serrs, sis = zip(*exc.map(self.sun_kd.query, suns))
-        return serrs < stol
+        return serrs < stol, sis

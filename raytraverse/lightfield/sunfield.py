@@ -40,7 +40,7 @@ class SunField(SrcBinField):
         #: raytraverse.lightfield.SunViewField
         self.view = SunViewField(scene, suns, rebuild=rebuild)
         #: alias to sun src checker method
-        self.has_proxy_src = self.view.has_proxy_src
+        self.proxy_src = self.view.proxy_src
         self._pt_kd = self.view.pt_kd
         super().__init__(scene, rebuild=rebuild, prefix='sun')
 

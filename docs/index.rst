@@ -12,7 +12,7 @@ raytraverse (|release|)
    io
    optic
    plot
-   sunpos
+   skycalc
    translate
    wavelet
    cli
