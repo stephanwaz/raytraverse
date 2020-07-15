@@ -545,5 +545,6 @@ def sky_mtx(sxyz, dirdif, side, jn=4):
     uvj = uv[:, None, :] + jitter/side
     xyz = translate.uv2xyz(uvj.reshape(-1, 2), xsign=1).reshape(-1, 3)
     lum = perez_lum(xyz, coefs).reshape(coefs.shape[0], -1, jn*jn)
-    return np.average(lum, -1), coefs[:, 2], suni
+    lum = np.average(lum, -1)
+    return lum, coefs[:, 2], suni
 

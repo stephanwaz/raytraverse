@@ -5,9 +5,11 @@
 
 import pytest
 from raytraverse import translate
+from raytraverse.mapper import ViewMapper
 import numpy as np
 
-from clipt import mplt
+import clasp.script_tools as cst
+
 
 @pytest.fixture
 def thetas():
@@ -31,6 +33,10 @@ def fibset(n=1000):
 def test_norm(thetas):
     xyz = translate.tp2xyz(thetas)
     assert np.allclose(translate.norm(xyz), xyz)
+    rxyz = np.random.random((1000, 3))
+    ln = rxyz/np.linalg.norm(rxyz, axis=-1)[..., None]
+    tn = translate.norm(rxyz)
+    assert np.allclose(ln, tn)
 
 
 def test_xyz2uv(thetas):
@@ -96,3 +102,14 @@ def test_bin2uv():
     bins3 = translate.uv2bin(uv + .999/10, 10)
     assert np.allclose(bins, bins2)
     assert np.allclose(bins3, bins2)
+
+
+def test_view2xyz():
+    dxyz = translate.norm1((0, 1, 0.))
+    va = 180
+    res = 200
+    v = ViewMapper(dxyz=dxyz, viewangle=va)
+    vwrays = 'vwrays -vta -vv {} -vh {} -vd {} {} {} -vu 0 0 1 -x {} -y {}'.format(va, va, *dxyz, res, res)
+    vrays = np.fromstring(cst.pipeline([vwrays]), sep=' ').reshape(res, res, 6)[-1::-1, -1::-1, 3:]
+    xyz, mask = v.pixelrays(res)
+    assert np.allclose(xyz, vrays, rtol=.01, atol=.01)

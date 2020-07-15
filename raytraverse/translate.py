@@ -65,7 +65,7 @@ Dz = n * (1 - sq(r));
 
 def norm(v):
     """normalize 2D array of vectors along last dimension"""
-    return v/np.sqrt(np.sum(np.square(v), -1)).reshape(-1, 1)
+    return v/np.linalg.norm(v, axis=-1).reshape(-1, 1)
 
 
 def norm1(v):
@@ -128,7 +128,7 @@ def uv2xyz(uv, axes=(0, 1, 2), xsign=-1):
     return xyz
 
 
-def xyz2uv(xyz, normalize=False, axes=(0, 1, 2)):
+def xyz2uv(xyz, normalize=False, axes=(0, 1, 2), flipu=True):
     """translate from vector x,y,z (normalized) to u,v (0,2),(0,1)
     Shirley, Peter, and Kenneth Chiu. A Low Distortion Map Between Disk and
     Square. Journal of Graphics Tools, vol. 2, no. 3, Jan. 1997, pp. 45-52.
@@ -152,7 +152,10 @@ def xyz2uv(xyz, normalize=False, axes=(0, 1, 2)):
                                    ((phi - 3*np.pi/2)*r/pi4, -r)))).T
     # for the positive z-direction (n=1) map -1,1 to 1,0 (to correct flip)
     # for the negative z-direction (n=-1) map -1,1 to 1,2
-    uv[:, 0] = (np.where(n < 0, 3, 1) - a[:, 0]*n) / 2.
+    if flipu:
+        uv[:, 0] = (np.where(n < 0, 3, 1) - a[:, 0]*n) / 2.
+    else:
+        uv[:, 0] = (a[:, 0] + 2 - n) / 2.
     uv[:, 1] = (a[:, 1] + 1) / 2.
     return uv
 
@@ -166,6 +169,18 @@ def xyz2xy(xyz, axes=(0, 1, 2), flip=True):
     if flip:
         x = -x
     return np.stack((x, y)).T
+
+
+def pxy2xyz(pxy, viewangle=180.0):
+    pxy -= .5
+    pxy *= viewangle/180
+    d = np.sqrt(np.sum(np.square(pxy), -1))
+    mask = d <= viewangle/360
+    z = np.cos(np.pi*d)
+    d = np.where(d <= 0, np.pi, np.sqrt(1 - z*z)/d)
+    pxy *= d[..., None]
+    xyz = np.concatenate((pxy, z[..., None]), -1)
+    return xyz, mask
 
 
 def tp2xyz(thetaphi, normalize=True):

@@ -6,7 +6,7 @@ import os
 import shutil
 
 import pytest
-from raytraverse import Scene
+from raytraverse.scene import Scene
 import numpy as np
 
 

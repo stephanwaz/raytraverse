@@ -6,7 +6,8 @@ import os
 import shutil
 
 import pytest
-from raytraverse import ViewMapper, translate
+from raytraverse import translate, io
+from raytraverse.mapper import ViewMapper
 import numpy as np
 
 
@@ -36,3 +37,25 @@ def test_xyz2uv():
     inside = np.sum(np.prod(np.logical_and(vm.xyz2uv(xyz) > 0, vm.xyz2uv(xyz) < 1), 1))/xyz.shape[0]
     assert np.isclose(inside, 1/8, atol=1e-4)
 
+
+def test_radians():
+    vm = ViewMapper(viewangle=180)
+    vec = translate.norm([[1, 0, 0], [1, 1, 0], [0, 1, 0], [-1, 1, 0],
+                          [-1, 0, 0], [-1, -1, 0], [0, -1, 0], [1, -1, 0]])
+    deg = np.array([90, 45, 0, 45, 90, 135, 180, 135])
+    rad = deg * np.pi/180
+    ans = vm.radians(vec)
+    ans2 = vm.degrees(vec)
+    assert np.allclose(ans, rad)
+    assert np.allclose(ans2, deg)
+
+
+def test_omega():
+    res = 1000
+    va = 180
+    vm = ViewMapper(viewangle=va)
+    pxy = (np.stack(np.mgrid[0:res, 0:res]).T + .5)
+    xyz, mask = vm.pixel2ray(pxy, res)
+    omega = vm.pixel2omega(pxy, res)
+    exp = np.pi*2*(1-np.cos(va*np.pi/360))
+    assert np.isclose(np.sum(omega[mask]), exp, rtol=1e-4)

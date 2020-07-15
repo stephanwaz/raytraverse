@@ -14,12 +14,12 @@ from scipy.spatial import cKDTree
 
 from raytraverse import translate, plot
 from raytraverse.helpers import ArrayDict, sunfield_load_item
-from raytraverse.lightfield.srcbinfield import SrcBinField
+from raytraverse.lightfield import LightField
 from raytraverse.lightfield.sunviewfield import SunViewField
 from raytraverse.mapper import ViewMapper
 
 
-class SunField(SrcBinField):
+class SunField(LightField):
     """container for sun view data
 
     Parameters
@@ -38,10 +38,8 @@ class SunField(SrcBinField):
         #: np.array: sun positions
         self.suns = suns.suns
         #: raytraverse.lightfield.SunViewField
-        self.view = SunViewField(scene, suns, rebuild=rebuild)
-        #: alias to sun src checker method
-        self.proxy_src = self.view.proxy_src
-        self._pt_kd = self.view.pt_kd
+        self.view = SunViewField(scene, suns, rebuild=True)
+        self.draw_sun = self.view.draw_sun
         super().__init__(scene, rebuild=rebuild, prefix='sun')
 
     @property
@@ -59,7 +57,6 @@ class SunField(SrcBinField):
         vlamb = self._get_vl(npts, pref='ambient')
         d_kd = {(-1, -1): None}
         vlo = ArrayDict({(-1, -1): None})
-        svs = {(-1, -1): None}
         fu = []
         with ProcessPoolExecutor() as exc:
             for i in range(self.suns.shape[0]):
@@ -68,11 +65,21 @@ class SunField(SrcBinField):
                     fu.append(exc.submit(sunfield_load_item, vlamb[j],
                                          vlsun[j], i, j, self.scene.maxspec))
         for future in as_completed(fu):
-            idx, s, v, d = future.result()
-            svs[idx] = s
+            idx, v, d = future.result()
             vlo[idx] = v
             d_kd[idx] = d
-        return d_kd, vlo, svs
+        return d_kd, vlo
+
+    def measure(self, psi, vecs, coefs=1, interp=1):
+        d, i = self.d_kd[psi].query(vecs, k=interp)
+        c = np.asarray(coefs).reshape(-1)
+        lum = np.einsum('i,j->ij', c, self.vlo[psi][:, 3])
+        if interp > 1:
+            wgts = np.broadcast_to(1/d, (lum.shape[0],) + d.shape)
+            lum = np.average(lum[:, i], weights=wgts, axis=-1)
+        else:
+            lum = lum[:, i]
+        return np.squeeze(lum)
 
     def query(self, vpts, suns, vdirs=((0, 0, 1), ), viewangle=180.0, dtol=1.0,
               stol=10.0, treecnt=30):
@@ -111,10 +118,11 @@ class SunField(SrcBinField):
         vs = translate.theta2chord(viewangle/360*np.pi)
         stol = translate.theta2chord(stol*np.pi/180)
         treedir = vdirs.shape[0] > treecnt
+        pt_kd = self.scene.pt_kd
         if treedir:
             dtree = cKDTree(vdirs)
         with ProcessPoolExecutor() as exc:
-            perrs, pis = zip(*exc.map(self._pt_kd.query, vpts))
+            perrs, pis = zip(*exc.map(pt_kd.query, vpts))
             serrs, sis = zip(*exc.map(self.view.sun_kd.query, suns))
             errs = []
             idx = []

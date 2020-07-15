@@ -110,3 +110,41 @@ def bytefile2np(f, shape, dtype='<f'):
     """
     return bytes2np(f.read(), shape, dtype)
 
+
+def array2hdr(ar, imgf):
+    """write 2d np.array (x,y) to hdr image format
+
+    Parameters
+    ----------
+    ar: np.array
+    imgf: file path to right
+
+    Returns
+    -------
+
+    """
+    f = open(imgf, 'wb')
+    pval = f'pvalue -r -b -h -H -df -o +y {ar.shape[0]} -x {ar.shape[1]}'
+    p = Popen(pval.split(), stdin=PIPE, stdout=f)
+    p.communicate(np2bytes(ar[-1::-1, -1::-1]))
+    f.close()
+
+
+def hdr2array(imgf):
+    """read np.array from hdr image
+
+    Parameters
+    ----------
+    imgf: file path of image
+
+    Returns
+    -------
+    ar: np.array
+
+    """
+    pval = f'pvalue -b -h -df -o {imgf}'
+    p = Popen(pval.split(), stdout=PIPE)
+    shape = p.stdout.readline().strip().split()
+    shape = (int(shape[-3]), int(shape[-1]))
+    return bytes2np(p.stdout.read(), shape)[-1::-1, -1::-1]
+

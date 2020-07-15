@@ -5,6 +5,8 @@
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 # =======================================================================
+import os
+import pickle
 
 
 class LightField(object):
@@ -27,7 +29,6 @@ class LightField(object):
         self.prefix = prefix
         self._vlo = None
         self._d_kd = None
-        self._pt_kd = None
         self.scene = scene
 
     @property
@@ -45,14 +46,39 @@ class LightField(object):
         return self._d_kd
 
     @property
-    def pt_kd(self):
-        """point kdtree
+    def scene(self):
+        """scene information
 
-        :getter: Returns kd tree structure
-        :setter: Set this integrator's kd tree and scene data
-        :type: scipy.spatial.cKDTree
+        :getter: Returns this integrator's scene
+        :setter: Set this integrator's scene
+        :type: raytraverse.scene.Scene
         """
-        return self._pt_kd
+        return self._scene
+
+    @scene.setter
+    def scene(self, scene):
+        """Set this field's scene and load samples"""
+        self._scene = scene
+        kdfile = f'{scene.outdir}/{self.prefix}_kd_data.pickle'
+        if os.path.isfile(kdfile) and not self.rebuild:
+            f = open(kdfile, 'rb')
+            self._d_kd = pickle.load(f)
+            self._vlo = pickle.load(f)
+            f.close()
+        else:
+            self._d_kd, self._vlo = self.mk_tree()
+            f = open(kdfile, 'wb')
+            pickle.dump(self.d_kd, f, protocol=4)
+            pickle.dump(self.vlo, f, protocol=4)
+            f.close()
+
+    def mk_tree(self):
+        return None, None
+
+    def measure(self, pi, vecs, coefs=1, interp=1):
+        """measure the source coefficients for a vector from point index
+        and apply coefficients"""
+        pass
 
     def query(self, *args, **kwargs):
         """gather all rays from a point within a view cone"""

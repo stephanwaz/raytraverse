@@ -49,7 +49,7 @@ class Sampler(object):
 
     def __init__(self, scene, fdres=9, srcn=1, t0=.1, t1=.01, maxrate=1.0,
                  minrate=.05, idres=4, stype='generic', append=False,
-                 srcdef=None, **kwargs):
+                 srcdef=None, plotp=False, **kwargs):
         self.scene = scene
         #: func: mapper to use for sampling
         self.samplemap = self.scene.view
@@ -76,6 +76,7 @@ class Sampler(object):
         self.weights = np.full(np.concatenate((self.scene.ptshape,
                                                self.levels[0])), 1e-7)
         self.compiledscene = srcdef
+        self.plotp = plotp
 
     def __del__(self):
         try:
@@ -232,6 +233,9 @@ class Sampler(object):
             daxes = (len(pres) + len(dres) - 2, len(pres) + len(dres) - 1)
             p = wavelet.get_detail(self.weights, daxes)
             p = p*(1 - self._sample_t) + np.median(p)*self._sample_t
+            if self.plotp:
+                quickplot.imshow(np.log10(p.reshape(self.weights.shape)[0, 0]),
+                                 [20, 10])
             # draw on pdf
             nsampc = int(self._sample_rate*self.weights.size)
             pdraws = np.random.default_rng().choice(p.size, nsampc,

@@ -14,6 +14,8 @@ import numpy as np
 
 from clasp import script_tools as cst
 from clasp.click_callbacks import parse_file_list
+from scipy.spatial import cKDTree
+
 from raytraverse import skycalc, translate
 from raytraverse.mapper import SpaceMapper, ViewMapper
 
@@ -108,6 +110,7 @@ class Scene(object):
             print('for jittering position, sunres set to .7')
             skyres = .7
         self.skyres = skyres
+        self.pt_kd = None
 
     @property
     def skyres(self):
@@ -226,6 +229,17 @@ class Scene(object):
         :type: (np.array, np.array)
         """
         return self._solarbounds
+
+    @property
+    def pt_kd(self):
+        """point kdtree for spatial queries"""
+        if self._pt_kd is None:
+            self._pt_kd = cKDTree(self.pts())
+        return self._pt_kd
+
+    @pt_kd.setter
+    def pt_kd(self, pt_kd):
+        self._pt_kd = pt_kd
 
     @property
     def loc(self):

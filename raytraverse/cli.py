@@ -119,6 +119,7 @@ def scene(ctx, **kwargs):
 @click.option('-idres', default=4)
 @click.option('-fdres', default=9)
 @click.option('-rcopts', default='-ab 2 -ad 1024 -as 0 -lw 1e-5 -st 0 -ss 16')
+@click.option('--plotp/--no-plotp', default=False)
 @clk.shared_decs(clk.command_decs(__version__, wrap=True))
 def sky(ctx, **kwargs):
     """run scbinsampler"""
@@ -126,6 +127,8 @@ def sky(ctx, **kwargs):
         invoke_scene(ctx)
     sampler = SCBinSampler(ctx.obj['scene'], **kwargs)
     sampler.run(rcopts=kwargs['rcopts'], executable='rcontrib')
+    sk = SrcBinField(ctx.obj['scene'], rebuild=True)
+    sk.direct_view(ctx.obj['scene'].pts())
 
 
 @main.command()
@@ -164,11 +167,12 @@ def sunrun(ctx, **kwargs):
         invoke_suns(ctx)
     scn = ctx.obj['scene']
     sns = ctx.obj['suns']
-    sampler = SunSampler(scn, sns, **kwargs)
-    sampler.run(**kwargs)
-    su = SunField(scn, sns, rebuild=True)
-    su.direct_view(scn.pts())
-    su.view.direct_view(scn.pts())
+    # sampler = SunSampler(scn, sns, **kwargs)
+    # sampler.run(**kwargs)
+    su = SunViewField(scn, sns, True)
+    # su = SunField(scn, sns, rebuild=True)
+    # su.direct_view(scn.pts())
+    # su.view.direct_view(scn.pts())
 
 
 @main.command()
@@ -179,10 +183,11 @@ def integrate(ctx, **kwargs):
         invoke_scene(ctx)
     if 'suns' not in ctx.obj:
         invoke_suns(ctx)
-    itg = Integrator(ctx.obj['scene'], ctx.obj['suns'])
+    scn = ctx.obj['scene']
+    itg = Integrator(scn, ctx.obj['suns'], stol=15)
     smtx, grnd, sun, hassun = itg.get_sky_mtx()
-    itg.skyfield.direct_view(itg.scene.pts())
-    print(smtx.shape, itg.skyfield.vlo[0].shape)
+    subset = np.array([14, 32])
+    itg.hdr([(5, 5, 1.25)], [(0, -1, 0)], smtx[subset], sun[subset], hassun[subset], interp=4, res=800)
 
 
 @main.resultcallback()

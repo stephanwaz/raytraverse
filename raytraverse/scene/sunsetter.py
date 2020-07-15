@@ -10,6 +10,7 @@ import os
 import shutil
 
 import numpy as np
+from scipy.spatial import cKDTree
 
 from raytraverse import wavelet, translate, io, optic, plot
 from raytraverse.mapper import SunMapper
@@ -38,6 +39,7 @@ class SunSetter(object):
         self.map = SunMapper(self.suns)
         if not (os.path.isfile(sunfile) and self.reload):
             self._write_suns(sunfile)
+        self.sun_kd = None
 
     @property
     def suns(self):
@@ -48,6 +50,17 @@ class SunSetter(object):
         :type: np.array
         """
         return self._suns
+
+    @property
+    def sun_kd(self):
+        """sun kdtree for directional queries"""
+        if self._sun_kd is None:
+            self._sun_kd = cKDTree(self.suns)
+        return self._sun_kd
+
+    @sun_kd.setter
+    def sun_kd(self, sun_kd):
+        self._sun_kd = sun_kd
 
     def init_suns(self, sunfile):
         """set the skydetail array and determine sample count and spacing"""
@@ -92,7 +105,6 @@ class SunSetter(object):
 
         Parameters
         ----------
-        maxspec: float, optional
         reload: bool, optional
         """
         outd = f'{self.scene.outdir}/sunpdfs'
@@ -142,6 +154,28 @@ class SunSetter(object):
         dec = f"void light {mod} 0 0 3 1 1 1\n"
         dec += f"{mod} source {name} 0 0 4 {d} 0.533\n"
         return dec, mod
+
+    def proxy_src(self, tsuns, tol=10.0):
+        """check if sun directions have matching source in SunSetter
+
+        Parameters
+        ----------
+        tsuns: np.array
+            (N, 3) array containing sun source vectors to check
+        tol: float
+            tolerance (in degrees)
+
+        Returns
+        -------
+        np.array
+            (N,) boolean array if sun has a match
+        np.array
+            (N,) index to proxy src
+        """
+        stol = translate.theta2chord(tol*np.pi/180)
+        suns = translate.norm(tsuns)
+        serrs, sis = self.sun_kd.query(suns)
+        return serrs < stol, sis
 
     def _write_suns(self, sunfile):
         """write suns to file

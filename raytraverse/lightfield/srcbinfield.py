@@ -32,47 +32,6 @@ class SrcBinField(LightField):
         """
         return self._vlo
 
-    @property
-    def svs(self):
-        """spherical voronoi at each point
-
-        :getter: Return list of spherical voronoi
-        :type: list of scipy.spatial.SphericalVoronoi
-        """
-        return self._svs
-
-    @property
-    def scene(self):
-        """scene information
-
-        :getter: Returns this integrator's scene
-        :setter: Set this integrator's scene
-        :type: raytraverse.scene.Scene
-        """
-        return self._scene
-
-    @scene.setter
-    def scene(self, scene):
-        """Set this field's scene and load samples"""
-        self._scene = scene
-        kdfile = f'{scene.outdir}/{self.prefix}_kd_data.pickle'
-        if os.path.isfile(kdfile) and not self.rebuild:
-            f = open(kdfile, 'rb')
-            self._pt_kd = pickle.load(f)
-            self._d_kd = pickle.load(f)
-            self._vlo = pickle.load(f)
-            self._svs = pickle.load(f)
-            f.close()
-        else:
-            self._pt_kd = cKDTree(self.scene.pts())
-            self._d_kd, self._vlo, self._svs = self.mk_tree()
-            f = open(kdfile, 'wb')
-            pickle.dump(self.pt_kd, f, protocol=4)
-            pickle.dump(self.d_kd, f, protocol=4)
-            pickle.dump(self.vlo, f, protocol=4)
-            pickle.dump(self.svs, f, protocol=4)
-            f.close()
-
     def _get_vl(self, npts, pref=''):
         dfile = f'{self.scene.outdir}/{self.prefix}{pref}_vals.out'
         vfile = f'{self.scene.outdir}/{self.prefix}{pref}_vecs.out'
@@ -99,13 +58,28 @@ class SrcBinField(LightField):
         vls = self._get_vl(npts)
         d_kd = []
         vlo = []
-        svs = []
         for vl in vls:
             d_kd.append(cKDTree(vl[:, 0:3]))
-            svs.append(SphericalVoronoi(vl[:, 0:3]))
-            omega = svs[-1].calculate_areas()[:, None]
+            omega = SphericalVoronoi(vl[:, 0:3]).calculate_areas()[:, None]
             vlo.append(np.hstack((vl, omega)))
-        return d_kd, vlo, svs
+        return d_kd, vlo
+
+    def measure(self, pi, vecs, coefs=1, interp=1):
+        d, i = self.d_kd[pi].query(vecs, k=interp)
+        srcn = self.scene.skyres**2
+        coefs = np.asarray(coefs)
+        if np.mod(coefs.size, srcn) == 0:
+            c = coefs.reshape(-1, srcn)
+        else:
+            c = np.broadcast_to(coefs, (coefs.size, self.scene.skyres**2))
+        lum = np.einsum('ij,kj->ik', c, self.vlo[pi][:, 3:-1])
+        if interp > 1:
+            wgts = np.broadcast_to(1/d, (lum.shape[0],) + d.shape)
+            lum = np.average(lum[:, i], weights=wgts, axis=-1)
+        else:
+            lum = lum[:, i]
+        print(lum.shape)
+        return lum
 
     def query(self, vpts, vdirs, viewangle=180.0, dtol=1.0, treecnt=30):
         """gather all rays from a point within a view cone
@@ -135,10 +109,11 @@ class SrcBinField(LightField):
         vdirs = translate.norm(vdirs)
         vs = translate.theta2chord(viewangle/360*np.pi)
         treedir = vdirs.shape[0] > treecnt
+        pt_kd = self.scene.pt_kd
         if treedir:
             dtree = cKDTree(vdirs)
         with ProcessPoolExecutor() as exc:
-            errs, pis = zip(*exc.map(self.pt_kd.query, vpts))
+            errs, pis = zip(*exc.map(pt_kd.query, vpts))
             futures = []
             for pi in pis:
                 if treedir:

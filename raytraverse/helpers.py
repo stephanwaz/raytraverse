@@ -33,8 +33,7 @@ def sunfield_load_item(vlamb, vlsun, i, j, maxspec):
                       vlsun[notsps, 0:3]))
     lums = np.hstack((vlamb[notspa, i + 3],
                       vlsun[notsps, 3]))[:, None]
-    sv = SphericalVoronoi(vecs)
-    omega = sv.calculate_areas()[:, None]
+    omega = SphericalVoronoi(vecs).calculate_areas()[:, None]
     vlo = np.hstack((vecs, lums, omega))
     d_kd = cKDTree(vecs)
-    return (j, i), sv, vlo, d_kd
+    return (j, i), vlo, d_kd

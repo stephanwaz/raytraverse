@@ -17,6 +17,7 @@ from raytraverse import translate, io, optic, skycalc
 from raytraverse.lightfield import SunField, SrcBinField
 from raytraverse.mapper import ViewMapper
 
+
 class Integrator(object):
     """loads scene and sampling data for processing
 
@@ -38,37 +39,75 @@ class Integrator(object):
         self.skyfield = SrcBinField(scene, prefix='sky')
         self.dayhours = self.scene.skydata[:, 0] > 0
 
-    # def get_sky_commands(self):
-    #     sd = self.scene.skydata[self.dayhours]
-    #     sc = 'gendaylit -ang {:0= 9.4f} {:0= 9.4f} -W {:0= 8.2f} {:0= 8.2f} {}'
-    #     flag = np.full(sd.shape[0], '  ', dtype='U2')
-    #     flag[self.hassun] = '-s'
-    #     skycoms = np.empty(sd.shape[0], 'U58')
-    #     for i in range(sd.shape[0]):
-    #         skycoms[i] = sc.format(*sd[i], flag[i])
-    #     return skycoms
-
     def get_sky_mtx(self):
         sxyz = translate.aa2xyz(self.scene.skydata[self.dayhours, 0:2])
-        hassun, si = self.sunfield.proxy_src(sxyz, tol=self.stol)
+        hassun, si = self.suns.proxy_src(sxyz, tol=self.stol)
         nosun = np.arange(hassun.size)[np.logical_not(hassun)]
-        sunbins = translate.uv2bin(translate.xyz2uv(sxyz[nosun]),
-                                   self.scene.skyres)
+        sunuv = translate.xyz2uv(sxyz[nosun], flipu=False)
+        sunbins = translate.uv2bin(sunuv, self.scene.skyres)
         dirdif = self.scene.skydata[self.dayhours, 2:]
         smtx, grnd, sun = skycalc.sky_mtx(sxyz, dirdif, self.scene.skyres)
         # ratio between actual solar disc and patch
         omegar = np.square(0.2665 * np.pi * self.scene.skyres / 180) * .5
         plum = sun[nosun] * omegar
         smtx[nosun, sunbins] += plum
-        return smtx, grnd, sun, hassun
+        oor = len(si)
+        return smtx, grnd, sun, np.where(hassun, si, oor)
 
-    def apply_sky_mtx(self, pis, smtx):
-        lum = []
+    def hdr(self, pts, vdir, smtx, suns, hassun,
+            vname='view', viewangle=180.0, res=400, interp=1):
+        """
+
+        Parameters
+        ----------
+        pts: np.array
+            points
+        vdir: (float, float, float)
+            view direction for images
+        smtx: np.array
+            sky matrix
+        suns: np.array
+            sun values
+        hassun: np.array
+            boolean array if a high res sun exists
+        vname: str
+            view name for output file
+        viewangle: float, optional
+            degree opening of view cone
+        res: int, optional
+            image resolution
+        interp: int, optional
+            number of nearest points to interpolate between. 1 will resemble
+            voronoi patches
+
+        Returns
+        -------
+
+        """
+        perrs, pis = self.scene.pt_kd.query(pts)
+        vm = ViewMapper(viewangle=viewangle, dxyz=vdir)
+        pdirs, mask = vm.pixelrays(res)
+        img = np.zeros((res, res))
         for pi in pis:
-            coefs = self.skyfield.vlo[pi][:, 3:-1]
-            lum.append(smtx[:, None, :] * coefs[None, ...])
-        return lum
-    #
+            skylum = self.skyfield.measure(pi, pdirs[mask], smtx, interp=interp)
+            for sj, skyv in enumerate(skylum):
+                outf = f"{self.scene.outdir}_{vname}_{pi:04d}_{sj:04d}.hdr"
+                img[mask] = skyv
+                if hassun[sj] < self.suns.suns.shape[0] and suns[sj] > 0:
+                    psi = (pi, hassun[sj])
+                    img[mask] += self.sunfield.measure(psi, pdirs[mask],
+                                                       suns[sj], interp=interp)
+                    spix, svals = self.sunfield.draw_sun(psi, suns[sj], vm, res)
+                    if spix is not None:
+                        print(outf)
+                        img[spix[:, 0], spix[:, 1]] += svals
+                io.array2hdr(img, outf)
+
+
+
+
+
+
     # def view(self, vpts, vdirs, decades=4, maxl=0.0, coefs=None, treecnt=30,
     #          ring=150, viewangle=180.0, ringtol=15.0, scatter=False, **kwargs):
     #     """generate angular fisheye falsecolor luminance views

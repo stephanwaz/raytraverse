@@ -104,3 +104,46 @@ class ViewMapper(object):
     def xyz2xy(self, xyz, i=0):
         rxyz = self.world2view(xyz, i)
         return translate.xyz2xy(rxyz)
+
+    def pixelrays(self, res, i=0):
+        pxy = (np.stack(np.mgrid[0:res, 0:res]).T + .5)
+        return self.pixel2ray(pxy, res, i)
+
+    # def pixelrays(self, res, i=0):
+    #     pxy = (np.stack(np.mgrid[0:res, 0:res]).T + .5)/res
+    #     if self.aspect == 2:
+    #         rxyz, mask = translate.pxy2xyz(pxy, 180)
+    #     else:
+    #         rxyz, mask = translate.pxy2xyz(pxy, self.viewangle)
+    #     xyz = self.view2world(rxyz.reshape(-1, 3), i).reshape(rxyz.shape)
+    #     return xyz, mask
+
+    def ray2pixel(self, xyz, res, i=0):
+        xy = self.xyz2xy(xyz, i)
+        print(np.percentile(xy, (0, 50, 100), 0))
+        pxy = np.floor((xy/2 + .5) * res).astype(int)[:, -1::-1]
+        pxy[:, 1] = res - pxy[:, 1]
+        return pxy
+
+    def pixel2ray(self, pxy, res, i=0):
+        rxyz, mask = translate.pxy2xyz(pxy/res, self.viewangle/self.aspect)
+        xyz = self.view2world(rxyz.reshape(-1, 3), i).reshape(rxyz.shape)
+        return xyz, mask
+
+    def pixel2omega(self, pxy, res):
+        va = self.viewangle/self.aspect
+        print(pxy/res, pxy)
+        of = np.array(((.5, 0), (0, .5)))
+        xa, _ = translate.pxy2xyz((pxy - of[0])/res, va)
+        xb, _ = translate.pxy2xyz((pxy + of[0])/res, va)
+        ya, _ = translate.pxy2xyz((pxy - of[1])/res, va)
+        yb, _ = translate.pxy2xyz((pxy + of[1])/res, va)
+        cp = np.cross(xb - xa, yb - ya)
+        return np.linalg.norm(cp, axis=-1)
+
+    def radians(self, vec, i=0):
+        return np.arccos(np.einsum("i,ji->j", self.dxyz[i],
+                                   vec.reshape(-1, vec.shape[-1])))
+
+    def degrees(self, vec, i=0):
+        return self.radians(vec, i) * 180/np.pi

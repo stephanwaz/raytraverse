@@ -13,6 +13,7 @@ import itertools
 from concurrent.futures import ProcessPoolExecutor
 
 import numpy as np
+from matplotlib.path import Path
 from scipy.spatial import cKDTree
 from scipy.spatial.qhull import ConvexHull
 from scipy.cluster.hierarchy import fclusterdata
@@ -37,10 +38,11 @@ class SunViewField(LightField):
     nullvlo = np.zeros((1, 5))
 
     def __init__(self, scene, suns, rebuild=False):
-        #: np.array: sun positions
-        self.suns = suns.suns
+        #: raytraverse.sunsetter.SunSetter
+        self.suns = suns
         #: raytraverse.sunmapper.SunMapper
         self.sunmap = suns.map
+        self._omega = 0
         super().__init__(scene, rebuild=rebuild, prefix='sunview')
 
     @property
@@ -85,24 +87,19 @@ class SunViewField(LightField):
         kdfile = f'{self.scene.outdir}/{self.prefix}_kd_data.pickle'
         if os.path.isfile(kdfile) and not self.rebuild:
             f = open(kdfile, 'rb')
-            self._pt_kd = pickle.load(f)
-            self.sun_kd = pickle.load(f)
             self._vlo = pickle.load(f)
             self._paths = pickle.load(f)
             f.close()
         else:
-            self._pt_kd = cKDTree(self.scene.pts())
-            self.sun_kd = cKDTree(self.suns)
             f = open(dfile, 'rb')
             vls = [pickle.load(f) for i in range(3)]
             f.close()
-            self._vlo, self._paths = self._build_clusters(*vls)
+            self._vlo, self._paths, self.raster = self._build_clusters(*vls)
             f = open(kdfile, 'wb')
-            pickle.dump(self.pt_kd, f, protocol=4)
-            pickle.dump(self.sun_kd, f, protocol=4)
             pickle.dump(self.vlo, f, protocol=4)
             pickle.dump(self.paths, f, protocol=4)
             f.close()
+        self._omega = np.pi*(self.sunmap.viewangle*np.pi/360)**2/np.prod(vls[-1])
 
     def _cluster(self, vecs, lums, shape, suni):
         """group adjacent rays within sampling tolerance"""
@@ -116,12 +113,14 @@ class SunViewField(LightField):
         xyz = self.sunmap.uv2xyz(vecs, i=suni)
         vlo = []
         path = []
+        raster = []
         for cidx in range(np.max(cluster)):
             grp = cluster == cidx + 1
             ptxy = xy[grp]
             ptxyz = xyz[grp]
             lgrp = lums[grp]
             uv = vecs[grp]
+            raster.append(ptxyz)
             if len(ptxy) > 2:
                 ch = ConvexHull(ptxy)
                 vlo.append([*np.mean(ptxyz, 0), np.mean(lgrp),
@@ -131,20 +130,74 @@ class SunViewField(LightField):
                 for k in range(len(lgrp)):
                     vlo.append([*ptxyz[k], lgrp[k], omega0])
                     path.append(p0 + uv[k])
-        return np.array(vlo), path
+        return np.array(vlo), path, raster
 
     def _build_clusters(self, vecs, lums, shape):
         """loop through points/suns and group adjacent rays"""
         vlo = ArrayDict({(-1, -1): self.nullvlo})
         paths = {(-1, -1): None}
+        raster = {(-1, -1): None}
         iterator = itertools.product(range(np.product(self.scene.ptshape)),
-                                     range(self.suns.shape[0]))
+                                     range(self.suns.suns.shape[0]))
         for i, j in iterator:
             if len(vecs[i][j]) > 0:
-                v, p = self._cluster(vecs[i][j], lums[i][j], shape, j)
+                v, p, r = self._cluster(vecs[i][j], lums[i][j], shape, j)
                 vlo[(i, j)] = v
                 paths[(i, j)] = p
-        return vlo, paths
+                raster[(i, j)] = r
+        return vlo, paths, raster
+
+    def draw_sun(self, psi, coef, vm, res):
+        """
+
+        Parameters
+        ----------
+        psi
+        coef
+        vm: raytraverse.mapper.ViewMapper
+        res
+
+        Returns
+        -------
+
+        """
+        sunpix = None
+        sunvals = None
+        if psi in self.vlo.keys():
+            vec = self.vlo[psi][:, 0:3]
+            lum = self.vlo[psi][:, 3]
+            rys = self.raster[psi]
+            sundict = {}
+            for v, lm, r in zip(vec, lum, rys):
+                if vm.radians(v) <= vm.viewangle/2:
+                    ppix = vm.ray2pixel(r, res)
+                    px, i, cnt = np.unique(np.core.records.fromarrays(ppix.T),
+                                           return_index=True,
+                                           return_counts=True)
+                    omegap = vm.pixel2omega(ppix[i] + .5, res)
+                    clum = coef * lm * cnt * self._omega / omegap
+                    print(cnt * self._omega/omegap)
+                    print(omegap/self._omega)
+                    for p, cl in zip(px, clum):
+                        pt = tuple(p)
+                        if pt in sundict:
+                            sundict[pt] += cl
+                        else:
+                            sundict[pt] = cl
+            sunpix = np.array(list(sundict.keys()))
+            sunvals = np.array(list(sundict.values()))
+            print(coef)
+        return sunpix, sunvals
+
+    def measure(self, psi, vecs, coefs=1, interp=1):
+        if psi in self.vlo.keys():
+            vlo = self.vlo[psi]
+            lums = None
+            viewvecs = None
+        else:
+            lums = None
+            viewvecs = None
+        return viewvecs, lums
 
     def query(self, vpts, suns, vdirs=((0, 0, 1), ), viewangle=180.0, dtol=1.0,
               stol=10.0):
@@ -180,9 +233,11 @@ class SunViewField(LightField):
         a, b = np.broadcast_arrays(suns, vdirs[:, None, :])
         vizs = np.arccos(np.einsum('ijk,ijk->ij', a, b))*180/np.pi < viewangle/2
         stol = translate.theta2chord(stol*np.pi/180)
+        pt_kd = self.scene.pt_kd
+        sun_kd = self.suns.sun_kd
         with ProcessPoolExecutor() as exc:
-            perrs, pis = zip(*exc.map(self._pt_kd.query, vpts))
-            serrs, sis = zip(*exc.map(self.sun_kd.query, suns))
+            perrs, pis = zip(*exc.map(pt_kd.query, vpts))
+            serrs, sis = zip(*exc.map(sun_kd.query, suns))
         idx = []
         errs = []
         iterator = itertools.product(zip(pis, perrs), zip(sis, serrs, vizs.T))
@@ -200,11 +255,11 @@ class SunViewField(LightField):
 
     def direct_view(self, vpts):
         """create a summary image of all sun discs from each of vpts"""
-        idx, errs = self.query(vpts, self.suns)
-        ssq = int(np.ceil(np.sqrt(self.suns.shape[0])))
+        idx, errs = self.query(vpts, self.suns.suns)
+        ssq = int(np.ceil(np.sqrt(self.suns.suns.shape[0])))
         square = np.array([[0,0], [0, 1], [1, 1], [1, 0]])
         block = []
-        for i in np.arange(self.suns.shape[0], ssq**2):
+        for i in np.arange(self.suns.suns.shape[0], ssq**2):
             sxy = np.unravel_index(i, (ssq, ssq))
             sxy = np.array((sxy[1], sxy[0]))
             block.append(((1,1,1), square + sxy))
@@ -224,26 +279,3 @@ class SunViewField(LightField):
             ax.set_facecolor((0, 0, 0))
             outf = f"{self.scene.outdir}_{self.prefix}_{i:04d}.png"
             plot.save_img(fig, ax, outf, title=pt)
-
-    def proxy_src(self, tsuns, tol=10.0):
-        """check if sun directions have matching source in SunSetter
-
-        Parameters
-        ----------
-        tsuns: np.array
-            (N, 3) array containing sun source vectors to check
-        tol: float
-            tolerance (in degrees)
-
-        Returns
-        -------
-        np.array
-            (N,) boolean array if sun has a match
-        np.array
-            (N,) index to proxy src
-        """
-        stol = translate.theta2chord(tol*np.pi/180)
-        suns = translate.norm(tsuns)
-        with ProcessPoolExecutor() as exc:
-            serrs, sis = zip(*exc.map(self.sun_kd.query, suns))
-        return serrs < stol, sis
