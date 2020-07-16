@@ -128,7 +128,7 @@ def sky(ctx, **kwargs):
     sampler = SCBinSampler(ctx.obj['scene'], **kwargs)
     sampler.run(rcopts=kwargs['rcopts'], executable='rcontrib')
     sk = SrcBinField(ctx.obj['scene'], rebuild=True)
-    sk.direct_view(ctx.obj['scene'].pts())
+    sk.direct_view()
 
 
 @main.command()
@@ -167,12 +167,11 @@ def sunrun(ctx, **kwargs):
         invoke_suns(ctx)
     scn = ctx.obj['scene']
     sns = ctx.obj['suns']
-    # sampler = SunSampler(scn, sns, **kwargs)
-    # sampler.run(**kwargs)
-    su = SunViewField(scn, sns, True)
-    # su = SunField(scn, sns, rebuild=True)
-    # su.direct_view(scn.pts())
-    # su.view.direct_view(scn.pts())
+    sampler = SunSampler(scn, sns, **kwargs)
+    sampler.run(**kwargs)
+    su = SunField(scn, sns, rebuild=True)
+    su.direct_view()
+    su.view.direct_view()
 
 
 @main.command()
@@ -187,7 +186,8 @@ def integrate(ctx, **kwargs):
     itg = Integrator(scn, ctx.obj['suns'], stol=15)
     smtx, grnd, sun, hassun = itg.get_sky_mtx()
     subset = np.array([14, 32])
-    itg.hdr([(5, 5, 1.25)], [(0, -1, 0)], smtx[subset], sun[subset], hassun[subset], interp=4, res=800)
+    # itg.hdr([(5, 5, 1.25)], [(0, -1, 0)], smtx[subset], sun[subset], hassun[subset], interp=4, res=800)
+    itg.illum([(5, 5, 1.25)], [(0, -1, 0), (0, 0, 1)], smtx[subset], sun[subset], hassun[subset])
 
 
 @main.resultcallback()

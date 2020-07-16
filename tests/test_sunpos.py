@@ -137,7 +137,8 @@ def test_sky_mtx(check):
     sxyz = check[0][:, -3:]
     suncheck = check[1]
     side = 20
-    lum, grnd, suni = skycalc.sky_mtx(sxyz, dirdif, side)
+    lum, grnd, sun = skycalc.sky_mtx(sxyz, dirdif, side)
+    suni = sun[:, -1]
     print(lum.shape, grnd.shape)
     gsv = [f'genskyvec_sc -sc -m {side} -h -1 -b -s']*45
     with ProcessPoolExecutor() as exc:

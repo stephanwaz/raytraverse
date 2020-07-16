@@ -7,6 +7,12 @@
 # =======================================================================
 import os
 import pickle
+import concurrent.futures
+from concurrent.futures import ThreadPoolExecutor
+
+import numpy as np
+
+from raytraverse import io, optic
 
 
 class LightField(object):
@@ -66,13 +72,38 @@ class LightField(object):
             self._vlo = pickle.load(f)
             f.close()
         else:
-            self._d_kd, self._vlo = self.mk_tree()
+            self._d_kd, self._vlo = self._mk_tree()
             f = open(kdfile, 'wb')
             pickle.dump(self.d_kd, f, protocol=4)
             pickle.dump(self.vlo, f, protocol=4)
             f.close()
 
-    def mk_tree(self):
+    def _get_vl(self, npts, pref=''):
+        dfile = f'{self.scene.outdir}/{self.prefix}{pref}_vals.out'
+        vfile = f'{self.scene.outdir}/{self.prefix}{pref}_vecs.out'
+        if not (os.path.isfile(dfile) and os.path.isfile(vfile)):
+            raise FileNotFoundError("No results files found, have you run"
+                                    f" a Sampler of type {self.prefix} for"
+                                    f" scene {self.scene.outdir}?")
+        fvecs = io.bytefile2np(open(vfile, 'rb'), (-1, 4))
+        sorting = fvecs[:, 0].argsort()
+        fvals = optic.rgb2rad(io.bytefile2np(open(dfile, 'rb'), (-1, 3)))
+        fvals = fvals.reshape(fvecs.shape[0], -1)[sorting]
+        fvecs = fvecs[sorting]
+        pidx = fvecs[:, 0]
+        pt_div = np.searchsorted(pidx, np.arange(npts), side='right')
+        pt0 = 0
+        vl = []
+        for i, pt in enumerate(pt_div):
+            vl.append(np.hstack((fvecs[pt0:pt, 1:4], fvals[pt0:pt])))
+            pt0 = pt
+        return vl
+
+    def outfile(self, idx):
+        istr = "_".join([f"{i:04d}" for i in np.asarray(idx).reshape(-1)])
+        return f"{self.scene.outdir}_{self.prefix}_{istr}"
+
+    def _mk_tree(self):
         return None, None
 
     def measure(self, pi, vecs, coefs=1, interp=1):
@@ -80,10 +111,23 @@ class LightField(object):
         and apply coefficients"""
         pass
 
-    def query(self, *args, **kwargs):
-        """gather all rays from a point within a view cone"""
-        return None, None, None
+    def items(self):
+        return range(np.product(self.scene.ptshape))
 
-    def direct_view(self, vpts):
+    def _dview(self, idx, pdirs, mask, res=800):
+        img = np.zeros((res, res*self.scene.view.aspect))
+        lum = self.measure(idx, pdirs[mask])
+        img[mask] = lum
+        outf = f"{self.outfile(idx)}.hdr"
+        io.array2hdr(img, outf)
+        return outf
+
+    def direct_view(self, res=800):
         """create a summary image of lightfield for each vpt"""
-        pass
+        vm = self.scene.view
+        pdirs, mask = vm.pixelrays(res)
+        fu = []
+        with ThreadPoolExecutor() as exc:
+            for idx in self.items():
+                fu.append(exc.submit(self._dview, idx, pdirs, mask))
+        [print(f.result()) for f in fu]

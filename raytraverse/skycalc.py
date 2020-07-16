@@ -536,15 +536,14 @@ def sky_mtx(sxyz, dirdif, side, jn=4):
     grndval: np.array
         (N,)
     sunval: np.array
-        (N, 2) - column zero is bin number of direct sun, column
-        1 is sun value, needs to be normalized to area of patch
+        (N, 4) - sun direction and radiance
     """
-    coefs, suni = perez(sxyz, dirdif)
+    coefs, solarrad = perez(sxyz, dirdif)
     uv = translate.bin2uv(np.arange(side*side), side)
     jitter = translate.bin2uv(np.arange(jn*jn), jn) + .5/jn
     uvj = uv[:, None, :] + jitter/side
     xyz = translate.uv2xyz(uvj.reshape(-1, 2), xsign=1).reshape(-1, 3)
     lum = perez_lum(xyz, coefs).reshape(coefs.shape[0], -1, jn*jn)
     lum = np.average(lum, -1)
-    return lum, coefs[:, 2], suni
+    return lum, coefs[:, 2], np.hstack((sxyz, solarrad[:, None]))
 

@@ -51,11 +51,12 @@ def test_radians():
 
 
 def test_omega():
-    res = 1000
+    res = 800
     va = 180
     vm = ViewMapper(viewangle=va)
     pxy = (np.stack(np.mgrid[0:res, 0:res]).T + .5)
     xyz, mask = vm.pixel2ray(pxy, res)
     omega = vm.pixel2omega(pxy, res)
     exp = np.pi*2*(1-np.cos(va*np.pi/360))
-    assert np.isclose(np.sum(omega[mask]), exp, rtol=1e-4)
+    ans = np.sum(omega[mask])
+    assert np.isclose(ans, exp, rtol=1e-4)
