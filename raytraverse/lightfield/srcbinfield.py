@@ -5,19 +5,13 @@
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 # =======================================================================
-
-import os
-import pickle
-from concurrent.futures import ProcessPoolExecutor
-
 import numpy as np
 from scipy.spatial import cKDTree, SphericalVoronoi
 
-from raytraverse import translate, optic
-from raytraverse.lightfield.lightfield import LightField
+from raytraverse.lightfield.lightfieldkd import LightFieldKD
 
 
-class SrcBinField(LightField):
+class SrcBinField(LightFieldKD):
     """container for accessing sampled data where every ray has a value for
     each source
     """
@@ -43,32 +37,13 @@ class SrcBinField(LightField):
             vlo.append(np.hstack((vl, omega)))
         return d_kd, vlo
 
-    def measure(self, pi, vecs, coefs=1, interp=1):
-        d, i = self.d_kd[pi].query(vecs, k=interp)
+    def apply_coef(self, pi, coefs):
         srcn = self.scene.skyres**2
         coefs = np.asarray(coefs)
         if np.mod(coefs.size, srcn) == 0:
+            print('a')
             c = coefs.reshape(-1, srcn)
         else:
             c = np.broadcast_to(coefs, (coefs.size, srcn))
-        lum = np.einsum('ij,kj->ik', c, self.vlo[pi][:, 3:-1])
-        if interp > 1:
-            wgts = np.broadcast_to(1/d, (lum.shape[0],) + d.shape)
-            lum = np.average(lum[:, i], weights=wgts, axis=-1)
-        else:
-            lum = lum[:, i]
-        return np.squeeze(lum)
+        return super().apply_coef(pi, c)
 
-    def gather(self, pi, vecs, coefs=1, viewangle=180):
-        vs = translate.theta2chord(viewangle/360*np.pi)
-        i = self.d_kd[pi].query_ball_point(translate.norm1(vecs), vs)
-        srcn = self.scene.skyres**2
-        coefs = np.asarray(coefs)
-        if np.mod(coefs.size, srcn) == 0:
-            c = coefs.reshape(-1, srcn)
-        else:
-            c = np.broadcast_to(coefs, (coefs.size, srcn))
-        lum = np.einsum('ij,kj->ik', c, self.vlo[pi][i, 3:-1])
-        vec = self.vlo[pi][i, 0:3]
-        omega = self.vlo[pi][i, -1]
-        return lum, vec, omega

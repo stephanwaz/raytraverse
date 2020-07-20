@@ -183,11 +183,21 @@ def integrate(ctx, **kwargs):
     if 'suns' not in ctx.obj:
         invoke_suns(ctx)
     scn = ctx.obj['scene']
-    itg = Integrator(scn, ctx.obj['suns'], stol=15)
+    sns = ctx.obj['suns']
+    su = SunField(scn, sns)
+    sk = SrcBinField(scn)
+    itg = Integrator(sk, su, stol=15)
     smtx, grnd, sun, hassun = itg.get_sky_mtx()
-    subset = np.array([14, 32])
+    subset = np.array([1, 14, 32, 35])
+    # subset = np.arange(10)
+    # itg.skyfield.direct_view()
+    # itg.sunfield.direct_view()
+    # itg.sunfield.view.direct_view()
     # itg.hdr([(5, 5, 1.25)], [(0, -1, 0)], smtx[subset], sun[subset], hassun[subset], interp=4, res=800)
-    itg.illum([(5, 5, 1.25)], [(0, -1, 0), (0, 0, 1)], smtx[subset], sun[subset], hassun[subset])
+    itg.hdr([(5, 5, 1.25)], [(0, 0, 1)], [1], [[0,]], [False,], interp=1, res=800)
+    illum = itg.illum([(5, 5, 1.25), (4.5, 5, 1.25)], [(0, -1, 0), (0, 0, 1), (0, 1, 0)], smtx[subset], sun[subset], hassun[subset])
+    print(illum)
+    print(illum.shape)
 
 
 @main.resultcallback()

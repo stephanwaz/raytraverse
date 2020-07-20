@@ -464,7 +464,7 @@ def perez(sxyz, dirdif, md=None):
         (N, 10) diffuse normalization, ground brightness, perez coefs, x, y, z
     """
     n = sxyz.shape[0]
-    # match defaults from gendaylit.c
+    # match constants from gendaylit.c
     sole = 1367
     precwater = 2
     dn = 0
@@ -474,7 +474,7 @@ def perez(sxyz, dirdif, md=None):
     eccentricity = (1.00011 + 0.034221*np.cos(da) + 0.00128*np.sin(da) +
                     0.000719*np.cos(2*da) + 0.000077*np.sin(2*da))
     alt = np.arcsin(sxyz[:, 2])
-    sunz = np.pi/2 - alt;
+    sunz = np.pi/2 - alt
     csunz = np.cos(sunz)
     sunz3 = 1.041*np.power(sunz, 3)
     airmass = 1/(csunz + 0.15*np.exp(-np.log(93.885 - sunz*180/np.pi)*1.253))

@@ -19,4 +19,4 @@ class SunMapper(ViewMapper):
     """
 
     def __init__(self, suns):
-        super(SunMapper, self).__init__(suns, .533)
+        super(SunMapper, self).__init__(suns, .533, name='sunmap')

@@ -175,12 +175,11 @@ def pxy2xyz(pxy, viewangle=180.0):
     pxy -= .5
     pxy *= viewangle/180
     d = np.sqrt(np.sum(np.square(pxy), -1))
-    mask = d <= viewangle/360
     z = np.cos(np.pi*d)
     d = np.where(d <= 0, np.pi, np.sqrt(1 - z*z)/d)
     pxy *= d[..., None]
     xyz = np.concatenate((pxy, z[..., None]), -1)
-    return xyz, mask
+    return xyz
 
 
 def tp2xyz(thetaphi, normalize=True):

@@ -132,49 +132,40 @@ class SunViewField(LightField):
                 raster[(i, j)] = r
         return vlo, raster
 
-    def draw_sun(self, psi, sun, vm, res):
+    def add_to_img(self, img, pi, sun, vm):
         """
-
         Parameters
         ----------
-        psi
+        img
+        pi
         sun
         vm: raytraverse.mapper.ViewMapper
-        res
 
         Returns
         -------
 
         """
-        sunpix = None
-        sunvals = None
-        if psi in self.vlo.keys():
-            vlos = self.vlo[psi]
-            sm = SunMapper(sun[0:3])
-            rys = self.raster[psi]
-            sundict = {}
-            for vlo, r in zip(vlos, rys):
-                v = vlo[0:3]
-                if vm.radians(v) <= vm.viewangle/2:
-                    rxyz = sm.uv2xyz(r)
-                    lm = vlo[3]
-                    omega = vlo[4]
-                    ppix = vm.ray2pixel(rxyz, res)
-                    px, i, cnt = np.unique(np.core.records.fromarrays(ppix.T),
-                                           return_index=True,
-                                           return_counts=True)
-                    omegap = vm.pixel2omega(ppix[i] + .5, res)*4/np.pi
-                    omegasp = omega/r.shape[0]
-                    clum = sun[-1] * lm * cnt * omegasp / omegap
-                    for p, cl in zip(px, clum):
-                        pt = tuple(p)
-                        if pt in sundict:
-                            sundict[pt] += cl
-                        else:
-                            sundict[pt] = cl
-            sunpix = np.array(list(sundict.keys()))
-            sunvals = np.array(list(sundict.values()))
-        return sunpix, sunvals
+        res = img.shape[0]
+        if pi not in self.vlo.keys():
+            return None
+        vlos = self.vlo[pi]
+        sm = SunMapper(sun[0:3])
+        rys = self.raster[pi]
+        for vlo, r in zip(vlos, rys):
+            v = vlo[0:3]
+            if vm.radians(v) <= vm.viewangle/2:
+                rxyz = sm.uv2xyz(r)
+                lm = vlo[3]
+                omega = vlo[4]
+                ppix = vm.ray2pixel(rxyz, res)
+                px, i, cnt = np.unique(np.core.records.fromarrays(ppix.T),
+                                       return_index=True,
+                                       return_counts=True)
+                omegap = vm.pixel2omega(ppix[i] + .5, res)*4/np.pi
+                omegasp = omega/r.shape[0]
+                clum = sun[-1] * lm * cnt * omegasp / omegap
+                for p, cl in zip(px, clum):
+                    img[tuple(p)] += cl
 
     def direct_view(self, res=3):
         """create a summary image of all sun discs from each of vpts"""

@@ -6,15 +6,8 @@
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 # =======================================================================
 
-import os
-import pickle
-from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor
-
 import numpy as np
-from scipy.spatial import cKDTree, SphericalVoronoi
-import clasp.script_tools as cst
-from raytraverse import translate, io, optic, skycalc
-from raytraverse.lightfield import SunField, SrcBinField
+from raytraverse import translate, io, skycalc
 from raytraverse.mapper import ViewMapper
 
 
@@ -23,26 +16,38 @@ class Integrator(object):
 
     Parameters
     ----------
-    scene: raytraverse.scene.Scene
-        scene class containing geometry, location and analysis plane
-    suns: raytraverse.sunsetter.SunSetter
-        sun class containing sun vectors
+    skyfield: raytraverse.lightfield.SrcBinField
+        class containing sky data
+    sunfield: raytraverse.lightfield.SunField
+        class containing sun data
     """
 
-    def __init__(self, scene, suns, stol=10.0):
+    def __init__(self, skyfield, sunfield=None, stol=10.0):
         #: raytraverse.scene.Scene
-        self.scene = scene
+        self.scene = skyfield.scene
+        try:
+            suns = sunfield.suns
+        except AttributeError:
+            suns = None
         #: raytraverse.sunsetter.SunSetter
         self.suns = suns
         self.stol = stol
-        self.sunfield = SunField(scene, suns)
-        self.skyfield = SrcBinField(scene, prefix='sky')
+        #: raytraverse.lightfield.SunField
+        self.sunfield = sunfield
+        #: raytraverse.lightfield.SrcBinField
+        self.skyfield = skyfield
         self.dayhours = self.scene.skydata[:, 0] > 0
 
     def get_sky_mtx(self):
         sxyz = translate.aa2xyz(self.scene.skydata[self.dayhours, 0:2])
-        hassun, si = self.suns.proxy_src(sxyz, tol=self.stol)
-        nosun = np.arange(hassun.size)[np.logical_not(hassun)]
+        if self.suns is not None:
+            hassun, si = self.suns.proxy_src(sxyz, tol=self.stol)
+            nosun = np.arange(hassun.size)[np.logical_not(hassun)]
+            oor = len(si)
+            hassun = np.where(hassun, si, oor)
+        else:
+            nosun = np.arange(sxyz.shape[0])
+            hassun = np.full(sxyz.shape[0], sxyz.shape[0])
         sunuv = translate.xyz2uv(sxyz[nosun], flipu=False)
         sunbins = translate.uv2bin(sunuv, self.scene.skyres)
         dirdif = self.scene.skydata[self.dayhours, 2:]
@@ -51,8 +56,7 @@ class Integrator(object):
         omegar = np.square(0.2665 * np.pi * self.scene.skyres / 180) * .5
         plum = sun[nosun, -1] * omegar
         smtx[nosun, sunbins] += plum
-        oor = len(si)
-        return smtx, grnd, sun, np.where(hassun, si, oor)
+        return smtx, grnd, sun, hassun
 
     def hdr(self, pts, vdir, smtx, suns, hassun,
             vname='view', viewangle=180.0, res=400, interp=1):
@@ -85,34 +89,34 @@ class Integrator(object):
 
         """
         perrs, pis = self.scene.pt_kd.query(pts)
-        vm = ViewMapper(viewangle=viewangle, dxyz=vdir)
-        pdirs, mask = vm.pixelrays(res)
-        img = np.zeros((res * vm.aspect, res))
+        vm = ViewMapper(viewangle=viewangle, dxyz=vdir, name=vname)
+        pdirs = vm.pixelrays(res)
+        mask = vm.in_view(pdirs)
         for pi in pis:
-            skylum = self.skyfield.measure(pi, pdirs[mask], smtx, interp=interp)
-            for sj, skyv in enumerate(skylum):
-                outf = f"{self.scene.outdir}_{vname}_{pi:04d}_{sj:04d}.hdr"
-                img[mask] = skyv
-                if hassun[sj] < self.suns.suns.shape[0] and suns[sj, -1] > 0:
+            si = self.skyfield.query_ray(pi, pdirs[mask], interp=interp)
+            for sj, skyv in enumerate(smtx):
+                sun = suns[sj]
+                outf = f"{self.scene.outdir}_{vm.name}_{pi:04d}_{sj:04d}.hdr"
+                img = np.zeros((res*vm.aspect, res))
+                self.skyfield.add_to_img(img, mask, pi, *si, coefs=skyv)
+                if (self.suns and hassun[sj] < self.suns.suns.shape[0]
+                        and sun[-1] > 0):
                     psi = (pi, hassun[sj])
-                    img[mask] += self.sunfield.measure(psi, pdirs[mask],
-                                                       suns[sj, -1],
-                                                       interp=interp)
-                    spix, svals = self.sunfield.draw_sun(psi, suns[sj], vm, res)
-                    if spix is not None:
-                        print(outf)
-                        img[spix[:, 0], spix[:, 1]] += svals
+                    j, e = self.sunfield.query_ray(psi, pdirs[mask],
+                                                   interp=interp)
+                    self.sunfield.add_to_img(img, mask, psi, j, e, sun[-1])
+                    self.sunfield.view.add_to_img(img, pi, sun, vm)
                 io.array2hdr(img, outf)
 
-    def illum(self, pts, vdir, smtx, suns, hassun):
+    def illum(self, pts, vdirs, smtx, suns, hassun):
         """calculate illuminance for given sensor locations and skyvecs
 
         Parameters
         ----------
         pts: np.array
             points
-        vdir: (float, float, float)
-            view direction for illuminance
+        vdirs:
+            view directions for illuminance
         smtx: np.array
             sky matrix
         suns: np.array
@@ -126,22 +130,21 @@ class Integrator(object):
             illuminance at each point/direction and sky weighting
         """
         perrs, pis = self.scene.pt_kd.query(pts)
-        vm = ViewMapper(viewangle=180, dxyz=vdir)
+        vm = ViewMapper(viewangle=180, dxyz=vdirs)
+        illum = []
         for pi in pis:
-            for vd in vdir:
-                l, v, o = self.skyfield.gather(pi, vd, smtx)
-                print(np.sum(vm.ctheta(v)*l*o, 1)*179)
-            # for sj, skyv in enumerate(skylum):
-            #     outf = f"{self.scene.outdir}_{vname}_{pi:04d}_{sj:04d}.hdr"
-            #     img[mask] = skyv
-            #     if hassun[sj] < self.suns.suns.shape[0] and suns[sj, -1] > 0:
-            #         psi = (pi, hassun[sj])
-            #         img[mask] += self.sunfield.measure(psi, pdirs[mask],
-            #                                            suns[sj, -1],
-            #                                            interp=interp)
-            #         spix, svals = self.sunfield.draw_sun(psi, suns[sj], vm, res)
-            #         if spix is not None:
-            #             print(outf)
-            #             img[spix[:, 0], spix[:, 1]] += svals
-            #     io.array2hdr(img, outf)
+            si = self.skyfield.query_ball(pi, vdirs)
+            skylums = self.skyfield.get_illum(vm, pi, si, smtx)
+            # Daylight factor
+            # df = self.skyfield.get_illum(vm, pi, si, 1, 1/np.pi)
+            for sj, sklm in enumerate(skylums):
+                if (self.suns and hassun[sj] < self.suns.suns.shape[0] and
+                        suns[sj, -1] > 0):
+                    psi = (pi, hassun[sj])
+                    si = self.sunfield.query_ball(psi, vdirs)
+                    sulm = self.sunfield.get_illum(vm, psi, si, suns[sj, -1])
+                    illum.append(sulm + sklm)
+                else:
+                    illum.append(sklm)
+        return np.array(illum)
 

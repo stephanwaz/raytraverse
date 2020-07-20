@@ -55,7 +55,8 @@ def test_omega():
     va = 180
     vm = ViewMapper(viewangle=va)
     pxy = (np.stack(np.mgrid[0:res, 0:res]).T + .5)
-    xyz, mask = vm.pixel2ray(pxy, res)
+    d = np.sqrt(np.sum(np.square(pxy/res - .5), -1))
+    mask = d <= .5
     omega = vm.pixel2omega(pxy, res)
     exp = np.pi*2*(1-np.cos(va*np.pi/360))
     ans = np.sum(omega[mask])

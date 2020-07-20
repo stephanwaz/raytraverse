@@ -128,6 +128,7 @@ def array2hdr(ar, imgf):
     p = Popen(pval.split(), stdin=PIPE, stdout=f)
     p.communicate(np2bytes(ar[-1::-1, -1::-1]))
     f.close()
+    return imgf
 
 
 def hdr2array(imgf):

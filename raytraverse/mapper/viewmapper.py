@@ -24,12 +24,13 @@ class ViewMapper(object):
         becomes 360,180
     """
 
-    def __init__(self, dxyz=(0.0, 1.0, 0.0), viewangle=360.0):
+    def __init__(self, dxyz=(0.0, 1.0, 0.0), viewangle=360.0, name='view'):
         self._viewangle = viewangle
         # float: aspect ratio width/height
         self.aspect = 1
         self.dxyz = dxyz
         self.area = 2*np.pi*(1 - np.cos(viewangle*np.pi/360))
+        self.name = name
 
     @property
     def dxyz(self):
@@ -111,9 +112,9 @@ class ViewMapper(object):
     def pixelrays(self, res, i=0):
         pxy = (np.stack(np.mgrid[0:res, 0:res]).T + .5)
         if self.aspect == 2:
-            a, ma = self.pixel2ray(pxy, res, i)
-            b, mb = self._ivm.pixel2ray(pxy, res, i)
-            return np.concatenate((a, b), 1), np.concatenate((ma, mb), 1)
+            a = self.pixel2ray(pxy, res, i)
+            b = self._ivm.pixel2ray(pxy, res, i)
+            return np.concatenate((a, b), 1)
         else:
             return self.pixel2ray(pxy, res, i)
 
@@ -124,17 +125,17 @@ class ViewMapper(object):
         return pxy
 
     def pixel2ray(self, pxy, res, i=0):
-        rxyz, mask = translate.pxy2xyz(pxy/res, self.viewangle/self.aspect)
+        rxyz = translate.pxy2xyz(pxy/res, self.viewangle/self.aspect)
         xyz = self.view2world(rxyz.reshape(-1, 3), i).reshape(rxyz.shape)
-        return xyz, mask
+        return xyz
 
     def pixel2omega(self, pxy, res):
         va = self.viewangle/self.aspect
         of = np.array(((.5, 0), (0, .5)))
-        xa, _ = translate.pxy2xyz((pxy - of[0])/res, va)
-        xb, _ = translate.pxy2xyz((pxy + of[0])/res, va)
-        ya, _ = translate.pxy2xyz((pxy - of[1])/res, va)
-        yb, _ = translate.pxy2xyz((pxy + of[1])/res, va)
+        xa = translate.pxy2xyz((pxy - of[0])/res, va)
+        xb = translate.pxy2xyz((pxy + of[0])/res, va)
+        ya = translate.pxy2xyz((pxy - of[1])/res, va)
+        yb = translate.pxy2xyz((pxy + of[1])/res, va)
         cp = np.cross(xb - xa, yb - ya)
         return np.linalg.norm(cp, axis=-1)
 
@@ -143,7 +144,12 @@ class ViewMapper(object):
                          vec.reshape(-1, vec.shape[-1]))
 
     def radians(self, vec, i=0):
-        return np.arccos(self.ctheta(vec))
+        return np.arccos(self.ctheta(vec, i))
 
     def degrees(self, vec, i=0):
         return self.radians(vec, i) * 180/np.pi
+
+    def in_view(self, vec, i=0):
+        ang = self.radians(vec, i)
+        mask = ang < self.viewangle*np.pi/360/self.aspect
+        return np.unravel_index(np.arange(ang.size)[mask], vec.shape[:-1])
