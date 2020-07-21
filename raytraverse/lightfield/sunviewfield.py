@@ -17,6 +17,7 @@ from raytraverse import translate, plot
 from raytraverse.helpers import ArrayDict
 from raytraverse.lightfield.lightfield import LightField
 from raytraverse.mapper import SunMapper
+from clipt import mplt
 
 
 class SunViewField(LightField):
@@ -31,7 +32,6 @@ class SunViewField(LightField):
     rebuild: bool, optional
         build kd-tree even if one exists
     """
-    nullvlo = np.zeros((1, 5))
 
     def __init__(self, scene, suns, rebuild=False):
         #: raytraverse.sunsetter.SunSetter
@@ -121,7 +121,7 @@ class SunViewField(LightField):
 
     def _build_clusters(self, vecs, lums, shape):
         """loop through points/suns and group adjacent rays"""
-        vlo = ArrayDict({(-1, -1): self.nullvlo})
+        vlo = ArrayDict({(-1, -1): np.zeros((1, 5))})
         raster = {(-1, -1): None}
         iterator = itertools.product(range(np.product(self.scene.ptshape)),
                                      range(self.suns.suns.shape[0]))
@@ -157,15 +157,51 @@ class SunViewField(LightField):
                 rxyz = sm.uv2xyz(r)
                 lm = vlo[3]
                 omega = vlo[4]
+                # assign sample rays to pixels
                 ppix = vm.ray2pixel(rxyz, res)
-                px, i, cnt = np.unique(np.core.records.fromarrays(ppix.T),
-                                       return_index=True,
+                rec = np.core.records.fromarrays(ppix.T)
+                px, i, cnt = np.unique(rec, return_index=True,
                                        return_counts=True)
-                omegap = vm.pixel2omega(ppix[i] + .5, res)*4/np.pi
-                omegasp = omega/r.shape[0]
+                omegap = vm.pixel2omega(ppix[i] + .5, res)
+                omegasp = omega / r.shape[0]
+                # xs = []
+                # ys = []
+                # xy = vm.xyz2xy(rxyz)
+                # for j in i:
+                #     xs.append(xy[rec == rec[j], 0])
+                #     ys.append(xy[rec == rec[j], 1])
+                # mplt.quick_scatter(xs, ys, ms=4, lw=0)
+                np.set_printoptions(3, suppress=True)
+                cnt = cnt.astype(float)
+                # smudge (hack to ensure equal energy and max luminance)
+                ocnt = cnt - (omegap/omegasp)
+                smdg = np.sum(ocnt[ocnt > 0])
+                cnt[ocnt > 0] = omegap[ocnt > 0]/omegasp
+                # average to redistribute
+                redist = smdg/np.sum(ocnt < 0)
+                # redistribute over pixels with "room" (this could still
+                # overshoot if too many pixels are close to threshold, but
+                # maybe mathematically impossible?
+                cnt[ocnt < -redist] += smdg/np.sum(ocnt < -redist)
+                # apply average luminanace over each pixel
                 clum = sun[-1] * lm * cnt * omegasp / omegap
                 for p, cl in zip(px, clum):
                     img[tuple(p)] += cl
+
+    def get_illum(self, vm, pis, coefs, scale=179):
+        ct = np.maximum(np.einsum("ki,ji->jk", vm.dxyz, coefs[:, 0:3]), 0)
+        rpt = int(len(pis)/ct.shape[0])
+        ctheta = np.broadcast_to(ct[None, ...], (rpt,) + ct.shape)
+        ctheta = ctheta.reshape(-1, ct.shape[1])
+        sun = np.broadcast_to(coefs[None, :, -1], (rpt, coefs.shape[0])).ravel()
+        hassun = np.array([pi in self.vlo.keys() for pi in pis])
+        pis = np.array(pis)
+        vlo = self.vlo[pis[hassun]]
+        illum = np.zeros((len(pis), len(vm.dxyz)))
+        illum[hassun] = np.einsum("i,i,ij,i,->ij", vlo[:, 3], vlo[:, 4],
+                                  ctheta[hassun], sun[hassun], scale)
+        illum = illum.reshape((-1, coefs.shape[0], vm.dxyz.shape[0]))
+        return np.swapaxes(illum, 1, 2)
 
     def direct_view(self, res=3):
         """create a summary image of all sun discs from each of vpts"""

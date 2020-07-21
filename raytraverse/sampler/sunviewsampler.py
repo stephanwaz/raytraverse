@@ -17,7 +17,8 @@ class SunViewSampler(Sampler):
     """sample view rays to direct suns.
 
     here idres and fdres are sampled on a per sun basis for a view centered
-    on each sun direction with a view angle of .7 degrees.
+    on each sun direction with a view angle of .533 degrees (hardcoded in
+    sunmapper class).
 
     Parameters
     ----------
@@ -68,7 +69,6 @@ class SunViewSampler(Sampler):
         isviz = vis[s] > self.suns.srct/2
         suns = np.zeros((*isviz.shape, 8, 8))
         suns[isviz, :, :] = 1
-        self._viz = np.sum(isviz)
         self.weights = suns
 
     def sample(self, vecs, rcopts='-ab 0',
@@ -114,6 +114,8 @@ class SunViewSampler(Sampler):
         f.close()
 
     def run_callback(self):
+        """post sampling, right full resolution (including interpolated values)
+         non zero rays to result file."""
         shape = self.levels[self.idx, -2:]
         size = np.prod(shape)
         vals = self.weights.reshape(-1, self.weights.shape[2], size)

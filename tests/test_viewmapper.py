@@ -58,6 +58,7 @@ def test_omega():
     d = np.sqrt(np.sum(np.square(pxy/res - .5), -1))
     mask = d <= .5
     omega = vm.pixel2omega(pxy, res)
+    print(np.max(omega))
     exp = np.pi*2*(1-np.cos(va*np.pi/360))
     ans = np.sum(omega[mask])
     assert np.isclose(ans, exp, rtol=1e-4)

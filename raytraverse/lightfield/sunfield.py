@@ -28,14 +28,12 @@ class SunField(LightFieldKD):
         build kd-tree even if one exists
     """
 
-    nullidx = np.array([-1,], dtype=int)
-
     def __init__(self, scene, suns, rebuild=False):
         #: raytraverse.sunsetter.SunSetter
         self.suns = suns
         #: raytraverse.lightfield.SunViewField
         self.view = SunViewField(scene, suns, rebuild=rebuild)
-        super().__init__(scene, rebuild=rebuild, prefix='sun', srcidx=True)
+        super().__init__(scene, rebuild=rebuild, prefix='sun')
 
     @property
     def vlo(self):
@@ -72,3 +70,23 @@ class SunField(LightFieldKD):
     def apply_coef(self, pi, coefs):
         c = np.asarray(coefs).reshape(-1, 1)
         return super().apply_coef(pi, c)
+
+    def get_illum(self, vm, pis, vdirs, coefs, scale=179):
+        illums = []
+        sun = itertools.cycle(coefs)
+        for pi in pis:
+            s = next(sun)[-1]
+            if s > 0:
+                lm = self.apply_coef(pi, s)
+                idx = self.query_ball(pi, vdirs)
+                for j, i in enumerate(idx):
+                    v = self.vlo[pi][i, 0:3]
+                    o = self.vlo[pi][i, -1]
+                    illums.append(np.einsum('j,ij,j,->', vm.ctheta(v, j),
+                                            lm[:, i], o, scale))
+            else:
+                illums += [0]*len(vdirs)
+        illum = np.array(illums).reshape((-1, coefs.shape[0], len(vdirs)))
+        illum2 = self.view.get_illum(vm, pis, coefs, scale=179)
+        return illum.swapaxes(1, 2) + illum2
+

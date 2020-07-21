@@ -8,9 +8,13 @@
 # =======================================================================
 
 """helper functions and classes"""
+import os
+from datetime import datetime, timezone
+import subprocess
 
 import numpy as np
 from scipy.spatial import SphericalVoronoi, cKDTree
+import raytraverse
 
 
 class ArrayDict(dict):
@@ -37,3 +41,28 @@ def sunfield_load_item(vlamb, vlsun, i, j, maxspec):
     vlo = np.hstack((vecs, lums, omega))
     d_kd = cKDTree(vecs)
     return (j, i), vlo, d_kd
+
+
+def oconvline(scene):
+    octe = f"{scene.outdir}/scene.oct"
+    hdr = subprocess.run(f'getinfo {octe}'.split(), capture_output=True,
+                         text=True)
+    hdr = [i.strip() for i in hdr.stdout.split('\n')]
+    return [i for i in hdr if i[0:5] == 'oconv']
+
+
+def header(scene):
+    hdr = []
+    hdr += oconvline(scene)
+    tf = "%Y:%m:%d %H:%M:%S"
+    hdr.append("CAPDATE= " + datetime.now().strftime(tf))
+    hdr.append("GMT= " + datetime.now(timezone.utc).strftime(tf))
+    radversion = subprocess.run('rpict -version'.split(), capture_output=True,
+                                text=True)
+    hdr.append(f"SOFTWARE= {radversion.stdout}")
+    lastmod = os.path.getmtime(os.path.dirname(raytraverse.__file__))
+    tf = "%a %b %d %H:%M:%S %Z %Y"
+    lm = datetime.fromtimestamp(lastmod, timezone.utc).strftime(tf)
+    hdr.append(f"SOFTWARE= RAYTRAVERSE {raytraverse.__version__} lastmod {lm}")
+    hdr.append("LOCATION= lat: {} lon: {} tz: {}".format(*scene.loc))
+    return hdr

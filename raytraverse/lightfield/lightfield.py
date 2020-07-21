@@ -28,19 +28,13 @@ class LightField(object):
         prefix of data files to map
     """
 
-    def __init__(self, scene, rebuild=False, prefix='sky', srcidx=False):
+    def __init__(self, scene, rebuild=False, prefix='sky'):
         #: bool: force rebuild kd-tree
         self.rebuild = rebuild
         #: str: prefix of data files from sampler (stype)
         self.prefix = prefix
         self._vlo = None
         self.scene = scene
-        self._srcidx = srcidx
-
-    @property
-    def srcidx(self):
-        """whether data are stored per point or per point and source"""
-        return self._srcidx
 
     @property
     def vlo(self):

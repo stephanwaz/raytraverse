@@ -11,7 +11,7 @@ from scipy.spatial import cKDTree, SphericalVoronoi
 from raytraverse.lightfield.lightfieldkd import LightFieldKD
 
 
-class SrcBinField(LightFieldKD):
+class SCBinField(LightFieldKD):
     """container for accessing sampled data where every ray has a value for
     each source
     """
@@ -41,7 +41,6 @@ class SrcBinField(LightFieldKD):
         srcn = self.scene.skyres**2
         coefs = np.asarray(coefs)
         if np.mod(coefs.size, srcn) == 0:
-            print('a')
             c = coefs.reshape(-1, srcn)
         else:
             c = np.broadcast_to(coefs, (coefs.size, srcn))

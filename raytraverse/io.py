@@ -111,22 +111,31 @@ def bytefile2np(f, shape, dtype='<f'):
     return bytes2np(f.read(), shape, dtype)
 
 
-def array2hdr(ar, imgf):
+def array2hdr(ar, imgf, header=None):
     """write 2d np.array (x,y) to hdr image format
 
     Parameters
     ----------
     ar: np.array
     imgf: file path to right
+    header: list of header lines to append to image header
 
     Returns
     -------
 
     """
     f = open(imgf, 'wb')
-    pval = f'pvalue -r -b -h -H -df -o +y {ar.shape[0]} -x {ar.shape[1]}'
-    p = Popen(pval.split(), stdin=PIPE, stdout=f)
-    p.communicate(np2bytes(ar[-1::-1, -1::-1]))
+    pval = f'pvalue -r -b -h -H -df -o -y {ar.shape[0]} +x {ar.shape[1]}'
+    if header is not None:
+        hdr = "' '".join(header)
+        getinfo = shlex.split(f"getinfo -a '{hdr}'")
+        p = Popen(pval.split(), stdin=PIPE, stdout=PIPE)
+        q = Popen(getinfo, stdin=p.stdout, stdout=f)
+    else:
+        p = Popen(pval.split(), stdin=PIPE, stdout=f)
+        q = p
+    p.stdin.write(np2bytes(ar[-1::-1, -1::-1]))
+    q.communicate()
     f.close()
     return imgf
 

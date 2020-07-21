@@ -7,7 +7,6 @@
 # =======================================================================
 import os
 import pickle
-import concurrent.futures
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
 import numpy as np
@@ -91,14 +90,19 @@ class LightFieldKD(LightField):
             lum = lum[:, i]
         img[mask] += np.squeeze(lum)
 
-    def get_illum(self, vm, pi, idx, coefs, scale=179):
-        illum = []
-        lm = self.apply_coef(pi, coefs)
-        for j, i in enumerate(idx):
-            v = self.vlo[pi][i, 0:3]
-            o = self.vlo[pi][i, -1]
-            illum.append(np.sum(vm.ctheta(v, j)*lm[:, i]*o, 1)*scale)
-        return np.squeeze(illum).T
+    def get_illum(self, vm, pis, vdirs, coefs, scale=179):
+        illums = []
+        for pi in pis:
+            lm = self.apply_coef(pi, coefs)
+            idx = self.query_ball(pi, vdirs)
+            illum = []
+            for j, i in enumerate(idx):
+                v = self.vlo[pi][i, 0:3]
+                o = self.vlo[pi][i, -1]
+                illum.append(np.einsum('j,ij,j,->i', vm.ctheta(v, j), lm[:, i],
+                                       o, scale))
+            illums.append(illum)
+        return np.squeeze(illums)
 
     def query_ray(self, pi, vecs, interp=1):
         d, i = self.d_kd[pi].query(vecs, k=interp)

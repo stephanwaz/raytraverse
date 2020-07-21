@@ -8,10 +8,12 @@
 
 """light field storage/query objects"""
 
-__all__ = ['LightField', 'SunViewField', 'SrcBinField', 'SunField']
+__all__ = ['LightField', 'LightFieldKD', 'SunViewField', 'SCBinField',
+           'SunField']
 
 
 from raytraverse.lightfield.lightfield import LightField
+from raytraverse.lightfield.lightfieldkd import LightFieldKD
 from raytraverse.lightfield.sunviewfield import SunViewField
-from raytraverse.lightfield.srcbinfield import SrcBinField
+from raytraverse.lightfield.scbinfield import SCBinField
 from raytraverse.lightfield.sunfield import SunField

@@ -8,10 +8,7 @@
 
 
 """Console script for raytraverse."""
-from io import StringIO
-import sys
 import os
-import shutil
 
 import numpy as np
 
@@ -21,10 +18,7 @@ import raytraverse
 from raytraverse.integrator import Integrator
 from raytraverse.sampler import SCBinSampler, SunSampler
 from raytraverse.scene import Scene, SunSetter
-from raytraverse.lightfield import SrcBinField, SunViewField, SunField
-from clipt import mplt
-
-__version__ = raytraverse.__version__
+from raytraverse.lightfield import SCBinField, SunField
 
 
 def invoke_scene(ctx):
@@ -37,7 +31,7 @@ def invoke_suns(ctx):
 
 @click.group(chain=True, invoke_without_command=True)
 @click.argument('out')
-@clk.shared_decs(clk.main_decs(__version__))
+@clk.shared_decs(clk.main_decs(raytraverse.__version__))
 @click.option('--template/--no-template', is_eager=True,
               callback=clk.printconfigs,
               help="write default options to std out as config")
@@ -64,7 +58,7 @@ def main(ctx, out, config, outconfig, **kwargs):
 @click.option('--reload/--no-reload', default=True)
 @click.option('--overwrite/--no-overwrite', default=False)
 @click.option('--info/--no-info', default=False, help='print info on scene')
-@clk.shared_decs(clk.command_decs(__version__, wrap=True))
+@clk.shared_decs(clk.command_decs(raytraverse.__version__, wrap=True))
 def scene(ctx, **kwargs):
     """load scene"""
     s = Scene(ctx.obj['out'], **kwargs)
@@ -120,21 +114,21 @@ def scene(ctx, **kwargs):
 @click.option('-fdres', default=9)
 @click.option('-rcopts', default='-ab 2 -ad 1024 -as 0 -lw 1e-5 -st 0 -ss 16')
 @click.option('--plotp/--no-plotp', default=False)
-@clk.shared_decs(clk.command_decs(__version__, wrap=True))
+@clk.shared_decs(clk.command_decs(raytraverse.__version__, wrap=True))
 def sky(ctx, **kwargs):
     """run scbinsampler"""
     if 'scene' not in ctx.obj:
         invoke_scene(ctx)
     sampler = SCBinSampler(ctx.obj['scene'], **kwargs)
     sampler.run(rcopts=kwargs['rcopts'], executable='rcontrib')
-    sk = SrcBinField(ctx.obj['scene'], rebuild=True)
+    sk = SCBinField(ctx.obj['scene'], rebuild=True)
     sk.direct_view()
 
 
 @main.command()
 @click.option('-srct', default=.01)
 @click.option('--reload/--no-reload', default=True)
-@clk.shared_decs(clk.command_decs(__version__, wrap=True))
+@clk.shared_decs(clk.command_decs(raytraverse.__version__, wrap=True))
 def suns(ctx, **kwargs):
     """create sun positions"""
     if 'scene' not in ctx.obj:
@@ -158,7 +152,7 @@ def suns(ctx, **kwargs):
 @click.option('--ambient/--no-ambient', default=True)
 @click.option('--reflection/--no-reflection', default=True)
 @click.option('-apo', callback=clk.split_str)
-@clk.shared_decs(clk.command_decs(__version__, wrap=True))
+@clk.shared_decs(clk.command_decs(raytraverse.__version__, wrap=True))
 def sunrun(ctx, **kwargs):
     """run sunsampler"""
     if 'scene' not in ctx.obj:
@@ -175,7 +169,7 @@ def sunrun(ctx, **kwargs):
 
 
 @main.command()
-@clk.shared_decs(clk.command_decs(__version__, wrap=True))
+@clk.shared_decs(clk.command_decs(raytraverse.__version__, wrap=True))
 def integrate(ctx, **kwargs):
     """build integrator and make images"""
     if 'scene' not in ctx.obj:
@@ -184,20 +178,24 @@ def integrate(ctx, **kwargs):
         invoke_suns(ctx)
     scn = ctx.obj['scene']
     sns = ctx.obj['suns']
+    print(sns.map.bbox)
     su = SunField(scn, sns)
-    sk = SrcBinField(scn)
+    sk = SCBinField(scn)
     itg = Integrator(sk, su, stol=15)
-    smtx, grnd, sun, hassun = itg.get_sky_mtx()
+    smtx, grnd, sun, si = itg.get_sky_mtx()
     subset = np.array([1, 14, 32, 35])
-    # subset = np.arange(10)
-    # itg.skyfield.direct_view()
-    # itg.sunfield.direct_view()
-    # itg.sunfield.view.direct_view()
-    # itg.hdr([(5, 5, 1.25)], [(0, -1, 0)], smtx[subset], sun[subset], hassun[subset], interp=4, res=800)
-    itg.hdr([(5, 5, 1.25)], [(0, 0, 1)], [1], [[0,]], [False,], interp=1, res=800)
-    illum = itg.illum([(5, 5, 1.25), (4.5, 5, 1.25)], [(0, -1, 0), (0, 0, 1), (0, 1, 0)], smtx[subset], sun[subset], hassun[subset])
+    subset = np.array([1, 14])
+    # subset = np.arange(1000)
+    # # itg.skyfield.direct_view()
+    # # itg.sunfield.direct_view()
+    # # itg.sunfield.view.direct_view()
+    # print(scn.skydata[itg.dayhours][subset])
+    # itg.hdr([(5, 5, 1.25)], (-1, 0, 0), smtx[subset], sun[subset], si[subset], interp=1, res=800)
+    # itg.hdr([(5, 5, 1.25)], sun[14, 0:3], smtx[subset], sun[subset], si[subset], interp=1, res=800, vname='view2')
+    # itg.hdr([(5, 5, 1.25)], [(0, 0, 1)], [1], [[0,]], [False,], interp=1, res=800)
+    illum = itg.illum([(5, 5, 1.25)], [(-1, 0, 0), sun[14, 0:3]], smtx[subset], sun[subset], si[subset])
     print(illum)
-    print(illum.shape)
+    # print(illum.shape)
 
 
 @main.resultcallback()

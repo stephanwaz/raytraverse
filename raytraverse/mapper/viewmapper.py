@@ -17,7 +17,7 @@ class ViewMapper(object):
 
     Parameters
     ----------
-    dxyz: (float, float, float), optional
+    dxyz: tuple, optional
         central view direction
     viewangle: float, optional
         if < 180, the horizontal and vertical view angle, if greater, view

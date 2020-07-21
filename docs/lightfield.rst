@@ -10,6 +10,34 @@ LightField
     :show-inheritance:
     :private-members:
 
+LightFieldKD
+---------------------------------
+
+.. autoclass:: raytraverse.lightfield.LightFieldKD
+    :members:
+    :undoc-members:
+    :show-inheritance:
+    :private-members:
+
+SCBinField
+---------------------------------
+
+.. autoclass:: raytraverse.lightfield.SCBinField
+    :members:
+    :undoc-members:
+    :show-inheritance:
+    :private-members:
+
+
+SunField
+---------------------------------
+
+.. autoclass:: raytraverse.lightfield.SunField
+    :members:
+    :undoc-members:
+    :show-inheritance:
+    :private-members:
+
 
 SunViewField
 ---------------------------------
@@ -20,11 +48,4 @@ SunViewField
     :show-inheritance:
     :private-members:
 
-SrcBinField
----------------------------------
 
-.. autoclass:: raytraverse.lightfield.SrcBinField
-    :members:
-    :undoc-members:
-    :show-inheritance:
-    :private-members:
