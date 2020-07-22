@@ -62,6 +62,11 @@ class ViewMapper(object):
         """bbox scale factor"""
         return self._sf
 
+    @property
+    def ivm(self):
+        """viewmapper for opposite view direction (in case of 360 degree view"""
+        return self._ivm
+
     @dxyz.setter
     def dxyz(self, xyz):
         """set view parameters"""
@@ -113,7 +118,7 @@ class ViewMapper(object):
         pxy = (np.stack(np.mgrid[0:res, 0:res]).T + .5)
         if self.aspect == 2:
             a = self.pixel2ray(pxy, res, i)
-            b = self._ivm.pixel2ray(pxy, res, i)
+            b = self.ivm.pixel2ray(pxy, res, i)
             return np.concatenate((a, b), 1)
         else:
             return self.pixel2ray(pxy, res, i)

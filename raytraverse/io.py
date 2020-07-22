@@ -46,11 +46,11 @@ def call_sampler(outf, command, vecs):
 
 
 def call_generic(commands, n=1):
-    pops = [0]*len(commands)
+    pops = []
     stdin = None
-    for i in range(len(commands)):
-        pops[i] = Popen(shlex.split(commands[i]), stdin=stdin, stdout=PIPE)
-        stdin = pops[i].stdout
+    for c in commands:
+        pops.append(Popen(shlex.split(c), stdin=stdin, stdout=PIPE))
+        stdin = pops[-1].stdout
     a = stdin.read()
     return np.fromstring(a, sep=' ').reshape(-1, n)
 
@@ -157,4 +157,3 @@ def hdr2array(imgf):
     shape = p.stdout.readline().strip().split()
     shape = (int(shape[-3]), int(shape[-1]))
     return bytes2np(p.stdout.read(), shape)[-1::-1, -1::-1]
-

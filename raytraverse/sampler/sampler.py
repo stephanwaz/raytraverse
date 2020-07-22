@@ -66,15 +66,15 @@ class Sampler(object):
         self.maxrate = maxrate
         #: float: fraction of samples at final step
         self.minrate = minrate
+        #: np.array: holds weights for self.draw
+        self.weights = np.full(np.concatenate((self.scene.ptshape,
+                                               self.levels[0])), 1e-7)
         #: int: index of next level to sample
         self.idx = 0
         #: str: sampler type
         self.stype = stype
         # bool: overwrites existing results files when false
         self.append = append
-        #: np.array: holds weights for self.draw
-        self.weights = np.full(np.concatenate((self.scene.ptshape,
-                                               self.levels[0])), 1e-7)
         self.compiledscene = srcdef
         self.plotp = plotp
 
@@ -232,6 +232,10 @@ class Sampler(object):
             # direction detail
             daxes = (len(pres) + len(dres) - 2, len(pres) + len(dres) - 1)
             p = wavelet.get_detail(self.weights, daxes)
+
+            # q = np.quantile(p, 1-self._sample_rate)
+            self._sample_rate = np.sum(p > 0.01 * 2**(2 * self.idx - 1) /
+                                       self.levels[-1, -1])/p.size
             p = p*(1 - self._sample_t) + np.median(p)*self._sample_t
             if self.plotp:
                 quickplot.imshow(np.log10(p.reshape(self.weights.shape)[0, 0]),

@@ -10,7 +10,7 @@ import os
 
 import numpy as np
 
-from raytraverse import translate
+from raytraverse import translate, wavelet
 from raytraverse.sampler.sampler import Sampler
 
 

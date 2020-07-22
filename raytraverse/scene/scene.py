@@ -265,8 +265,8 @@ class Scene(object):
                             dtype='datetime64[m]')
             jxyz = skycalc.sunpos_xyz(jun, *loc, ro=self.skyro)
             dxyz = skycalc.sunpos_xyz(dec, *loc, ro=self.skyro)
-            juv = translate.xyz2uv(jxyz[jxyz[:,2] > 0])
-            duv = translate.xyz2uv(dxyz[dxyz[:,2] > 0])
+            juv = translate.xyz2uv(jxyz[jxyz[:, 2] > 0])
+            duv = translate.xyz2uv(dxyz[dxyz[:, 2] > 0])
             juv = juv[juv[:, 0].argsort()]
             duv = duv[duv[:, 0].argsort()]
             self._solarbounds = (juv, duv)
@@ -348,4 +348,3 @@ class Scene(object):
         inbounds = np.stack((uv[:, 0] >= 0, uv[:, 0] < self.view.aspect,
                              uv[:, 1] >= 0, uv[:, 1] < 1))
         return np.all(inbounds, 0)
-

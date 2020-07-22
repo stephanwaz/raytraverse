@@ -147,7 +147,8 @@ def suns(ctx, **kwargs):
 @click.option('-fdres', default=10)
 @click.option('-maxspec', default=.3)
 @click.option('-wpow', default=.5)
-@click.option('-rcopts', default='-ab 1 -ad 1024 -aa 0 -as 0 -lw 1e-5 -st 0 -ss 4')
+@click.option('-rcopts',
+              default='-ab 1 -ad 1024 -aa 0 -as 0 -lw 1e-5 -st 0 -ss 4')
 @click.option('--view/--no-view', default=True)
 @click.option('--ambient/--no-ambient', default=True)
 @click.option('--reflection/--no-reflection', default=True)
@@ -161,11 +162,11 @@ def sunrun(ctx, **kwargs):
         invoke_suns(ctx)
     scn = ctx.obj['scene']
     sns = ctx.obj['suns']
-    sampler = SunSampler(scn, sns, **kwargs)
-    sampler.run(**kwargs)
+    # sampler = SunSampler(scn, sns, **kwargs)
+    # sampler.run(**kwargs)
     su = SunField(scn, sns, rebuild=True)
     su.direct_view()
-    su.view.direct_view()
+    # su.view.direct_view()
 
 
 @main.command()
@@ -178,23 +179,22 @@ def integrate(ctx, **kwargs):
         invoke_suns(ctx)
     scn = ctx.obj['scene']
     sns = ctx.obj['suns']
-    print(sns.map.bbox)
     su = SunField(scn, sns)
     sk = SCBinField(scn)
     itg = Integrator(sk, su, stol=15)
     smtx, grnd, sun, si = itg.get_sky_mtx()
-    subset = np.array([1, 14, 32, 35])
+    # subset = np.array([1, 14, 32, 35])
     subset = np.array([1, 14])
     # subset = np.arange(1000)
     # # itg.skyfield.direct_view()
     # # itg.sunfield.direct_view()
     # # itg.sunfield.view.direct_view()
     # print(scn.skydata[itg.dayhours][subset])
-    # itg.hdr([(5, 5, 1.25)], (-1, 0, 0), smtx[subset], sun[subset], si[subset], interp=1, res=800)
+    itg.hdr([(5, 5, 1.25)], (0, -1, 0), smtx, sun, si, interp=4, res=400)
     # itg.hdr([(5, 5, 1.25)], sun[14, 0:3], smtx[subset], sun[subset], si[subset], interp=1, res=800, vname='view2')
     # itg.hdr([(5, 5, 1.25)], [(0, 0, 1)], [1], [[0,]], [False,], interp=1, res=800)
-    illum = itg.illum([(5, 5, 1.25)], [(-1, 0, 0), sun[14, 0:3]], smtx[subset], sun[subset], si[subset])
-    print(illum)
+    # illum = itg.illum([(5, 5, 1.25)], [(-1, 0, 0), sun[14, 0:3]], smtx[subset], sun[subset], si[subset])
+    # print(illum)
     # print(illum.shape)
 
 

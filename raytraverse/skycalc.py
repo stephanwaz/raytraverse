@@ -233,7 +233,7 @@ def sunpos_xyz(timesteps, lat, lon, mer, builtin=True, ro=0.0):
 
     Returns
     -------
-    np.array([float, float, float])
+    np.array
         Sun position as (x, y, z)
     """
     dt = datetime64_2_datetime(timesteps, mer=mer)
@@ -242,7 +242,6 @@ def sunpos_xyz(timesteps, lat, lon, mer, builtin=True, ro=0.0):
     # translate to spherical rhs before calling translate.tp2xyz
     thetaphi = np.column_stack([np.pi/2 - alt.radians, np.pi/2 - az])
     return translate.tp2xyz(thetaphi)
-
 
 
 # Below is an implementation of perez all weather sky model:
@@ -324,7 +323,6 @@ def sunpos_xyz(timesteps, lat, lon, mer, builtin=True, ro=0.0):
 # August 26 2018
 # */
 
-
 perez_constants = {
     'cats': np.array([1, 1.065, 1.23, 1.50, 1.95, 2.80, 4.50, 6.20, 12.01]),
     'cp': np.array([1.3525, -0.2576, -0.2690, -1.4366, -0.7670,
@@ -350,7 +348,7 @@ perez_constants = {
                     -0.3788, -2.4517, 1.4656, -1.0500, 0.0289, 0.4260, 0.3590,
                     -0.325, 0.1156, 0.7781, 0.0025, 31.0625, -14.5, -46.1148,
                     55.375, -7.2312, 0.405, 13.35,  0.6234, 1.5, -0.6426,
-                    1.8564, 0.5636]).reshape(8, 5, 4),
+                    1.8564, 0.5636]).reshape((8, 5, 4)),
     'abcdf': np.array([[97.24, 107.22, 104.97, 102.39, 100.71, 106.42, 141.88,
                        152.23, 0],
                       [-0.46, 1.15, 2.96, 5.59, 5.94, 3.83, 1.90, 0.35, 0],
@@ -501,7 +499,7 @@ def perez(sxyz, dirdif, md=None):
     inter = (skyclear <= 6)
     normsc = perez_constants['nfc'][inter.astype(int)]
     x = (alt - np.pi/4) / (np.pi/4)
-    p = np.arange(5)[None,:]
+    p = np.arange(5)[None, :]
     f2 = np.where(inter, (2.739 + .9891*np.sin(.3119 + 2.6*alt)) *
                   np.exp(-(np.pi/2 - alt)*(.4441 + 1.48*alt)),
                   0.274*(0.91 + 10*np.exp(-3*(np.pi/2 - alt)) +
@@ -546,4 +544,3 @@ def sky_mtx(sxyz, dirdif, side, jn=4):
     lum = perez_lum(xyz, coefs).reshape(coefs.shape[0], -1, jn*jn)
     lum = np.average(lum, -1)
     return lum, coefs[:, 2], np.hstack((sxyz, solarrad[:, None]))
-

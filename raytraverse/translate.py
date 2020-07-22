@@ -75,7 +75,7 @@ def norm1(v):
 
 def tpnorm(thetaphi):
     """normalize angular vector to 0-pi, 0-2pi"""
-    thetaphi[:,0] = np.mod(thetaphi[:,0] + np.pi, np.pi)
+    thetaphi[:, 0] = np.mod(thetaphi[:, 0] + np.pi, np.pi)
     thetaphi[:, 1] = np.mod(thetaphi[:, 1] + 2*np.pi, 2*np.pi)
     return thetaphi
 
@@ -270,7 +270,7 @@ def resample(samps, ts=None, gauss=True, radius=None):
         if gauss:
             samps = gaussian_filter(samps, radius)
         else:
-            samps = uniform_filter(samps, radius)
+            samps = uniform_filter(samps, int(radius))
     return samps
 
 
@@ -317,7 +317,7 @@ def rmtx_yp(v):
                          (0, -1, 0),
                          (0, 0, -1)])
         return ymtx, pmtx
-    tp = xyz2tp(v.reshape(-1,3))[0]
+    tp = xyz2tp(v.reshape(-1, 3))[0]
     y = 3*np.pi/2 - tp[1]
     p = -tp[0]
     ymtx = np.array([(np.cos(y), -np.sin(y), 0),

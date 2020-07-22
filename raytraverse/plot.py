@@ -15,7 +15,6 @@ from clipt.plot import get_colors
 from matplotlib import rcParams
 from matplotlib.figure import Figure
 from matplotlib.colors import Normalize
-from clipt import mplt
 from matplotlib.patches import Polygon
 
 
@@ -28,7 +27,7 @@ def save_img(fig, ax, outf, title=None):
         fig.savefig(outf)
 
 
-def imshow(im, figsize=[10, 10], outf=None, **kwargs):
+def imshow(im, figsize=(10, 10), outf=None, **kwargs):
     fig = Figure(figsize=figsize)
     ax = fig.add_subplot()
     ax.imshow(im.T, origin='lower', **kwargs)
@@ -37,7 +36,7 @@ def imshow(im, figsize=[10, 10], outf=None, **kwargs):
     save_img(fig, ax, outf=outf)
 
 
-def mk_img_setup(lums, bounds=None, figsize=[10, 10], ext=1):
+def mk_img_setup(lums, bounds=None, figsize=(10, 10), ext=1):
     defparam = {
         'font.weight': 'ultralight',
         'font.family': 'sans-serif',
@@ -77,50 +76,14 @@ def set_ang_ticks(ax, ext):
     ax.set_xticklabels(labs)
 
 
-def mk_img(lums, uv, outf, bounds=None, figsize=[10, 10], ext=1,
-           colors='viridis', mark=True, inclmarks=None, title=None, **kwargs):
-    lums, fig, ax, norm, lev = mk_img_setup(lums, bounds=bounds,
-                                            figsize=figsize, ext=ext)
-    set_ang_ticks(ax, ext)
-    ax.tricontourf(uv[:, 0], uv[:, 1], lums, cmap=colors, norm=norm,
-                   levels=lev, extend='both')
-    if mark:
-        ax.scatter(uv[:inclmarks, 0], uv[:inclmarks, 1], s=10, marker='o',
-                   facecolors='none', edgecolors=(1,1,1,.2), linewidths=.5)
-    save_img(fig, ax, title, outf)
-    return outf
-
-
-def mk_img_voronoi(lums, uv, verts, regions, vi, bounds=None, colors='viridis', mark=True,
-                   figsize=[10, 10], inclmarks=None, ext=1, title=None, outf=None, **kwargs):
-    lums, fig, ax, norm, lev = mk_img_setup(lums, bounds=bounds,
-                                            figsize=figsize, ext=ext)
-    ax.tick_params(length=10, width=.5, direction='inout', pad=5)
-    ticks = np.linspace(-ext, ext, 7)
-    labs = np.round(np.linspace(-ext*180/np.pi, ext*180/np.pi, 7)).astype(int)
-    ax.set_yticks(ticks)
-    ax.set_yticklabels(labs)
-    ax.set_xticks(ticks)
-    ax.set_xticklabels(labs)
-    colormap = get_colors(colors)
-    colormap.set_norm(norm)
-    for v in vi:
-        r = verts[regions[v]]
-        polygon = Polygon(r, closed=True, lw=.5, color=colormap.to_rgba(lums[v]), zorder=-1)
-        ax.add_patch(polygon)
-    if mark:
-        ax.scatter(uv[:inclmarks, 0], uv[:inclmarks, 1], s=10, marker='o',
-                   facecolors='none', edgecolors=(1, 1, 1, .5), linewidths=.5)
-    save_img(fig, ax, title, outf)
-    return outf
-
-
 def colormap(colors, norm):
     cmap = get_colors(colors)
     cmap.set_norm(norm)
     return cmap
 
 
-def plot_patches(ax, patches, patchargs={}):
+def plot_patches(ax, patches, patchargs=None):
+    if patchargs is None:
+        patchargs = {}
     for lum, p in patches:
         ax.add_patch(Polygon(p, closed=True, color=lum, **patchargs))

@@ -132,6 +132,38 @@ class SunViewField(LightField):
                 raster[(i, j)] = r
         return vlo, raster
 
+    def _to_pix(self, rxyz, atv, vm, res):
+        if atv > 90:
+            ppix = vm.ivm.ray2pixel(rxyz, res)
+            ppix[:, 1] += res
+        else:
+            ppix = vm.ray2pixel(rxyz, res)
+        rec = np.core.records.fromarrays(ppix.T)
+        px, i, cnt = np.unique(rec, return_index=True,
+                               return_counts=True)
+        cnt = cnt.astype(float)
+        omegap = vm.pixel2omega(ppix[i] + .5, res)
+        # xs = []
+        # ys = []
+        # xy = vm.xyz2xy(rxyz)
+        # for j in i:
+        #     xs.append(xy[rec == rec[j], 0])
+        #     ys.append(xy[rec == rec[j], 1])
+        # mplt.quick_scatter(xs, ys, ms=4, lw=0)
+        return px, omegap, cnt
+
+    def _smudge(self, cnt, omegap, omegasp):
+        """hack to ensure equal energy and max luminance)"""
+        ocnt = cnt - (omegap/omegasp)
+        smdg = np.sum(ocnt[ocnt > 0])
+        cnt[ocnt > 0] = omegap[ocnt > 0]/omegasp
+        # average to redistribute
+        redist = smdg/np.sum(ocnt < 0)
+        # redistribute over pixels with "room" (this could still
+        # overshoot if too many pixels are close to threshold, but
+        # maybe mathematically impossible?
+        cnt[ocnt < -redist] += smdg/np.sum(ocnt < -redist)
+
     def add_to_img(self, img, pi, sun, vm):
         """
         Parameters
@@ -153,36 +185,14 @@ class SunViewField(LightField):
         rys = self.raster[pi]
         for vlo, r in zip(vlos, rys):
             v = vlo[0:3]
-            if vm.radians(v) <= vm.viewangle/2:
+            atv = vm.degrees(v)
+            if atv <= vm.viewangle/2:
                 rxyz = sm.uv2xyz(r)
                 lm = vlo[3]
                 omega = vlo[4]
-                # assign sample rays to pixels
-                ppix = vm.ray2pixel(rxyz, res)
-                rec = np.core.records.fromarrays(ppix.T)
-                px, i, cnt = np.unique(rec, return_index=True,
-                                       return_counts=True)
-                omegap = vm.pixel2omega(ppix[i] + .5, res)
+                px, omegap, cnt = self._to_pix(rxyz, atv, vm, res)
                 omegasp = omega / r.shape[0]
-                # xs = []
-                # ys = []
-                # xy = vm.xyz2xy(rxyz)
-                # for j in i:
-                #     xs.append(xy[rec == rec[j], 0])
-                #     ys.append(xy[rec == rec[j], 1])
-                # mplt.quick_scatter(xs, ys, ms=4, lw=0)
-                np.set_printoptions(3, suppress=True)
-                cnt = cnt.astype(float)
-                # smudge (hack to ensure equal energy and max luminance)
-                ocnt = cnt - (omegap/omegasp)
-                smdg = np.sum(ocnt[ocnt > 0])
-                cnt[ocnt > 0] = omegap[ocnt > 0]/omegasp
-                # average to redistribute
-                redist = smdg/np.sum(ocnt < 0)
-                # redistribute over pixels with "room" (this could still
-                # overshoot if too many pixels are close to threshold, but
-                # maybe mathematically impossible?
-                cnt[ocnt < -redist] += smdg/np.sum(ocnt < -redist)
+                self._smudge(cnt, omegap, omegasp)
                 # apply average luminanace over each pixel
                 clum = sun[-1] * lm * cnt * omegasp / omegap
                 for p, cl in zip(px, clum):

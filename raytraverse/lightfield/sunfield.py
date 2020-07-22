@@ -10,6 +10,7 @@ from concurrent.futures import ProcessPoolExecutor, as_completed
 
 import numpy as np
 
+from raytraverse import io
 from raytraverse.helpers import ArrayDict, sunfield_load_item
 from raytraverse.lightfield.lightfieldkd import LightFieldKD
 from raytraverse.lightfield.sunviewfield import SunViewField
@@ -70,6 +71,16 @@ class SunField(LightFieldKD):
     def apply_coef(self, pi, coefs):
         c = np.asarray(coefs).reshape(-1, 1)
         return super().apply_coef(pi, c)
+
+    def _dview(self, idx, pdirs, mask, res=800):
+        img = np.zeros((res, res*self.scene.view.aspect))
+        i, d = self.query_ray(idx, pdirs[mask])
+        self.add_to_img(img, mask, idx, i, d)
+        sun = np.concatenate((self.suns.suns[idx[1]], [1,]))
+        self.view.add_to_img(img, idx, sun, self.scene.view)
+        outf = f"{self.outfile(idx)}.hdr"
+        io.array2hdr(img, outf)
+        return outf
 
     def get_illum(self, vm, pis, vdirs, coefs, scale=179):
         illums = []
