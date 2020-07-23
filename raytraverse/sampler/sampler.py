@@ -10,7 +10,7 @@ import os
 import numpy as np
 
 import clasp.script_tools as cst
-from raytraverse import translate, io, wavelet, quickplot
+from raytraverse import translate, io, wavelet, quickplot, helpers
 
 
 class Sampler(object):
@@ -58,7 +58,8 @@ class Sampler(object):
         self.levels = fdres
         #: np.array: holds weights for self.draw
         self.weights = np.full(np.concatenate((self.scene.ptshape,
-                                               self.levels[0])), 1e-7)
+                                               self.levels[0])), 1e-7,
+                               dtype=np.float32)
         #: int: index of next level to sample
         self.idx = 0
         #: str: sampler type
@@ -213,16 +214,12 @@ class Sampler(object):
             # direction detail
             daxes = (len(pres) + len(dres) - 2, len(pres) + len(dres) - 1)
             p = wavelet.get_detail(self.weights, daxes)
-            srate = np.sum(p > (self.accuracy *
-                                4**(1 + self.idx - len(self.levels)))) / p.size
             if self.plotp:
                 quickplot.imshow(np.log10(p.reshape(self.weights.shape)[0, 0]),
                                  [20, 10])
             # draw on pdf
-            nsampc = int(srate*self.weights.size)
-            pdraws = np.random.default_rng().choice(p.size, nsampc,
-                                                    replace=False,
-                                                    p=p/np.sum(p))
+            threshold = self.accuracy * 4**(1 + self.idx - len(self.levels))
+            pdraws = helpers.draw_from_pdf(p, threshold)
         return pdraws
 
     def update_pdf(self, si, lum):

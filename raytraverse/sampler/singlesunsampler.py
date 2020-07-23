@@ -5,10 +5,14 @@
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 # =======================================================================
+import os
+
 import numpy as np
 
-from raytraverse import translate, quickplot
+from raytraverse import translate, quickplot, helpers
 from raytraverse.sampler.sampler import Sampler
+
+from memory_profiler import profile
 
 
 class SingleSunSampler(Sampler):
@@ -37,6 +41,13 @@ class SingleSunSampler(Sampler):
         self.specidx = speclevel - self.idres
         self.specularpdf = sb
 
+    def __del__(self):
+        try:
+            os.remove(self.compiledscene.replace('.oct', '.amb'))
+        except (IOError, TypeError):
+            pass
+        super().__del__()
+
     @property
     def specularpdf(self):
         return self._specularpdf
@@ -54,8 +65,9 @@ class SingleSunSampler(Sampler):
             print(skypdf.shape, shape)
             self._specularpdf = np.clip(translate.resample(skypdf, shape), 0, 1)
 
-    def sample(self, vecs, rcopts='-ab 7 -ad 60000 -as 30000 -lw 1e-7',
-               nproc=12, **kwargs):
+    def sample(self, vecs,
+               rcopts='-aa 0 -ab 7 -ad 8096 -as 0 -lw 1e-5 -st 0 -ss 16',
+               nproc=12, ambcache=False, **kwargs):
         """call rendering engine to sample sky contribution
 
         Parameters
@@ -66,16 +78,22 @@ class SingleSunSampler(Sampler):
             option string to send to executable
         nproc: int, optional
             number of processes executable should use
+        ambcache: bool, optional
+            use ambient caching (rcopts should be combatible, appends
+            appropriate -af argument)
 
         Returns
         -------
         lum: np.array
             array of shape (N,) to update weights
         """
+        if ambcache:
+            afile = self.compiledscene.replace('.oct', '.amb')
+            rcopts += f' -af {afile}'
         rc = f"rtrace -fff {rcopts} -h -n {nproc} {self.compiledscene}"
         return super().sample(vecs, call=rc)
 
-    # @profile
+    @profile
     def draw(self):
         """draw samples based on detail calculated from weights
         detail is calculated across direction only as it is the most precise
@@ -88,12 +106,9 @@ class SingleSunSampler(Sampler):
         """
         if self.idx == self.specidx:
             p = self.specularpdf.ravel()
-            nsampc = max(np.sum(p > self.slimit), 2)
             if self.plotp:
                 quickplot.imshow(p.reshape(self.weights.shape)[0, 0], [20, 10])
-            pdraws = np.random.default_rng().choice(p.size, nsampc,
-                                                    replace=False,
-                                                    p=p/np.sum(p))
+            pdraws = helpers.draw_from_pdf(p, self.slimit)
         else:
             pdraws = super().draw()
         return pdraws

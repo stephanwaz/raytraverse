@@ -195,7 +195,7 @@ class SunSetter(object):
 
     def _lift_samples(self, pidx, uv, lum, scheme, maxspec):
         lum = np.where(lum > maxspec, 0, lum)
-        pdf = np.zeros(scheme[0, 0:4])
+        pdf = np.zeros(scheme[0, 0:4], dtype=np.float32)
         l0 = 0
         pts = np.prod(self.scene.ptshape)
         for l in scheme:

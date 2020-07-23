@@ -66,3 +66,12 @@ def header(scene):
     except TypeError:
         pass
     return hdr
+
+
+def draw_from_pdf(pdf, threshold):
+    nsampc = int(np.sum(pdf > threshold))
+    clip = pdf > threshold/2
+    pnorm = pdf[clip]/np.sum(pdf[clip])
+    candidates = np.arange(pdf.size, dtype=np.uint32)[clip]
+    return np.random.default_rng().choice(candidates, nsampc, replace=False,
+                                          p=pnorm)

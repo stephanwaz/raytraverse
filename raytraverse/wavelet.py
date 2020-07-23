@@ -43,7 +43,6 @@ def get_detail(samps, axes):
     # calculate horiz, vert and diagonal detail
     d = pywt.swtn(psamps, wav, 1, trim_approx=True, axes=axes)
     d = np.asarray(tuple(d[1].values()))[slicing]
-
     # sum over detail and normalize (useful for non parametric sampling rates)
     # the detail can be read as delta luminance around that pixel
     d_det = np.sum(np.abs(d), 0).ravel()*(1/len(axes))
