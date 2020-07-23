@@ -48,7 +48,6 @@ class SunField(LightFieldKD):
 
     def _mk_tree(self):
         npts = np.product(self.scene.ptshape)
-        vlamb = self._get_vl(npts, pref='ambient')
         d_kd = {(-1, -1): None}
         vlo = ArrayDict({(-1, -1): None})
         fu = []
@@ -56,8 +55,8 @@ class SunField(LightFieldKD):
             for i in range(self.suns.suns.shape[0]):
                 vlsun = self._get_vl(npts, pref=f'_{i:04d}')
                 for j in range(npts):
-                    fu.append(exc.submit(sunfield_load_item, vlamb[j],
-                                         vlsun[j], i, j, self.scene.maxspec))
+                    fu.append(exc.submit(sunfield_load_item, vlsun[j], i, j,
+                                         self.scene.maxspec))
         for future in as_completed(fu):
             idx, v, d = future.result()
             vlo[idx] = v
@@ -68,19 +67,18 @@ class SunField(LightFieldKD):
         return itertools.product(super().items(),
                                  range(self.suns.suns.shape[0]))
 
-    def apply_coef(self, pi, coefs):
-        c = np.asarray(coefs).reshape(-1, 1)
-        return super().apply_coef(pi, c)
-
-    def _dview(self, idx, pdirs, mask, res=800):
-        img = np.zeros((res, res*self.scene.view.aspect))
-        i, d = self.query_ray(idx, pdirs[mask])
-        self.add_to_img(img, mask, idx, i, d)
-        sun = np.concatenate((self.suns.suns[idx[1]], [1,]))
-        self.view.add_to_img(img, idx, sun, self.scene.view)
-        outf = f"{self.outfile(idx)}.hdr"
-        io.array2hdr(img, outf)
-        return outf
+    def add_to_img(self, img, mask, pi, i, d, coefs=1, vm=None):
+        if vm is None:
+            vm = self.scene.view
+        lum = self.apply_coef(pi, coefs)
+        if len(i.shape) > 1:
+            w = np.broadcast_to(1/d, (lum.shape[0],) + d.shape)
+            lum = np.average(lum[:, i], weights=w, axis=-1)
+        else:
+            lum = lum[:, i]
+        img[mask] += np.squeeze(lum)
+        sun = np.concatenate((self.suns.suns[pi[1]], [1, ]))
+        self.view.add_to_img(img, pi, sun, vm)
 
     def get_illum(self, vm, pis, vdirs, coefs, scale=179):
         illums = []

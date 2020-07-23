@@ -26,14 +26,15 @@ class SCBinSampler(Sampler):
         side of square sky resolution
     """
 
-    def __init__(self, scene, **kwargs):
+    def __init__(self, scene, accuracy=.01, **kwargs):
         f = open(f'{scene.outdir}/scbins.cal', 'w')
         f.write(translate.scbinscal)
         f.close()
         skydeg = ("void glow skyglow 0 0 4 1 1 1 0 skyglow source sky 0 0 4"
                   " 0 0 1 180")
+        anorm = accuracy*np.pi
         super().__init__(scene, srcn=scene.skyres**2, stype='sky', srcdef=skydeg,
-                         **kwargs)
+                         accuracy=anorm, **kwargs)
 
     def __del__(self):
         super().__del__()

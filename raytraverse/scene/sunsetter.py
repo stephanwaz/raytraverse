@@ -118,7 +118,7 @@ class SunSetter(object):
                                       'reload=False to regenerate')
             scheme = np.load(f'{self.scene.outdir}/sky_scheme.npy').astype(int)
             side = self.scene.skyres
-            sunuv = translate.xyz2uv(self.suns)
+            sunuv = translate.xyz2uv(self.suns, flipu=False)
             sunbin = translate.uv2bin(sunuv, side).astype(int)
             dfile = f'{self.scene.outdir}/sky_vals.out'
             fvals = optic.rgb2rad(io.bytefile2np(open(dfile, 'rb'), (-1, 3)))

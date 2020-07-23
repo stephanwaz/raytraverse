@@ -59,7 +59,7 @@ class Integrator(object):
         sun[:, -1] *= hassun
         return smtx, grnd, sun, si
 
-    def hdr(self, pts, vdir, smtx, suns, suni,
+    def hdr(self, pts, vdir, smtx, suns=None, suni=None,
             vname='view', viewangle=180.0, res=400, interp=1):
         """
 
@@ -71,9 +71,9 @@ class Integrator(object):
             view direction for images
         smtx: np.array
             sky matrix
-        suns: np.array
+        suns: np.array, optional
             sun values
-        suni: np.array
+        suni: np.array, optional
             sun indices
         vname: str
             view name for output file
@@ -100,16 +100,15 @@ class Integrator(object):
             vstr = vstring + ' -vp {} {} {}'.format(*self.scene.idx2pt([pi])[0])
             si = self.skyfield.query_ray(pi, pdirs[mask], interp=interp)
             for sj, skyv in enumerate(smtx):
-                sun = suns[sj]
                 outf = f"{self.scene.outdir}_{vm.name}_{pi:04d}_{sj:04d}.hdr"
                 img = np.zeros((res*vm.aspect, res))
                 self.skyfield.add_to_img(img, mask, pi, *si, coefs=skyv)
-                if self.suns and sun[-1] > 0:
+                if self.suns and suns[sj][-1] > 0:
+                    sun = suns[sj]
                     psi = (pi, suni[sj])
                     j, e = self.sunfield.query_ray(psi, pdirs[mask],
                                                    interp=interp)
-                    self.sunfield.add_to_img(img, mask, psi, j, e, sun[-1])
-                    self.sunfield.view.add_to_img(img, psi, sun, vm)
+                    self.sunfield.add_to_img(img, mask, psi, j, e, sun[-1], vm)
                 io.array2hdr(img, outf, hdr + [vstr])
 
     def illum(self, pts, vdirs, smtx, suns, si):

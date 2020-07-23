@@ -10,6 +10,7 @@ import pickle
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
 import numpy as np
+from scipy.spatial import cKDTree, SphericalVoronoi
 
 from raytraverse import io, optic, translate
 from raytraverse.lightfield.lightfield import LightField
@@ -76,12 +77,21 @@ class LightFieldKD(LightField):
         return vl
 
     def _mk_tree(self):
-        return None, None
+        npts = np.product(self.scene.ptshape)
+        vls = self._get_vl(npts)
+        d_kd = []
+        vlo = []
+        for vl in vls:
+            d_kd.append(cKDTree(vl[:, 0:3]))
+            omega = SphericalVoronoi(vl[:, 0:3]).calculate_areas()[:, None]
+            vlo.append(np.hstack((vl, omega)))
+        return d_kd, vlo
 
     def apply_coef(self, pi, coefs):
-        return np.einsum('ij,kj->ik', coefs, self.vlo[pi][:, 3:-1])
+        c = np.asarray(coefs).reshape(-1, 1)
+        return np.einsum('ij,kj->ik', c, self.vlo[pi][:, 3:-1])
 
-    def add_to_img(self, img, mask, pi, i, d, coefs=1):
+    def add_to_img(self, img, mask, pi, i, d, coefs=1, vm=None):
         lum = self.apply_coef(pi, coefs)
         if len(i.shape) > 1:
             w = np.broadcast_to(1/d, (lum.shape[0],) + d.shape)
@@ -112,25 +122,43 @@ class LightFieldKD(LightField):
         vs = translate.theta2chord(viewangle/360*np.pi)
         return self.d_kd[pi].query_ball_point(translate.norm(vecs), vs)
 
-    def _dview(self, idx, pdirs, mask, res=800):
-        img = np.zeros((res, res*self.scene.view.aspect))
+    def _dview(self, idx, pdirs, mask, res=800, showsample=True):
+        img = np.zeros((res*self.scene.view.aspect, res))
         i, d = self.query_ray(idx, pdirs[mask])
         self.add_to_img(img, mask, idx, i, d)
         outf = f"{self.outfile(idx)}.hdr"
-        io.array2hdr(img, outf)
+        if showsample:
+            vm = self.scene.view
+            img = np.repeat(img[None, ...], 3, 0)
+            vi = self.query_ball(idx, vm.dxyz, vm.viewangle)
+            v = self.vlo[idx][vi[0], 0:3]
+            reverse = vm.degrees(v) > 90
+            pa = vm.ivm.ray2pixel(v[reverse], res)
+            pa[:, 0] += res
+            pb = vm.ray2pixel(v[np.logical_not(reverse)], res)
+            xp = np.concatenate((pa[:, 0], pb[:, 0]))
+            yp = np.concatenate((pa[:, 1], pb[:, 1]))
+            img[1:, xp, yp] = 0
+            img[0, xp, yp] = 1
+            io.carray2hdr(img, outf)
+        else:
+            io.array2hdr(img, outf)
         return outf
 
-    def direct_view(self, res=800):
+    def direct_view(self, res=800, showsample=True, items=None):
         """create a summary image of lightfield for each vpt"""
         vm = self.scene.view
         pdirs = vm.pixelrays(res)
+        if items is None:
+            items = self.items()
         if vm.aspect == 2:
-            mask = vm.in_view(np.concatenate((pdirs[:, 0:res],
-                                              -pdirs[:, res:]), 1))
+            mask = vm.in_view(np.concatenate((pdirs[0:res],
+                                              -pdirs[res:]), 0))
         else:
             mask = vm.in_view(pdirs)
         fu = []
         with ThreadPoolExecutor() as exc:
-            for idx in self.items():
-                fu.append(exc.submit(self._dview, idx, pdirs, mask))
+            for idx in items:
+                fu.append(exc.submit(self._dview, idx, pdirs, mask, res,
+                                     showsample))
         [print(f.result()) for f in as_completed(fu)]

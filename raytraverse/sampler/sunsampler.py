@@ -9,9 +9,6 @@ import numpy as np
 
 from raytraverse import translate
 from raytraverse.sampler import SingleSunSampler, SunViewSampler
-from raytraverse.sampler import SunAmbientSampler
-
-from memory_profiler import profile
 
 
 class SunSampler(object):
@@ -37,24 +34,14 @@ class SunSampler(object):
         side = int(np.sqrt(scheme[0, 4]))
         #: np.array: sun bins for each sun position (used to match naming)
         self.sunbin = translate.uv2bin(sunuv, side).astype(int)
-        #: raytraverse.sampler.SunAmbientSampler
-        self.ambsampler = SunAmbientSampler(self.scene, self.suns, idres=4,
-                                            fdres=6, maxrate=1, minrate=.1)
         #: raytraverse.sampler.SingleSunSampler
         self.reflsampler = None
         self.sampleargs.update(**kwargs)
 
-    def run(self, view=True, ambient=True, apo=None, reflection=True, rcopts='',
-            **kwargs):
+    def run(self, view=True, reflection=True, rcopts='', **kwargs):
         if view:
             print("Sampling Sun Visibility")
             self.viewsampler.run(rcopts='-ab 0')
-        if apo is not None:
-            print("Building photon map for ambient sampling")
-            print(self.ambsampler.mkpmap(apo=apo))
-        if ambient:
-            print("Sampling Ambient Sun contribution")
-            self.ambsampler.run(rcopts=rcopts)
         if reflection:
             for sidx, sb in enumerate(self.sunbin):
                 print(f"Sampling Sun Reflections {sidx+1} of "

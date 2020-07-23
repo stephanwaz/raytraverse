@@ -54,7 +54,7 @@ def test_omega():
     res = 800
     va = 180
     vm = ViewMapper(viewangle=va)
-    pxy = (np.stack(np.mgrid[0:res, 0:res]).T + .5)
+    pxy = (np.stack(np.mgrid[0:res, 0:res], 2) + .5)
     d = np.sqrt(np.sum(np.square(pxy/res - .5), -1))
     mask = d <= .5
     omega = vm.pixel2omega(pxy, res)
@@ -62,3 +62,18 @@ def test_omega():
     exp = np.pi*2*(1-np.cos(va*np.pi/360))
     ans = np.sum(omega[mask])
     assert np.isclose(ans, exp, rtol=1e-4)
+
+
+def test_pixel():
+    vm = ViewMapper()
+    res = 2
+    pxy = np.stack(np.mgrid[0:res, 0:res], 2)
+    pxy = np.concatenate((pxy, pxy + np.array([res, 0])), 0)
+    r = vm.pixelrays(res)
+    ra = r[res:]
+    rb = r[:res]
+    pa = vm.ivm.ray2pixel(ra.reshape(-1, 3), res).reshape(res, res, 2)
+    pa[..., 0] += res
+    pb = vm.ray2pixel(rb.reshape(-1, 3), res).reshape(res, res, 2)
+    p2 = np.concatenate((pb, pa), 0)
+    assert np.allclose(pxy, p2)

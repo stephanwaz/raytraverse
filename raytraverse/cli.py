@@ -162,11 +162,11 @@ def sunrun(ctx, **kwargs):
         invoke_suns(ctx)
     scn = ctx.obj['scene']
     sns = ctx.obj['suns']
-    # sampler = SunSampler(scn, sns, **kwargs)
-    # sampler.run(**kwargs)
+    sampler = SunSampler(scn, sns, **kwargs)
+    sampler.run(**kwargs)
     su = SunField(scn, sns, rebuild=True)
     su.direct_view()
-    # su.view.direct_view()
+    su.view.direct_view()
 
 
 @main.command()
@@ -181,16 +181,18 @@ def integrate(ctx, **kwargs):
     sns = ctx.obj['suns']
     su = SunField(scn, sns)
     sk = SCBinField(scn)
-    itg = Integrator(sk, su, stol=15)
+    itg = Integrator(sk, su, stol=5)
     smtx, grnd, sun, si = itg.get_sky_mtx()
     # subset = np.array([1, 14, 32, 35])
     subset = np.array([1, 14])
+    subset = np.arange(0, 103, 17)
+    print(len(subset))
     # subset = np.arange(1000)
     # # itg.skyfield.direct_view()
     # # itg.sunfield.direct_view()
     # # itg.sunfield.view.direct_view()
     # print(scn.skydata[itg.dayhours][subset])
-    itg.hdr([(5, 5, 1.25)], (0, -1, 0), smtx, sun, si, interp=4, res=400)
+    itg.hdr([(5, 5, 1.25)], (0, -1, 0), smtx[subset], sun[subset], si[subset], interp=4, res=400)
     # itg.hdr([(5, 5, 1.25)], sun[14, 0:3], smtx[subset], sun[subset], si[subset], interp=1, res=800, vname='view2')
     # itg.hdr([(5, 5, 1.25)], [(0, 0, 1)], [1], [[0,]], [False,], interp=1, res=800)
     # illum = itg.illum([(5, 5, 1.25)], [(-1, 0, 0), sun[14, 0:3]], smtx[subset], sun[subset], si[subset])

@@ -125,7 +125,7 @@ def array2hdr(ar, imgf, header=None):
 
     """
     f = open(imgf, 'wb')
-    pval = f'pvalue -r -b -h -H -df -o -y {ar.shape[0]} +x {ar.shape[1]}'
+    pval = f'pvalue -r -b -h -H -df -o -y {ar.shape[1]} +x {ar.shape[0]}'
     if header is not None:
         hdr = "' '".join(header)
         getinfo = shlex.split(f"getinfo -a '{hdr}'")
@@ -134,7 +134,36 @@ def array2hdr(ar, imgf, header=None):
     else:
         p = Popen(pval.split(), stdin=PIPE, stdout=f)
         q = p
-    p.stdin.write(np2bytes(ar[-1::-1, -1::-1]))
+    p.stdin.write(np2bytes(ar[-1::-1, -1::-1].T))
+    q.communicate()
+    f.close()
+    return imgf
+
+
+def carray2hdr(ar, imgf, header=None):
+    """write color channel np.array (3, x, y) to hdr image format
+
+    Parameters
+    ----------
+    ar: np.array
+    imgf: file path to right
+    header: list of header lines to append to image header
+
+    Returns
+    -------
+
+    """
+    f = open(imgf, 'wb')
+    pval = f'pvalue -r -h -H -df -o -y {ar.shape[-1]} +x {ar.shape[-2]}'
+    if header is not None:
+        hdr = "' '".join(header)
+        getinfo = shlex.split(f"getinfo -a '{hdr}'")
+        p = Popen(pval.split(), stdin=PIPE, stdout=PIPE)
+        q = Popen(getinfo, stdin=p.stdout, stdout=f)
+    else:
+        p = Popen(pval.split(), stdin=PIPE, stdout=f)
+        q = p
+    p.stdin.write(np2bytes(ar.T[-1::-1, -1::-1, :]))
     q.communicate()
     f.close()
     return imgf

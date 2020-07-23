@@ -29,15 +29,6 @@ SunSampler
     :private-members:
 
 
-SunAmbientSampler
---------------------------------
-
-.. autoclass:: raytraverse.sampler.SunAmbientSampler
-    :members:
-    :undoc-members:
-    :show-inheritance:
-    :private-members:
-
 SingleSunSampler
 ------------------------------------
 

@@ -6,14 +6,11 @@
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 # =======================================================================
 import os
-from concurrent.futures import ThreadPoolExecutor
 
 import numpy as np
 
 import clasp.script_tools as cst
 from raytraverse import translate, io, wavelet, quickplot
-from clipt import mplt
-from memory_profiler import profile
 
 
 class Sampler(object):
@@ -47,25 +44,18 @@ class Sampler(object):
         otherwise overwrites with call to run
     """
 
-    def __init__(self, scene, fdres=9, srcn=1, t0=.1, t1=.01, maxrate=1.0,
-                 minrate=.05, idres=4, stype='generic', append=False,
-                 srcdef=None, plotp=False, **kwargs):
+    def __init__(self, scene, fdres=9, srcn=1, accuracy=.01, idres=4,
+                 stype='generic', append=False, srcdef=None, plotp=False,
+                 **kwargs):
         self.scene = scene
         #: func: mapper to use for sampling
         self.samplemap = self.scene.view
         #: int: number of sources return per vector by run
         self.srcn = srcn
+        self.accuracy = accuracy
         #: int: initial direction resolution (as log2(res))
         self.idres = idres
         self.levels = fdres
-        #: float: fraction of uniform random samples taken at first step
-        self.t0 = t0
-        #: float: fraction of uniform random samples taken at final step
-        self.t1 = t1
-        #: float: fraction of samples at first step
-        self.maxrate = maxrate
-        #: float: fraction of samples at final step
-        self.minrate = minrate
         #: np.array: holds weights for self.draw
         self.weights = np.full(np.concatenate((self.scene.ptshape,
                                                self.levels[0])), 1e-7)
@@ -77,6 +67,7 @@ class Sampler(object):
         self.append = append
         self.compiledscene = srcdef
         self.plotp = plotp
+        self.levelsamples = np.ones(self.levels.shape[0])
 
     def __del__(self):
         try:
@@ -116,16 +107,6 @@ class Sampler(object):
     @idx.setter
     def idx(self, idx):
         self._idx = idx
-        try:
-            x = self.idx/(self.levels.shape[0]-1)
-        except ZeroDivisionError:
-            x = 1
-        self.set_rates(x)
-
-    def set_rates(self, x):
-        self._sample_t = wavelet.get_uniform_rate(x, self.t0, self.t1)
-        self._sample_rate = wavelet.get_sample_rate(x, self.minrate,
-                                                    self.maxrate)
 
     @property
     def levels(self):
@@ -226,22 +207,19 @@ class Sampler(object):
         """
         dres = self.levels[self.idx]
         pres = self.scene.ptshape
-        if self._sample_rate == 1:
+        if self.idx == 0 and np.isclose(np.var(self.weights), 0, atol=1e-6):
             pdraws = np.arange(np.prod(dres)*np.prod(pres))
         else:
             # direction detail
             daxes = (len(pres) + len(dres) - 2, len(pres) + len(dres) - 1)
             p = wavelet.get_detail(self.weights, daxes)
-
-            # q = np.quantile(p, 1-self._sample_rate)
-            self._sample_rate = np.sum(p > 0.01 * 2**(2 * self.idx - 1) /
-                                       self.levels[-1, -1])/p.size
-            p = p*(1 - self._sample_t) + np.median(p)*self._sample_t
+            srate = np.sum(p > (self.accuracy *
+                                4**(1 + self.idx - len(self.levels)))) / p.size
             if self.plotp:
                 quickplot.imshow(np.log10(p.reshape(self.weights.shape)[0, 0]),
                                  [20, 10])
             # draw on pdf
-            nsampc = int(self._sample_rate*self.weights.size)
+            nsampc = int(srate*self.weights.size)
             pdraws = np.random.default_rng().choice(p.size, nsampc,
                                                     replace=False,
                                                     p=p/np.sum(p))
@@ -268,24 +246,8 @@ class Sampler(object):
         scheme[:, 2:-2] = self.levels
         scheme[:, 0:2] = self.scene.ptshape
         scheme[:, -2] = self.srcn
-        for i in range(scheme.shape[0]):
-            x = i/(self.levels.shape[0] - 1)
-            a = wavelet.get_sample_rate(x, self.minrate, self.maxrate)
-            scheme[i, -1] = a*np.product(scheme[i])
+        scheme[:, -1] = self.levelsamples
         return scheme.astype(int)
-
-    def print_sample_cnt(self):
-        an = 0
-        print("shape\tguided\tuniform\ttotal")
-        for i, l in enumerate(self.levels):
-            shape = np.concatenate((self.scene.ptshape, self.levels[i]))
-            x = i/(self.levels.shape[0] - 1)
-            a = int(wavelet.get_sample_rate(x, self.minrate,
-                                            self.maxrate)*np.product(shape))
-            t = wavelet.get_uniform_rate(x, self.t0, self.t1)
-            an += a
-            print(f"{l}\t{int(a*(1-t))}\t{int(a*t)}\t{a}")
-        print("total", an)
 
     # @profile
     def run(self, **skwargs):
@@ -313,6 +275,7 @@ class Sampler(object):
             self.idx = i
             self.weights = translate.resample(self.weights, shape)
             draws = self.draw()
+            self.levelsamples[self.idx] = draws.size
             si, vecs = self.sample_idx(draws)
             srate = si.shape[1]/np.prod(shape)
             fsize += 12*self.srcn*si.shape[1]/1000000

@@ -13,15 +13,14 @@ import datetime
 import re
 
 import numpy as np
-from skyfield.api import load_file, Topos, load, utc
+from skyfield.api import Topos, utc, Loader
 
 from raytraverse import translate
 
-try:
-    planets = load_file(os.path.dirname(__file__) + '/de421.bsp')
-except OSError as ex:
-    planets = load('de421.bsp')
-sun, earth = planets['sun'], planets['earth']
+load = Loader(os.path.dirname(translate.__file__))
+planets = load('de421.bsp')
+sun = planets['sun']
+earth = planets['earth']
 
 
 def read_epw(epw):

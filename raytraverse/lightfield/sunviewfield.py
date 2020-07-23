@@ -16,8 +16,6 @@ from scipy.cluster.hierarchy import fclusterdata
 from raytraverse import translate, plot
 from raytraverse.helpers import ArrayDict
 from raytraverse.lightfield.lightfield import LightField
-from raytraverse.mapper import SunMapper
-from clipt import mplt
 
 
 class SunViewField(LightField):
@@ -135,7 +133,7 @@ class SunViewField(LightField):
     def _to_pix(self, rxyz, atv, vm, res):
         if atv > 90:
             ppix = vm.ivm.ray2pixel(rxyz, res)
-            ppix[:, 1] += res
+            ppix[:, 0] += res
         else:
             ppix = vm.ray2pixel(rxyz, res)
         rec = np.core.records.fromarrays(ppix.T)
@@ -177,17 +175,19 @@ class SunViewField(LightField):
         -------
 
         """
-        res = img.shape[0]
+        res = img.shape[1]
         if pi not in self.vlo.keys():
             return None
         vlos = self.vlo[pi]
-        sm = SunMapper(sun[0:3])
+        # use actual sun location
+        # sm = SunMapper(sun[0:3])
         rys = self.raster[pi]
         for vlo, r in zip(vlos, rys):
             v = vlo[0:3]
             atv = vm.degrees(v)
             if atv <= vm.viewangle/2:
-                rxyz = sm.uv2xyz(r)
+                # rxyz = sm.uv2xyz(r)
+                rxyz = self.sunmap.uv2xyz(r, pi[1])
                 lm = vlo[3]
                 omega = vlo[4]
                 px, omegap, cnt = self._to_pix(rxyz, atv, vm, res)

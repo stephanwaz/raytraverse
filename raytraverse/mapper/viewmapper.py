@@ -115,18 +115,18 @@ class ViewMapper(object):
         return translate.xyz2xy(rxyz)
 
     def pixelrays(self, res, i=0):
-        pxy = (np.stack(np.mgrid[0:res, 0:res]).T + .5)
+        pxy = np.stack(np.mgrid[0:res, 0:res], 2) + .5
         if self.aspect == 2:
             a = self.pixel2ray(pxy, res, i)
             b = self.ivm.pixel2ray(pxy, res, i)
-            return np.concatenate((a, b), 1)
+            return np.concatenate((a, b), 0)
         else:
             return self.pixel2ray(pxy, res, i)
 
     def ray2pixel(self, xyz, res, i=0):
         xy = self.xyz2xy(xyz, i)
-        pxy = np.floor((xy/2 + .5) * res).astype(int)[:, -1::-1]
-        pxy[:, 1] = res - pxy[:, 1]
+        pxy = np.floor((xy/2 + .5) * res).astype(int)
+        pxy[:, 0] = res - 1 - pxy[:, 0]
         return pxy
 
     def pixel2ray(self, pxy, res, i=0):

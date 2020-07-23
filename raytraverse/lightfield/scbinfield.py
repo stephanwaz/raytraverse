@@ -6,7 +6,6 @@
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 # =======================================================================
 import numpy as np
-from scipy.spatial import cKDTree, SphericalVoronoi
 
 from raytraverse.lightfield.lightfieldkd import LightFieldKD
 
@@ -26,17 +25,6 @@ class SCBinField(LightFieldKD):
         """
         return self._vlo
 
-    def _mk_tree(self):
-        npts = np.product(self.scene.ptshape)
-        vls = self._get_vl(npts)
-        d_kd = []
-        vlo = []
-        for vl in vls:
-            d_kd.append(cKDTree(vl[:, 0:3]))
-            omega = SphericalVoronoi(vl[:, 0:3]).calculate_areas()[:, None]
-            vlo.append(np.hstack((vl, omega)))
-        return d_kd, vlo
-
     def apply_coef(self, pi, coefs):
         srcn = self.scene.skyres**2
         coefs = np.asarray(coefs)
@@ -44,5 +32,5 @@ class SCBinField(LightFieldKD):
             c = coefs.reshape(-1, srcn)
         else:
             c = np.broadcast_to(coefs, (coefs.size, srcn))
-        return super().apply_coef(pi, c)
+        return np.einsum('ij,kj->ik', c, self.vlo[pi][:, 3:-1])
 

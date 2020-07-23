@@ -28,15 +28,12 @@ class ArrayDict(dict):
                           np.reshape(item, (-1, self.tsize))])
 
 
-def sunfield_load_item(vlamb, vlsun, i, j, maxspec):
+def sunfield_load_item(vlsun, i, j, maxspec):
     """function for pool processing sunfield results"""
     # remove accidental direct hits
-    notspa = vlamb[:, i + 3] < maxspec
     notsps = vlsun[:, 3] < maxspec
-    vecs = np.vstack((vlamb[notspa, 0:3],
-                      vlsun[notsps, 0:3]))
-    lums = np.hstack((vlamb[notspa, i + 3],
-                      vlsun[notsps, 3]))[:, None]
+    vecs = vlsun[notsps, 0:3]
+    lums = vlsun[notsps, 3, None]
     omega = SphericalVoronoi(vecs).calculate_areas()[:, None]
     vlo = np.hstack((vecs, lums, omega))
     d_kd = cKDTree(vecs)
@@ -64,5 +61,8 @@ def header(scene):
     tf = "%a %b %d %H:%M:%S %Z %Y"
     lm = datetime.fromtimestamp(lastmod, timezone.utc).strftime(tf)
     hdr.append(f"SOFTWARE= RAYTRAVERSE {raytraverse.__version__} lastmod {lm}")
-    hdr.append("LOCATION= lat: {} lon: {} tz: {}".format(*scene.loc))
+    try:
+        hdr.append("LOCATION= lat: {} lon: {} tz: {}".format(*scene.loc))
+    except TypeError:
+        pass
     return hdr
