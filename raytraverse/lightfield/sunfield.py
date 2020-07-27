@@ -6,12 +6,10 @@
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 # =======================================================================
 import itertools
-from concurrent.futures import ProcessPoolExecutor, as_completed
 
 import numpy as np
 
-from raytraverse import io
-from raytraverse.helpers import ArrayDict, sunfield_load_item
+from raytraverse.helpers import ArrayDict, MemArrayDict
 from raytraverse.lightfield.lightfieldkd import LightFieldKD
 from raytraverse.lightfield.sunviewfield import SunViewField
 
@@ -36,32 +34,21 @@ class SunField(LightFieldKD):
         self.view = SunViewField(scene, suns, rebuild=rebuild)
         super().__init__(scene, rebuild=rebuild, prefix='sun')
 
-    @property
-    def vlo(self):
-        """sun data indexed by (point, sun)
-
-        key (i, j) val: direction vector (3,) luminance (srcn,), omega (1,)
-
-        :type: raytraverse.helpers.ArrayDict
-        """
-        return self._vlo
-
     def _mk_tree(self):
         npts = np.product(self.scene.ptshape)
-        d_kd = {(-1, -1): None}
-        vlo = ArrayDict({(-1, -1): None})
-        fu = []
-        with ProcessPoolExecutor() as exc:
-            for i in range(self.suns.suns.shape[0]):
-                vlsun = self._get_vl(npts, pref=f'_{i:04d}')
-                for j in range(npts):
-                    fu.append(exc.submit(sunfield_load_item, vlsun[j], i, j,
-                                         self.scene.maxspec))
-        for future in as_completed(fu):
-            idx, v, d = future.result()
-            vlo[idx] = v
-            d_kd[idx] = d
-        return d_kd, vlo
+        d_kds = {(-1, -1): None}
+        vecs = ArrayDict({(-1, -1): None})
+        omegas = ArrayDict({(-1, -1): None})
+        lums = MemArrayDict({})
+        for i in range(self.suns.suns.shape[0]):
+            d_kd, vs, omega, lums = super()._mk_tree(pref=f'_{i:04d}',
+                                                     ltype=list)
+            for j in range(npts):
+                d_kds[(j, i)] = d_kd[j]
+                vecs[(j, i)] = vs[j]
+                omegas[(j, i)] = omega[j]
+                lums[(j, i)] = lums[j]
+        return d_kds, vecs, omegas, lums
 
     def items(self):
         return itertools.product(super().items(),
@@ -89,8 +76,8 @@ class SunField(LightFieldKD):
                 lm = self.apply_coef(pi, s)
                 idx = self.query_ball(pi, vdirs)
                 for j, i in enumerate(idx):
-                    v = self.vlo[pi][i, 0:3]
-                    o = self.vlo[pi][i, -1]
+                    v = self.vec[pi][i]
+                    o = self.omega[pi][i]
                     illums.append(np.einsum('j,ij,j,->', vm.ctheta(v, j),
                                             lm[:, i], o, scale))
             else:

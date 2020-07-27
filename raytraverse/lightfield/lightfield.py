@@ -28,18 +28,31 @@ class LightField(object):
         prefix of data files to map
     """
 
-    def __init__(self, scene, rebuild=False, prefix='sky'):
+    def __init__(self, scene, rebuild=False, prefix='sky', srcn=1):
         #: bool: force rebuild kd-tree
         self.rebuild = rebuild
+        self.srcn = srcn
         #: str: prefix of data files from sampler (stype)
         self.prefix = prefix
-        self._vlo = None
+        self._vec = None
+        self._lum = None
+        self._omega = None
         self.scene = scene
 
     @property
-    def vlo(self):
-        """direction vector (3,) luminance (srcn,), omega (1,)"""
-        return self._vlo
+    def vec(self):
+        """direction vector (3,)"""
+        return self._vec
+
+    @property
+    def lum(self):
+        """luminance (srcn,)"""
+        return self._lum
+
+    @property
+    def omega(self):
+        """solid angle (1,)"""
+        return self._omega
 
     def outfile(self, idx):
         istr = "_".join([f"{i:04d}" for i in np.asarray(idx).reshape(-1)])

@@ -73,6 +73,11 @@ def scene(ctx, **kwargs):
         print(f'extents:\n{s.area.bbox}')
         print(f'resolution: {s.area.sf/s.ptshape}')
         print(f'number of points: {s.ptshape[0]*s.ptshape[1]}')
+        print(f'rotation: {s.ptro}')
+        print('Sky Info:')
+        print(f'location: {s.loc}')
+        print(f'rotation: {s.skyro}')
+        print(f'sky sampling resolution: {s.skyres}')
         try:
             suncount = len(open(f'{s.outdir}/sun_modlist.txt').readlines())
             print(f'scene has {suncount} suns')
@@ -107,9 +112,7 @@ def scene(ctx, **kwargs):
 
 
 @main.command()
-@click.option('-minrate', default=.05)
-@click.option('-t0', default=.1)
-@click.option('-t1', default=0)
+@click.option('-accuracy', default=.01)
 @click.option('-idres', default=4)
 @click.option('-fdres', default=9)
 @click.option('-rcopts', default='-ab 2 -ad 1024 -as 0 -lw 1e-5 -st 0 -ss 16')
@@ -141,18 +144,15 @@ def suns(ctx, **kwargs):
 
 
 @main.command()
-@click.option('-minrate', default=.005)
-@click.option('-maxrate', default=.01)
-@click.option('-idres', default=9)
+@click.option('-accuracy', default=.01)
+@click.option('-idres', default=4)
 @click.option('-fdres', default=10)
-@click.option('-maxspec', default=.3)
-@click.option('-wpow', default=.5)
+@click.option('-speclevel', default=9)
 @click.option('-rcopts',
               default='-ab 1 -ad 1024 -aa 0 -as 0 -lw 1e-5 -st 0 -ss 4')
 @click.option('--view/--no-view', default=True)
-@click.option('--ambient/--no-ambient', default=True)
+@click.option('--ambcache/--no-ambcache', default=True)
 @click.option('--reflection/--no-reflection', default=True)
-@click.option('-apo', callback=clk.split_str)
 @clk.shared_decs(clk.command_decs(raytraverse.__version__, wrap=True))
 def sunrun(ctx, **kwargs):
     """run sunsampler"""

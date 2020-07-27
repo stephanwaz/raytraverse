@@ -7,13 +7,18 @@
 # =======================================================================
 
 import os
+import pickle
 import shutil
+from concurrent.futures import ThreadPoolExecutor, ProcessPoolExecutor, as_completed
 
 import numpy as np
 from scipy.spatial import cKDTree
 
 from raytraverse import wavelet, translate, io, optic, plot
+from raytraverse.helpers import skybin_pdf
 from raytraverse.mapper import SunMapper
+
+from memory_profiler import profile
 
 
 class SunSetter(object):
@@ -35,7 +40,7 @@ class SunSetter(object):
         #: raytraverse.scene.Scene
         self.scene = scene
         sunfile = f"{self.scene.outdir}/suns.rad"
-        self._suns = self.init_suns(sunfile)
+        self.suns = sunfile
         self.map = SunMapper(self.suns)
         if not (os.path.isfile(sunfile) and self.reload):
             self._write_suns(sunfile)
@@ -62,7 +67,8 @@ class SunSetter(object):
     def sun_kd(self, sun_kd):
         self._sun_kd = sun_kd
 
-    def init_suns(self, sunfile):
+    @suns.setter
+    def suns(self, sunfile):
         """set the skydetail array and determine sample count and spacing"""
         if os.path.isfile(sunfile) and self.reload:
             f = open(sunfile, 'r')
@@ -84,31 +90,39 @@ class SunSetter(object):
                                                     p=sd/np.sum(sd))
             si = np.stack(np.unravel_index(sdraws, skyb.shape))
             # keep solar discs from overlapping
-            border = .3*uvsize/180
+            border = uvsize/180
             j = np.random.default_rng().uniform(border, 1-border, si.T.shape)
             uv = (si.T + j)/uvsize
             xyz = translate.uv2xyz(uv, xsign=1)
-        return xyz
+        self._suns = xyz
 
     def load_sky_facs(self):
         outf = f'{self.scene.outdir}/sky_skydetail.npy'
         if os.path.isfile(outf) and self.reload:
             return np.load(outf)
-        dfile = f'{self.scene.outdir}/sky_vals.out'
-        fvals = optic.rgb2rad(io.bytefile2np(open(dfile, 'rb'), (-1, 3)))
-        sd = np.max(fvals.reshape(-1, self.scene.skyres, self.scene.skyres), 0)
+        dfile = f'{self.scene.outdir}/sky_kd_lum_map.pickle'
+        f = open(dfile, 'rb')
+        skylums = pickle.load(f)
+        f.close()
+        zeros = np.zeros(len(skylums), dtype=int)
+        with ThreadPoolExecutor() as exc:
+            mxs = list(exc.map(np.max, skylums, zeros))
+        sd = np.max(np.stack(mxs), 0).reshape(self.scene.skyres,
+                                              self.scene.skyres)
         np.save(outf, sd)
         return sd
 
-    def write_sun_pdfs(self, reload=True):
+    # @profile
+    def write_sun_pdfs(self, skyfield, rebuild=False):
         """update sky_pdf to only consider sky patches with direct sun
 
         Parameters
         ----------
-        reload: bool, optional
+        skyfield: raytraverse.field.SCBinField
+        rebuild: bool, optional
         """
         outd = f'{self.scene.outdir}/sunpdfs'
-        if not reload:
+        if rebuild:
             shutil.rmtree(outd, ignore_errors=True)
         if not os.path.exists(outd):
             try:
@@ -116,26 +130,62 @@ class SunSetter(object):
             except FileExistsError:
                 raise FileExistsError('sun pdfs already exists, use '
                                       'reload=False to regenerate')
-            scheme = np.load(f'{self.scene.outdir}/sky_scheme.npy').astype(int)
-            side = self.scene.skyres
-            sunuv = translate.xyz2uv(self.suns, flipu=False)
-            sunbin = translate.uv2bin(sunuv, side).astype(int)
-            dfile = f'{self.scene.outdir}/sky_vals.out'
-            fvals = optic.rgb2rad(io.bytefile2np(open(dfile, 'rb'), (-1, 3)))
-            vfile = f'{self.scene.outdir}/sky_vecs.out'
-            fvecs = io.bytefile2np(open(vfile, 'rb'), (-1, 4))
-            vec = fvecs[:, 1:4]
-            pidx = fvecs[:, 0]
-            uv = self.scene.view.xyz2uv(vec)
-            lums = fvals.reshape(-1, side*side)
-            lum = np.max(lums[:, sunbin], 1)
-            pdf = self._lift_samples(pidx, uv, lum, scheme, self.scene.maxspec)
-            np.save(f'{self.scene.outdir}/sky_pdf', pdf)
-            for i, sb in enumerate(sunbin):
-                lum = lums[:, sb]
-                pdf = self._lift_samples(pidx, uv, lum, scheme,
-                                         self.scene.maxspec)
-                np.save(f'{outd}/{i:04d}_{sb:04d}', pdf)
+            # side = self.scene.skyres
+            # sunuv = translate.xyz2uv(self.suns, flipu=False)
+            # sunbin = translate.uv2bin(sunuv, side).astype(int)
+            shape = (512, 256)
+            si = np.stack(np.unravel_index(np.arange(np.product(shape)), shape))
+            uv = (si.T + .5)/shape[1]
+            grid = skyfield.scene.view.uv2xyz(uv)
+            futures = []
+            skyfield.lum.full_array = skyfield.lum.constructors()
+            constructor = skyfield.lum.full_constructor
+            cs = constructor[-1]
+            fconstructor = constructor[:-1] + ((cs[1], cs[0]),)
+            strides = skyfield.lum.index_strides
+            with ProcessPoolExecutor() as exc:
+                for pt in range(len(skyfield.vec)):
+                    futures.append(exc.submit(skyfield.d_kd[pt].query, grid))
+            idxs = []
+            for fu, stride in zip(futures, strides):
+                r = fu.result()
+                idxs.append(r[1] + stride)
+            idxs = np.vstack(idxs)
+            outf = f'{self.scene.outdir}/sunpdfidxs.npy'
+            np.save(outf, idxs)
+            print(idxs.shape)
+            # futures = []
+            # shape = tuple(self.scene.ptshape) + shape
+            # with ProcessPoolExecutor() as exc:
+            #     for i, sb in enumerate(sunbin):
+            #         outf = f'{outd}/{i:04d}_{sb:04d}'
+            #         futures.append(exc.submit(skybin_pdf, outf, idxs,
+            #                                   fconstructor, sb, shape,
+            #                                   self.scene.maxspec))
+            #     for fu in as_completed(futures):
+            #         print(fu.result())
+        return None
+            # return np.stack(pdfs)
+            #
+            # with ThreadPoolExecutor() as exc:
+            #     for i, sb in enumerate(sunbin):
+            #         outf = f'{outd}/{i:04d}_{sb:04d}'
+            #         futures.append(exc.submit(lift_samples, skyfield, sb))
+            #
+            #
+            # dfile = f'{self.scene.outdir}/sky_vals.out'
+            # fvals = optic.rgb2rad(io.bytefile2np(open(dfile, 'rb'), (-1, 3)))
+            # vfile = f'{self.scene.outdir}/sky_vecs.out'
+            # fvecs = io.bytefile2np(open(vfile, 'rb'), (-1, 4))
+            # vec = fvecs[:, 1:4]
+            # pidx = fvecs[:, 0]
+            # uv = self.scene.view.xyz2uv(vec)
+            # lums = fvals.reshape(-1, side*side)
+            # for i, sb in enumerate(sunbin):
+            #     lum = lums[:, sb]
+            #     pdf = self._lift_samples(pidx, uv, lum, scheme,
+            #                              self.scene.maxspec)
+            #     np.save(f'{outd}/{i:04d}_{sb:04d}', pdf)
 
     def direct_view(self):
         sxy = translate.xyz2xy(self.suns, flip=False)

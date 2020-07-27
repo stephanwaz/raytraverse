@@ -16,7 +16,7 @@ import numpy as np
 from raytraverse import optic
 
 
-def call_sampler(outf, command, vecs):
+def call_sampler(outf, command, vecs, shape):
     """make subprocess call to sampler given as command, expects rgb value
     as return for each vec
 
@@ -28,6 +28,8 @@ def call_sampler(outf, command, vecs):
         command line with executable and options
     vecs: np.array
         vectors to pass as stdin to command
+    shape: tuple
+        shape of expected output
 
     Returns
     -------
@@ -40,8 +42,7 @@ def call_sampler(outf, command, vecs):
     p = Popen(shlex.split(command), stdout=f, stdin=PIPE)
     p.communicate(np2bytes(vecs))
     f.seek(lum_file_pos)
-    lum = optic.rgb2rad(bytes2np(f.read(), (-1, 3)))
-    f.close()
+    lum = bytefile2rad(f, shape, subs='ijk,k->i')
     return lum
 
 
@@ -53,6 +54,19 @@ def call_generic(commands, n=1):
         stdin = pops[-1].stdout
     a = stdin.read()
     return np.fromstring(a, sep=' ').reshape(-1, n)
+
+
+def bytefile2rad(f, shape, slc=None, subs='ijk,k->ij'):
+    memarray = np.memmap(f, dtype='<f', mode='r', shape=shape)
+    return np.einsum(subs, memarray[slc], [0.265, 0.670, 0.065])
+
+
+def einsum_mem2mem(inf, ishape, outf, offset=0, islice=None, subs='ijk,k->ij'):
+    ar = bytefile2rad(inf, ishape, slc=islice, subs=subs)
+    mar = np.memmap(outf, dtype='<f', mode='r+', offset=offset, shape=ar.shape)
+    mar[:] = ar[:]
+    del mar
+    return offset, ar.shape
 
 
 def np2bytes(ar, dtype='<f'):

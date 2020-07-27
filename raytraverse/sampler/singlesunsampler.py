@@ -26,12 +26,13 @@ class SingleSunSampler(Sampler):
         sun class containing sun locations.
     """
 
-    def __init__(self, scene, suns, sidx, sb, speclevel=9, fdres=10,
-                 accuracy=.01, **kwargs):
+    def __init__(self, scene, suns, sidx, sb, skyfield=None, speclevel=9,
+                 fdres=10, accuracy=.01, **kwargs):
         #: np.array: sun position x,y,z
         self.sunpos = suns.suns[sidx]
         #: int: sun index of sunpos from associated SunSetter (for naming)
         self.sidx = sidx
+        self.sbin = sb
         #: float: controls sampling limit in case of limited contribution
         self.slimit = suns.srct * .03
         dec, mod = suns.write_sun(sidx)
@@ -55,15 +56,18 @@ class SingleSunSampler(Sampler):
     @specularpdf.setter
     def specularpdf(self, sb):
         shape = np.concatenate((self.scene.ptshape, self.levels[self.specidx]))
-        fi = f"{self.scene.outdir}/sunpdfs/{self.sidx:04d}_{sb:04d}.npy"
-        try:
-            skypdf = np.load(fi)
-        except FileNotFoundError:
-            raise FileNotFoundError(f'cannot initialize without pdf, {fi} '
-                                    'does not exist')
+        fi = f"{self.scene.outdir}/sunpdfidxs.npy"
+        if os.path.isfile(fi):
+            idxs = np.load(fi)
         else:
-            print(skypdf.shape, shape)
-            self._specularpdf = np.clip(translate.resample(skypdf, shape), 0, 1)
+            idxs = helpers.skybin_idx(skyfield, self.levels[self.specidx])
+
+        skyfield.lum.full_array = skyfield.lum.constructors()
+        constructor = skyfield.lum.full_constructor
+        cs = constructor[-1]
+        fconstructor = constructor[:-1] + ((cs[1], cs[0]),)
+
+        self._specularpdf = np.clip(translate.resample(skypdf, shape), 0, 1)
 
     def sample(self, vecs,
                rcopts='-aa 0 -ab 7 -ad 8096 -as 0 -lw 1e-5 -st 0 -ss 16',
@@ -93,7 +97,7 @@ class SingleSunSampler(Sampler):
         rc = f"rtrace -fff {rcopts} -h -n {nproc} {self.compiledscene}"
         return super().sample(vecs, call=rc)
 
-    @profile
+    # @profile
     def draw(self):
         """draw samples based on detail calculated from weights
         detail is calculated across direction only as it is the most precise

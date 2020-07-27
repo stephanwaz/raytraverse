@@ -28,7 +28,7 @@ class SunSampler(object):
         #: raytraverse.sampler.SunViewSampler
         self.viewsampler = SunViewSampler(scene, suns)
         #: dict: sampling arguments for SingleSunSampler
-        self.sampleargs = dict(idres=10, fdres=12, maxrate=.01, minrate=.005)
+        self.sampleargs = dict(idres=4, fdres=10, speclevel=9, accuracy=.01)
         sunuv = translate.xyz2uv(self.suns.suns)
         scheme = np.load(f'{self.scene.outdir}/sky_scheme.npy').astype(int)
         side = int(np.sqrt(scheme[0, 4]))
@@ -49,4 +49,4 @@ class SunSampler(object):
                 print(f'Sun Position: {self.suns.suns[sidx]}')
                 self.reflsampler = SingleSunSampler(self.scene, self.suns, sidx,
                                                     sb, **self.sampleargs)
-                self.reflsampler.run(rcopts=rcopts)
+                self.reflsampler.run(rcopts=rcopts, **kwargs)

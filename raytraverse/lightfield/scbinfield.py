@@ -15,22 +15,15 @@ class SCBinField(LightFieldKD):
     each source
     """
 
-    @property
-    def vlo(self):
-        """sky data indexed by (point)
-
-        item per point: direction vector (3,) luminance (srcn,), omega (1,)
-
-        :type: list of np.array
-        """
-        return self._vlo
+    def __init__(self, scene, rebuild=False, prefix='sky'):
+        super().__init__(scene, rebuild=rebuild, prefix=prefix,
+                         srcn=scene.skyres**2)
 
     def apply_coef(self, pi, coefs):
-        srcn = self.scene.skyres**2
         coefs = np.asarray(coefs)
-        if np.mod(coefs.size, srcn) == 0:
-            c = coefs.reshape(-1, srcn)
+        if np.mod(coefs.size, self.srcn) == 0:
+            c = coefs.reshape(-1, self.srcn)
         else:
-            c = np.broadcast_to(coefs, (coefs.size, srcn))
-        return np.einsum('ij,kj->ik', c, self.vlo[pi][:, 3:-1])
+            c = np.broadcast_to(coefs, (coefs.size, self.srcn))
+        return np.einsum('ij,kj->ik', c, self.lum[pi])
 

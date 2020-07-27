@@ -147,7 +147,8 @@ class Sampler(object):
             raise NotImplementedError(f'{self.__class__} does'
                                       ' not have a valid sample method')
         outf = f'{self.scene.outdir}/{self.stype}_vals.out'
-        lum = io.call_sampler(outf, call, vecs)
+        shape = (vecs.shape[0], self.srcn, 3)
+        lum = io.call_sampler(outf, call, vecs, shape)
         return lum
 
     def _uv2xyz(self, uv, si):

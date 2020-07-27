@@ -8,13 +8,25 @@
 # =======================================================================
 
 """helper functions and classes"""
+import collections
 import os
+from abc import ABC
+from concurrent.futures import ProcessPoolExecutor
 from datetime import datetime, timezone
 import subprocess
 
 import numpy as np
-from scipy.spatial import SphericalVoronoi, cKDTree
+from scipy.spatial import SphericalVoronoi, cKDTree, _voronoi
 import raytraverse
+from raytraverse import quickplot
+
+
+class SVoronoi(SphericalVoronoi):
+    def sort_vertices_of_regions(self):
+        if self._dim != 3:
+            raise TypeError("Only supported for three-dimensional point sets")
+        reg = [r for r in self.regions if len(r) > 0]
+        _voronoi.sort_vertices_of_regions(self._simplices, reg)
 
 
 class ArrayDict(dict):
@@ -28,16 +40,55 @@ class ArrayDict(dict):
                           np.reshape(item, (-1, self.tsize))])
 
 
-def sunfield_load_item(vlsun, i, j, maxspec):
-    """function for pool processing sunfield results"""
-    # remove accidental direct hits
-    notsps = vlsun[:, 3] < maxspec
-    vecs = vlsun[notsps, 0:3]
-    lums = vlsun[notsps, 3, None]
-    omega = SphericalVoronoi(vecs).calculate_areas()[:, None]
-    vlo = np.hstack((vecs, lums, omega))
-    d_kd = cKDTree(vecs)
-    return (j, i), vlo, d_kd
+class MemArrayList(list):
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.full_constructor = None
+        self.full_array = self.constructors()
+
+    @property
+    def full_array(self):
+        return self._map(self.full_constructor)
+
+    @full_array.setter
+    def full_array(self, constructors):
+        fulli = None
+        shape = 0
+        strides = [0]
+        for i in constructors:
+            if fulli is None:
+                fulli = list(i)
+            shape += i[4][0]
+            strides.append(shape)
+        fulli[4] = (shape, fulli[4][1])
+        self.full_constructor = tuple(fulli)
+        self.index_strides = tuple(strides)
+
+    @staticmethod
+    def _map(i):
+        return np.memmap(i[0], dtype=i[1], mode=i[2], offset=i[3], shape=i[4])
+
+    def __getitem__(self, item):
+        return self._map(super().__getitem__(item))
+
+    def __iter__(self):
+        return (self._map(item) for item in super().__iter__())
+
+    def constructors(self):
+        return (item for item in super().__iter__())
+
+
+class MemArrayDict(dict):
+    @staticmethod
+    def _map(i):
+        return np.memmap(i[0], dtype=i[1], mode=i[2], offset=i[3], shape=i[4])
+
+    def __getitem__(self, item):
+        return self._map(super().__getitem__(item))
+
+    def __iter__(self):
+        return (self._map(item) for item in super().__iter__())
 
 
 def oconvline(scene):
@@ -75,3 +126,36 @@ def draw_from_pdf(pdf, threshold):
     candidates = np.arange(pdf.size, dtype=np.uint32)[clip]
     return np.random.default_rng().choice(candidates, nsampc, replace=False,
                                           p=pnorm)
+
+
+def mk_vector_ball(v):
+    d_kd = cKDTree(v)
+    omega = SVoronoi(v).calculate_areas()[:, None]
+    return d_kd, omega
+
+
+def skybin_pdf(outf, idxs, constructor, sb, shape, maxspec=0.3):
+    lums = np.memmap(*constructor, order='F')[sb]
+    # lums[np.greater(lums, maxspec)] = 0
+    print('set')
+    f = open(outf, 'wb')
+    np.save(f, lums[idxs].reshape(shape))
+    f.close()
+    print('saved')
+    return outf
+
+
+def skybin_idx(skyfield, shape):
+    si = np.stack(np.unravel_index(np.arange(np.product(shape)), shape))
+    uv = (si.T + .5)/shape[1]
+    grid = skyfield.scene.view.uv2xyz(uv)
+    futures = []
+    strides = skyfield.lum.index_strides
+    with ProcessPoolExecutor() as exc:
+        for pt in range(len(skyfield.vec)):
+            futures.append(exc.submit(skyfield.d_kd[pt].query, grid))
+    idxs = []
+    for fu, stride in zip(futures, strides):
+        r = fu.result()
+        idxs.append(fu.result()[1] + stride)
+    return np.vstack(idxs)

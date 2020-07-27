@@ -7,12 +7,15 @@
 # =======================================================================
 import os
 import pickle
-from concurrent.futures import ThreadPoolExecutor, as_completed
+from concurrent.futures import ThreadPoolExecutor, as_completed, \
+    ProcessPoolExecutor
+
+from memory_profiler import profile
 
 import numpy as np
-from scipy.spatial import cKDTree, SphericalVoronoi
+from raytraverse.helpers import mk_vector_ball, MemArrayList
 
-from raytraverse import io, optic, translate
+from raytraverse import io, translate
 from raytraverse.lightfield.lightfield import LightField
 
 
@@ -43,19 +46,29 @@ class LightFieldKD(LightField):
         """Set this field's scene and load samples"""
         self._scene = scene
         kdfile = f'{scene.outdir}/{self.prefix}_kd_data.pickle'
-        if os.path.isfile(kdfile) and not self.rebuild:
+        lumfile = f'{scene.outdir}/{self.prefix}_kd_lum_map.pickle'
+        if (os.path.isfile(kdfile) and os.path.isfile(lumfile)
+                and not self.rebuild):
             f = open(kdfile, 'rb')
             self._d_kd = pickle.load(f)
-            self._vlo = pickle.load(f)
+            self._vec = pickle.load(f)
+            self._omega = pickle.load(f)
+            f.close()
+            f = open(lumfile, 'rb')
+            self._lum = pickle.load(f)
             f.close()
         else:
-            self._d_kd, self._vlo = self._mk_tree()
+            self._d_kd, self._vec, self._omega, self._lum = self._mk_tree()
             f = open(kdfile, 'wb')
             pickle.dump(self.d_kd, f, protocol=4)
-            pickle.dump(self.vlo, f, protocol=4)
+            pickle.dump(self.vec, f, protocol=4)
+            pickle.dump(self.omega, f, protocol=4)
+            f.close()
+            f = open(lumfile, 'wb')
+            pickle.dump(self._lum, f, protocol=4)
             f.close()
 
-    def _get_vl(self, npts, pref=''):
+    def _get_vl(self, npts, pref='', ltype=MemArrayList):
         dfile = f'{self.scene.outdir}/{self.prefix}{pref}_vals.out'
         vfile = f'{self.scene.outdir}/{self.prefix}{pref}_vecs.out'
         if not (os.path.isfile(dfile) and os.path.isfile(vfile)):
@@ -64,32 +77,41 @@ class LightFieldKD(LightField):
                                     f" scene {self.scene.outdir}?")
         fvecs = io.bytefile2np(open(vfile, 'rb'), (-1, 4))
         sorting = fvecs[:, 0].argsort()
-        fvals = optic.rgb2rad(io.bytefile2np(open(dfile, 'rb'), (-1, 3)))
-        fvals = fvals.reshape(fvecs.shape[0], -1)[sorting]
         fvecs = fvecs[sorting]
         pidx = fvecs[:, 0]
         pt_div = np.searchsorted(pidx, np.arange(npts), side='right')
         pt0 = 0
-        vl = []
-        for i, pt in enumerate(pt_div):
-            vl.append(np.hstack((fvecs[pt0:pt, 1:4], fvals[pt0:pt])))
-            pt0 = pt
-        return vl
+        vecs = []
+        lums = []
+        lumfile = f'{self.scene.outdir}/{self.prefix}_kd_lum.dat'
+        margs = (lumfile, '<f', 'r')
+        oshape = (fvecs.shape[0], self.srcn)
+        lummem = np.memmap(lumfile, mode='w+', dtype='<f', shape=oshape)
+        del lummem
+        ishape = (fvecs.shape[0], self.srcn, 3)
+        with ThreadPoolExecutor() as exc:
+            for i, pt in enumerate(pt_div):
+                vecs.append(fvecs[pt0:pt, 1:4])
+                slc = sorting[pt0:pt]
+                lums.append(exc.submit(io.einsum_mem2mem, dfile, ishape,
+                                       lumfile, offset=4*pt0*self.srcn,
+                                       islice=slc))
+                pt0 = pt
+        lummap = ltype([])
+        for lm in lums:
+            lummap.append((*margs, *lm.result()))
+        return vecs, lummap
 
-    def _mk_tree(self):
+    def _mk_tree(self, pref='', ltype=MemArrayList):
         npts = np.product(self.scene.ptshape)
-        vls = self._get_vl(npts)
-        d_kd = []
-        vlo = []
-        for vl in vls:
-            d_kd.append(cKDTree(vl[:, 0:3]))
-            omega = SphericalVoronoi(vl[:, 0:3]).calculate_areas()[:, None]
-            vlo.append(np.hstack((vl, omega)))
-        return d_kd, vlo
+        vs, lums = self._get_vl(npts, pref=pref, ltype=ltype)
+        with ProcessPoolExecutor() as exc:
+            d_kd, omega = zip(*exc.map(mk_vector_ball, vs))
+        return d_kd, vs, omega, lums
 
     def apply_coef(self, pi, coefs):
         c = np.asarray(coefs).reshape(-1, 1)
-        return np.einsum('ij,kj->ik', c, self.vlo[pi][:, 3:-1])
+        return np.einsum('ij,kj->ik', c, self.lum[pi])
 
     def add_to_img(self, img, mask, pi, i, d, coefs=1, vm=None):
         lum = self.apply_coef(pi, coefs)
@@ -107,8 +129,8 @@ class LightFieldKD(LightField):
             idx = self.query_ball(pi, vdirs)
             illum = []
             for j, i in enumerate(idx):
-                v = self.vlo[pi][i, 0:3]
-                o = self.vlo[pi][i, -1]
+                v = self.vec[pi][i]
+                o = self.omega[pi][i]
                 illum.append(np.einsum('j,ij,j,->i', vm.ctheta(v, j), lm[:, i],
                                        o, scale))
             illums.append(illum)
@@ -131,7 +153,7 @@ class LightFieldKD(LightField):
             vm = self.scene.view
             img = np.repeat(img[None, ...], 3, 0)
             vi = self.query_ball(idx, vm.dxyz, vm.viewangle)
-            v = self.vlo[idx][vi[0], 0:3]
+            v = self.vec[idx][vi[0]]
             reverse = vm.degrees(v) > 90
             pa = vm.ivm.ray2pixel(v[reverse], res)
             pa[:, 0] += res
