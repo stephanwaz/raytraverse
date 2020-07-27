@@ -153,6 +153,7 @@ def suns(ctx, **kwargs):
 @click.option('--view/--no-view', default=True)
 @click.option('--ambcache/--no-ambcache', default=True)
 @click.option('--reflection/--no-reflection', default=True)
+@click.option('--plotp/--no-plotp', default=False)
 @clk.shared_decs(clk.command_decs(raytraverse.__version__, wrap=True))
 def sunrun(ctx, **kwargs):
     """run sunsampler"""

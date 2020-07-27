@@ -97,10 +97,10 @@ class LightFieldKD(LightField):
                                        lumfile, offset=4*pt0*self.srcn,
                                        islice=slc))
                 pt0 = pt
-        lummap = ltype([])
+        lummap = []
         for lm in lums:
             lummap.append((*margs, *lm.result()))
-        return vecs, lummap
+        return vecs, ltype(lummap)
 
     def _mk_tree(self, pref='', ltype=MemArrayList):
         npts = np.product(self.scene.ptshape)

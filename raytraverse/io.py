@@ -13,8 +13,6 @@ from subprocess import Popen, PIPE
 
 import numpy as np
 
-from raytraverse import optic
-
 
 def call_sampler(outf, command, vecs, shape):
     """make subprocess call to sampler given as command, expects rgb value
@@ -41,8 +39,7 @@ def call_sampler(outf, command, vecs, shape):
     lum_file_pos = f.tell()
     p = Popen(shlex.split(command), stdout=f, stdin=PIPE)
     p.communicate(np2bytes(vecs))
-    f.seek(lum_file_pos)
-    lum = bytefile2rad(f, shape, subs='ijk,k->i')
+    lum = bytefile2rad(f, shape, subs='ijk,k->ij', offset=lum_file_pos)
     return lum
 
 
@@ -56,8 +53,8 @@ def call_generic(commands, n=1):
     return np.fromstring(a, sep=' ').reshape(-1, n)
 
 
-def bytefile2rad(f, shape, slc=None, subs='ijk,k->ij'):
-    memarray = np.memmap(f, dtype='<f', mode='r', shape=shape)
+def bytefile2rad(f, shape, slc=..., subs='ijk,k->ij', offset=0):
+    memarray = np.memmap(f, dtype='<f', mode='r', shape=shape, offset=offset)
     return np.einsum(subs, memarray[slc], [0.265, 0.670, 0.065])
 
 

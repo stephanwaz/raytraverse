@@ -9,7 +9,7 @@ import pickle
 
 import numpy as np
 
-from raytraverse import io, translate
+from raytraverse import io, translate, quickplot, helpers
 from raytraverse.sampler import Sampler
 
 
@@ -28,13 +28,12 @@ class SunViewSampler(Sampler):
         sun class containing sun locations.
     """
 
-    def __init__(self, scene, suns):
+    def __init__(self, scene, suns, **kwargs):
         self.suns = suns
         sunfile = f"{scene.outdir}/suns.rad"
-        super().__init__(scene, stype='sunview', idres=4, fdres=6, t0=0, t1=0,
-                         minrate=.05, srcdef=sunfile, maxrate=1)
+        super().__init__(scene, stype='sunview', idres=4, fdres=6,
+                         srcdef=sunfile, **kwargs)
         self.samplemap = self.suns.map
-        self.init_weights()
 
     @property
     def levels(self):
@@ -52,7 +51,7 @@ class SunViewSampler(Sampler):
         self._levels = np.array([(self.suns.suns.shape[0], 2**i, 2**i)
                                  for i in range(self.idres, fdres + 1, 1)])
 
-    def init_weights(self):
+    def check_viz(self):
         shape = np.concatenate((self.scene.ptshape,
                                 (self.scene.view.aspect*1024, 1024)))
         try:
@@ -67,9 +66,9 @@ class SunViewSampler(Sampler):
         suni = translate.uv2ij(sunuv[inview], 1024).T
         s = np.s_[..., suni[0], suni[1]]
         isviz = vis[s] > self.suns.srct/2
-        suns = np.zeros((*isviz.shape, 8, 8))
+        suns = np.zeros((*isviz.shape, *self.weights.shape[-2:]))
         suns[isviz, :, :] = 1
-        self.weights = suns
+        return suns
 
     def sample(self, vecs, rcopts='-ab 0',
                nproc=12):
@@ -90,7 +89,7 @@ class SunViewSampler(Sampler):
             array of shape (N,) to update weights
         """
         rc = f"rtrace -fff {rcopts} -h -n {nproc} {self.compiledscene}"
-        return super().sample(vecs, call=rc)
+        return super().sample(vecs, call=rc).ravel()
 
     def _uv2xyz(self, uv, si):
         return self.samplemap.uv2xyz(uv, si[2])
@@ -112,6 +111,15 @@ class SunViewSampler(Sampler):
         f.write(io.np2bytes(np.vstack((ptidx.reshape(1, -1),
                                        sunidx.reshape(1, -1), vecs.T)).T))
         f.close()
+
+    def draw(self):
+        """draw first level based on sky visibility"""
+        if self.idx == 0:
+            p = self.check_viz().ravel()
+            pdraws = helpers.draw_from_pdf(p, .5)
+        else:
+            pdraws = super().draw()
+        return pdraws
 
     def run_callback(self):
         """post sampling, right full resolution (including interpolated values)

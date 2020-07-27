@@ -44,7 +44,7 @@ class Sampler(object):
         otherwise overwrites with call to run
     """
 
-    def __init__(self, scene, fdres=9, srcn=1, accuracy=.01, idres=4,
+    def __init__(self, scene, fdres=9, srcn=1, accuracy=1, idres=4,
                  stype='generic', append=False, srcdef=None, plotp=False,
                  **kwargs):
         self.scene = scene
@@ -219,7 +219,8 @@ class Sampler(object):
                 quickplot.imshow(np.log10(p.reshape(self.weights.shape)[0, 0]),
                                  [20, 10])
             # draw on pdf
-            threshold = self.accuracy * 4**(1 + self.idx - len(self.levels))
+            threshold = self.accuracy * 4**(self.idx - len(self.levels))
+            np.set_printoptions(4, suppress=True)
             pdraws = helpers.draw_from_pdf(p, threshold)
         return pdraws
 
@@ -273,6 +274,8 @@ class Sampler(object):
             self.idx = i
             self.weights = translate.resample(self.weights, shape)
             draws = self.draw()
+            if draws is None:
+                break
             self.levelsamples[self.idx] = draws.size
             si, vecs = self.sample_idx(draws)
             srate = si.shape[1]/np.prod(shape)

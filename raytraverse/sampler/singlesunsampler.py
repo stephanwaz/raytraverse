@@ -10,6 +10,7 @@ import os
 import numpy as np
 
 from raytraverse import translate, quickplot, helpers
+from raytraverse.lightfield import SCBinField
 from raytraverse.sampler.sampler import Sampler
 
 from memory_profiler import profile
@@ -26,48 +27,59 @@ class SingleSunSampler(Sampler):
         sun class containing sun locations.
     """
 
-    def __init__(self, scene, suns, sidx, sb, skyfield=None, speclevel=9,
-                 fdres=10, accuracy=.01, **kwargs):
+    def __init__(self, scene, suns, sidx, sb=None, speclevel=9,
+                 fdres=10, accuracy=.01, keepamb=False, **kwargs):
         #: np.array: sun position x,y,z
         self.sunpos = suns.suns[sidx]
         #: int: sun index of sunpos from associated SunSetter (for naming)
         self.sidx = sidx
+        if sb is None:
+            sb = translate.uv2bin(translate.xyz2uv(self.sunpos[None, :], flipu=False),
+                                  scene.skyres).astype(int)[0]
         self.sbin = sb
         #: float: controls sampling limit in case of limited contribution
-        self.slimit = suns.srct * .03
+        self.slimit = suns.srct * .1
         dec, mod = suns.write_sun(sidx)
-        anorm = accuracy * np.pi * (1 - np.cos(.533*np.pi/360))
+        anorm = accuracy * scene.skyres * (1 - np.cos(.533*np.pi/360))
         super().__init__(scene, stype=f"sun_{sidx:04d}", fdres=fdres,
                          accuracy=anorm, srcdef=dec, **kwargs)
         self.specidx = speclevel - self.idres
-        self.specularpdf = sb
+        self._keepamb = keepamb
 
     def __del__(self):
         try:
-            os.remove(self.compiledscene.replace('.oct', '.amb'))
+            if not self._keepamb:
+                os.remove(self.compiledscene.replace('.oct', '.amb'))
         except (IOError, TypeError):
             pass
         super().__del__()
 
-    @property
-    def specularpdf(self):
-        return self._specularpdf
-
-    @specularpdf.setter
-    def specularpdf(self, sb):
-        shape = np.concatenate((self.scene.ptshape, self.levels[self.specidx]))
-        fi = f"{self.scene.outdir}/sunpdfidxs.npy"
-        if os.path.isfile(fi):
-            idxs = np.load(fi)
+    def pdf_from_sky(self, skyfield, interp=12, rebuild=False, zero=True):
+        ishape = np.concatenate((self.scene.ptshape,
+                                 self.levels[self.specidx-2]))
+        shape = np.concatenate((self.scene.ptshape,
+                                self.levels[self.specidx]))
+        fi = f"{self.scene.outdir}/sunpdfidxs.npz"
+        if os.path.isfile(fi) and not rebuild:
+            f = np.load(fi)
+            idxs = f['arr_0']
+            errs = f['arr_1']
         else:
-            idxs = helpers.skybin_idx(skyfield, self.levels[self.specidx])
-
-        skyfield.lum.full_array = skyfield.lum.constructors()
-        constructor = skyfield.lum.full_constructor
-        cs = constructor[-1]
-        fconstructor = constructor[:-1] + ((cs[1], cs[0]),)
-
-        self._specularpdf = np.clip(translate.resample(skypdf, shape), 0, 1)
+            idxs, errs = helpers.skybin_idx(skyfield,
+                                            self.levels[self.specidx-2],
+                                            interp=interp)
+            np.savez(fi, idxs, errs)
+        column = skyfield.lum.full_array[:, self.sbin]
+        if zero:
+            cdata = np.where(column > self.scene.maxspec, 0, column)
+        else:
+            cdata = np.copy(column)
+        del column
+        if interp > 1:
+            lum = np.average(cdata[idxs], -1, weights=1/errs)
+        else:
+            lum = cdata[idxs]
+        return translate.resample(lum.reshape(ishape), shape)
 
     def sample(self, vecs,
                rcopts='-aa 0 -ab 7 -ad 8096 -as 0 -lw 1e-5 -st 0 -ss 16',
@@ -95,7 +107,7 @@ class SingleSunSampler(Sampler):
             afile = self.compiledscene.replace('.oct', '.amb')
             rcopts += f' -af {afile}'
         rc = f"rtrace -fff {rcopts} -h -n {nproc} {self.compiledscene}"
-        return super().sample(vecs, call=rc)
+        return super().sample(vecs, call=rc).ravel()
 
     # @profile
     def draw(self):
@@ -109,7 +121,8 @@ class SingleSunSampler(Sampler):
             index array of flattened samples chosen to sample at next level
         """
         if self.idx == self.specidx:
-            p = self.specularpdf.ravel()
+            skyfield = SCBinField(self.scene)
+            p = self.pdf_from_sky(skyfield).ravel()
             if self.plotp:
                 quickplot.imshow(p.reshape(self.weights.shape)[0, 0], [20, 10])
             pdraws = helpers.draw_from_pdf(p, self.slimit)

@@ -30,8 +30,11 @@ def get_detail(samps, axes):
     """run high pass filter over given axes"""
 
     # filterbank with pad and offset slice centers distribution around variance
-    wav = pywt.Wavelet('custom4', ([.5, 1, .5, 0], [-.5, 1, -.5, 0],
-                                   [0, .5, 1, .5], [-.5, 1, .5, 0]))
+    wav = pywt.Wavelet('custom4', ([0.40824829, 0.81649658, 0.40824829, 0.],
+                                   [-0.40824829, 0.81649658, -0.40824829, 0],
+                                   [0, 0.40824829, 0.81649658, 0.40824829],
+                                   [-0.40824829, 0.81649658, 0.40824829, 0]))
+    wav.orthogonal = True
     # mod adds extra padding to ensure evenness of transformed dimensions
     padding = [(2, 2 + int(np.mod(s, 2))) if i in axes else (0, 0) for i, s in
                enumerate(samps.shape)]
@@ -45,6 +48,6 @@ def get_detail(samps, axes):
     d = np.asarray(tuple(d[1].values()))[slicing]
     # sum over detail and normalize (useful for non parametric sampling rates)
     # the detail can be read as delta luminance around that pixel
-    d_det = np.sum(np.abs(d), 0).ravel()*(1/len(axes))
+    d_det = np.sum(np.abs(d), 0).ravel() * 3
     m = np.nanmean(d_det)
     return np.where(np.isfinite(d_det), d_det, m)

@@ -22,14 +22,15 @@ class SunSampler(object):
         sun class containing sun locations.
     """
 
-    def __init__(self, scene, suns, **kwargs):
+    def __init__(self, scene, suns, plotp=False, **kwargs):
         self.scene = scene
         self.suns = suns
+        self.plotp = plotp
         #: raytraverse.sampler.SunViewSampler
-        self.viewsampler = SunViewSampler(scene, suns)
+        self.viewsampler = SunViewSampler(scene, suns, plotp=False)
         #: dict: sampling arguments for SingleSunSampler
-        self.sampleargs = dict(idres=4, fdres=10, speclevel=9, accuracy=.01)
-        sunuv = translate.xyz2uv(self.suns.suns)
+        self.sampleargs = dict(idres=4, fdres=10, speclevel=9, plotp=plotp)
+        sunuv = translate.xyz2uv(self.suns.suns, flipu=False)
         scheme = np.load(f'{self.scene.outdir}/sky_scheme.npy').astype(int)
         side = int(np.sqrt(scheme[0, 4]))
         #: np.array: sun bins for each sun position (used to match naming)

@@ -26,15 +26,14 @@ class SCBinSampler(Sampler):
         side of square sky resolution
     """
 
-    def __init__(self, scene, accuracy=.01, **kwargs):
+    def __init__(self, scene, accuracy=1, **kwargs):
         f = open(f'{scene.outdir}/scbins.cal', 'w')
         f.write(translate.scbinscal)
         f.close()
         skydeg = ("void glow skyglow 0 0 4 1 1 1 0 skyglow source sky 0 0 4"
                   " 0 0 1 180")
-        anorm = accuracy*np.pi
         super().__init__(scene, srcn=scene.skyres**2, stype='sky', srcdef=skydeg,
-                         accuracy=anorm, **kwargs)
+                         accuracy=accuracy, **kwargs)
 
     def __del__(self):
         super().__del__()
@@ -68,7 +67,7 @@ class SCBinSampler(Sampler):
               f"{self.scene.outdir}/scbins.cal -b bin -bn {self.srcn} "
               f"-m skyglow {self.compiledscene}")
         lum = super().sample(vecs, call=rc)
-        return np.max(lum.reshape(-1, self.srcn), 1)
+        return np.max(lum, 1)
 
     def run_callback(self):
         outf = f'{self.scene.outdir}/{self.stype}_vis'

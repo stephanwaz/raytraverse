@@ -40,12 +40,12 @@ class ArrayDict(dict):
                           np.reshape(item, (-1, self.tsize))])
 
 
-class MemArrayList(list):
+class MemArrayList(tuple):
 
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.full_constructor = None
-        self.full_array = self.constructors()
+    def __new__(cls, arg):
+        out = super().__new__(cls, arg)
+        out.full_array = out.constructors()
+        return out
 
     @property
     def full_array(self):
@@ -120,7 +120,10 @@ def header(scene):
 
 
 def draw_from_pdf(pdf, threshold):
+    np.set_printoptions(5, suppress=True)
     nsampc = int(np.sum(pdf > threshold))
+    if nsampc == 0:
+        return None
     clip = pdf > threshold/2
     pnorm = pdf[clip]/np.sum(pdf[clip])
     candidates = np.arange(pdf.size, dtype=np.uint32)[clip]
@@ -145,7 +148,7 @@ def skybin_pdf(outf, idxs, constructor, sb, shape, maxspec=0.3):
     return outf
 
 
-def skybin_idx(skyfield, shape):
+def skybin_idx(skyfield, shape, interp=1):
     si = np.stack(np.unravel_index(np.arange(np.product(shape)), shape))
     uv = (si.T + .5)/shape[1]
     grid = skyfield.scene.view.uv2xyz(uv)
@@ -153,9 +156,11 @@ def skybin_idx(skyfield, shape):
     strides = skyfield.lum.index_strides
     with ProcessPoolExecutor() as exc:
         for pt in range(len(skyfield.vec)):
-            futures.append(exc.submit(skyfield.d_kd[pt].query, grid))
+            futures.append(exc.submit(skyfield.d_kd[pt].query, grid, interp))
     idxs = []
+    errs = []
     for fu, stride in zip(futures, strides):
         r = fu.result()
-        idxs.append(fu.result()[1] + stride)
-    return np.vstack(idxs)
+        idxs.append(r[1] + stride)
+        errs.append(r[0])
+    return np.vstack(idxs), np.vstack(errs)
