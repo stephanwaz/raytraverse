@@ -16,7 +16,6 @@ from clasp import script_tools as cst
 from clasp.click_callbacks import parse_file_list
 from scipy.spatial import cKDTree
 
-from raytraverse import skycalc, translate
 from raytraverse.mapper import SpaceMapper, ViewMapper
 
 
@@ -36,26 +35,10 @@ class Scene(object):
         overrides 'overwrite'
     overwrite: bool, optional
         if True and outdir exists, will overwrite, else raises a FileExistsError
-    wea: str, optional
-        path to epw or wea file, if loc not set attempts to extract location
-        data
-    loc: (float, float, int), optional
-        location data given as lat, lon, mer with + west of prime meridian
-        overrides location data in wea
     ptres: float, optional
         final spatial resolution in scene geometry units
     ptro: float, optional
         angle in degrees counter-clockwise to point grid
-    skyro: float, optional
-        angle in degrees counter-clockwise to rotate sky
-        (to correct model north, equivalent to clockwise rotation of scene)
-    weaformat: {'time', 'angle'}, optional
-        specify format of wea file:
-            - 'time' - wea or epw file with or without header (requires loc)
-              (default)
-            - 'angle' - file format four number per line whitespace seperated
-              (altitude, azimuth, direct normal radiation (W/m^2),
-              diffuse horizontal radiation (W/m^2))
     viewdir: (float, float, float), optional
         vector (x,y,z) view direction (orients UV space)
     viewangle: float, optional
@@ -67,10 +50,9 @@ class Scene(object):
         (used to clip pdf for sun sampling)
     """
 
-    def __init__(self, outdir, scene=None, area=None, reload=False,
-                 overwrite=False, wea=None, loc=None, ptres=1.0, ptro=0.0,
-                 skyro=0.0, weaformat='time', viewdir=(0, 1, 0), viewangle=360,
-                 skyres=10.0, maxspec=0.3, **kwargs):
+    def __init__(self, outdir, scene=None, area=None, reload=True,
+                 overwrite=False, ptres=1.0, ptro=0.0, viewdir=(0, 1, 0),
+                 viewangle=360, skyres=10.0, maxspec=0.3, **kwargs):
         try:
             os.mkdir(outdir)
         except FileExistsError as e:
@@ -81,16 +63,10 @@ class Scene(object):
                 os.mkdir(outdir)
             else:
                 raise e
-        if weaformat.lower() not in ['time', 'angle']:
-            raise ValueError("Invalid weaformat, choose from: 'time', 'angle'")
-        #: {'time', 'angle'}: expected format for sky data
-        self.weaformat = weaformat.lower()
         #: bool: try to reload scene files
         self.reload = reload
         #: float: ccw rotation (in degrees) for point grid on plane
         self.ptro = ptro
-        #: float: ccw rotation (in degrees) for sky
-        self.skyro = skyro
         #: str: path to store scene info and output files
         self.outdir = outdir
         #: float: point resolution for area
@@ -98,8 +74,6 @@ class Scene(object):
         #: float: maximum specular transmission in scene
         self.maxspec = maxspec
         self._solarbounds = None
-        self.loc = loc
-        self.skydata = wea
         self.scene = scene
         self.area = area
         self.reload = False
@@ -186,51 +160,6 @@ class Scene(object):
         self._ptshape = np.maximum(np.floor(size - self.ptres), 1).astype(int)
 
     @property
-    def skydata(self):
-        """analysis area
-
-        :getter: Returns this scene's skydata
-        :setter: Sets this scene's skydata from file path
-        :type: np.array
-        """
-        return self._skydata
-
-    @skydata.setter
-    def skydata(self, wea):
-        sd = f'{self.outdir}/skydat.txt'
-        if self.loc is None:
-            try:
-                self.loc = skycalc.get_loc_epw(wea)
-            except ValueError:
-                pass
-        if self.reload and os.path.isfile(sd):
-            try:
-                self._skydata = np.loadtxt(sd)
-            except OSError:
-                self._skydata = None
-        elif wea is not None:
-            if self.weaformat == 'time':
-                wdat = skycalc.read_epw(wea)
-                times = skycalc.row_2_datetime64(wdat[:, 0:3])
-                angs = skycalc.sunpos_degrees(times, *self.loc, ro=self.skyro)
-                self._skydata = np.hstack((angs, wdat[:, 3:]))
-            else:
-                self._skydata = np.loadtxt(wea)
-            np.savetxt(sd, self._skydata)
-        else:
-            self._skydata = None
-
-    @property
-    def solarbounds(self):
-        """read only extent of solar bounds for given location
-        set via loc
-
-        :getter: Returns solar bounds
-        :type: (np.array, np.array)
-        """
-        return self._solarbounds
-
-    @property
     def pt_kd(self):
         """point kdtree for spatial queries"""
         if self._pt_kd is None:
@@ -241,38 +170,6 @@ class Scene(object):
     def pt_kd(self, pt_kd):
         self._pt_kd = pt_kd
 
-    @property
-    def loc(self):
-        """scene location
-
-        :getter: Returns location
-        :setter: Sets location and self.solarbounds
-        :type: (float, float, int)
-        """
-        return self._loc
-
-    @loc.setter
-    def loc(self, loc):
-        """
-        generate UV coordinates for jun 21 and dec 21 to use for masking
-        sky positions
-        """
-        self._loc = loc
-        if loc is not None:
-            jun = np.arange('2020-06-21', '2020-06-22', 5,
-                            dtype='datetime64[m]')
-            dec = np.arange('2020-12-21', '2020-12-22', 5,
-                            dtype='datetime64[m]')
-            jxyz = skycalc.sunpos_xyz(jun, *loc, ro=self.skyro)
-            dxyz = skycalc.sunpos_xyz(dec, *loc, ro=self.skyro)
-            juv = translate.xyz2uv(jxyz[jxyz[:, 2] > 0], flipu=False)
-            duv = translate.xyz2uv(dxyz[dxyz[:, 2] > 0], flipu=False)
-            juv = juv[juv[:, 0].argsort()]
-            duv = duv[duv[:, 0].argsort()]
-            self._solarbounds = (juv, duv)
-        else:
-            self._solarbounds = None
-
     def idx2pt(self, idx):
         shape = self.ptshape
         si = np.stack(np.unravel_index(idx, shape)).T
@@ -281,34 +178,6 @@ class Scene(object):
     def pts(self):
         shape = self.ptshape
         return self.idx2pt(np.arange(np.product(shape)))
-
-    def in_solarbounds(self, uv, size=0.0):
-        """
-        for checking if src direction is in solar transit
-
-        Parameters
-        ----------
-        uv: np.array
-            source directions
-        size: float
-            offset around UV to test
-
-        Returns
-        -------
-        result: np.array
-            Truth of ray.src within solar transit
-        """
-        o = size/2
-        juv, duv = self.solarbounds
-        vlowleft = duv[np.searchsorted(duv[:, 0], uv[:, 0] - o) - 1]
-        vlowright = duv[np.searchsorted(duv[:, 0], uv[:, 0] - o) - 1]
-        vupleft = juv[np.searchsorted(juv[:, 0], uv[:, 0] + o) - 1]
-        vupright = juv[np.searchsorted(juv[:, 0], uv[:, 0] + o) - 1]
-        inbounds = np.stack((vlowleft[:, 1] <= uv[:, 1] - o,
-                             vlowright[:, 1] <= uv[:, 1] - o,
-                             uv[:, 1] + o <= vupleft[:, 1],
-                             uv[:, 1] + o <= vupright[:, 1]))
-        return np.all(inbounds, 0)
 
     def in_area(self, uv):
         """check if point is in boundary path

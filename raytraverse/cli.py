@@ -83,26 +83,6 @@ def scene(ctx, **kwargs):
             print(f'scene has {suncount} suns')
         except FileNotFoundError:
             print('sun setter not initialized')
-        print('\nSimulation Data:')
-        print('-'*60)
-        try:
-            if os.path.isfile(f'{s.outdir}/sky_vals.out'):
-                print('Sky simulation data exists!')
-                scheme = np.load(f'{s.outdir}/sky_scheme.npy').astype(int)
-                print(f'Sampling scheme:\n{scheme}')
-            else:
-                print('no simulation data exists!')
-                ctx.exit()
-            if os.path.isfile(f'{s.outdir}/sunview_vals.out'):
-                print('Sun view simulation data exists!')
-                print('Sun sampling file size: ' +
-                      str(os.path.getsize(f'{s.outdir}/sunview_vals.out')) +
-                      ' bytes')
-            else:
-                print('no sun view data')
-        except FileNotFoundError as e:
-            print(f'Bad simulation data, file should exist: {e}')
-            ctx.exit()
         print('\n Lightfield Data:')
         print('-'*60)
         print('Has sky lightfield data:',

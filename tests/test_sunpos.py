@@ -5,6 +5,8 @@
 import os
 import shutil
 from concurrent.futures.process import ProcessPoolExecutor
+import shlex
+from subprocess import Popen, PIPE
 
 import pytest
 from raytraverse import skycalc, translate, io
@@ -133,6 +135,16 @@ def test_perez(check):
     assert np.allclose(suni[check[1] > 0], check[1][check[1] > 0], atol=0.001, rtol=.001)
 
 
+def call_generic(commands, n=1):
+    pops = []
+    stdin = None
+    for c in commands:
+        pops.append(Popen(shlex.split(c), stdin=stdin, stdout=PIPE))
+        stdin = pops[-1].stdout
+    a = stdin.read()
+    return np.fromstring(a, sep=' ').reshape(-1, n)
+
+
 def test_sky_mtx(check):
     sxyz = check[0][:, -3:]
     suncheck = check[1]
@@ -142,7 +154,7 @@ def test_sky_mtx(check):
     print(lum.shape, grnd.shape)
     gsv = [f'genskyvec_sc -sc -m {side} -h -1 -b -s']*45
     with ProcessPoolExecutor() as exc:
-        cols = exc.map(io.call_generic, zip(coms, gsv))
+        cols = exc.map(call_generic, zip(coms, gsv))
     smtx = np.hstack(list(cols)).T
     irerr = (lum - smtx[:, 1:])/smtx[:, 1:]
     print('Sky Matrix:')

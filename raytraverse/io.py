@@ -43,16 +43,6 @@ def call_sampler(outf, command, vecs, shape):
     return lum
 
 
-def call_generic(commands, n=1):
-    pops = []
-    stdin = None
-    for c in commands:
-        pops.append(Popen(shlex.split(c), stdin=stdin, stdout=PIPE))
-        stdin = pops[-1].stdout
-    a = stdin.read()
-    return np.fromstring(a, sep=' ').reshape(-1, n)
-
-
 def bytefile2rad(f, shape, slc=..., subs='ijk,k->ij', offset=0):
     memarray = np.memmap(f, dtype='<f', mode='r', shape=shape, offset=offset)
     return np.einsum(subs, memarray[slc], [0.265, 0.670, 0.065])
@@ -197,3 +187,24 @@ def hdr2array(imgf):
     shape = p.stdout.readline().strip().split()
     shape = (int(shape[-3]), int(shape[-1]))
     return bytes2np(p.stdout.read(), shape)[-1::-1, -1::-1]
+
+
+def rgbe2lum(rgbe):
+    """
+    convert from Radiance hdr rgbe 4-byte data format to floating point
+    luminance.
+
+    Parameters
+    ----------
+    rgbe: np.array
+        r,g,b,e unsigned integers according to:
+        http://radsite.lbl.gov/radiance/refer/filefmts.pdf
+
+    Returns
+    -------
+    lum: luminance in cd/m^2
+    """
+    v = np.power(2., rgbe[:, 3] - 128).reshape(-1, 1) / 256
+    lum = np.where(rgbe[:, 0:3] == 0, 0, (rgbe[:, 0:3] + 0.5) * v)
+    # luminance = 179 * (0.265*R + 0.670*G + 0.065*B)
+    return np.einsum('ij,j', lum, [47.435, 119.93, 11.635])

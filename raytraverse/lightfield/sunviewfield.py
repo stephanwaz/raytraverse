@@ -40,12 +40,9 @@ class SunViewField(LightField):
 
     @property
     def raster(self):
-        """sunview data indexed by (point, sun)
-
-        key (i, j) val: np.array (N, M, 3) individual rays for interpolating
-        to pixels
-
-        :type: dict
+        """individual pixels forming shape of the sun, stored as uv coorinates
+        with basis viewmapper about sun direction and diameter. indexed like
+        vec, lum, and omega
         """
         return self._raster
 

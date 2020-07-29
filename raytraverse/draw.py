@@ -11,21 +11,6 @@ import numpy as np
 import pywt
 
 
-def get_uniform_rate(x, t0, t1):
-    """probability of random resample
-    (temperature cools over time x in (0-1)"""
-    return (t0 - t1)*(x - 1)**2 + t1
-
-
-def get_sample_rate(x, minrate, maxrate=1.0):
-    """fraction of new samples to draw
-    (temperature cools over time x in (0-1)"""
-    # non parametric version:
-    # Tle = (l + .01)*level_error
-    # nsampc = int(np.sum(nsamps > np.min(np.std(samps, axis=(1, 2))*Tle)))
-    return maxrate*np.exp(x*np.log(minrate/maxrate))
-
-
 def get_detail(samps, axes):
     """run high pass filter over given axes"""
 
@@ -50,3 +35,15 @@ def get_detail(samps, axes):
     d_det = np.sum(np.abs(d), 0).ravel() * 3
     m = np.nanmean(d_det)
     return np.where(np.isfinite(d_det), d_det, m)
+
+
+def from_pdf(pdf, threshold):
+    np.set_printoptions(5, suppress=True)
+    nsampc = int(np.sum(pdf > threshold))
+    if nsampc == 0:
+        return None
+    clip = pdf > threshold/2
+    pnorm = pdf[clip]/np.sum(pdf[clip])
+    candidates = np.arange(pdf.size, dtype=np.uint32)[clip]
+    return np.random.default_rng().choice(candidates, nsampc, replace=False,
+                                          p=pnorm)

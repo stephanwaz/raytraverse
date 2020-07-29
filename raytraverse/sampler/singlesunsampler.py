@@ -9,11 +9,9 @@ import os
 
 import numpy as np
 
-from raytraverse import translate, quickplot, helpers
+from raytraverse import translate, quickplot, draw
 from raytraverse.lightfield import SCBinField
 from raytraverse.sampler.sampler import Sampler
-
-from memory_profiler import profile
 
 
 class SingleSunSampler(Sampler):
@@ -34,7 +32,8 @@ class SingleSunSampler(Sampler):
         #: int: sun index of sunpos from associated SunSetter (for naming)
         self.sidx = sidx
         if sb is None:
-            sb = translate.uv2bin(translate.xyz2uv(self.sunpos[None, :], flipu=False),
+            sb = translate.uv2bin(translate.xyz2uv(self.sunpos[None, :],
+                                                   flipu=False),
                                   scene.skyres).astype(int)[0]
         self.sbin = sb
         #: float: controls sampling limit in case of limited contribution
@@ -65,9 +64,14 @@ class SingleSunSampler(Sampler):
             idxs = f['arr_0']
             errs = f['arr_1']
         else:
-            idxs, errs = helpers.skybin_idx(skyfield,
-                                            self.levels[self.specidx-2],
-                                            interp=interp)
+            shp = self.levels[self.specidx-2]
+            si = np.stack(np.unravel_index(np.arange(np.product(shp)), shp))
+            uv = (si.T + .5)/shp[1]
+            grid = skyfield.scene.view.uv2xyz(uv)
+            idxs, errs = skyfield.query_all_pts(grid, interp)
+            strides = np.array(skyfield.lum.index_strides[:-1])[:, None, None]
+            idxs = np.reshape(idxs + strides, (-1, interp))
+            errs = errs.reshape(-1, interp)
             np.savez(fi, idxs, errs)
         column = skyfield.lum.full_array[:, self.sbin]
         if zero:
@@ -125,8 +129,7 @@ class SingleSunSampler(Sampler):
             p = self.pdf_from_sky(skyfield).ravel()
             if self.plotp:
                 quickplot.imshow(p.reshape(self.weights.shape)[0, 0], [20, 10])
-            pdraws = helpers.draw_from_pdf(p, self.slimit)
+            pdraws = draw.from_pdf(p, self.slimit)
         else:
             pdraws = super().draw()
         return pdraws
-

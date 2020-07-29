@@ -12,8 +12,6 @@ from concurrent.futures import ThreadPoolExecutor
 
 import numpy as np
 
-from raytraverse import io, optic, translate
-
 
 class LightField(object):
     """container for accessing sampled data

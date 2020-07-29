@@ -18,3 +18,12 @@ SunSetter
     :undoc-members:
     :show-inheritance:
     :private-members:
+
+SkyInfo
+---------------------------
+
+.. autoclass:: raytraverse.scene.SkyInfo
+    :members:
+    :undoc-members:
+    :show-inheritance:
+    :private-members:

@@ -10,7 +10,7 @@ import os
 
 import numpy as np
 
-from raytraverse import translate, wavelet
+from raytraverse import translate
 from raytraverse.sampler.sampler import Sampler
 
 
@@ -32,8 +32,8 @@ class SCBinSampler(Sampler):
         f.close()
         skydeg = ("void glow skyglow 0 0 4 1 1 1 0 skyglow source sky 0 0 4"
                   " 0 0 1 180")
-        super().__init__(scene, srcn=scene.skyres**2, stype='sky', srcdef=skydeg,
-                         accuracy=accuracy, **kwargs)
+        super().__init__(scene, srcn=scene.skyres**2, stype='sky',
+                         srcdef=skydeg, accuracy=accuracy, **kwargs)
 
     def __del__(self):
         super().__del__()
@@ -68,9 +68,3 @@ class SCBinSampler(Sampler):
               f"-m skyglow {self.compiledscene}")
         lum = super().sample(vecs, call=rc)
         return np.max(lum, 1)
-
-    def run_callback(self):
-        outf = f'{self.scene.outdir}/{self.stype}_vis'
-        np.save(outf, self.weights)
-        outf = f'{self.scene.outdir}/{self.stype}_scheme'
-        np.save(outf, self.get_scheme())

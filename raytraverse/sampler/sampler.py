@@ -10,13 +10,11 @@ import os
 import numpy as np
 
 import clasp.script_tools as cst
-from raytraverse import translate, io, wavelet, quickplot, helpers
+from raytraverse import translate, io, draw, quickplot, helpers
 
 
 class Sampler(object):
-    """parent sampling class
-
-    overload sample() to implement
+    """base sampling class
 
     Parameters
     ----------
@@ -130,7 +128,7 @@ class Sampler(object):
         """scene information
 
         :getter: Returns this sampler's scene
-        :setter: Set this sampler's scene and create sky octree
+        :setter: Set this sampler's scene and create octree with source desc
         :type: raytraverse.scene.Scene
         """
         return self._scene
@@ -141,7 +139,7 @@ class Sampler(object):
         self._scene = scene
 
     def sample(self, vecs, call=None, **kwargs):
-        """dummy sample function
+        """generic sample function
         """
         if call is None:
             raise NotImplementedError(f'{self.__class__} does'
@@ -152,6 +150,7 @@ class Sampler(object):
         return lum
 
     def _uv2xyz(self, uv, si):
+        """including to allow overriding mapping bevahior of daughter classes"""
         return self.samplemap.uv2xyz(uv)
 
     def sample_idx(self, pdraws):
@@ -214,7 +213,7 @@ class Sampler(object):
         else:
             # direction detail
             daxes = (len(pres) + len(dres) - 2, len(pres) + len(dres) - 1)
-            p = wavelet.get_detail(self.weights, daxes)
+            p = draw.get_detail(self.weights, daxes)
             if self.plotp:
                 quickplot.imshow(np.log10(p.reshape(self.weights.shape)[0, 0]),
                                  [20, 10])
@@ -222,7 +221,7 @@ class Sampler(object):
             # threshold is set to accurracy at final
             threshold = self.accuracy * 4**(self.idx - len(self.levels))
             np.set_printoptions(4, suppress=True)
-            pdraws = helpers.draw_from_pdf(p, threshold)
+            pdraws = draw.from_pdf(p, threshold)
         return pdraws
 
     def update_pdf(self, si, lum):

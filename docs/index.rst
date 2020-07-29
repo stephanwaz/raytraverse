@@ -8,13 +8,12 @@ raytraverse (|release|)
    sampler
    lightfield
    integrator
+   draw
    helpers
    io
-   optic
    plot
    skycalc
    translate
-   wavelet
    cli
 
 .. include:: ../README.rst

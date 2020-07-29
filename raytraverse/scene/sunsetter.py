@@ -8,17 +8,14 @@
 
 import os
 import pickle
-import shutil
-from concurrent.futures import ThreadPoolExecutor, ProcessPoolExecutor, as_completed
+from concurrent.futures import ThreadPoolExecutor
 
 import numpy as np
 from scipy.spatial import cKDTree
 
-from raytraverse import wavelet, translate, io, optic, plot
-from raytraverse.helpers import skybin_pdf
+from raytraverse import draw, translate, plot
+from raytraverse.scene.skyinfo import SkyInfo
 from raytraverse.mapper import SunMapper
-
-from memory_profiler import profile
 
 
 class SunSetter(object):
@@ -28,13 +25,23 @@ class SunSetter(object):
     ----------
     scene: raytraverse.scene.Scene
         scene class containing geometry, location and analysis plane
+    loc: tuple
+        lat, lon, tz (in degrees, west is positive
     srct: float, optional
         threshold of sky contribution for determining appropriate srcn
+    skyro: float, optional
+        sky rotation (in degrees, ccw)
+    reload: bool
+        if True reloads existing sun positions, else always generates new
     """
 
-    def __init__(self, scene, srct=.01, reload=True, **kwargs):
+    def __init__(self, scene, loc, srct=.01, skyro=0.0, reload=True, **kwargs):
         #: float: threshold of sky contribution for determining appropriate srcn
         self.srct = srct
+        #: float: ccw rotation (in degrees) for sky
+        self.skyro = skyro
+        #: raytraverse.scene.SkyInfo
+        self.sky = SkyInfo(loc, skyro)
         #: bool: reuse existing sun positions (if found)
         self.reload = reload
         #: raytraverse.scene.Scene
@@ -79,10 +86,10 @@ class SunSetter(object):
             skyb = self.load_sky_facs()
             si = np.stack(np.unravel_index(np.arange(skyb.size), skyb.shape))
             uv = si.T/uvsize
-            ib = self.scene.in_solarbounds(uv + .5/uvsize,
-                                           size=1/uvsize).reshape(skyb.shape)
+            ib = self.sky.in_solarbounds(uv + .5/uvsize,
+                                         size=1/uvsize).reshape(skyb.shape)
             suncount = np.sum(skyb*ib > self.srct)
-            skyd = wavelet.get_detail(skyb, (0, 1)).reshape(skyb.shape)
+            skyd = draw.get_detail(skyb, (0, 1)).reshape(skyb.shape)
             sb = (skyb + skyd)/np.min(skyb + skyd)
             sd = (sb * ib).ravel()
             sdraws = np.random.default_rng().choice(skyb.size, suncount,
@@ -167,18 +174,3 @@ class SunSetter(object):
             print(mod, file=g)
         f.close()
         g.close()
-
-    def _lift_samples(self, pidx, uv, lum, scheme, maxspec):
-        lum = np.where(lum > maxspec, 0, lum)
-        pdf = np.zeros(scheme[0, 0:4], dtype=np.float32)
-        l0 = 0
-        pts = np.prod(self.scene.ptshape)
-        for l in scheme:
-            l1 = l0 + l[5]
-            pdf = translate.resample(pdf, l[0:4]).reshape(pts, *l[2:4])
-            ij = translate.uv2ij(uv[l0:l1], l[3]).reshape(-1, 2)
-            si = np.vstack((pidx[l0:l1], ij.T)).astype(int)
-            pdf[tuple(si)] = lum[l0:l1]
-            pdf = pdf.reshape(l[0:4])
-            l0 = l1
-        return pdf

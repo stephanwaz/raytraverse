@@ -1,7 +1,7 @@
-raytraverse.wavelet
+raytraverse.draw
 ==========================================================
 
-.. automodule:: raytraverse.wavelet
+.. automodule:: raytraverse.draw
     :members:
     :undoc-members:
     :show-inheritance:

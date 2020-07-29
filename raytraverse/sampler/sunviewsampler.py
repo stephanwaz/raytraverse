@@ -10,7 +10,8 @@ import pickle
 
 import numpy as np
 
-from raytraverse import io, translate, quickplot, helpers
+from raytraverse import draw
+from raytraverse.lightfield import SCBinField
 from raytraverse.sampler import Sampler
 
 
@@ -53,22 +54,16 @@ class SunViewSampler(Sampler):
                                  for i in range(self.idres, fdres + 1, 1)])
 
     def check_viz(self):
-        shape = np.concatenate((self.scene.ptshape,
-                                (self.scene.view.aspect*1024, 1024)))
-        try:
-            skypdf = np.load(f"{self.scene.outdir}/sky_vis.npy")
-        except FileNotFoundError:
-            print('Warning! sunsampler initialized without vector weights')
-            vis = np.ones(shape)
-        else:
-            vis = translate.resample(skypdf, shape)
+        skyfield = SCBinField(self.scene)
         sunuv = self.scene.view.xyz2uv(self.suns.suns)
         inview = self.scene.in_view(sunuv)
-        suni = translate.uv2ij(sunuv[inview], 1024).T
-        s = np.s_[..., suni[0], suni[1]]
-        isviz = vis[s] > self.suns.srct/2
-        suns = np.zeros((*isviz.shape, *self.weights.shape[-2:]))
-        suns[isviz, :, :] = 1
+        idx, errs = skyfield.query_all_pts(self.suns.suns, 4)
+        isviz = np.array([np.max(skyfield.lum[i][j], (1, 2)) > self.suns.srct/2
+                          for i, j in enumerate(idx)])
+        isviz = np.logical_and(isviz,
+                               inview[None]).reshape(*self.scene.ptshape, -1)
+        suns = np.broadcast_to(isviz[..., None, None].astype(int),
+                               isviz.shape + (self.weights.shape[-2:]))
         return suns
 
     def sample(self, vecs, rcopts='-ab 0',
@@ -111,7 +106,7 @@ class SunViewSampler(Sampler):
         """draw first level based on sky visibility"""
         if self.idx == 0:
             p = self.check_viz().ravel()
-            pdraws = helpers.draw_from_pdf(p, .5)
+            pdraws = draw.from_pdf(p, .5)
         else:
             pdraws = super().draw()
         return pdraws

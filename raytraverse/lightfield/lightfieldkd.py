@@ -10,10 +10,11 @@ import pickle
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from concurrent.futures import ProcessPoolExecutor
 from scipy.stats import norm
+from scipy.spatial import cKDTree
 from memory_profiler import profile
 
 import numpy as np
-from raytraverse.helpers import mk_vector_ball, MemArrayList
+from raytraverse.helpers import MemArrayList, SVoronoi
 
 from raytraverse import io, translate
 from raytraverse.lightfield.lightfield import LightField
@@ -21,6 +22,12 @@ from raytraverse.lightfield.lightfield import LightField
 
 class LightFieldKD(LightField):
     """light field with KDtree structures for spatial query"""
+
+    @staticmethod
+    def mk_vector_ball(v):
+        d_kd = cKDTree(v)
+        omega = SVoronoi(v).calculate_areas()[:, None]
+        return d_kd, omega
 
     @property
     def d_kd(self):
@@ -106,7 +113,7 @@ class LightFieldKD(LightField):
         npts = np.product(self.scene.ptshape)
         vs, lums = self._get_vl(npts, pref=pref, ltype=ltype)
         with ProcessPoolExecutor() as exc:
-            d_kd, omega = zip(*exc.map(mk_vector_ball, vs))
+            d_kd, omega = zip(*exc.map(LightFieldKD.mk_vector_ball, vs))
         return d_kd, vs, omega, lums
 
     def apply_coef(self, pi, coefs):
@@ -141,6 +148,19 @@ class LightFieldKD(LightField):
     def query_ray(self, pi, vecs, interp=1):
         d, i = self.d_kd[pi].query(vecs, k=interp)
         return i, d
+
+    def query_all_pts(self, vecs, interp=1):
+        futures = []
+        with ProcessPoolExecutor() as exc:
+            for pt in self.items():
+                futures.append(exc.submit(self.d_kd[pt].query, vecs, interp))
+        idxs = []
+        errs = []
+        for fu in futures:
+            r = fu.result()
+            idxs.append(r[1])
+            errs.append(r[0])
+        return np.stack(idxs), np.stack(errs)
 
     def query_ball(self, pi, vecs, viewangle=180):
         vs = translate.theta2chord(viewangle/360*np.pi)
