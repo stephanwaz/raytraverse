@@ -7,9 +7,9 @@
 # =======================================================================
 import os
 import pickle
-from concurrent.futures import ThreadPoolExecutor, as_completed, \
-    ProcessPoolExecutor
-
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from concurrent.futures import ProcessPoolExecutor
+from scipy.stats import norm
 from memory_profiler import profile
 
 import numpy as np
@@ -113,10 +113,12 @@ class LightFieldKD(LightField):
         c = np.asarray(coefs).reshape(-1, 1)
         return np.einsum('ij,kj->ik', c, self.lum[pi])
 
-    def add_to_img(self, img, mask, pi, i, d, coefs=1, vm=None):
+    def add_to_img(self, img, mask, pi, i, d, coefs=1, vm=None, radius=3):
         lum = self.apply_coef(pi, coefs)
         if len(i.shape) > 1:
-            w = np.broadcast_to(1/d, (lum.shape[0],) + d.shape)
+            # gaussian reconstruction filter
+            y = norm(scale=translate.theta2chord(radius*np.pi/180))
+            w = np.broadcast_to(y.pdf(d), (lum.shape[0],) + d.shape)
             lum = np.average(lum[:, i], weights=w, axis=-1)
         else:
             lum = lum[:, i]

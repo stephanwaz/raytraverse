@@ -6,10 +6,13 @@
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 # =======================================================================
 import itertools
+import os
 
 import numpy as np
+from scipy.stats import norm
 
 from raytraverse.helpers import ArrayDict, MemArrayDict
+from raytraverse import translate
 from raytraverse.lightfield.lightfieldkd import LightFieldKD
 from raytraverse.lightfield.sunviewfield import SunViewField
 
@@ -41,30 +44,34 @@ class SunField(LightFieldKD):
         omegas = ArrayDict({(-1, -1): None})
         lums = MemArrayDict({})
         for i in range(self.suns.suns.shape[0]):
-            d_kd, vs, omega, lums = super()._mk_tree(pref=f'_{i:04d}',
-                                                     ltype=list)
-            for j in range(npts):
-                d_kds[(j, i)] = d_kd[j]
-                vecs[(j, i)] = vs[j]
-                omegas[(j, i)] = omega[j]
-                lums[(j, i)] = lums[j]
+            dfile = f'{self.scene.outdir}/{self.prefix}_{i:04d}_vals.out'
+            if os.path.isfile(dfile):
+                print(dfile)
+                d_kd, vs, omega, lum = super()._mk_tree(pref=f'_{i:04d}',
+                                                        ltype=list)
+                for j in range(npts):
+                    d_kds[(j, i)] = d_kd[j]
+                    vecs[(j, i)] = vs[j]
+                    omegas[(j, i)] = omega[j]
+                    lums[(j, i)] = lum[j]
         return d_kds, vecs, omegas, lums
 
     def items(self):
         return itertools.product(super().items(),
                                  range(self.suns.suns.shape[0]))
 
-    def add_to_img(self, img, mask, pi, i, d, coefs=1, vm=None):
+    def add_to_img(self, img, mask, pi, i, d, coefs=1, vm=None, radius=3):
         if vm is None:
             vm = self.scene.view
         lum = self.apply_coef(pi, coefs)
         if len(i.shape) > 1:
-            w = np.broadcast_to(1/d, (lum.shape[0],) + d.shape)
+            y = norm(scale=translate.theta2chord(radius*np.pi/180))
+            w = np.broadcast_to(y.pdf(d), (lum.shape[0],) + d.shape)
             lum = np.average(lum[:, i], weights=w, axis=-1)
         else:
             lum = lum[:, i]
         img[mask] += np.squeeze(lum)
-        sun = np.concatenate((self.suns.suns[pi[1]], [1, ]))
+        sun = np.concatenate((self.suns.suns[pi[1]], [coefs, ]))
         self.view.add_to_img(img, pi, sun, vm)
 
     def get_illum(self, vm, pis, vdirs, coefs, scale=179):

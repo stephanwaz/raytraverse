@@ -39,8 +39,10 @@ class Integrator(object):
         self.skyfield = skyfield
         self.dayhours = self.scene.skydata[:, 0] > 0
 
-    def get_sky_mtx(self):
-        sxyz = translate.aa2xyz(self.scene.skydata[self.dayhours, 0:2])
+    def get_sky_mtx(self, skydata=None):
+        if skydata is None:
+            skydata = self.scene.skydata[self.dayhours]
+        sxyz = translate.aa2xyz(skydata[:, 0:2])
         if self.suns is not None:
             hassun, si = self.suns.proxy_src(sxyz, tol=self.stol)
             nosun = np.arange(hassun.size)[np.logical_not(hassun)]
@@ -50,7 +52,7 @@ class Integrator(object):
             si = np.zeros(sxyz.shape[0])
         sunuv = translate.xyz2uv(sxyz[nosun], flipu=False)
         sunbins = translate.uv2bin(sunuv, self.scene.skyres)
-        dirdif = self.scene.skydata[self.dayhours, 2:]
+        dirdif = skydata[:, 2:]
         smtx, grnd, sun = skycalc.sky_mtx(sxyz, dirdif, self.scene.skyres)
         # ratio between actual solar disc and patch
         omegar = np.square(0.2665 * np.pi * self.scene.skyres / 180) * .5

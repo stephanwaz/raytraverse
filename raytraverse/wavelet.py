@@ -34,7 +34,6 @@ def get_detail(samps, axes):
                                    [-0.40824829, 0.81649658, -0.40824829, 0],
                                    [0, 0.40824829, 0.81649658, 0.40824829],
                                    [-0.40824829, 0.81649658, 0.40824829, 0]))
-    wav.orthogonal = True
     # mod adds extra padding to ensure evenness of transformed dimensions
     padding = [(2, 2 + int(np.mod(s, 2))) if i in axes else (0, 0) for i, s in
                enumerate(samps.shape)]

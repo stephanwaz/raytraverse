@@ -5,6 +5,7 @@
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 # =======================================================================
+import os
 import pickle
 
 import numpy as np
@@ -104,13 +105,7 @@ class SunViewSampler(Sampler):
         vecs: np.array
             ray directions to write
         """
-        ptidx = np.ravel_multi_index((si[0], si[1]), self.scene.ptshape)
-        sunidx = si[2]
-        outf = f'{self.scene.outdir}/{self.stype}_vecs.out'
-        f = open(outf, 'ab')
-        f.write(io.np2bytes(np.vstack((ptidx.reshape(1, -1),
-                                       sunidx.reshape(1, -1), vecs.T)).T))
-        f.close()
+        pass
 
     def draw(self):
         """draw first level based on sky visibility"""
@@ -151,3 +146,4 @@ class SunViewSampler(Sampler):
         pickle.dump(lums, f, protocol=4)
         pickle.dump(shape, f, protocol=4)
         f.close()
+        os.remove(f'{self.scene.outdir}/{self.stype}_vals.out')

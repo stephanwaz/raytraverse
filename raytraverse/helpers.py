@@ -90,6 +90,9 @@ class MemArrayDict(dict):
     def __iter__(self):
         return (self._map(item) for item in super().__iter__())
 
+    def constructors(self):
+        return (item for item in super().__iter__())
+
 
 def oconvline(scene):
     octe = f"{scene.outdir}/scene.oct"

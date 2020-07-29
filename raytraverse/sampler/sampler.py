@@ -219,6 +219,7 @@ class Sampler(object):
                 quickplot.imshow(np.log10(p.reshape(self.weights.shape)[0, 0]),
                                  [20, 10])
             # draw on pdf
+            # threshold is set to accurracy at final
             threshold = self.accuracy * 4**(self.idx - len(self.levels))
             np.set_printoptions(4, suppress=True)
             pdraws = helpers.draw_from_pdf(p, threshold)
