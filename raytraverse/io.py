@@ -48,14 +48,6 @@ def bytefile2rad(f, shape, slc=..., subs='ijk,k->ij', offset=0):
     return np.einsum(subs, memarray[slc], [0.265, 0.670, 0.065])
 
 
-def einsum_mem2mem(inf, ishape, outf, offset=0, islice=None, subs='ijk,k->ij'):
-    ar = bytefile2rad(inf, ishape, slc=islice, subs=subs)
-    mar = np.memmap(outf, dtype='<f', mode='r+', offset=offset, shape=ar.shape)
-    mar[:] = ar[:]
-    del mar
-    return offset, ar.shape
-
-
 def np2bytes(ar, dtype='<f'):
     """format ar as bytestring
 

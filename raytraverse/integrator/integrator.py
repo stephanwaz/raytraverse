@@ -37,7 +37,8 @@ class Integrator(object):
         (to correct model north, equivalent to clockwise rotation of scene)
     """
 
-    def __init__(self, skyfield, sunfield=None, wea=None, loc=None, skyro=0.0):
+    def __init__(self, skyfield, sunfield=None, wea=None, loc=None, skyro=0.0,
+                 **kwargs):
         #: raytraverse.scene.Scene
         self.scene = skyfield.scene
         try:

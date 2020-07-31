@@ -42,18 +42,18 @@ class MemArraySeq(object):
     def __getitem__(self, item):
         return self._map(super().__getitem__(item))
 
-    def __iter__(self):
-        return (self._map(item) for item in super().__iter__())
-
-    def constructors(self):
-        return (item for item in super().__iter__())
-
 
 class MemArrayList(MemArraySeq, tuple):
     def __new__(cls, arg):
         out = super().__new__(cls, arg)
         out.full_array = out.constructors()
         return out
+
+    def __iter__(self):
+        return (self._map(item) for item in super().__iter__())
+
+    def constructors(self):
+        return (item for item in super().__iter__())
 
     @property
     def full_array(self):
@@ -74,9 +74,31 @@ class MemArrayList(MemArraySeq, tuple):
         self.index_strides = tuple(strides)
 
 
-class MemArrayDict(dict):
-    pass
+class MemArrayDict(MemArraySeq, dict):
 
+    def values(self):
+        return (self._map(item) for item in super().values())
 
+    def constructors(self):
+        return (item for item in super().values())
 
+    def full_array(self):
+        return self._map(self.full_constructor())
 
+    def full_constructor(self):
+        fulli = None
+        shape = 0
+        for i in self.constructors():
+            if fulli is None:
+                fulli = list(i)
+            shape += i[4][0]
+        fulli[4] = (shape, fulli[4][1])
+        return tuple(fulli)
+
+    def index_strides(self):
+        shape = 0
+        strides = [0]
+        for i in self.constructors():
+            shape += i[4][0]
+            strides.append(shape)
+        return tuple(strides)

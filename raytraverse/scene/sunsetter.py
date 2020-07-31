@@ -87,19 +87,14 @@ class SunSetter(object):
             si = np.stack(np.unravel_index(np.arange(skyb.size), skyb.shape))
             uv = si.T/uvsize
             ib = self.sky.in_solarbounds(uv + .5/uvsize,
-                                         size=1/uvsize).reshape(skyb.shape)
-            suncount = np.sum(skyb*ib > self.srct)
-            skyd = draw.get_detail(skyb, (0, 1)).reshape(skyb.shape)
-            sb = (skyb + skyd)/np.min(skyb + skyd)
-            sd = (sb * ib).ravel()
-            sdraws = np.random.default_rng().choice(skyb.size, suncount,
-                                                    replace=False,
-                                                    p=sd/np.sum(sd))
-            si = np.stack(np.unravel_index(sdraws, skyb.shape))
+                                         size=1/uvsize)
+            ib = (skyb.ravel()*ib > self.srct)
             # keep solar discs from overlapping
-            border = uvsize/180
-            j = np.random.default_rng().uniform(border, 1-border, si.T.shape)
-            uv = (si.T + j)/uvsize
+            border = 2*uvsize/180
+            j = np.random.default_rng().uniform(border, 1-border,
+                                                (np.sum(ib), 2))
+            # j = .5
+            uv = (si.T[ib] + j)/uvsize
             xyz = translate.uv2xyz(uv, xsign=1)
         self._suns = xyz
 
@@ -113,18 +108,36 @@ class SunSetter(object):
         f.close()
         zeros = np.zeros(len(skylums), dtype=int)
         with ThreadPoolExecutor() as exc:
-            mxs = list(exc.map(np.max, skylums, zeros))
+            mxs = list(exc.map(np.max, skylums.values(), zeros))
         sd = np.max(np.stack(mxs), 0).reshape(self.scene.skyres,
                                               self.scene.skyres)
         np.save(outf, sd)
         return sd
 
-    def direct_view(self):
+    def direct_view(self, skyfacs=True):
         sxy = translate.xyz2xy(self.suns, flip=False)
+        sbins = translate.uv2bin(translate.xyz2uv(self.suns, flipu=False),
+                                 self.scene.skyres)
         lums, fig, ax, norm, lev = plot.mk_img_setup([0, 1], ext=1)
-        ax.scatter(sxy[:, 0], sxy[:, 1], s=15,
-                   marker='o', facecolors='yellow')
-        ax.set_facecolor((0, 0, 0))
+        if skyfacs:
+            sf = self.load_sky_facs().ravel()
+            borders = translate.bin_borders(np.arange(sf.size),
+                                            self.scene.skyres)
+            sfxyz = translate.uv2xyz(borders.reshape(-1, 2), xsign=1)
+            sfxy = translate.xyz2xy(sfxyz, flip=False).reshape(-1, 4, 2)
+            cmap = plot.colormap('gray',
+                                 plot.Normalize(vmin=np.log10(self.srct) - 1,
+                                                vmax=0))
+            colors = cmap.to_rgba(np.log10(sf))
+            patcha = [(c, p) for c, p in zip(colors, sfxy)]
+            patchb = [(c, p) for c, p in zip(colors[sbins], sfxy[sbins])]
+            plot.plot_patches(ax, patcha, {'zorder': -2, 'lw': .25,
+                                           'edgecolor': (.2, .2, .2)})
+            plot.plot_patches(ax, patchb, {'zorder': -1, 'lw': 3,
+                                           'edgecolor': (1, .5, 0)})
+        ax.plot(sxy[:, 0], sxy[:, 1], lw=.5, ms=0, color='grey')
+        ax.scatter(sxy[:, 0], sxy[:, 1], s=30, marker='o', color=(1, .5, 0))
+        ax.set_facecolor((.2, .3, .5))
         outf = f"{self.scene.outdir}_suns.png"
         plot.save_img(fig, ax, outf)
 

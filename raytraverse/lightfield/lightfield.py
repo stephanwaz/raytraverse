@@ -26,7 +26,7 @@ class LightField(object):
         prefix of data files to map
     """
 
-    def __init__(self, scene, rebuild=False, prefix='sky', srcn=1):
+    def __init__(self, scene, rebuild=False, prefix='sky', srcn=1, rmraw=False):
         #: bool: force rebuild kd-tree
         self.rebuild = rebuild
         self.srcn = srcn
@@ -35,7 +35,20 @@ class LightField(object):
         self._vec = None
         self._lum = None
         self._omega = None
+        self._rmraw = rmraw
         self.scene = scene
+        self._rawfiles = self.raw_files()
+
+    def __del__(self):
+        if self._rmraw:
+            for rf in self._rawfiles:
+                try:
+                    os.remove(rf)
+                except IOError:
+                    pass
+
+    def raw_files(self):
+        return []
 
     @property
     def vec(self):

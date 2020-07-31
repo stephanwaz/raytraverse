@@ -157,7 +157,7 @@ class Scene(object):
         self._area = SpaceMapper(a, self.ptro)
         bbox = self.area.bbox[:, 0:2]/self.ptres
         size = (bbox[1] - bbox[0])
-        self._ptshape = np.maximum(np.floor(size - self.ptres), 1).astype(int)
+        self._ptshape = np.ceil(size).astype(int)
 
     @property
     def pt_kd(self):

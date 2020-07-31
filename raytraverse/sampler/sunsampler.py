@@ -31,15 +31,15 @@ class SunSampler(object):
         #: dict: sampling arguments for SingleSunSampler
         self.sampleargs = dict(idres=4, fdres=10, speclevel=9, plotp=plotp)
         sunuv = translate.xyz2uv(self.suns.suns, flipu=False)
-        scheme = np.load(f'{self.scene.outdir}/sky_scheme.npy').astype(int)
-        side = int(np.sqrt(scheme[0, 4]))
         #: np.array: sun bins for each sun position (used to match naming)
-        self.sunbin = translate.uv2bin(sunuv, side).astype(int)
+        self.sunbin = translate.uv2bin(sunuv, scene.skyres).astype(int)
         #: raytraverse.sampler.SingleSunSampler
         self.reflsampler = None
         self.sampleargs.update(**kwargs)
 
-    def run(self, view=True, reflection=True, rcopts='', **kwargs):
+    def run(self, view=True, reflection=True,
+            rcopts='-ab 6 -ad 3000 -as 1500 -st 0 -ss 16 -aa .1',
+            **kwargs):
         if view:
             print("Sampling Sun Visibility")
             self.viewsampler.run(rcopts='-ab 0')

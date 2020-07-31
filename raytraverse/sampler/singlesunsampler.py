@@ -26,7 +26,7 @@ class SingleSunSampler(Sampler):
     """
 
     def __init__(self, scene, suns, sidx, sb=None, speclevel=9,
-                 fdres=10, accuracy=.01, keepamb=False, **kwargs):
+                 fdres=10, accuracy=1, keepamb=False, **kwargs):
         #: np.array: sun position x,y,z
         self.sunpos = suns.suns[sidx]
         #: int: sun index of sunpos from associated SunSetter (for naming)
@@ -38,12 +38,16 @@ class SingleSunSampler(Sampler):
         self.sbin = sb
         #: float: controls sampling limit in case of limited contribution
         self.slimit = suns.srct * .1
+        self.srct = suns.srct
         dec, mod = suns.write_sun(sidx)
         anorm = accuracy * scene.skyres * (1 - np.cos(.533*np.pi/360))
         super().__init__(scene, stype=f"sun_{sidx:04d}", fdres=fdres,
                          accuracy=anorm, srcdef=dec, **kwargs)
         self.specidx = speclevel - self.idres
         self._keepamb = keepamb
+        shape = np.concatenate((self.scene.ptshape, self.levels[0]))
+        weights = self.pdf_from_sky(SCBinField(self.scene))
+        self.weights = translate.resample(weights, shape)
 
     def __del__(self):
         try:
@@ -53,11 +57,10 @@ class SingleSunSampler(Sampler):
             pass
         super().__del__()
 
-    def pdf_from_sky(self, skyfield, interp=12, rebuild=False, zero=True):
+    def pdf_from_sky(self, skyfield, interp=12, rebuild=False, zero=True,
+                     filterpts=True):
         ishape = np.concatenate((self.scene.ptshape,
                                  self.levels[self.specidx-2]))
-        shape = np.concatenate((self.scene.ptshape,
-                                self.levels[self.specidx]))
         fi = f"{self.scene.outdir}/sunpdfidxs.npz"
         if os.path.isfile(fi) and not rebuild:
             f = np.load(fi)
@@ -69,24 +72,24 @@ class SingleSunSampler(Sampler):
             uv = (si.T + .5)/shp[1]
             grid = skyfield.scene.view.uv2xyz(uv)
             idxs, errs = skyfield.query_all_pts(grid, interp)
-            strides = np.array(skyfield.lum.index_strides[:-1])[:, None, None]
+            strides = np.array(skyfield.lum.index_strides()[:-1])[:, None, None]
             idxs = np.reshape(idxs + strides, (-1, interp))
             errs = errs.reshape(-1, interp)
             np.savez(fi, idxs, errs)
-        column = skyfield.lum.full_array[:, self.sbin]
-        if zero:
-            cdata = np.where(column > self.scene.maxspec, 0, column)
-        else:
-            cdata = np.copy(column)
-        del column
+        column = skyfield.lum.full_array()[:, self.sbin]
         if interp > 1:
-            lum = np.average(cdata[idxs], -1, weights=1/errs)
+            lum = np.average(column[idxs], -1, weights=1/errs).reshape(ishape)
         else:
-            lum = cdata[idxs]
-        return translate.resample(lum.reshape(ishape), shape)
+            lum = column[idxs].reshape(ishape)
+        if filterpts:
+            haspeak = np.max(lum, (2, 3)) > self.srct
+            lum = lum * haspeak[..., None, None]
+        if zero:
+            lum = np.where(lum > self.scene.maxspec, 0, lum)
+        return lum
 
     def sample(self, vecs,
-               rcopts='-aa 0 -ab 7 -ad 8096 -as 0 -lw 1e-5 -st 0 -ss 16',
+               rcopts='-ab 6 -ad 3000 -as 1500 -st 0 -ss 16 -aa .1',
                nproc=12, ambcache=False, **kwargs):
         """call rendering engine to sample sky contribution
 
@@ -126,10 +129,12 @@ class SingleSunSampler(Sampler):
         """
         if self.idx == self.specidx:
             skyfield = SCBinField(self.scene)
-            p = self.pdf_from_sky(skyfield).ravel()
+            shape = np.concatenate((self.scene.ptshape, self.levels[self.idx]))
+            weights = self.pdf_from_sky(skyfield)
+            p = translate.resample(weights, shape)
             if self.plotp:
-                quickplot.imshow(p.reshape(self.weights.shape)[0, 0], [20, 10])
-            pdraws = draw.from_pdf(p, self.slimit)
+                quickplot.imshow(p[0, 0], [20, 10])
+            pdraws = draw.from_pdf(p.ravel(), self.slimit)
         else:
             pdraws = super().draw()
         return pdraws

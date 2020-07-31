@@ -208,7 +208,7 @@ class Sampler(object):
         """
         dres = self.levels[self.idx]
         pres = self.scene.ptshape
-        if self.idx == 0 and np.isclose(np.var(self.weights), 0, atol=1e-6):
+        if self.idx == 0 and np.var(self.weights) < 1e-9:
             pdraws = np.arange(np.prod(dres)*np.prod(pres))
         else:
             # direction detail

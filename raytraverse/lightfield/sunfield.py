@@ -7,12 +7,14 @@
 # =======================================================================
 import itertools
 import os
+from concurrent.futures import ThreadPoolExecutor, ProcessPoolExecutor
 
 import numpy as np
 from scipy.stats import norm
 
-from raytraverse.helpers import ArrayDict, MemArrayDict
-from raytraverse import translate
+from clasp.script_tools import pipeline, sglob
+from raytraverse.helpers import MemArrayDict
+from raytraverse import translate, io
 from raytraverse.lightfield.lightfieldkd import LightFieldKD
 from raytraverse.lightfield.sunviewfield import SunViewField
 
@@ -30,35 +32,50 @@ class SunField(LightFieldKD):
         build kd-tree even if one exists
     """
 
-    def __init__(self, scene, suns, rebuild=False):
+    def __init__(self, scene, suns, rebuild=False, rmraw=False):
         #: raytraverse.sunsetter.SunSetter
         self.suns = suns
         #: raytraverse.lightfield.SunViewField
-        self.view = SunViewField(scene, suns, rebuild=rebuild)
-        super().__init__(scene, rebuild=rebuild, prefix='sun')
+        self.view = SunViewField(scene, suns, rebuild=False, rmraw=rmraw)
+        super().__init__(scene, rebuild=rebuild, prefix='sun', rmraw=rmraw)
 
-    def _mk_tree(self):
-        npts = np.product(self.scene.ptshape)
-        d_kds = {(-1, -1): None}
-        vecs = ArrayDict({(-1, -1): None})
-        omegas = ArrayDict({(-1, -1): None})
-        lums = MemArrayDict({})
+    def raw_files(self):
+        """get list of files used to build field"""
+        rf = []
         for i in range(self.suns.suns.shape[0]):
-            dfile = f'{self.scene.outdir}/{self.prefix}_{i:04d}_vals.out'
-            if os.path.isfile(dfile):
-                print(dfile)
-                d_kd, vs, omega, lum = super()._mk_tree(pref=f'_{i:04d}',
-                                                        ltype=list)
-                for j in range(npts):
-                    d_kds[(j, i)] = d_kd[j]
-                    vecs[(j, i)] = vs[j]
-                    omegas[(j, i)] = omega[j]
-                    lums[(j, i)] = lum[j]
+            rf.append(f'{self.scene.outdir}/{self.prefix}_{i:04d}_vals.out')
+            rf.append(f'{self.scene.outdir}/{self.prefix}_{i:04d}_vecs.out')
+        return rf + self.view.raw_files()
+
+    def _mk_tree(self, pref='', ltype=list, os0=0):
+        d_kds = {}
+        vecs = {}
+        omegas = {}
+        lums = MemArrayDict({})
+        offset = 0
+        npts = np.product(self.scene.ptshape)
+        with ProcessPoolExecutor() as exc:
+            futures = []
+            for i in range(self.suns.suns.shape[0]):
+                dfile = f'{self.scene.outdir}/{self.prefix}_{i:04d}_vals.out'
+                if os.path.isfile(dfile):
+                    vs, lum = self._get_vl(npts, pref=f'_{i:04d}', ltype=ltype,
+                                           os0=offset, fvrays=True)
+                    lasti = lum[-1][1]
+                    offset = lasti[-2] + lasti[-1][0]*lasti[-1][1]*4
+                    for j, lm in lum:
+                        vecs[(j, i)] = vs[j]
+                        lums[(j, i)] = lm
+                        futures.append(((j, i),
+                                       exc.submit(LightFieldKD.mk_vector_ball,
+                                       vs[j])))
+            for fu in futures:
+                idx = fu[0]
+                d_kds[idx], omegas[idx] = fu[1].result()
         return d_kds, vecs, omegas, lums
 
     def items(self):
-        return itertools.product(super().items(),
-                                 range(self.suns.suns.shape[0]))
+        return self.d_kd.keys()
 
     def add_to_img(self, img, mask, pi, i, d, coefs=1, vm=None, radius=3):
         if vm is None:
@@ -93,3 +110,17 @@ class SunField(LightFieldKD):
         illum2 = self.view.get_illum(vm, pis, coefs, scale=179)
         return illum.swapaxes(1, 2) + illum2
 
+    def direct_view(self, res=200, showsample=False, items=None):
+        """create a summary image of lightfield for each vpt"""
+        super().direct_view(res=res, showsample=showsample, items=items)
+        if items is not None:
+            return None
+        for i in super().items():
+            flist = sglob(f"{self.scene.outdir}_{self.prefix}_{i:04d}_*.hdr")
+            ssq = int(np.ceil(np.sqrt(len(flist))))
+            files = ' '.join(flist)
+            outf = f"{self.scene.outdir}_{self.prefix}_{i:04d}.hdr"
+            pcompos = f'pcompos -a -{ssq} -s 5 -b 1 1 1 -la {files}'
+            pipeline([pcompos], outf, close=True, writemode='wb')
+            for fl in flist:
+                os.remove(fl)

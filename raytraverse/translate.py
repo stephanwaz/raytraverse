@@ -10,7 +10,6 @@
 """functions for translating between coordinate spaces and resolutions"""
 
 import numpy as np
-from scipy.interpolate import RectBivariateSpline
 from scipy.ndimage.filters import gaussian_filter, uniform_filter
 
 scbinscal = ("""
@@ -230,6 +229,13 @@ def bin2uv(bn, side):
     return np.stack((u, v)).T
 
 
+def bin_borders(sb, side):
+    si = np.stack(np.unravel_index(sb, (side, side)))
+    square = np.array([[0, 0], [0, 1], [1, 1], [1, 0]])/side
+    uv = np.repeat(si.T[:, None, :]/side, 4, axis=1) + square[None]
+    return uv
+
+
 def resample(samps, ts=None, gauss=True, radius=None):
     """simple array resampling. requires whole number multiple scaling.
 
@@ -272,15 +278,6 @@ def resample(samps, ts=None, gauss=True, radius=None):
         else:
             samps = uniform_filter(samps, int(radius))
     return samps
-
-
-def interpolate2d(a, s):
-    oldcx = np.linspace(0, 1, a.shape[0])
-    newcx = np.linspace(0, 1, s[0])
-    oldcy = np.linspace(0, 1, a.shape[1])
-    newcy = np.linspace(0, 1, s[1])
-    f = RectBivariateSpline(oldcx, oldcy, a, kx=1, ky=1)
-    return f(newcx, newcy)
 
 
 def rmtx_yp(v):

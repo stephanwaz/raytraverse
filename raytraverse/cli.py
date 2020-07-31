@@ -18,15 +18,16 @@ import raytraverse
 from raytraverse.integrator import Integrator
 from raytraverse.sampler import SCBinSampler, SunSampler
 from raytraverse.scene import Scene, SunSetter
-from raytraverse.lightfield import SCBinField, SunField
+from raytraverse.lightfield import SCBinField, SunField, SunViewField
 
 
-def invoke_scene(ctx):
-    clk.invoke_dependency(ctx, 'scene', 'out', Scene)
-
-
-def invoke_suns(ctx):
-    clk.invoke_dependency(ctx, 'suns', 'scene', SunSetter)
+# def invoke_scene(ctx):
+#     clk.invoke_dependency(ctx, 'scene', 'out', Scene)
+#
+#
+# def invoke_suns(ctx):
+#     print(ctx.parent.command.commands['suns'].context_settings['default_map'])
+#     clk.invoke_dependency(ctx, 'suns', 'scene', SunSetter)
 
 
 @click.group(chain=True, invoke_without_command=True)
@@ -50,8 +51,6 @@ def main(ctx, out, config, outconfig, **kwargs):
               '(no sky) or octree')
 @click.option('-area', help='radiance scene file containing planar geometry of '
               'analysis area')
-@click.option('-wea', help='path to epw or wea file, if loc not set attempts to'
-              ' extract location data')
 @click.option('-skyres', default=10.0)
 @click.option('-ptres', default=2.0)
 @click.option('-maxspec', default=0.3)
@@ -74,9 +73,6 @@ def scene(ctx, **kwargs):
         print(f'resolution: {s.area.sf/s.ptshape}')
         print(f'number of points: {s.ptshape[0]*s.ptshape[1]}')
         print(f'rotation: {s.ptro}')
-        print('Sky Info:')
-        print(f'location: {s.loc}')
-        print(f'rotation: {s.skyro}')
         print(f'sky sampling resolution: {s.skyres}')
         try:
             suncount = len(open(f'{s.outdir}/sun_modlist.txt').readlines())
@@ -92,93 +88,119 @@ def scene(ctx, **kwargs):
 
 
 @main.command()
-@click.option('-accuracy', default=.01)
+@click.option('-accuracy', default=1)
 @click.option('-idres', default=4)
 @click.option('-fdres', default=9)
-@click.option('-rcopts', default='-ab 2 -ad 1024 -as 0 -lw 1e-5 -st 0 -ss 16')
+@click.option('-rcopts',
+              default='-ab 7 -ad 60000 -as 30000 -lw 1e-7 -st 0 -ss 16')
 @click.option('--plotp/--no-plotp', default=False)
+@click.option('--plotdview/--no-plotdview', default=False)
+@click.option('--run/--no-run', default=True)
+@click.option('--rmraw/--no-rmraw', default=True)
 @clk.shared_decs(clk.command_decs(raytraverse.__version__, wrap=True))
-def sky(ctx, **kwargs):
+def sky(ctx, plotdview=False, run=True, rmraw=True, **kwargs):
     """run scbinsampler"""
     if 'scene' not in ctx.obj:
-        invoke_scene(ctx)
+        clk.invoke_dependency(ctx, scene)
     sampler = SCBinSampler(ctx.obj['scene'], **kwargs)
-    sampler.run(rcopts=kwargs['rcopts'], executable='rcontrib')
-    sk = SCBinField(ctx.obj['scene'], rebuild=True)
-    sk.direct_view()
+    if run:
+        sampler.run(rcopts=kwargs['rcopts'], executable='rcontrib')
+    sk = SCBinField(ctx.obj['scene'], rebuild=run, rmraw=rmraw)
+    if plotdview:
+        sk.direct_view()
 
 
 @main.command()
 @click.option('-srct', default=.01)
+@click.option('-skyro', default=0.0)
+@click.option('-loc', callback=clk.split_float)
+@click.option('-wea')
 @click.option('--reload/--no-reload', default=True)
 @clk.shared_decs(clk.command_decs(raytraverse.__version__, wrap=True))
-def suns(ctx, **kwargs):
+def suns(ctx, loc=None, wea=None, **kwargs):
     """create sun positions"""
     if 'scene' not in ctx.obj:
-        invoke_scene(ctx)
-    s = SunSetter(ctx.obj['scene'], **kwargs)
-    s.write_sun_pdfs()
+        clk.invoke_dependency(ctx, scene)
+    if loc is None and wea is not None:
+        loc = raytraverse.skycalc.get_loc_epw(wea)
+    s = SunSetter(ctx.obj['scene'], loc, **kwargs)
     s.direct_view()
-    click.echo(f'scene has {s.suns.shape[0]} sun positions', err=True)
     ctx.obj['suns'] = s
 
 
 @main.command()
-@click.option('-accuracy', default=.01)
+@click.option('-accuracy', default=1)
 @click.option('-idres', default=4)
 @click.option('-fdres', default=10)
 @click.option('-speclevel', default=9)
 @click.option('-rcopts',
-              default='-ab 1 -ad 1024 -aa 0 -as 0 -lw 1e-5 -st 0 -ss 4')
+              default='-ab 6 -ad 3000 -as 1500 -st 0 -ss 16 -aa .1')
 @click.option('--view/--no-view', default=True)
 @click.option('--ambcache/--no-ambcache', default=True)
+@click.option('--keepamb/--no-keepamb', default=False)
 @click.option('--reflection/--no-reflection', default=True)
 @click.option('--plotp/--no-plotp', default=False)
+@click.option('--plotdview/--no-plotdview', default=False)
+@click.option('--run/--no-run', default=True)
+@click.option('--rmraw/--no-rmraw', default=False)
 @clk.shared_decs(clk.command_decs(raytraverse.__version__, wrap=True))
-def sunrun(ctx, **kwargs):
+def sunrun(ctx, plotdview=False, run=True, rmraw=False, **kwargs):
     """run sunsampler"""
-    if 'scene' not in ctx.obj:
-        invoke_scene(ctx)
     if 'suns' not in ctx.obj:
-        invoke_suns(ctx)
+        clk.invoke_dependency(ctx, suns)
     scn = ctx.obj['scene']
     sns = ctx.obj['suns']
     sampler = SunSampler(scn, sns, **kwargs)
-    sampler.run(**kwargs)
-    su = SunField(scn, sns, rebuild=True)
-    su.direct_view()
-    su.view.direct_view()
+    if run:
+        print(kwargs['rcopts'])
+        sampler.run(**kwargs)
+    if kwargs['view']:
+        sv = SunViewField(scn, sns, rebuild=run, rmraw=rmraw)
+        if plotdview:
+            sv.direct_view()
+    if kwargs['reflection']:
+        su = SunField(scn, sns, rebuild=run, rmraw=rmraw)
+        if plotdview:
+            su.direct_view(res=200)
 
 
 @main.command()
+@click.option('-loc', callback=clk.split_float)
+@click.option('-wea')
+@click.option('-pts', callback=clk.are_files_or_str)
+@click.option('-vdirs', default='0 -1 0', callback=clk.are_files_or_str)
+@click.option('-res', default=800)
+@click.option('-interp', default=12)
+@click.option('-vname', default='view')
+@click.option('--skyonly/--no-skyonly', default=False)
+@click.option('--hdr/--no-hdr', default=True)
+@click.option('--illum/--no-illum', default=True)
+@click.option('--cr/--no-cr', default=True)
 @clk.shared_decs(clk.command_decs(raytraverse.__version__, wrap=True))
-def integrate(ctx, **kwargs):
+def integrate(ctx, pts=None, vdirs=None, skyonly=False, hdr=True,
+              illum=True, cr=True, res=800, interp=12, vname='view', **kwargs):
     """build integrator and make images"""
     if 'scene' not in ctx.obj:
-        invoke_scene(ctx)
-    if 'suns' not in ctx.obj:
-        invoke_suns(ctx)
+        clk.invoke_dependency(ctx, scene)
     scn = ctx.obj['scene']
-    sns = ctx.obj['suns']
-    su = SunField(scn, sns)
+    if not skyonly:
+        if 'suns' not in ctx.obj:
+            clk.invoke_dependency(ctx, suns)
+        sns = ctx.obj['suns']
+        su = SunField(scn, sns)
+    else:
+        su = None
     sk = SCBinField(scn)
-    itg = Integrator(sk, su, stol=5)
+    itg = Integrator(sk, su, **kwargs)
     smtx, grnd, sun, si = itg.get_sky_mtx()
-    # subset = np.array([1, 14, 32, 35])
-    subset = np.array([1, 14])
-    subset = np.arange(0, 103, 17)
-    print(len(subset))
-    # subset = np.arange(1000)
-    # # itg.skyfield.direct_view()
-    # # itg.sunfield.direct_view()
-    # # itg.sunfield.view.direct_view()
-    # print(scn.skydata[itg.dayhours][subset])
-    itg.hdr([(5, 5, 1.25)], (0, -1, 0), smtx[subset], sun[subset], si[subset], interp=4, res=400)
-    # itg.hdr([(5, 5, 1.25)], sun[14, 0:3], smtx[subset], sun[subset], si[subset], interp=1, res=800, vname='view2')
-    # itg.hdr([(5, 5, 1.25)], [(0, 0, 1)], [1], [[0,]], [False,], interp=1, res=800)
-    # illum = itg.illum([(5, 5, 1.25)], [(-1, 0, 0), sun[14, 0:3]], smtx[subset], sun[subset], si[subset])
-    # print(illum)
-    # print(illum.shape)
+    if hdr:
+        for i, vd in enumerate(vdirs):
+            vn = f'{vname}{i:02d}'
+            itg.hdr(pts, vd, smtx, sun, si, interp=interp, res=res, vname=vn)
+    if illum:
+        itg.illum(pts, vdirs, smtx, sun, si, vname=vn)
+    if cr:
+        itg.contrastratio(pts, vdirs, smtx, sun, si, vname=vn)
 
 
 @main.resultcallback()

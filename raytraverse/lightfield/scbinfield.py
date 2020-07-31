@@ -15,9 +15,9 @@ class SCBinField(LightFieldKD):
     each source
     """
 
-    def __init__(self, scene, rebuild=False, prefix='sky'):
+    def __init__(self, scene, rebuild=False, prefix='sky', **kwargs):
         super().__init__(scene, rebuild=rebuild, prefix=prefix,
-                         srcn=scene.skyres**2)
+                         srcn=scene.skyres**2, **kwargs)
 
     def apply_coef(self, pi, coefs):
         coefs = np.asarray(coefs)

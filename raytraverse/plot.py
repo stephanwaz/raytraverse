@@ -86,4 +86,4 @@ def plot_patches(ax, patches, patchargs=None):
     if patchargs is None:
         patchargs = {}
     for lum, p in patches:
-        ax.add_patch(Polygon(p, closed=True, color=lum, **patchargs))
+        ax.add_patch(Polygon(p, closed=True, facecolor=lum, **patchargs))

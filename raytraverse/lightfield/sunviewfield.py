@@ -14,7 +14,6 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 import numpy as np
 
 from raytraverse import translate, plot
-from raytraverse.helpers import ArrayDict
 from raytraverse.lightfield.lightfield import LightField
 
 
@@ -31,12 +30,19 @@ class SunViewField(LightField):
         build kd-tree even if one exists
     """
 
-    def __init__(self, scene, suns, rebuild=False):
+    def __init__(self, scene, suns, rebuild=False, rmraw=False):
         #: raytraverse.sunsetter.SunSetter
         self.suns = suns
         #: raytraverse.sunmapper.SunMapper
         self.sunmap = suns.map
-        super().__init__(scene, rebuild=rebuild, prefix='sunview')
+        super().__init__(scene, rebuild=rebuild, prefix='sunview', rmraw=rmraw)
+
+    def raw_files(self):
+        """get list of files used to build field"""
+        dfile = f'{self.scene.outdir}/{self.prefix}_vals.out'
+        vfile = f'{self.scene.outdir}/{self.prefix}_vecs.out'
+        final = f'{self.scene.outdir}/{self.prefix}_result.pickle'
+        return [dfile, vfile, final]
 
     @property
     def raster(self):
@@ -60,11 +66,6 @@ class SunViewField(LightField):
     def scene(self, scene):
         """Set this integrator's scene and load samples"""
         self._scene = scene
-        dfile = f'{self.scene.outdir}/{self.prefix}_result.pickle'
-        if not os.path.isfile(dfile):
-            raise FileNotFoundError("No results files found, have you run"
-                                    f" a Sampler of type {self.prefix} for"
-                                    f" scene {self.scene.outdir}?")
         kdfile = f'{self.scene.outdir}/{self.prefix}_kd_data.pickle'
         if os.path.isfile(kdfile) and not self.rebuild:
             f = open(kdfile, 'rb')
@@ -74,6 +75,11 @@ class SunViewField(LightField):
             self._raster = pickle.load(f)
             f.close()
         else:
+            dfile = f'{self.scene.outdir}/{self.prefix}_result.pickle'
+            if not os.path.isfile(dfile):
+                raise FileNotFoundError("No results files found, have you run"
+                                        f" a Sampler of type {self.prefix} for"
+                                        f" scene {self.scene.outdir}?")
             f = open(dfile, 'rb')
             vls = [pickle.load(f) for i in range(3)]
             f.close()
@@ -101,22 +107,22 @@ class SunViewField(LightField):
 
     def _build_suns(self, vecs, lums, shape):
         """loop through points/suns and group adjacent rays"""
-        vec = ArrayDict({(-1, -1): np.zeros((1, 5))})
-        lum = {(-1, -1): None}
-        omega = {(-1, -1): None}
-        raster = {(-1, -1): None}
+        vec = {}
+        lum = {}
+        omega = {}
+        raster = {}
         futures = []
         with ThreadPoolExecutor() as exc:
             for i, j in self.items():
                 if len(vecs[i][j]) > 0:
                     futures.append(exc.submit(self._grp_by_sun, vecs[i][j],
                                               lums[i][j], shape, i, j))
-        for fu in as_completed(futures):
-            i, j, v, lm, og, ras = fu.result()
-            vec[(i, j)] = v
-            lum[(i, j)] = lm
-            omega[(i, j)] = og
-            raster[(i, j)] = ras
+            for fu in as_completed(futures):
+                i, j, v, lm, og, ras = fu.result()
+                vec[(i, j)] = v
+                lum[(i, j)] = lm
+                omega[(i, j)] = og
+                raster[(i, j)] = ras
         return vec, lum, omega, raster
 
     def _to_pix(self, rxyz, atv, vm, res):

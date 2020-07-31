@@ -14,7 +14,7 @@ from scipy.spatial import cKDTree
 from memory_profiler import profile
 
 import numpy as np
-from raytraverse.helpers import MemArrayList, SVoronoi
+from raytraverse.helpers import SVoronoi, MemArrayDict
 
 from raytraverse import io, translate
 from raytraverse.lightfield.lightfield import LightField
@@ -54,6 +54,7 @@ class LightFieldKD(LightField):
         self._scene = scene
         kdfile = f'{scene.outdir}/{self.prefix}_kd_data.pickle'
         lumfile = f'{scene.outdir}/{self.prefix}_kd_lum_map.pickle'
+        lumdat = f'{self.scene.outdir}/{self.prefix}_kd_lum.dat'
         if (os.path.isfile(kdfile) and os.path.isfile(lumfile)
                 and not self.rebuild):
             f = open(kdfile, 'rb')
@@ -65,6 +66,8 @@ class LightFieldKD(LightField):
             self._lum = pickle.load(f)
             f.close()
         else:
+            f = open(lumdat, 'wb')
+            f.close()
             self._d_kd, self._vec, self._omega, self._lum = self._mk_tree()
             f = open(kdfile, 'wb')
             pickle.dump(self.d_kd, f, protocol=4)
@@ -75,7 +78,24 @@ class LightFieldKD(LightField):
             pickle.dump(self._lum, f, protocol=4)
             f.close()
 
-    def _get_vl(self, npts, pref='', ltype=MemArrayList):
+    def raw_files(self):
+        """get list of files used to build field"""
+        dfile = f'{self.scene.outdir}/{self.prefix}_vals.out'
+        vfile = f'{self.scene.outdir}/{self.prefix}_vecs.out'
+        return [dfile, vfile]
+
+    def _to_mem_map(self, ar, offset=0):
+        if type(ar) == tuple and type(ar[0]) == str:
+            ar = io.bytefile2rad(ar[0], ar[1], slc=ar[2], subs='ijk,k->ij')
+        outf = f'{self.scene.outdir}/{self.prefix}_kd_lum.dat'
+        mar = np.memmap(outf, dtype='<f', mode='r+',
+                        offset=offset, shape=ar.shape)
+        mar[:] = ar[:]
+        mar.flush()
+        del mar
+        return outf, '<f', 'r', offset, ar.shape
+
+    def _get_vl(self, npts, pref='', ltype=MemArrayDict, os0=0, fvrays=False):
         dfile = f'{self.scene.outdir}/{self.prefix}{pref}_vals.out'
         vfile = f'{self.scene.outdir}/{self.prefix}{pref}_vecs.out'
         if not (os.path.isfile(dfile) and os.path.isfile(vfile)):
@@ -83,38 +103,45 @@ class LightFieldKD(LightField):
                                     f" a Sampler of type {self.prefix} for"
                                     f" scene {self.scene.outdir}?")
         fvecs = io.bytefile2np(open(vfile, 'rb'), (-1, 4))
+        ishape = (fvecs.shape[0], self.srcn, 3)
+        if fvrays:
+            alums = io.bytefile2rad(dfile, ishape, subs='ijk,k->ij')
+            blindsquirrel = (np.max(alums, 1) < self.scene.maxspec)
+            fvecs = fvecs[blindsquirrel]
+            alums = alums[blindsquirrel]
         sorting = fvecs[:, 0].argsort()
         fvecs = fvecs[sorting]
         pidx = fvecs[:, 0]
         pt_div = np.searchsorted(pidx, np.arange(npts), side='right')
         pt0 = 0
-        vecs = []
+        vecs = {}
         lums = []
-        lumfile = f'{self.scene.outdir}/{self.prefix}_kd_lum.dat'
-        margs = (lumfile, '<f', 'r')
-        oshape = (fvecs.shape[0], self.srcn)
-        lummem = np.memmap(lumfile, mode='w+', dtype='<f', shape=oshape)
-        del lummem
-        ishape = (fvecs.shape[0], self.srcn, 3)
-        with ThreadPoolExecutor() as exc:
-            for i, pt in enumerate(pt_div):
-                vecs.append(fvecs[pt0:pt, 1:4])
-                slc = sorting[pt0:pt]
-                lums.append(exc.submit(io.einsum_mem2mem, dfile, ishape,
-                                       lumfile, offset=4*pt0*self.srcn,
-                                       islice=slc))
-                pt0 = pt
         lummap = []
-        for lm in lums:
-            lummap.append((*margs, *lm.result()))
+        with ThreadPoolExecutor() as exc:
+            pts = []
+            for i, pt in enumerate(pt_div):
+                if pt != pt0:
+                    pts.append(i)
+                    vecs[i] = fvecs[pt0:pt, 1:4]
+                    slc = sorting[pt0:pt]
+                    try:
+                        ar = alums[slc]
+                    except NameError:
+                        ar = (dfile, ishape, slc)
+                    lums.append(exc.submit(self._to_mem_map, ar,
+                                           offset=os0 + 4*pt0*self.srcn))
+                    pt0 = pt
+            for pt, lm in zip(pts, lums):
+                lummap.append((pt, lm.result()))
         return vecs, ltype(lummap)
 
-    def _mk_tree(self, pref='', ltype=MemArrayList):
+    def _mk_tree(self, pref='', ltype=MemArrayDict, os0=0):
         npts = np.product(self.scene.ptshape)
-        vs, lums = self._get_vl(npts, pref=pref, ltype=ltype)
+        vs, lums = self._get_vl(npts, pref=pref, ltype=ltype, os0=os0)
         with ProcessPoolExecutor() as exc:
-            d_kd, omega = zip(*exc.map(LightFieldKD.mk_vector_ball, vs))
-        return d_kd, vs, omega, lums
+            d_kd, omega = zip(*exc.map(LightFieldKD.mk_vector_ball,
+                                       vs.values()))
+        return dict(zip(vs.keys(), d_kd)), vs, dict(zip(vs.keys(), omega)), lums
 
     def apply_coef(self, pi, coefs):
         c = np.asarray(coefs).reshape(-1, 1)
@@ -151,15 +178,15 @@ class LightFieldKD(LightField):
 
     def query_all_pts(self, vecs, interp=1):
         futures = []
+        idxs = []
+        errs = []
         with ProcessPoolExecutor() as exc:
             for pt in self.items():
                 futures.append(exc.submit(self.d_kd[pt].query, vecs, interp))
-        idxs = []
-        errs = []
-        for fu in futures:
-            r = fu.result()
-            idxs.append(r[1])
-            errs.append(r[0])
+            for fu in futures:
+                r = fu.result()
+                idxs.append(r[1])
+                errs.append(r[0])
         return np.stack(idxs), np.stack(errs)
 
     def query_ball(self, pi, vecs, viewangle=180):
@@ -205,4 +232,5 @@ class LightFieldKD(LightField):
             for idx in items:
                 fu.append(exc.submit(self._dview, idx, pdirs, mask, res,
                                      showsample))
-        [print(f.result()) for f in as_completed(fu)]
+            for f in as_completed(fu):
+                print(f.result())
