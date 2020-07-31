@@ -12,7 +12,8 @@ import subprocess
 
 import numpy as np
 import raytraverse
-from raytraverse import translate, io, skycalc, helpers
+from raytraverse import translate, io, skycalc
+from raytraverse.lightfield import memarraydict
 from raytraverse.mapper import ViewMapper
 from raytraverse.scene import SkyInfo
 
@@ -167,7 +168,7 @@ class Integrator(object):
         """
         perrs, pis = self.scene.pt_kd.query(pts)
         vm = ViewMapper(viewangle=viewangle, dxyz=vdir, name=vname)
-        hdr = helpers.header(self.scene, self.sky.loc)
+        hdr = memarraydict.header(self.scene, self.sky.loc)
         vstring = 'VIEW= -vta -vv {0} -vh {0} -vd {1} {2} {3}'.format(viewangle,
                                                                       *vdir)
         pdirs = vm.pixelrays(res)

@@ -9,7 +9,6 @@ raytraverse (|release|)
    lightfield
    integrator
    draw
-   helpers
    io
    plot
    skycalc

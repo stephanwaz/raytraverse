@@ -10,7 +10,7 @@ import os
 import numpy as np
 
 import clasp.script_tools as cst
-from raytraverse import translate, io, draw, quickplot, helpers
+from raytraverse import translate, io, draw, quickplot
 
 
 class Sampler(object):

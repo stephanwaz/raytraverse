@@ -49,3 +49,11 @@ SunViewField
     :private-members:
 
 
+MemArrayDict
+---------------------------------
+
+.. autoclass:: raytraverse.lightfield.memarraydict.MemArrayDict
+    :members:
+    :undoc-members:
+    :show-inheritance:
+    :private-members:

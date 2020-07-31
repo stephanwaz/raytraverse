@@ -7,14 +7,14 @@
 # =======================================================================
 import itertools
 import os
-from concurrent.futures import ThreadPoolExecutor, ProcessPoolExecutor
+from concurrent.futures import ProcessPoolExecutor
 
 import numpy as np
 from scipy.stats import norm
 
 from clasp.script_tools import pipeline, sglob
-from raytraverse.helpers import MemArrayDict
-from raytraverse import translate, io
+from raytraverse.lightfield.memarraydict import MemArrayDict
+from raytraverse import translate
 from raytraverse.lightfield.lightfieldkd import LightFieldKD
 from raytraverse.lightfield.sunviewfield import SunViewField
 

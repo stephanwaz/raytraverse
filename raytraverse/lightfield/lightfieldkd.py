@@ -10,11 +10,10 @@ import pickle
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from concurrent.futures import ProcessPoolExecutor
 from scipy.stats import norm
-from scipy.spatial import cKDTree
-from memory_profiler import profile
+from scipy.spatial import cKDTree, SphericalVoronoi, _voronoi
 
 import numpy as np
-from raytraverse.helpers import SVoronoi, MemArrayDict
+from raytraverse.lightfield.memarraydict import MemArrayDict
 
 from raytraverse import io, translate
 from raytraverse.lightfield.lightfield import LightField
@@ -25,6 +24,17 @@ class LightFieldKD(LightField):
 
     @staticmethod
     def mk_vector_ball(v):
+
+        class SVoronoi(SphericalVoronoi):
+            """this is a temporary fix for an apperent bug in
+            SphericalVoronoi"""
+            def sort_vertices_of_regions(self):
+                if self._dim != 3:
+                    raise TypeError(
+                        "Only supported for three-dimensional point sets")
+                reg = [r for r in self.regions if len(r) > 0]
+                _voronoi.sort_vertices_of_regions(self._simplices, reg)
+
         d_kd = cKDTree(v)
         omega = SVoronoi(v).calculate_areas()[:, None]
         return d_kd, omega
