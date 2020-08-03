@@ -19,6 +19,24 @@ SunSetter
     :show-inheritance:
     :private-members:
 
+SunSetterLoc
+---------------------------
+
+.. autoclass:: raytraverse.scene.SunSetterLoc
+    :members:
+    :undoc-members:
+    :show-inheritance:
+    :private-members:
+
+SunSetterPositions
+---------------------------
+
+.. autoclass:: raytraverse.scene.SunSetterPositions
+    :members:
+    :undoc-members:
+    :show-inheritance:
+    :private-members:
+
 SkyInfo
 ---------------------------
 

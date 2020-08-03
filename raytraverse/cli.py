@@ -17,7 +17,7 @@ import clasp.click_ext as clk
 import raytraverse
 from raytraverse.integrator import Integrator
 from raytraverse.sampler import SCBinSampler, SunSampler
-from raytraverse.scene import Scene, SunSetter
+from raytraverse.scene import Scene, SunSetter, SunSetterLoc, SunSetterPositions
 from raytraverse.lightfield import SCBinField, SunField, SunViewField
 
 
@@ -116,14 +116,24 @@ def sky(ctx, plotdview=False, run=True, rmraw=True, **kwargs):
 @click.option('-loc', callback=clk.split_float)
 @click.option('-wea')
 @click.option('--reload/--no-reload', default=True)
+@click.option('--usepositions/--no-usepositions', default=False)
 @clk.shared_decs(clk.command_decs(raytraverse.__version__, wrap=True))
-def suns(ctx, loc=None, wea=None, **kwargs):
+def suns(ctx, loc=None, wea=None, usepositions=False, **kwargs):
     """create sun positions"""
     if 'scene' not in ctx.obj:
         clk.invoke_dependency(ctx, scene)
-    if loc is None and wea is not None:
+    if usepositions:
+        if wea is None:
+            raise ValueError('option -wea is required when use positions is '
+                             'True')
+        s = SunSetterPositions(ctx.obj['scene'], wea, **kwargs)
+    elif loc is not None:
+        s = SunSetterLoc(ctx.obj['scene'], loc, **kwargs)
+    elif wea is not None:
         loc = raytraverse.skycalc.get_loc_epw(wea)
-    s = SunSetter(ctx.obj['scene'], loc, **kwargs)
+        s = SunSetterLoc(ctx.obj['scene'], loc, **kwargs)
+    else:
+        s = SunSetter(ctx.obj['scene'], **kwargs)
     s.direct_view()
     ctx.obj['suns'] = s
 

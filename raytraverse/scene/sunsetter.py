@@ -12,9 +12,9 @@ from concurrent.futures import ThreadPoolExecutor
 
 import numpy as np
 from scipy.spatial import cKDTree
+import clasp.script_tools as cst
 
-from raytraverse import draw, translate, plot
-from raytraverse.scene.skyinfo import SkyInfo
+from raytraverse import translate, plot
 from raytraverse.mapper import SunMapper
 
 
@@ -25,8 +25,6 @@ class SunSetter(object):
     ----------
     scene: raytraverse.scene.Scene
         scene class containing geometry, location and analysis plane
-    loc: tuple
-        lat, lon, tz (in degrees, west is positive
     srct: float, optional
         threshold of sky contribution for determining appropriate srcn
     skyro: float, optional
@@ -35,33 +33,27 @@ class SunSetter(object):
         if True reloads existing sun positions, else always generates new
     """
 
-    def __init__(self, scene, loc, srct=.01, skyro=0.0, reload=True, **kwargs):
+    def __init__(self, scene, srct=.01, skyro=0.0, reload=True, **kwargs):
         #: float: threshold of sky contribution for determining appropriate srcn
         self.srct = srct
         #: float: ccw rotation (in degrees) for sky
         self.skyro = skyro
-        #: raytraverse.scene.SkyInfo
-        self.sky = SkyInfo(loc, skyro)
+        sunfile = f"{scene.outdir}/suns.rad"
         #: bool: reuse existing sun positions (if found)
-        self.reload = reload
+        if not reload:
+            try:
+                os.remove(sunfile)
+            except FileNotFoundError:
+                pass
+            try:
+                os.remove(f'{scene.outdir}/sky_skydetail.npy')
+            except FileNotFoundError:
+                pass
         #: raytraverse.scene.Scene
         self.scene = scene
-        sunfile = f"{self.scene.outdir}/suns.rad"
         self.suns = sunfile
         self.map = SunMapper(self.suns)
-        if not (os.path.isfile(sunfile) and self.reload):
-            self._write_suns(sunfile)
         self.sun_kd = None
-
-    @property
-    def suns(self):
-        """holds sun positions
-
-        :getter: Returns the sun source array
-        :setter: Set the sun source array and write to files
-        :type: np.array
-        """
-        return self._suns
 
     @property
     def sun_kd(self):
@@ -74,53 +66,73 @@ class SunSetter(object):
     def sun_kd(self, sun_kd):
         self._sun_kd = sun_kd
 
+    @property
+    def suns(self):
+        """holds sun positions
+
+        :getter: Returns the sun source array
+        :setter: Set the sun source array and write to files
+        :type: np.array
+        """
+        return self._suns
+
     @suns.setter
     def suns(self, sunfile):
         """set the skydetail array and determine sample count and spacing"""
-        if os.path.isfile(sunfile) and self.reload:
+        if os.path.isfile(sunfile):
             f = open(sunfile, 'r')
             sund = f.read().split('source')[1:]
             xyz = np.array([s.split()[4:7] for s in sund]).astype(float)
+            self._suns = xyz
         else:
             uvsize = self.scene.skyres
-            skyb = self.load_sky_facs()
-            si = np.stack(np.unravel_index(np.arange(skyb.size), skyb.shape))
-            uv = si.T/uvsize
-            ib = self.sky.in_solarbounds(uv + .5/uvsize,
-                                         size=1/uvsize)
-            ib = (skyb.ravel()*ib > self.srct)
-            # keep solar discs from overlapping
-            border = 2*uvsize/180
-            j = np.random.default_rng().uniform(border, 1-border,
-                                                (np.sum(ib), 2))
-            # j = .5
-            uv = (si.T[ib] + j)/uvsize
-            xyz = translate.uv2xyz(uv, xsign=1)
-        self._suns = xyz
+            self._suns = self.choose_suns(uvsize)
+            self._write_suns(sunfile)
+
+    def choose_suns(self, uvsize):
+        si = np.stack(np.unravel_index(np.arange(uvsize**2),
+                                       (uvsize, uvsize)))
+        skyb = self.load_sky_facs()
+        uv = si.T/uvsize
+        ib = np.full(uv.shape[0], True)
+        ib = (skyb*ib > self.srct)
+        border = 2*uvsize/180
+        j = np.random.default_rng().uniform(border, 1 - border, si.shape)
+        # j = .5
+        uv = (si.T[ib] + j)/uvsize
+        xyz = translate.uv2xyz(uv, xsign=1)
+        return xyz
 
     def load_sky_facs(self):
         outf = f'{self.scene.outdir}/sky_skydetail.npy'
-        if os.path.isfile(outf) and self.reload:
-            return np.load(outf)
+        if os.path.isfile(outf):
+            return np.load(outf).ravel()
         dfile = f'{self.scene.outdir}/sky_kd_lum_map.pickle'
-        f = open(dfile, 'rb')
-        skylums = pickle.load(f)
-        f.close()
-        zeros = np.zeros(len(skylums), dtype=int)
-        with ThreadPoolExecutor() as exc:
-            mxs = list(exc.map(np.max, skylums.values(), zeros))
-        sd = np.max(np.stack(mxs), 0).reshape(self.scene.skyres,
-                                              self.scene.skyres)
-        np.save(outf, sd)
-        return sd
+        try:
+            f = open(dfile, 'rb')
+        except FileNotFoundError:
+            print('Warning! suns initialized without sky detail, first create'
+                  ' a SCBinField')
+            return 1
+        else:
+            skylums = pickle.load(f)
+            f.close()
+            zeros = np.zeros(len(skylums), dtype=int)
+            with ThreadPoolExecutor() as exc:
+                mxs = list(exc.map(np.max, skylums.values(), zeros))
+            sd = np.max(np.stack(mxs), 0).reshape(self.scene.skyres,
+                                                  self.scene.skyres)
+            np.save(outf, sd)
+            return sd.ravel()
 
-    def direct_view(self, skyfacs=True):
+    def direct_view(self):
         sxy = translate.xyz2xy(self.suns, flip=False)
         sbins = translate.uv2bin(translate.xyz2uv(self.suns, flipu=False),
                                  self.scene.skyres)
         lums, fig, ax, norm, lev = plot.mk_img_setup([0, 1], ext=1)
-        if skyfacs:
-            sf = self.load_sky_facs().ravel()
+        outf = f'{self.scene.outdir}/sky_skydetail.npy'
+        if os.path.isfile(outf):
+            sf = np.load(outf).ravel()
             borders = translate.bin_borders(np.arange(sf.size),
                                             self.scene.skyres)
             sfxyz = translate.uv2xyz(borders.reshape(-1, 2), xsign=1)

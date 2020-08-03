@@ -8,8 +8,11 @@
 
 """scene objects"""
 
-__all__ = ['Scene', 'SunSetter', 'SkyInfo']
+__all__ = ['Scene', 'SunSetter', 'SkyInfo', 'SunSetterLoc',
+           'SunSetterPositions']
 
 from raytraverse.scene.skyinfo import SkyInfo
 from raytraverse.scene.scene import Scene
 from raytraverse.scene.sunsetter import SunSetter
+from raytraverse.scene.sunsetterloc import SunSetterLoc
+from raytraverse.scene.sunsetterpositions import SunSetterPositions
