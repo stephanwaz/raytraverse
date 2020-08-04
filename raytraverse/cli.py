@@ -10,8 +10,6 @@
 """Console script for raytraverse."""
 import os
 
-import numpy as np
-
 from clasp import click
 import clasp.click_ext as clk
 import raytraverse
@@ -19,15 +17,6 @@ from raytraverse.integrator import Integrator
 from raytraverse.sampler import SCBinSampler, SunSampler
 from raytraverse.scene import Scene, SunSetter, SunSetterLoc, SunSetterPositions
 from raytraverse.lightfield import SCBinField, SunField, SunViewField
-
-
-# def invoke_scene(ctx):
-#     clk.invoke_dependency(ctx, 'scene', 'out', Scene)
-#
-#
-# def invoke_suns(ctx):
-#     print(ctx.parent.command.commands['suns'].context_settings['default_map'])
-#     clk.invoke_dependency(ctx, 'suns', 'scene', SunSetter)
 
 
 @click.group(chain=True, invoke_without_command=True)
@@ -74,17 +63,6 @@ def scene(ctx, **kwargs):
         print(f'number of points: {s.ptshape[0]*s.ptshape[1]}')
         print(f'rotation: {s.ptro}')
         print(f'sky sampling resolution: {s.skyres}')
-        try:
-            suncount = len(open(f'{s.outdir}/sun_modlist.txt').readlines())
-            print(f'scene has {suncount} suns')
-        except FileNotFoundError:
-            print('sun setter not initialized')
-        print('\n Lightfield Data:')
-        print('-'*60)
-        print('Has sky lightfield data:',
-              os.path.isfile(f'{s.outdir}/sky_kd_data.pickle'))
-        print('Has sunview lightfield data:',
-              os.path.isfile(f'{s.outdir}/sunview_kd_data.pickle'))
 
 
 @main.command()
@@ -217,6 +195,21 @@ def integrate(ctx, pts=None, vdirs=None, skyonly=False, hdr=True,
 @click.pass_context
 def printconfig(ctx, returnvalue, **kwargs):
     """callback to save config file"""
+    if ctx.command.commands['scene'].context_settings['default_map']['info']:
+        print('\nCallback Scene Info:')
+        print('='*60 + '\n')
+        s = ctx.obj['scene']
+        try:
+            suncount = len(open(f'{s.outdir}/sun_modlist.txt').readlines())
+            print(f'scene has {suncount} suns')
+        except FileNotFoundError:
+            print('sun setter not initialized')
+        print('\n Lightfield Data:')
+        print('-'*60)
+        print('Has sky lightfield data:',
+              os.path.isfile(f'{s.outdir}/sky_kd_data.pickle'))
+        print('Has sunview lightfield data:',
+              os.path.isfile(f'{s.outdir}/sunview_kd_data.pickle'))
     try:
         clk.tmp_clean(ctx)
     except Exception:

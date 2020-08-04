@@ -10,7 +10,6 @@ import os
 import numpy as np
 
 from raytraverse import translate, skycalc
-from raytraverse.scene.skyinfo import SkyInfo
 from raytraverse.scene.sunsetter import SunSetter
 
 
@@ -54,18 +53,24 @@ class SunSetterPositions(SunSetter):
     def candidates(self, wea):
         """load candidate sun positions"""
         try:
-            xyz = np.loadtxt(wea)
-            if xyz.shape[1] != 3:
-                raise ValueError('sunpos should have 3 col: dx, dy, dz')
-            self._candidates = translate.norm(xyz)
+            dat = np.loadtxt(wea)
+            if dat.shape[1] == 3:
+                dummydir = np.ones((dat.shape[0], 1))
+                self._candidates = np.hstack((translate.norm(dat), dummydir))
+            elif dat.shape[1] == 4:
+                xyz = translate.aa2xyz(dat[:, 0:2])
+                self._candidates = np.hstack((xyz, dat[:, 3:4]))
+            else:
+                raise ValueError
         except ValueError:
             loc = skycalc.get_loc_epw(wea)
             wdat = skycalc.read_epw(wea)
             times = skycalc.row_2_datetime64(wdat[:, 0:3])
-            self._candidates = skycalc.sunpos_xyz(times, *loc, ro=self.skyro)
+            xyz = skycalc.sunpos_xyz(times, *loc, ro=self.skyro)
+            self._candidates = np.hstack((xyz, wdat[:, 3:4]))
 
     def choose_suns(self, uvsize):
-        cbins = translate.uv2bin(translate.xyz2uv(self.candidates,
+        cbins = translate.uv2bin(translate.xyz2uv(self.candidates[:, 0:3],
                                                   normalize=True, flipu=False),
                                  self.scene.skyres)
         cidxs = np.arange(cbins.size)
@@ -77,10 +82,16 @@ class SunSetterPositions(SunSetter):
         for b in sbins:
             if skyb[b] > self.srct:
                 try:
-                    a = np.random.choice(cidxs[cbins == b])
+                    # choose sun position, priortizing brighter conditions
+                    # may introduce bias?
+                    p = self.candidates[cbins == b, 3]
+                    sp = np.sum(p)
+                    if sp == 0:
+                        raise ValueError
+                    a = np.random.choice(cidxs[cbins == b], p=p/sp)
                 except ValueError:
                     pass
                 else:
                     idxs.append(a)
-        return self.candidates[idxs]
+        return self.candidates[idxs, 0:3]
 

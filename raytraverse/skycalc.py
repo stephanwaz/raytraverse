@@ -13,6 +13,7 @@ import datetime
 import re
 
 import numpy as np
+from scipy.interpolate import interp1d
 from skyfield.api import Topos, utc, Loader
 
 from raytraverse import translate
@@ -241,6 +242,17 @@ def sunpos_xyz(timesteps, lat, lon, mer, builtin=True, ro=0.0):
     # translate to spherical rhs before calling translate.tp2xyz
     thetaphi = np.column_stack([np.pi/2 - alt.radians, np.pi/2 - az])
     return translate.tp2xyz(thetaphi)
+
+
+def generate_wea(ts, wea, interp='linear'):
+    skydat = read_epw(wea)
+    wtimes = row_2_datetime64(skydat[:, 0:3]).astype(int)
+    qtimes = row_2_datetime64(ts).astype(int)
+    fdir = interp1d(wtimes, skydat[:, 3], kind=interp)
+    fdif = interp1d(wtimes, skydat[:, 4], kind=interp)
+    idir = fdir(qtimes)[:, None]
+    idif = fdif(qtimes)[:, None]
+    return np.hstack((ts, idir, idif))
 
 
 # Below is an implementation of perez all weather sky model:

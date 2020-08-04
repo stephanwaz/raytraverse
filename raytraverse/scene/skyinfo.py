@@ -54,17 +54,20 @@ class SkyInfo(object):
         sky positions
         """
         self._loc = loc
-        jun = np.arange('2020-06-21', '2020-06-22', 5,
-                        dtype='datetime64[m]')
-        dec = np.arange('2020-12-21', '2020-12-22', 5,
-                        dtype='datetime64[m]')
-        jxyz = skycalc.sunpos_xyz(jun, *loc, ro=self.skyro)
-        dxyz = skycalc.sunpos_xyz(dec, *loc, ro=self.skyro)
-        juv = translate.xyz2uv(jxyz[jxyz[:, 2] > 0], flipu=False)
-        duv = translate.xyz2uv(dxyz[dxyz[:, 2] > 0], flipu=False)
-        juv = juv[juv[:, 0].argsort()]
-        duv = duv[duv[:, 0].argsort()]
-        self._solarbounds = (juv, duv)
+        if loc is None:
+            self._solarbounds = None
+        else:
+            jun = np.arange('2020-06-21', '2020-06-22', 5,
+                            dtype='datetime64[m]')
+            dec = np.arange('2020-12-21', '2020-12-22', 5,
+                            dtype='datetime64[m]')
+            jxyz = skycalc.sunpos_xyz(jun, *loc, ro=self.skyro)
+            dxyz = skycalc.sunpos_xyz(dec, *loc, ro=self.skyro)
+            juv = translate.xyz2uv(jxyz[jxyz[:, 2] > 0], flipu=False)
+            duv = translate.xyz2uv(dxyz[dxyz[:, 2] > 0], flipu=False)
+            juv = juv[juv[:, 0].argsort()]
+            duv = duv[duv[:, 0].argsort()]
+            self._solarbounds = (juv, duv)
 
     def in_solarbounds(self, uv, size=0.0):
         """
@@ -82,6 +85,8 @@ class SkyInfo(object):
         result: np.array
             Truth of ray.src within solar transit
         """
+        if self.loc is None:
+            return np.full(uv.shape[0], True)
         o = size/2
         juv, duv = self.solarbounds
         vlowleft = duv[np.searchsorted(duv[:, 0], uv[:, 0] - o) - 1]

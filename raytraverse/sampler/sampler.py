@@ -220,7 +220,6 @@ class Sampler(object):
             # draw on pdf
             # threshold is set to accurracy at final
             threshold = self.accuracy * 4**(self.idx - len(self.levels))
-            np.set_printoptions(4, suppress=True)
             pdraws = draw.from_pdf(p, threshold)
         return pdraws
 
@@ -275,19 +274,23 @@ class Sampler(object):
             self.weights = translate.resample(self.weights, shape)
             draws = self.draw()
             if draws is None:
-                break
-            self.levelsamples[self.idx] = draws.size
-            si, vecs = self.sample_idx(draws)
-            srate = si.shape[1]/np.prod(shape)
-            fsize += 12*self.srcn*si.shape[1]/1000000
-            row = [f'{i+1} of {self.levels.shape[0]}', str(shape), si.shape[1],
-                   f"{srate:.02%}", fsize]
-            print('{:>8}  {:>25}  {:<10}  {:<8}  {:.03f}'.format(*row))
-            self.dump_vecs(si, vecs[:, 3:])
-            lum = self.sample(vecs, **skwargs)
-            self.update_pdf(si, lum)
-            a = lum.shape[0]
-            allc += a
+                srate = 0.0
+                row = [f'{i + 1} of {self.levels.shape[0]}', str(shape),
+                       0, f"{srate:.02%}", fsize]
+                print('{:>8}  {:>25}  {:<10}  {:<8}  {:.03f}'.format(*row))
+            else:
+                self.levelsamples[self.idx] = draws.size
+                si, vecs = self.sample_idx(draws)
+                srate = si.shape[1]/np.prod(shape)
+                fsize += 12*self.srcn*si.shape[1]/1000000
+                row = [f'{i+1} of {self.levels.shape[0]}', str(shape),
+                       si.shape[1], f"{srate:.02%}", fsize]
+                print('{:>8}  {:>25}  {:<10}  {:<8}  {:.03f}'.format(*row))
+                self.dump_vecs(si, vecs[:, 3:])
+                lum = self.sample(vecs, **skwargs)
+                self.update_pdf(si, lum)
+                a = lum.shape[0]
+                allc += a
         print("-"*70)
         srate = allc/self.weights.size
         row = ['total sampling:', allc, f"{srate:.02%}", fsize]

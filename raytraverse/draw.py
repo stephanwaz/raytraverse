@@ -38,7 +38,6 @@ def get_detail(samps, axes):
 
 
 def from_pdf(pdf, threshold):
-    np.set_printoptions(5, suppress=True)
     nsampc = int(np.sum(pdf > threshold))
     if nsampc == 0:
         return None
