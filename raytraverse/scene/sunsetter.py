@@ -182,7 +182,8 @@ class SunSetter(object):
         stol = translate.theta2chord(tol*np.pi/180)
         suns = translate.norm(tsuns)
         serrs, sis = self.sun_kd.query(suns)
-        return serrs < stol, sis
+        sis = np.where(serrs < stol, sis, self.suns.shape[0])
+        return sis
 
     def _write_suns(self, sunfile):
         """write suns to file

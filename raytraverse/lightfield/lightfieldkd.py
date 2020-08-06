@@ -168,20 +168,6 @@ class LightFieldKD(LightField):
             lum = lum[:, i]
         img[mask] += np.squeeze(lum)
 
-    def get_illum(self, vm, pis, vdirs, coefs, scale=179):
-        illums = []
-        for pi in pis:
-            lm = self.apply_coef(pi, coefs)
-            idx = self.query_ball(pi, vdirs)
-            illum = []
-            for j, i in enumerate(idx):
-                v = self.vec[pi][i]
-                o = self.omega[pi][i]
-                illum.append(np.einsum('j,ij,j,->i', vm.ctheta(v, j), lm[:, i],
-                                       o, scale))
-            illums.append(illum)
-        return np.squeeze(illums)
-
     def query_ray(self, pi, vecs, interp=1):
         d, i = self.d_kd[pi].query(vecs, k=interp)
         return i, d

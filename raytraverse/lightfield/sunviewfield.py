@@ -93,8 +93,7 @@ class SunViewField(LightField):
             f.close()
 
     def items(self):
-        return itertools.product(super().items(),
-                                 range(self.suns.suns.shape[0]))
+        return self.vec.keys()
 
     def _grp_by_sun(self, vecs, lums, shape, pti, suni):
         scalefac = ((self.sunmap.viewangle/2*np.pi/180)**2)
@@ -113,6 +112,8 @@ class SunViewField(LightField):
         raster = {}
         futures = []
         with ThreadPoolExecutor() as exc:
+            items = itertools.product(super().items(),
+                                      range(self.suns.suns.shape[0]))
             for i, j in self.items():
                 if len(vecs[i][j]) > 0:
                     futures.append(exc.submit(self._grp_by_sun, vecs[i][j],
@@ -180,21 +181,14 @@ class SunViewField(LightField):
             for p, cl in zip(px, clum):
                 img[tuple(p)] += cl
 
-    def get_illum(self, vm, pis, coefs, scale=179):
-        ct = np.maximum(np.einsum("ki,ji->jk", vm.dxyz, coefs[:, 0:3]), 0)
-        rpt = int(len(pis)/ct.shape[0])
-        ctheta = np.broadcast_to(ct[None, ...], (rpt,) + ct.shape)
-        ctheta = ctheta.reshape(-1, ct.shape[1])
-        sun = np.broadcast_to(coefs[None, :, -1], (rpt, coefs.shape[0])).ravel()
-        hassun = np.array([pi in self.vec.keys() for pi in pis])
-        pis = np.array(pis)
-        lum = self.lum[pis[hassun]]
-        omega = self.omega[pis[hassun]]
-        illum = np.zeros((len(pis), len(vm.dxyz)))
-        illum[hassun] = np.einsum("i,i,ij,i,->ij", lum, omega,
-                                  ctheta[hassun], sun[hassun], scale)
-        illum = illum.reshape((-1, coefs.shape[0], vm.dxyz.shape[0]))
-        return np.swapaxes(illum, 1, 2)
+    def metric(self, psi, v, s, metricfuncs, **kwargs):
+        if v.ctheta(s[0:3]) > 0 and psi in self.items():
+            svlm = [self.lum[psi]*s[-2]]
+            svo = [self.omega[psi]]
+            return [f(v, [s[0:3]], svo, svlm, area=2*np.pi,
+                    **kwargs) for f in metricfuncs]
+        else:
+            raise ValueError
 
     def direct_view(self, res=2):
         """create a summary image of all sun discs from each of vpts"""

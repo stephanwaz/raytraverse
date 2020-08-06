@@ -489,7 +489,8 @@ def perez(sxyz, dirdif, md=None):
     airmass = 1/(csunz + 0.15*np.exp(-np.log(93.885 - sunz*180/np.pi)*1.253))
     skybright = dirdif[:, 1]*airmass/(sole * eccentricity)
     skyclear = ((dirdif[:, 1] + dirdif[:, 0])/dirdif[:, 1] + sunz3)/(1 + sunz3)
-    catn = np.searchsorted(perez_constants['cats'], skyclear, side='right') - 1
+    catn = np.minimum(np.searchsorted(perez_constants['cats'], skyclear,
+                                      side='right') - 1, 7)
     effimultd = np.stack((np.ones(n), np.full(n, precwater),
                           np.exp(5.73*sunz - 5), skybright)).T
     effimultf = np.stack((np.ones(n), np.full(n, precwater),

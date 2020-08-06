@@ -24,13 +24,25 @@ class ViewMapper(object):
         becomes 360,180
     """
 
-    def __init__(self, dxyz=(0.0, 1.0, 0.0), viewangle=360.0, name='view'):
+    def __init__(self, dxyz=(0.0, 1.0, 0.0), viewangle=360.0, name='view',
+                 mtxs=None, imtxs=None):
         self._viewangle = viewangle
         # float: aspect ratio width/height
         self.aspect = 1
+        self._initmtx = (mtxs, imtxs)
         self.dxyz = dxyz
+        self._initmtx = None
         self.area = 2*np.pi*(1 - np.cos(viewangle*np.pi/360))
         self.name = name
+
+    def __getitem__(self, item):
+        mtxs = [(self.ymtx[item], self.pmtx[item])]
+        if self._ivm is not None:
+            imtxs = [(self.ivm.ymtx[item], self.ivm.pmtx[item])]
+        else:
+            imtxs = None
+        return ViewMapper(self.dxyz[item], self.viewangle, self.name,
+                          mtxs=mtxs, imtxs=imtxs)
 
     @property
     def dxyz(self):
@@ -71,12 +83,16 @@ class ViewMapper(object):
     def dxyz(self, xyz):
         """set view parameters"""
         self._dxyz = translate.norm(xyz)
-        self._ymtx, self._pmtx = zip(*[translate.rmtx_yp(x) for x in self.dxyz])
+        if self._initmtx[0] is None:
+            self._ymtx, self._pmtx = zip(*[translate.rmtx_yp(x)
+                                           for x in self.dxyz])
+        else:
+            self._ymtx, self._pmtx = zip(*self._initmtx[0])
         if self._viewangle > 180:
             self._sf = np.array((1, 1))
             self._bbox = np.stack(((0, 0), (2, 1)))
             self.aspect = 2
-            self._ivm = ViewMapper(-self.dxyz, 180)
+            self._ivm = ViewMapper(-self.dxyz, 180, mtxs=self._initmtx[1])
         else:
             self._sf = np.array((self._viewangle/180, self._viewangle/180))
             self._bbox = np.stack((.5 - self._sf/2, .5 + self._sf/2))
@@ -145,6 +161,7 @@ class ViewMapper(object):
         return np.linalg.norm(cp, axis=-1)
 
     def ctheta(self, vec, i=0):
+        vec = np.asarray(vec)
         return np.einsum("i,ji->j", self.dxyz[i],
                          vec.reshape(-1, vec.shape[-1]))
 
