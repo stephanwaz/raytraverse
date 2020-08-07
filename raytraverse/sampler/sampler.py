@@ -6,6 +6,7 @@
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 # =======================================================================
 import os
+import sys
 
 import numpy as np
 
@@ -264,9 +265,9 @@ class Sampler(object):
             f.close()
             f = open(f'{self.scene.outdir}/{self.stype}_vals.out', 'wb')
             f.close()
-        print('Sampling...')
+        print('Sampling...', file=sys.stderr)
         hdr = ['level', 'shape', 'samples', 'rate', 'filesize (MB)']
-        print('{:>8}  {:>25}  {:<10}  {:<8}  {}'.format(*hdr))
+        print('{:>8}  {:>25}  {:<10}  {:<8}  {}'.format(*hdr), file=sys.stderr)
         fsize = 0
         for i in range(self.idx, self.levels.shape[0]):
             shape = np.concatenate((self.scene.ptshape, self.levels[i]))
@@ -277,7 +278,8 @@ class Sampler(object):
                 srate = 0.0
                 row = [f'{i + 1} of {self.levels.shape[0]}', str(shape),
                        0, f"{srate:.02%}", fsize]
-                print('{:>8}  {:>25}  {:<10}  {:<8}  {:.03f}'.format(*row))
+                print('{:>8}  {:>25}  {:<10}  {:<8}  {:.03f}'.format(*row),
+                      file=sys.stderr)
             else:
                 self.levelsamples[self.idx] = draws.size
                 si, vecs = self.sample_idx(draws)
@@ -285,14 +287,15 @@ class Sampler(object):
                 fsize += 12*self.srcn*si.shape[1]/1000000
                 row = [f'{i+1} of {self.levels.shape[0]}', str(shape),
                        si.shape[1], f"{srate:.02%}", fsize]
-                print('{:>8}  {:>25}  {:<10}  {:<8}  {:.03f}'.format(*row))
+                print('{:>8}  {:>25}  {:<10}  {:<8}  {:.03f}'.format(*row),
+                      file=sys.stderr)
                 self.dump_vecs(si, vecs[:, 3:])
                 lum = self.sample(vecs, **skwargs)
                 self.update_pdf(si, lum)
                 a = lum.shape[0]
                 allc += a
-        print("-"*70)
+        print("-"*70, file=sys.stderr)
         srate = allc/self.weights.size
         row = ['total sampling:', allc, f"{srate:.02%}", fsize]
-        print('{:<35}  {:<10}  {:<8}  {:.03f}'.format(*row))
+        print('{:<35}  {:<10}  {:<8}  {:.03f}'.format(*row), file=sys.stderr)
         self.run_callback()

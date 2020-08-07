@@ -9,8 +9,11 @@
 import os
 import re
 import shutil
+import configparser
+import sys
 
 import numpy as np
+import json
 
 from clasp import script_tools as cst
 from clasp.click_callbacks import parse_file_list
@@ -53,6 +56,7 @@ class Scene(object):
     def __init__(self, outdir, scene=None, area=None, reload=True,
                  overwrite=False, ptres=1.0, ptro=0.0, viewdir=(0, 1, 0),
                  viewangle=360, skyres=10.0, maxspec=0.3, **kwargs):
+        locvar = locals()
         try:
             os.mkdir(outdir)
         except FileExistsError as e:
@@ -63,28 +67,42 @@ class Scene(object):
                 os.mkdir(outdir)
             else:
                 raise e
-        #: bool: try to reload scene files
-        self.reload = reload
-        #: float: ccw rotation (in degrees) for point grid on plane
-        self.ptro = ptro
-        #: str: path to store scene info and output files
-        self.outdir = outdir
-        #: float: point resolution for area
-        self.ptres = ptres
-        #: float: maximum specular transmission in scene
-        self.maxspec = maxspec
-        self._solarbounds = None
-        self.scene = scene
-        self.area = area
-        self.reload = False
-        #: raytraverse.viewmapper.ViewMapper: view translation class
-        self.view = ViewMapper(viewdir, viewangle)
-        if skyres < .7:
-            print('Warning! minimum sunres is .7 to avoid overlap and allow')
-            print('for jittering position, sunres set to .7')
-            skyres = .7
-        self.skyres = skyres
-        self.pt_kd = None
+        js = f'{outdir}/scene_parameters.json'
+        if os.path.isfile(js):
+            with open(js, 'r') as jf:
+                params = json.load(jf)
+            os.remove(js)
+            print(f'Scene parameters loaded from {js}', file=sys.stderr)
+            self.__init__(**params)
+        else:
+            locvar.pop('self')
+            locvar.pop('kwargs')
+            with open(js, 'w') as jf:
+                json.dump(locvar, jf)
+            #: bool: try to reload scene files
+            self.reload = reload
+            #: float: ccw rotation (in degrees) for point grid on plane
+            self.ptro = ptro
+            #: str: path to store scene info and output files
+            self.outdir = outdir
+            #: float: point resolution for area
+            self.ptres = ptres
+            #: float: maximum specular transmission in scene
+            self.maxspec = maxspec
+            self._solarbounds = None
+            self.scene = scene
+            self.area = area
+            self.reload = False
+            #: raytraverse.viewmapper.ViewMapper: view translation class
+            self.view = ViewMapper(viewdir, viewangle)
+            if skyres < .7:
+                print('Warning! minimum sunres is .7 to avoid overlap and',
+                      file=sys.stderr)
+                print('allow for jittering position, sunres set to .7',
+                      file=sys.stderr)
+                skyres = .7
+            self.skyres = skyres
+            self.pt_kd = None
 
     @property
     def skyres(self):

@@ -5,6 +5,8 @@
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 # =======================================================================
+import sys
+
 import numpy as np
 
 from raytraverse import translate
@@ -40,14 +42,14 @@ class SunSampler(object):
     def run(self, view=True, reflection=True,
             rcopts='-ab 6 -ad 3000 -as 1500 -st 0 -ss 16 -aa .1',
             **kwargs):
-        if view:
-            print("Sampling Sun Visibility")
+        if view and self.suns.suns.size > 0:
+            print("Sampling Sun Visibility", file=sys.stderr)
             self.viewsampler.run(rcopts='-ab 0')
         if reflection:
             for sidx, sb in enumerate(self.sunbin):
                 print(f"Sampling Sun Reflections {sidx+1} of "
-                      f"{self.sunbin.size}")
-                print(f'Sun Position: {self.suns.suns[sidx]}')
+                      f"{self.sunbin.size}", file=sys.stderr)
+                print(f'Sun Position: {self.suns.suns[sidx]}', file=sys.stderr)
                 self.reflsampler = SingleSunSampler(self.scene, self.suns, sidx,
                                                     sb, **self.sampleargs)
                 self.reflsampler.run(rcopts=rcopts, **kwargs)

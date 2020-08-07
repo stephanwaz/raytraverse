@@ -7,6 +7,7 @@
 # =======================================================================
 import os
 import pickle
+import sys
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from concurrent.futures import ProcessPoolExecutor
 from scipy.stats import norm
@@ -229,4 +230,4 @@ class LightFieldKD(LightField):
                 fu.append(exc.submit(self._dview, idx, pdirs, mask, res,
                                      showsample))
             for f in as_completed(fu):
-                print(f.result())
+                print(f.result(), file=sys.stderr)

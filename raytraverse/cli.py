@@ -9,6 +9,8 @@
 
 """Console script for raytraverse."""
 import os
+import sys
+
 import numpy as np
 
 from clasp import click
@@ -49,6 +51,7 @@ def np_load(ctx, param, s):
               help="show traceback on exceptions")
 def main(ctx, out, config, outconfig=None, **kwargs):
     """docstring"""
+    ctx.info_name = 'raytraverse'
     clk.get_config_chained(ctx, config, outconfig, None, None)
     ctx.obj = dict(out=out)
 
@@ -73,19 +76,19 @@ def scene(ctx, **kwargs):
     ctx.obj['scene'] = s
     if kwargs['points']:
         for pt in s.pts():
-            print('{}\t{}\t{}'.format(*pt))
+            print('{}\t{}\t{}'.format(*pt), file=sys.stderr)
     if kwargs['info']:
-        print(f'\nScene {s.outdir}:')
-        print('='*60 + '\n')
-        print('Scene Geometry:')
+        print(f'\nScene {s.outdir}:', file=sys.stderr)
+        print('='*60 + '\n', file=sys.stderr)
+        print('Scene Geometry:', file=sys.stderr)
         os.system(f'getinfo {s.scene}')
-        print('Analysis Area:')
-        print('-'*60)
-        print(f'extents:\n{s.area.bbox}')
-        print(f'resolution: {s.area.sf/s.ptshape}')
-        print(f'number of points: {s.ptshape[0]*s.ptshape[1]}')
-        print(f'rotation: {s.ptro}')
-        print(f'sky sampling resolution: {s.skyres}')
+        print('Analysis Area:', file=sys.stderr)
+        print('-'*60, file=sys.stderr)
+        print(f'extents:\n{s.area.bbox}', file=sys.stderr)
+        print(f'resolution: {s.area.sf/s.ptshape}', file=sys.stderr)
+        print(f'number of points: {s.ptshape[0]*s.ptshape[1]}', file=sys.stderr)
+        print(f'rotation: {s.ptro}', file=sys.stderr)
+        print(f'sky sampling resolution: {s.skyres}', file=sys.stderr)
 
 
 @main.command()
@@ -114,6 +117,7 @@ def sky(ctx, plotdview=False, run=True, rmraw=True, **kwargs):
 @main.command()
 @click.option('-srct', default=.01)
 @click.option('-skyro', default=0.0)
+@click.option('-sunres', default=10.0)
 @click.option('-loc', callback=clk.split_float)
 @click.option('-wea')
 @click.option('--reload/--no-reload', default=True)
@@ -165,13 +169,21 @@ def sunrun(ctx, plotdview=False, run=True, rmraw=False, **kwargs):
     if run:
         sampler.run(**kwargs)
     if kwargs['view']:
-        sv = SunViewField(scn, sns, rebuild=run, rmraw=rmraw)
-        if plotdview:
-            sv.direct_view()
+        try:
+            sv = SunViewField(scn, sns, rebuild=run, rmraw=rmraw)
+        except FileNotFoundError as ex:
+            print(f'Warning: {ex}', file=sys.stderr)
+        else:
+            if plotdview:
+                sv.direct_view()
     if kwargs['reflection']:
-        su = SunField(scn, sns, rebuild=run, rmraw=rmraw)
-        if plotdview:
-            su.direct_view(res=200)
+        try:
+            su = SunField(scn, sns, rebuild=run, rmraw=rmraw)
+        except FileNotFoundError as ex:
+            print(f'Warning: {ex}', file=sys.stderr)
+        else:
+            if plotdview:
+                su.direct_view(res=200)
 
 
 @main.command()
@@ -182,15 +194,15 @@ def sunrun(ctx, plotdview=False, run=True, rmraw=False, **kwargs):
 @click.option('-res', default=800)
 @click.option('-interp', default=12)
 @click.option('-vname', default='view')
+@click.option('-skyro', default=0.0)
 @click.option('--skyonly/--no-skyonly', default=False)
 @click.option('--hdr/--no-hdr', default=True)
 @click.option('--illum/--no-illum', default=True)
-@click.option('--cr/--no-cr', default=True)
 @click.option('--rebuildsky/--no-rebuildsky', default=False)
 @click.option('--rebuildsun/--no-rebuildsun', default=False)
 @clk.shared_decs(clk.command_decs(raytraverse.__version__, wrap=True))
 def integrate(ctx, pts=None, vdirs=None, skyonly=False, hdr=True,
-              illum=True, cr=True, res=800, interp=12, vname='view',
+              illum=True, res=800, interp=12, vname='view',
               rebuildsky=False, rebuildsun=False, **kwargs):
     """build integrator and make images"""
     if 'scene' not in ctx.obj:
@@ -218,8 +230,6 @@ def integrate(ctx, pts=None, vdirs=None, skyonly=False, hdr=True,
             for p, pts in enumerate(views):
                 for s, skies in enumerate(pts):
                     print(f"{v}\t{p}\t{s}\t" + "\t".join([f"{i}" for i in skies]))
-    if cr:
-        itg.contrastratio(pts, vdirs, *skymtx, vname=vn)
 
 
 @main.resultcallback()
@@ -227,21 +237,25 @@ def integrate(ctx, pts=None, vdirs=None, skyonly=False, hdr=True,
 def printconfig(ctx, returnvalue, **kwargs):
     """callback to save config file"""
     try:
-        if ctx.command.commands['scene'].context_settings['default_map']['info']:
+        info = str(ctx.command.commands['scene'].
+                   context_settings['default_map']['info'])
+        if info.lower() in ('1', 'yes', 'y', 't', 'true'):
             s = ctx.obj['scene']
-            print('\nCallback Scene Info:')
-            print('='*60 + '\n')
+            print('\nCallback Scene Info:', file=sys.stderr)
+            print('='*60 + '\n', file=sys.stderr)
             try:
-                suncount = len(open(f'{s.outdir}/sun_modlist.txt').readlines())
-                print(f'scene has {suncount} suns')
-            except FileNotFoundError:
-                print('sun setter not initialized')
-            print('\n Lightfield Data:')
-            print('-'*60)
+                suncount = ctx.obj['suns'].suns.shape[0]
+                print(f'scene has {suncount} suns', file=sys.stderr)
+            except KeyError:
+                print('sun setter not initialized', file=sys.stderr)
+            print('\n Lightfield Data:', file=sys.stderr)
+            print('-'*60, file=sys.stderr)
             print('Has sky lightfield data:',
-                  os.path.isfile(f'{s.outdir}/sky_kd_data.pickle'))
+                  os.path.isfile(f'{s.outdir}/sky_kd_data.pickle'),
+                  file=sys.stderr)
             print('Has sunview lightfield data:',
-                  os.path.isfile(f'{s.outdir}/sunview_kd_data.pickle'))
+                  os.path.isfile(f'{s.outdir}/sunview_kd_data.pickle'),
+                  file=sys.stderr)
     except KeyError:
         pass
     try:

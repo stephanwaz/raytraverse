@@ -10,6 +10,7 @@
 """functions for translating between coordinate spaces and resolutions"""
 
 import numpy as np
+from scipy.interpolate import RectBivariateSpline
 from scipy.ndimage.filters import gaussian_filter, uniform_filter
 
 scbinscal = ("""
@@ -278,6 +279,29 @@ def resample(samps, ts=None, gauss=True, radius=None):
         else:
             samps = uniform_filter(samps, int(radius))
     return samps
+
+
+def interpolate2d(a, s):
+    oldcx = np.linspace(0, 1, a.shape[0])
+    newcx = np.linspace(0, 1, s[0])
+    oldcy = np.linspace(0, 1, a.shape[1])
+    newcy = np.linspace(0, 1, s[1])
+    f = RectBivariateSpline(oldcx, oldcy, a, kx=1, ky=1)
+    return f(newcx, newcy)
+
+
+def rmtx_elem(theta, axis=2, degrees=True):
+    if degrees:
+        theta = theta * np.pi / 180
+    rmtx = np.array([(np.cos(theta), -np.sin(theta), 0),
+                     (np.sin(theta), np.cos(theta), 0),
+                     (0, 0, 1)])
+    return np.roll(rmtx, axis-2, (0, 1))
+
+
+def rotate_elem(v, theta, axis=2, degrees=True):
+    rmtx = rmtx_elem(theta, axis=axis, degrees=degrees)
+    return np.einsum('ij,kj->ki', rmtx, v)
 
 
 def rmtx_yp(v):

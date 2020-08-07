@@ -8,6 +8,8 @@
 # =======================================================================
 
 """functions for plotting data"""
+import sys
+
 import numpy as np
 import matplotlib.pyplot as plt
 from clipt import mplt
@@ -28,7 +30,7 @@ def imshow(im, figsize=(10, 10), outf=None, **kwargs):
 
 def hist(lums, bins='auto', outf=None, **kwargs):
     h, binedges = np.histogram(lums.ravel(), bins=bins, **kwargs)
-    print(h, binedges)
+    print(h, binedges, file=sys.stderr)
     b = np.repeat(binedges, 2)[1:-1]
     h = np.repeat(h, 2)
     mplt.quick_scatter([b], [h], outf=outf)

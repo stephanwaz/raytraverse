@@ -7,6 +7,7 @@
 # =======================================================================
 import os
 import pickle
+import sys
 
 import numpy as np
 
@@ -33,6 +34,9 @@ class SunViewSampler(Sampler):
     def __init__(self, scene, suns, **kwargs):
         self.suns = suns
         sunfile = f"{scene.outdir}/suns.rad"
+        if not os.path.isfile(sunfile):
+            print('Warning! no sun file found!', file=sys.stderr)
+            sunfile = ''
         super().__init__(scene, stype='sunview', idres=4, fdres=6,
                          srcdef=sunfile, **kwargs)
         self.samplemap = self.suns.map

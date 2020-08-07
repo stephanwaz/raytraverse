@@ -34,7 +34,8 @@ class SunSetterLoc(SunSetter):
         self.sky = SkyInfo(loc, skyro)
         super().__init__(scene, skyro=skyro, **kwargs)
 
-    def choose_suns(self, uvsize):
+    def choose_suns(self):
+        uvsize = self.sunres
         si = np.stack(np.unravel_index(np.arange(uvsize**2),
                                        (uvsize, uvsize)))
         skyb = self.load_sky_facs()
@@ -43,7 +44,7 @@ class SunSetterLoc(SunSetter):
                                      size=1/uvsize)
         ib = (skyb*ib > self.srct)
         border = 2*uvsize/180
-        j = np.random.default_rng().uniform(border, 1 - border, si.shape)
+        j = np.random.default_rng().uniform(border, 1 - border, si.T[ib].shape)
         # j = .5
         uv = (si.T[ib] + j)/uvsize
         xyz = translate.uv2xyz(uv, xsign=1)

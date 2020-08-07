@@ -40,12 +40,15 @@ class LightField(object):
         self._rawfiles = self.raw_files()
 
     def __del__(self):
-        if self._rmraw:
-            for rf in self._rawfiles:
-                try:
-                    os.remove(rf)
-                except IOError:
-                    pass
+        try:
+            if self._rmraw:
+                for rf in self._rawfiles:
+                    try:
+                        os.remove(rf)
+                    except IOError:
+                        pass
+        except AttributeError:
+            pass
 
     def raw_files(self):
         return []

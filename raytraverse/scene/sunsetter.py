@@ -8,11 +8,11 @@
 
 import os
 import pickle
+import sys
 from concurrent.futures import ThreadPoolExecutor
 
 import numpy as np
 from scipy.spatial import cKDTree
-import clasp.script_tools as cst
 
 from raytraverse import translate, plot
 from raytraverse.mapper import SunMapper
@@ -33,11 +33,13 @@ class SunSetter(object):
         if True reloads existing sun positions, else always generates new
     """
 
-    def __init__(self, scene, srct=.01, skyro=0.0, reload=True, **kwargs):
+    def __init__(self, scene, srct=.01, skyro=0.0, reload=True, sunres=10.0,
+                 **kwargs):
         #: float: threshold of sky contribution for determining appropriate srcn
         self.srct = srct
         #: float: ccw rotation (in degrees) for sky
         self.skyro = skyro
+        self.sunres = sunres
         sunfile = f"{scene.outdir}/suns.rad"
         #: bool: reuse existing sun positions (if found)
         if not reload:
@@ -52,8 +54,21 @@ class SunSetter(object):
         #: raytraverse.scene.Scene
         self.scene = scene
         self.suns = sunfile
-        self.map = SunMapper(self.suns)
+        if self.suns.size == 0:
+            print('Warning! no suns set, check parameters and sky detail!',
+                  file=sys.stderr)
+            self.map = None
+        else:
+            self.map = SunMapper(self.suns)
         self.sun_kd = None
+
+    @property
+    def sunres(self):
+        return self._sunres
+
+    @sunres.setter
+    def sunres(self, s):
+        self._sunres = int(np.floor(90/s)*2)
 
     @property
     def sun_kd(self):
@@ -85,11 +100,11 @@ class SunSetter(object):
             xyz = np.array([s.split()[4:7] for s in sund]).astype(float)
             self._suns = xyz
         else:
-            uvsize = self.scene.skyres
-            self._suns = self.choose_suns(uvsize)
+            self._suns = self.choose_suns()
             self._write_suns(sunfile)
 
-    def choose_suns(self, uvsize):
+    def choose_suns(self):
+        uvsize = self.sunres
         si = np.stack(np.unravel_index(np.arange(uvsize**2),
                                        (uvsize, uvsize)))
         skyb = self.load_sky_facs()
@@ -106,35 +121,38 @@ class SunSetter(object):
     def load_sky_facs(self):
         outf = f'{self.scene.outdir}/sky_skydetail.npy'
         if os.path.isfile(outf):
-            return np.load(outf).ravel()
-        dfile = f'{self.scene.outdir}/sky_kd_lum_map.pickle'
-        try:
-            f = open(dfile, 'rb')
-        except FileNotFoundError:
-            print('Warning! suns initialized without sky detail, first create'
-                  ' a SCBinField')
-            return 1
+            sd = np.load(outf)
         else:
-            skylums = pickle.load(f)
-            f.close()
-            zeros = np.zeros(len(skylums), dtype=int)
-            with ThreadPoolExecutor() as exc:
-                mxs = list(exc.map(np.max, skylums.values(), zeros))
-            sd = np.max(np.stack(mxs), 0).reshape(self.scene.skyres,
-                                                  self.scene.skyres)
-            np.save(outf, sd)
-            return sd.ravel()
+            dfile = f'{self.scene.outdir}/sky_kd_lum_map.pickle'
+            try:
+                f = open(dfile, 'rb')
+            except FileNotFoundError:
+                print('Warning! suns initialized without sky detail, first'
+                      ' create a SCBinField', file=sys.stderr)
+                return 1
+            else:
+                skylums = pickle.load(f)
+                f.close()
+                zeros = np.zeros(len(skylums), dtype=int)
+                with ThreadPoolExecutor() as exc:
+                    mxs = list(exc.map(np.max, skylums.values(), zeros))
+                sd = np.max(np.stack(mxs), 0).reshape(self.scene.skyres,
+                                                      self.scene.skyres)
+                np.save(outf, sd)
+        sd = translate.interpolate2d(sd, (self.sunres, self.sunres))
+        return sd.ravel()
 
     def direct_view(self):
         sxy = translate.xyz2xy(self.suns, flip=False)
         sbins = translate.uv2bin(translate.xyz2uv(self.suns, flipu=False),
-                                 self.scene.skyres)
+                                 self.sunres)
         lums, fig, ax, norm, lev = plot.mk_img_setup([0, 1], ext=1)
         outf = f'{self.scene.outdir}/sky_skydetail.npy'
         if os.path.isfile(outf):
-            sf = np.load(outf).ravel()
+            sf = translate.interpolate2d(np.load(outf),
+                                         (self.sunres, self.sunres)).ravel()
             borders = translate.bin_borders(np.arange(sf.size),
-                                            self.scene.skyres)
+                                            self.sunres)
             sfxyz = translate.uv2xyz(borders.reshape(-1, 2), xsign=1)
             sfxy = translate.xyz2xy(sfxyz, flip=False).reshape(-1, 4, 2)
             cmap = plot.colormap('gray',
@@ -160,7 +178,7 @@ class SunSetter(object):
         d = f"{s[0]} {s[1]} {s[2]}"
         dec = f"void light {mod} 0 0 3 1 1 1\n"
         dec += f"{mod} source {name} 0 0 4 {d} 0.533\n"
-        return dec, mod
+        return dec
 
     def proxy_src(self, tsuns, tol=10.0):
         """check if sun directions have matching source in SunSetter
@@ -192,11 +210,9 @@ class SunSetter(object):
         ----------
         sunfile
         """
-        f = open(sunfile, 'w')
-        g = open(f'{self.scene.outdir}/sun_modlist.txt', 'w')
-        for i in range(self.suns.shape[0]):
-            dec, mod = self.write_sun(i)
-            print(dec, file=f)
-            print(mod, file=g)
-        f.close()
-        g.close()
+        if self.suns.size > 0:
+            f = open(sunfile, 'w')
+            for i in range(self.suns.shape[0]):
+                dec = self.write_sun(i)
+                print(dec, file=f)
+            f.close()

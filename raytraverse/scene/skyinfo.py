@@ -61,8 +61,8 @@ class SkyInfo(object):
                             dtype='datetime64[m]')
             dec = np.arange('2020-12-21', '2020-12-22', 5,
                             dtype='datetime64[m]')
-            jxyz = skycalc.sunpos_xyz(jun, *loc, ro=self.skyro)
-            dxyz = skycalc.sunpos_xyz(dec, *loc, ro=self.skyro)
+            jxyz = skycalc.sunpos_xyz(jun, *loc)
+            dxyz = skycalc.sunpos_xyz(dec, *loc)
             juv = translate.xyz2uv(jxyz[jxyz[:, 2] > 0], flipu=False)
             duv = translate.xyz2uv(dxyz[dxyz[:, 2] > 0], flipu=False)
             juv = juv[juv[:, 0].argsort()]
@@ -87,6 +87,10 @@ class SkyInfo(object):
         """
         if self.loc is None:
             return np.full(uv.shape[0], True)
+        if abs(self.skyro) > 0:
+            xyz = translate.uv2xyz(uv, xsign=1)
+            rxyz = translate.rotate_elem(xyz, -self.skyro)
+            uv = translate.xyz2uv(rxyz, flipu=False)
         o = size/2
         juv, duv = self.solarbounds
         vlowleft = duv[np.searchsorted(duv[:, 0], uv[:, 0] - o) - 1]

@@ -114,7 +114,7 @@ class SunViewField(LightField):
         with ThreadPoolExecutor() as exc:
             items = itertools.product(super().items(),
                                       range(self.suns.suns.shape[0]))
-            for i, j in self.items():
+            for i, j in items:
                 if len(vecs[i][j]) > 0:
                     futures.append(exc.submit(self._grp_by_sun, vecs[i][j],
                                               lums[i][j], shape, i, j))

@@ -69,7 +69,8 @@ class SunSetterPositions(SunSetter):
             xyz = skycalc.sunpos_xyz(times, *loc, ro=self.skyro)
             self._candidates = np.hstack((xyz, wdat[:, 3:4]))
 
-    def choose_suns(self, uvsize):
+    def choose_suns(self):
+        uvsize = self.sunres
         cbins = translate.uv2bin(translate.xyz2uv(self.candidates[:, 0:3],
                                                   normalize=True, flipu=False),
                                  self.scene.skyres)

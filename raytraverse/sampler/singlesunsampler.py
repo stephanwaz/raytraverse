@@ -39,7 +39,7 @@ class SingleSunSampler(Sampler):
         #: float: controls sampling limit in case of limited contribution
         self.slimit = suns.srct * .1
         self.srct = suns.srct
-        dec, mod = suns.write_sun(sidx)
+        dec = suns.write_sun(sidx)
         anorm = accuracy * scene.skyres * (1 - np.cos(.533*np.pi/360))
         super().__init__(scene, stype=f"sun_{sidx:04d}", fdres=fdres,
                          accuracy=anorm, srcdef=dec, **kwargs)

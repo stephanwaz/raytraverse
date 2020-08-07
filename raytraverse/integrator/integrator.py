@@ -7,6 +7,7 @@
 # =======================================================================
 import itertools
 import os
+import sys
 from concurrent.futures import ProcessPoolExecutor, as_completed
 from datetime import datetime, timezone
 import subprocess
@@ -179,7 +180,7 @@ class Integrator(object):
         daysteps = skydata[:, 2] > 0
         sxyz = skydata[daysteps, 0:3]
         if self.suns is not None:
-            si = self.suns.proxy_src(sxyz, tol=self.scene.skyres)
+            si = self.suns.proxy_src(sxyz, tol=self.suns.sunres)
             # nosun = np.arange(hassun.size)[np.logical_not(hassun)]
         else:
             # nosun = np.arange(sxyz.shape[0])
@@ -299,7 +300,7 @@ class Integrator(object):
                                          suni[sj], suns[sj], pdirs, si, vstr,
                                          outf, interp, mask, skyv))
             for future in as_completed(fu):
-                print(future.result())
+                print(future.result(), file=sys.stderr)
 
     def metric(self, pts, vdirs, smtx, grnd=None, suns=None, suni=None,
                daysteps=None, metricfuncs=(metric.illum,), **kwargs):
