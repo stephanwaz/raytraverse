@@ -71,7 +71,7 @@ class SunViewSampler(Sampler):
         return suns
 
     def sample(self, vecs, rcopts='-ab 0',
-               nproc=12):
+               nproc=12, executable='rtrace'):
         """call rendering engine to sample direct view rays
 
         Parameters
@@ -82,13 +82,15 @@ class SunViewSampler(Sampler):
             option string to send to executable
         nproc: int, optional
             number of processes executable should use
+        executable: str, optional
+            path to rendering binary
 
         Returns
         -------
         lum: np.array
             array of shape (N,) to update weights
         """
-        rc = f"rtrace -fff {rcopts} -h -n {nproc} {self.compiledscene}"
+        rc = f"{executable} -fff {rcopts} -h -n {nproc} {self.compiledscene}"
         return super().sample(vecs, call=rc).ravel()
 
     def _uv2xyz(self, uv, si):

@@ -7,9 +7,10 @@ tox
 coverage
 Sphinx
 twine
-pytest==3.8.2
-pytest-runner==4.2
+pytest
+pytest-runner
 nose
 sphinx-click
 sphinxcontrib-programoutput
 pyreverse
+hdrstats

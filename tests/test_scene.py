@@ -6,8 +6,10 @@ import os
 import shutil
 
 import pytest
-from raytraverse.scene import Scene
+from raytraverse.scene import Scene, SkyInfo
+from raytraverse import quickplot
 import numpy as np
+from clipt import mplt
 
 
 
@@ -23,43 +25,30 @@ def tmpdir(tmp_path_factory):
 
 
 def test_scene(tmpdir):
-    scene = Scene('test.oct', 'plane.rad', 'results')
+    scene = Scene('results', 'test.oct', 'plane.rad')
     assert scene.scene == 'results/scene.oct'
-    scene2 = Scene('MATERIAL/*.mat RAD/*.rad', 'plane.rad', 'results', overwrite=True)
+    scene2 = Scene('results', 'MATERIAL/*.mat RAD/*.rad', 'plane.rad', overwrite=True, reload=False)
     assert scene2.scene == 'results/scene.oct'
     with pytest.raises(ChildProcessError):
-        Scene('RAD/*.rad', 'plane.rad', 'results', overwrite=True)
+        s = Scene('results', 'RAD/*.rad', 'plane.rad', overwrite=True)
+        os.system(f'getinfo {s.scene}')
     with pytest.raises(FileExistsError):
-        Scene('test.oct', 'plane.rad', 'results')
-    with pytest.raises(ValueError):
-        Scene('test.oct', 'plane.rad', 'results2', weaformat='dfd')
-
-
-def test_skydat(tmpdir):
-    loc = (46.25, -6.13, -15)
-    scene = Scene('test.oct', 'plane.rad', 'results', wea='geneva.epw', overwrite=True)
-    assert scene.skydata.shape == (8760, 4)
-    scene2 = Scene('test.oct', 'plane.rad', 'results2', wea='results/skydat.txt',
-                  overwrite=True, weaformat='angle')
-    assert np.allclose(scene.skydata, scene2.skydata)
-    scene3 = Scene('test.oct', 'plane.rad', 'results', wea='geneva_nohead.wea',
-                  overwrite=True, loc=loc)
-    assert np.allclose(scene3.skydata, scene2.skydata)
+        Scene('results', 'test.oct', 'plane.rad', reload=False)
 
 
 def test_solarbounds(tmpdir):
     loc = (46.25, -6.13, -15)
-    scene = Scene('test.oct', 'plane.rad', 'results', loc=loc, overwrite=True)
-    assert np.all(np.logical_not(scene.in_solarbounds(np.array([[.5,.5], [1.5,.2], [.5,0]]))))
+    scene = SkyInfo(loc)
+    assert np.all(np.logical_not(scene.in_solarbounds(np.array([[.5,.5], [1.5,1], [.5,0]]))))
 
 
 def test_area(tmpdir):
-    scene = Scene('test.oct', 'plane.rad', 'results', overwrite=True)
+    scene = Scene('results', 'test.oct', 'plane.rad', overwrite=True)
     # print(scene.area.bbox)
     # print(np.prod(scene.area.bbox[1, 0:2] - scene.area.bbox[0, 0:2]))
     assert scene.in_area(np.array([[.5, .5]]))
     assert not scene.in_area(np.array([[1.05, 1]]))
-    scene = Scene('test.oct', 'plane.rad', 'results', overwrite=True, ptro=3)
+    scene = Scene('results', 'test.oct', 'plane.rad', overwrite=True, ptro=3)
     assert scene.in_area(np.array([[.5, .5]]))
     grid_u, grid_v = np.meshgrid(np.arange(.0005, 1, .001), np.arange(.0005, 1, .001))
     uv = np.vstack((grid_u.flatten(), grid_v.flatten())).T
@@ -68,10 +57,3 @@ def test_area(tmpdir):
     assert np.isclose(area, 171, atol=.05)
     assert not scene.in_area(np.array([[1, 1]]))
 
-
-def test_reload(tmpdir):
-    scene = Scene('test.oct', 'plane.rad', 'results', reload=True)
-    assert scene.skydata is None
-    scene2 = Scene('test.oct', 'plane.rad', 'results2', reload=True)
-    os.system('ls results/*')
-    assert scene2.skydata.shape == (8760,4)

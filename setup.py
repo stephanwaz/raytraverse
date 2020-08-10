@@ -23,7 +23,7 @@ requirements = ['clasp', 'numpy', 'scipy', 'pywavelets', 'matplotlib',
 
 setup_requirements = ['pytest-runner', ]
 
-test_requirements = ['pytest', ]
+test_requirements = ['pytest', 'hdrstats']
 
 data_files = [('bin', 'raytraverse/genskyvec.pl')]
 package_data = {}

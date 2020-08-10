@@ -6,7 +6,7 @@ import os
 import shutil
 
 import pytest
-from raytraverse import SpaceMapper
+from raytraverse.mapper import SpaceMapper
 import numpy as np
 
 # from clipt import mplt

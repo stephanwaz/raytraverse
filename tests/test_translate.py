@@ -7,6 +7,7 @@ import pytest
 from raytraverse import translate
 from raytraverse.mapper import ViewMapper
 import numpy as np
+from clipt import mplt
 
 import clasp.script_tools as cst
 
@@ -39,6 +40,17 @@ def test_norm(thetas):
     assert np.allclose(ln, tn)
 
 
+def test_uv2xy():
+    uv = (np.stack(np.mgrid[0:100, 0:100], 2).reshape(-1, 2) + .5)/100
+    xy1 = translate.uv2xy(uv)
+    r1 = np.linalg.norm(xy1, axis=1)
+    z = 1 - r1*r1
+    spterm = np.sqrt(2 - r1*r1)
+    xyz1 = np.hstack((xy1 * spterm[:, None], z[:, None]))
+    uv1 = translate.xyz2uv(xyz1, flipu=False)
+    assert np.allclose(uv1, uv, atol=1e-7)
+
+
 def test_xyz2uv(thetas):
     xyz = translate.tp2xyz(thetas)
     uv = translate.xyz2uv(xyz, normalize=True)
@@ -62,6 +74,18 @@ def test_tp2xyz(thetas):
     assert np.allclose(thetas, theta2)
 
 
+def test_xyz2xy():
+    pxy = (np.stack(np.mgrid[0:100, 0:100], 2) + .5)/100
+    r = np.linalg.norm(pxy, axis=2)
+    pxy = pxy[r < 1]
+    xyz = translate.pxy2xyz(pxy)
+    print(xyz[0])
+    xy = translate.xyz2xy(xyz, flip=False)
+    for a, b in zip(pxy, xy):
+        print(a, b)
+        assert np.allclose((a-.5)*2, b)
+
+
 def test_chord():
     x = np.linspace(0, 1, 200)
     theta = x*np.pi
@@ -71,7 +95,6 @@ def test_chord():
 
 
 def test_rmtx_world2std():
-    print('world2std')
     for z in (-1, 0, 1):
         for a, b in zip([1, 1, 0, -1, -1, -1, 0, 1], [0, 1, 1, 1, 0, -1, -1, -1]):
             np.set_printoptions(3, suppress=True)
@@ -111,5 +134,6 @@ def test_view2xyz():
     v = ViewMapper(dxyz=dxyz, viewangle=va)
     vwrays = 'vwrays -vta -vv {} -vh {} -vd {} {} {} -vu 0 0 1 -x {} -y {}'.format(va, va, *dxyz, res, res)
     vrays = np.fromstring(cst.pipeline([vwrays]), sep=' ').reshape(res, res, 6)[-1::-1, -1::-1, 3:]
-    xyz, mask = v.pixelrays(res)
+    xyz = v.pixelrays(res)
+    xyz = np.swapaxes(xyz, 0, 1)
     assert np.allclose(xyz, vrays, rtol=.01, atol=.01)

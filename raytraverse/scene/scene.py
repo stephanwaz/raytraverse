@@ -60,11 +60,11 @@ class Scene(object):
         try:
             os.mkdir(outdir)
         except FileExistsError as e:
-            if reload:
-                pass
-            elif overwrite:
+            if overwrite:
                 shutil.rmtree(outdir)
                 os.mkdir(outdir)
+            elif reload:
+                pass
             else:
                 raise e
         js = f'{outdir}/scene_parameters.json'

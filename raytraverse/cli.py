@@ -95,6 +95,7 @@ def scene(ctx, **kwargs):
 @click.option('-accuracy', default=1)
 @click.option('-idres', default=4)
 @click.option('-fdres', default=9)
+@click.option('-executable', default='rcontrib')
 @click.option('-rcopts',
               default='-ab 7 -ad 60000 -as 30000 -lw 1e-7 -st 0 -ss 16')
 @click.option('--plotp/--no-plotp', default=False)
@@ -102,13 +103,14 @@ def scene(ctx, **kwargs):
 @click.option('--run/--no-run', default=True)
 @click.option('--rmraw/--no-rmraw', default=True)
 @clk.shared_decs(clk.command_decs(raytraverse.__version__, wrap=True))
-def sky(ctx, plotdview=False, run=True, rmraw=True, **kwargs):
+def sky(ctx, plotdview=False, run=True, rmraw=True, executable='rcontrib',
+        **kwargs):
     """run scbinsampler"""
     if 'scene' not in ctx.obj:
         clk.invoke_dependency(ctx, scene)
     sampler = SCBinSampler(ctx.obj['scene'], **kwargs)
     if run:
-        sampler.run(rcopts=kwargs['rcopts'], executable='rcontrib')
+        sampler.run(rcopts=kwargs['rcopts'], executable=executable)
     sk = SCBinField(ctx.obj['scene'], rebuild=run, rmraw=rmraw)
     if plotdview:
         sk.direct_view()
@@ -148,6 +150,7 @@ def suns(ctx, loc=None, wea=None, usepositions=False, **kwargs):
 @click.option('-idres', default=4)
 @click.option('-fdres', default=10)
 @click.option('-speclevel', default=9)
+@click.option('-executable', default='rtrace')
 @click.option('-rcopts',
               default='-ab 6 -ad 3000 -as 1500 -st 0 -ss 16 -aa .1')
 @click.option('--view/--no-view', default=True)

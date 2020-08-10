@@ -20,7 +20,7 @@ def tmpdir(tmp_path_factory):
 
 
 def test_array2img(tmpdir):
-    a, b = np.mgrid[0:600, 0:400]
+    b, a = np.mgrid[0:600, 0:400]
     ar = a*b
     io.array2hdr(ar, 'mgrid.hdr')
     io.array2hdr(a, 'mgrida.hdr')
@@ -28,6 +28,6 @@ def test_array2img(tmpdir):
     a2 = io.hdr2array('mgrida.hdr')
     b2 = io.hdr2array('mgridb.hdr')
     ar2 = io.hdr2array('mgrid.hdr')
-    assert np.allclose(a, a2, atol=.25, rtol=.03)
-    assert np.allclose(b, b2, atol=.25, rtol=.03)
+    assert np.allclose(a.T, a2, atol=.25, rtol=.03)
+    assert np.allclose(b.T, b2, atol=.25, rtol=.03)
     assert np.allclose(ar2, ar2, atol=.25, rtol=.03)

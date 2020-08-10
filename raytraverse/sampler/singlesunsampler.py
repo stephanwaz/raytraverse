@@ -90,7 +90,7 @@ class SingleSunSampler(Sampler):
 
     def sample(self, vecs,
                rcopts='-ab 6 -ad 3000 -as 1500 -st 0 -ss 16 -aa .1',
-               nproc=12, ambcache=False, **kwargs):
+               nproc=12, ambcache=False, executable='rtrace', **kwargs):
         """call rendering engine to sample sky contribution
 
         Parameters
@@ -104,6 +104,8 @@ class SingleSunSampler(Sampler):
         ambcache: bool, optional
             use ambient caching (rcopts should be combatible, appends
             appropriate -af argument)
+        executable: str, optional
+            path to rendering binary
 
         Returns
         -------
@@ -113,7 +115,7 @@ class SingleSunSampler(Sampler):
         if ambcache:
             afile = self.compiledscene.replace('.oct', '.amb')
             rcopts += f' -af {afile}'
-        rc = f"rtrace -fff {rcopts} -h -n {nproc} {self.compiledscene}"
+        rc = f"{executable} -fff {rcopts} -h -n {nproc} {self.compiledscene}"
         return super().sample(vecs, call=rc).ravel()
 
     # @profile
