@@ -45,11 +45,6 @@ class SpaceMapper(object):
         return self._bbox
 
     @property
-    def path(self):
-        """list of matplotlib.path.Path: boundary paths"""
-        return self._path
-
-    @property
     def sf(self):
         """bbox scale factor"""
         return self._sf
@@ -78,7 +73,7 @@ class SpaceMapper(object):
         size = (bbox[1, 0:2] - bbox[0, 0:2])/self.ptres
         self._ptshape = np.ceil(size).astype(int)
 
-    def ro_pts(self, points, rdir=-1):
+    def _ro_pts(self, points, rdir=-1):
         """
         rotate points
 
@@ -116,7 +111,7 @@ class SpaceMapper(object):
         sf = self.bbox[1] - self.bbox[0]
         uv = np.hstack((uv, np.zeros(len(uv)).reshape(-1, 1)))
         pt = self.bbox[0] + uv * sf
-        return self.ro_pts(pt)
+        return self._ro_pts(pt)
 
     def pt2uv(self, xyz):
         """convert world --> UV
@@ -131,7 +126,7 @@ class SpaceMapper(object):
         uv: np.array
             normalized UV coordinates of shape (N, 2)
         """
-        uv = (self.ro_pts(xyz, rdir=1) - self.bbox[0])[:, 0:2] / self._sf
+        uv = (self._ro_pts(xyz, rdir=1) - self.bbox[0])[:, 0:2] / self._sf
         return uv
 
     def idx2pt(self, idx):
@@ -143,20 +138,21 @@ class SpaceMapper(object):
         shape = self.ptshape
         return self.idx2pt(np.arange(np.product(shape)))
 
-    def in_area(self, uv):
+    def in_area(self, xyz):
         """check if point is in boundary path
 
         Parameters
         ----------
-        uv: np.array
-            uv coordinates, shape (N, 2)
+        xyz: np.array
+            uv coordinates, shape (N, 3)
 
         Returns
         -------
         mask: np.array
             boolean array, shape (N,)
         """
-        path = self.path
+        uv = self.pt2uv(xyz)
+        path = self._path
         if path is None:
             return np.full((uv.shape[0]), True)
         else:
@@ -178,7 +174,7 @@ class SpaceMapper(object):
             pt = np.reshape([i for i in rad[pg + 5:pg + 5 + npt*3]],
                             (npt, 3)).astype(float)
             z = max(z, max(pt[:, 2]))
-            pt2 = self.ro_pts(pt, rdir=1)
+            pt2 = self._ro_pts(pt, rdir=1)
             paths.append(pt2[:, 0:2])
         bbox = np.array(paths)
         bbox = np.squeeze([np.amin(bbox, 1), np.amax(bbox, 1)])

@@ -19,7 +19,7 @@ from clasp import script_tools as cst
 from clasp.click_callbacks import parse_file_list
 from scipy.spatial import cKDTree
 
-from raytraverse.mapper import SpaceMapper, ViewMapper
+from raytraverse.mapper import SpaceMapper, ViewMapper, SpaceMapperPt
 
 
 class Scene(object):
@@ -93,7 +93,12 @@ class Scene(object):
                 pass
             else:
                 shutil.copy(area, a)
-            self.area = SpaceMapper(a, ptres, ptro, pttol)
+            try:
+                ptload = np.loadtxt(a)[:, 0:3]
+            except ValueError:
+                self.area = SpaceMapper(a, ptres, ptro, pttol)
+            else:
+                self.area = SpaceMapperPt(a, ptres, ptro, pttol)
             #: float: maximum specular transmission in scene
             self.maxspec = maxspec
             self._solarbounds = None

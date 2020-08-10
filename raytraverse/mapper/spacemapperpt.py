@@ -6,10 +6,7 @@
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 # =======================================================================
-import re
-
 import numpy as np
-from matplotlib.path import Path
 
 from raytraverse.mapper.spacemapper import SpaceMapper
 
@@ -17,34 +14,29 @@ from raytraverse.mapper.spacemapper import SpaceMapper
 class SpaceMapperPt(SpaceMapper):
     """translate between world coordinates and normalized UV space"""
 
-    def __init__(self, pts):
-        #: float: ccw rotation (in degrees) for point grid on plane
-        self.rotation = 0.0
-        self._path = None
-        self._sf = 1
-        #: np.array: points [(x, y, z), ...]
-        self.bbox = pts
-
     @property
     def bbox(self):
         """np.array of shape (3,2): bounding box"""
         return self._bbox
 
     @property
-    def path(self):
-        """list of matplotlib.path.Path: boundary paths"""
-        return self._path
-
-    @property
     def sf(self):
         """bbox scale factor"""
         return self._sf
 
+    @property
+    def ptshape(self):
+        """shape of point grid"""
+        return self._ptshape
+
     @bbox.setter
     def bbox(self, plane):
         """read radiance geometry file as boundary path"""
-        paths, bbox = self._rad_scene_to_bbox(plane)
-        self._bbox = bbox
+        self._pts = np.loadtxt(plane)[:, 0:3]
+        self._bbox = np.stack((np.min(self._pts, 0) - self.tolerance,
+                               np.max(self._pts, 0) - self.tolerance))
+        self._sf = len(self._pts)
+        self._ptshape = np.array([self._sf, 1])
 
     def uv2pt(self, uv):
         """convert UV --> world
@@ -59,10 +51,9 @@ class SpaceMapperPt(SpaceMapper):
         pt: np.array
             world xyz coordinates of shape (N, 3)
         """
-        sf = self.bbox[1] - self.bbox[0]
-        uv = np.hstack((uv, np.zeros(len(uv)).reshape(-1, 1)))
-        pt = self.bbox[0] + uv * sf
-        return self.ro_pts(pt)
+
+        idx = (uv[:, 0] * self.sf).astype(int)
+        return self._pts[idx]
 
     def pt2uv(self, xyz):
         """convert world --> UV
@@ -77,5 +68,29 @@ class SpaceMapperPt(SpaceMapper):
         uv: np.array
             normalized UV coordinates of shape (N, 2)
         """
-        uv = (self.ro_pts(xyz, rdir=1) - self.bbox[0])[:, 0:2] / self._sf
+        perrs, pis = self.pt_kd.query(xyz)
+        uv = np.full((xyz.shape[0], 2), .5)
+        uv[:, 0] = (pis + .5) / self.sf
         return uv
+
+    def idx2pt(self, idx):
+        return self._pts[idx]
+
+    def pts(self):
+        return self._pts
+
+    def in_area(self, xyz):
+        """check if point is in boundary path
+
+        Parameters
+        ----------
+        xyz: np.array
+            uv coordinates, shape (N, 3)
+
+        Returns
+        -------
+        mask: np.array
+            boolean array, shape (N,)
+        """
+        perrs, pis = self.pt_kd.query(xyz)
+        return perrs <= self.tolerance

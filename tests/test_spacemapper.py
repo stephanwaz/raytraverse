@@ -26,6 +26,6 @@ def test_spacemapper(tmpdir):
     sm = SpaceMapper('plane.rad')
     assert np.all(np.equal(sm.pt2uv(sm.bbox), [[0, 0], [1, 1]]))
     sm2 = SpaceMapper('plane.rad', rotation=54)
-    assert np.allclose(sm2.uv2pt(sm2.path[0].vertices), sm.uv2pt(sm.path[0].vertices))
+    assert np.allclose(sm2.uv2pt(sm2._path[0].vertices), sm.uv2pt(sm._path[0].vertices))
 
 
