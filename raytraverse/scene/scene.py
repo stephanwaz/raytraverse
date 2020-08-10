@@ -33,6 +33,8 @@ class Scene(object):
         space separated list of radiance scene files (no sky) or octree
     area: str, optional (required if not reload)
         radiance scene file containing planar geometry of analysis area
+        or a list of points (line per point, space seperated, first 3 columns
+        x, y, z
     reload: bool, optional
         if True attempts to load existing scene files in new instance
         overrides 'overwrite'
@@ -42,6 +44,8 @@ class Scene(object):
         final spatial resolution in scene geometry units
     ptro: float, optional
         angle in degrees counter-clockwise to point grid
+    pttol: float, optional
+        tolerance for point search when using point list for area
     viewdir: (float, float, float), optional
         vector (x,y,z) view direction (orients UV space)
     viewangle: float, optional
@@ -54,8 +58,9 @@ class Scene(object):
     """
 
     def __init__(self, outdir, scene=None, area=None, reload=True,
-                 overwrite=False, ptres=1.0, ptro=0.0, viewdir=(0, 1, 0),
-                 viewangle=360, skyres=10.0, maxspec=0.3, **kwargs):
+                 overwrite=False, ptres=1.0, ptro=0.0, pttol=1.0,
+                 viewdir=(0, 1, 0), viewangle=360, skyres=10.0, maxspec=0.3,
+                 **kwargs):
         locvar = locals()
         try:
             os.mkdir(outdir)
@@ -81,17 +86,18 @@ class Scene(object):
                 json.dump(locvar, jf)
             #: bool: try to reload scene files
             self.reload = reload
-            #: float: ccw rotation (in degrees) for point grid on plane
-            self.ptro = ptro
             #: str: path to store scene info and output files
             self.outdir = outdir
-            #: float: point resolution for area
-            self.ptres = ptres
+            a = f'{self.outdir}/area.rad'
+            if self.reload and os.path.isfile(a):
+                pass
+            else:
+                shutil.copy(area, a)
+            self.area = SpaceMapper(a, ptres, ptro, pttol)
             #: float: maximum specular transmission in scene
             self.maxspec = maxspec
             self._solarbounds = None
             self.scene = scene
-            self.area = area
             self.reload = False
             #: raytraverse.viewmapper.ViewMapper: view translation class
             self.view = ViewMapper(viewdir, viewangle)
@@ -147,91 +153,6 @@ class Scene(object):
                 raise ChildProcessError(err.decode(cst.encoding))
         self._scene = o
 
-    @property
-    def ptshape(self):
-        """UV point resolution, set by area
-
-        :getter: Returns this scenes's point resolution
-        """
-        return self._ptshape
-
-    @property
-    def area(self):
-        """analysis area
-
-        :getter: Returns this scenes's area
-        :setter: Sets this scenes's area from file path
-        :type: raytraverse.spacemapper.SpaceMapper
-        """
-        return self._area
-
-    @area.setter
-    def area(self, area):
-        a = f'{self.outdir}/area.rad'
-        if self.reload and os.path.isfile(a):
-            pass
-        else:
-            shutil.copy(area, a)
-        self._area = SpaceMapper(a, self.ptro)
-        bbox = self.area.bbox[:, 0:2]/self.ptres
-        size = (bbox[1] - bbox[0])
-        self._ptshape = np.ceil(size).astype(int)
-
-    @property
-    def pt_kd(self):
-        """point kdtree for spatial queries"""
-        if self._pt_kd is None:
-            self._pt_kd = cKDTree(self.pts())
-        return self._pt_kd
-
-    @pt_kd.setter
-    def pt_kd(self, pt_kd):
-        self._pt_kd = pt_kd
-
-    def idx2pt(self, idx):
-        shape = self.ptshape
-        si = np.stack(np.unravel_index(idx, shape)).T
-        return self.area.uv2pt((si + .5)/shape)
-
     def pts(self):
-        shape = self.ptshape
-        return self.idx2pt(np.arange(np.product(shape)))
+        return self.area.pts()
 
-    def in_area(self, uv):
-        """check if point is in boundary path
-
-        Parameters
-        ----------
-        uv: np.array
-            uv coordinates, shape (N, 2)
-
-        Returns
-        -------
-        mask: np.array
-            boolean array, shape (N,)
-        """
-        path = self.area.path
-        if path is None:
-            return np.full((uv.shape[0]), True)
-        else:
-            result = np.empty((len(path), uv.shape[0]), bool)
-            for i, p in enumerate(path):
-                result[i] = p.contains_points(uv)
-        return np.any(result, 0)
-
-    def in_view(self, uv):
-        """check if uv direction is in view
-
-        Parameters
-        ----------
-        uv: np.array
-            view uv coordinates, shape (N, 2)
-
-        Returns
-        -------
-        mask: np.array
-            boolean array, shape (N,)
-        """
-        inbounds = np.stack((uv[:, 0] >= 0, uv[:, 0] < self.view.aspect,
-                             uv[:, 1] >= 0, uv[:, 1] < 1))
-        return np.all(inbounds, 0)

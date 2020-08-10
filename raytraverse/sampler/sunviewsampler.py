@@ -59,13 +59,13 @@ class SunViewSampler(Sampler):
 
     def check_viz(self):
         skyfield = SCBinField(self.scene)
-        sunuv = self.scene.view.xyz2uv(self.suns.suns)
-        inview = self.scene.in_view(sunuv)
+        inview = self.scene.view.in_view(self.suns.suns, indices=False)
         idx, errs = skyfield.query_all_pts(self.suns.suns, 4)
         isviz = np.array([np.max(skyfield.lum[i][j], (1, 2)) > self.suns.srct/2
                           for i, j in enumerate(idx)])
         isviz = np.logical_and(isviz,
-                               inview[None]).reshape(*self.scene.ptshape, -1)
+                               inview[None]).reshape(*self.scene.area.ptshape,
+                                                     -1)
         suns = np.broadcast_to(isviz[..., None, None].astype(int),
                                isviz.shape + (self.weights.shape[-2:]))
         return suns

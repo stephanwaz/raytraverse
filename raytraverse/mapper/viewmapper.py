@@ -171,7 +171,10 @@ class ViewMapper(object):
     def degrees(self, vec, i=0):
         return self.radians(vec, i) * 180/np.pi
 
-    def in_view(self, vec, i=0):
+    def in_view(self, vec, i=0, indices=True):
         ang = self.radians(vec, i)
         mask = ang < self.viewangle*np.pi/360/self.aspect
-        return np.unravel_index(np.arange(ang.size)[mask], vec.shape[:-1])
+        if indices:
+            return np.unravel_index(np.arange(ang.size)[mask], vec.shape[:-1])
+        else:
+            return mask

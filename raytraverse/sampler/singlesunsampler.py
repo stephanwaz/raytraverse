@@ -45,7 +45,7 @@ class SingleSunSampler(Sampler):
                          accuracy=anorm, srcdef=dec, **kwargs)
         self.specidx = speclevel - self.idres
         self._keepamb = keepamb
-        shape = np.concatenate((self.scene.ptshape, self.levels[0]))
+        shape = np.concatenate((self.scene.area.ptshape, self.levels[0]))
         weights = self.pdf_from_sky(SCBinField(self.scene))
         self.weights = translate.resample(weights, shape)
 
@@ -59,7 +59,7 @@ class SingleSunSampler(Sampler):
 
     def pdf_from_sky(self, skyfield, interp=12, rebuild=False, zero=True,
                      filterpts=True):
-        ishape = np.concatenate((self.scene.ptshape,
+        ishape = np.concatenate((self.scene.area.ptshape,
                                  self.levels[self.specidx-2]))
         fi = f"{self.scene.outdir}/sunpdfidxs.npz"
         if os.path.isfile(fi) and not rebuild:
@@ -131,7 +131,8 @@ class SingleSunSampler(Sampler):
         """
         if self.idx == self.specidx:
             skyfield = SCBinField(self.scene)
-            shape = np.concatenate((self.scene.ptshape, self.levels[self.idx]))
+            shape = np.concatenate((self.scene.area.ptshape,
+                                    self.levels[self.idx]))
             weights = self.pdf_from_sky(skyfield)
             p = translate.resample(weights, shape)
             if self.plotp:

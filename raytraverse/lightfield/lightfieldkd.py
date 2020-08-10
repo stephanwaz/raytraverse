@@ -147,7 +147,7 @@ class LightFieldKD(LightField):
         return vecs, ltype(lummap)
 
     def _mk_tree(self, pref='', ltype=MemArrayDict, os0=0):
-        npts = np.product(self.scene.ptshape)
+        npts = self.scene.area.npts
         vs, lums = self._get_vl(npts, pref=pref, ltype=ltype, os0=os0)
         with ProcessPoolExecutor() as exc:
             d_kd, omega = zip(*exc.map(LightFieldKD.mk_vector_ball,

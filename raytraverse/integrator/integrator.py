@@ -277,8 +277,8 @@ class Integrator(object):
         -------
 
         """
-        npts = np.product(self.scene.ptshape)
-        perrs, pis = self.scene.pt_kd.query(pts)
+        npts = self.scene.area.npts
+        perrs, pis = self.scene.area.pt_kd.query(pts)
         vm = ViewMapper(viewangle=viewangle, dxyz=vdir, name=vname)
         vstring = 'VIEW= -vta -vv {0} -vh {0} -vd {1} {2} {3}'.format(viewangle,
                                                                       *vdir)
@@ -292,7 +292,8 @@ class Integrator(object):
             fu = []
             for pi in pis:
                 vstr = (vstring +
-                        ' -vp {} {} {}'.format(*self.scene.idx2pt([pi])[0]))
+                        ' -vp {} {} {}'.format(*self.scene.area.idx2pt([pi])[0])
+                        )
                 si = self.skyfield.query_ray(pi, pdirs[mask], interp=interp)
                 for sj, skyv in enumerate(smtx):
                     outf = (f"{self.scene.outdir}_{vm.name}_{pi:04d}_{sj:04d}"
@@ -342,8 +343,8 @@ class Integrator(object):
             is 0 when only the skyfield is used, 1 when sun reflections exists
             and 2 when a view to the sun also exists.
         """
-        npts = np.product(self.scene.ptshape)
-        perrs, pis = self.scene.pt_kd.query(pts)
+        npts = self.scene.area.npts
+        perrs, pis = self.scene.area.pt_kd.query(pts)
         vms = [ViewMapper(v, viewangle=180) for v in vdirs]
         if self.suns:
             keymap = self.sunfield.keymap()

@@ -53,7 +53,7 @@ class SunField(LightFieldKD):
         omegas = {}
         lums = MemArrayDict({})
         offset = 0
-        npts = np.product(self.scene.ptshape)
+        npts = self.scene.area.npts
         with ProcessPoolExecutor() as exc:
             futures = []
             for i in range(self.suns.suns.shape[0]):
@@ -78,7 +78,7 @@ class SunField(LightFieldKD):
         return self.d_kd.keys()
 
     def keymap(self):
-        npts = np.product(self.scene.ptshape)
+        npts = self.scene.area.npts
         shape = (npts, self.suns.suns.shape[0] + 1)
         idxgrid = np.unravel_index(np.arange(shape[1] * npts), shape)
         full = np.core.records.fromarrays(idxgrid)

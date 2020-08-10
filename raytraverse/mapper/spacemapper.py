@@ -10,19 +10,34 @@ import re
 
 import numpy as np
 from matplotlib.path import Path
+from scipy.spatial import cKDTree
 
 
 class SpaceMapper(object):
     """translate between world coordinates and normalized UV space"""
 
-    def __init__(self, bbox, rotation=0.0):
+    def __init__(self, dfile, ptres=1.0, rotation=0.0, tolerance=1.0):
         #: float: ccw rotation (in degrees) for point grid on plane
         self.rotation = rotation
-        self._path = None
-        self._sf = 1
+        #: float: tolerance for point search when using point list for area
+        self.tolerance = tolerance
+        #: float: point resolution for area
+        self.ptres = ptres
+        self.pt_kd = None
         #: np.array: boundary frame for translating between coordinates
         #: [[xmin ymin zmin] [xmax ymax zmax]]
-        self.bbox = bbox
+        self.bbox = dfile
+
+    @property
+    def pt_kd(self):
+        """point kdtree for spatial queries built at first use"""
+        if self._pt_kd is None:
+            self._pt_kd = cKDTree(self.pts())
+        return self._pt_kd
+
+    @pt_kd.setter
+    def pt_kd(self, pt_kd):
+        self._pt_kd = pt_kd
 
     @property
     def bbox(self):
@@ -39,6 +54,16 @@ class SpaceMapper(object):
         """bbox scale factor"""
         return self._sf
 
+    @property
+    def ptshape(self):
+        """shape of point grid"""
+        return self._ptshape
+
+    @property
+    def npts(self):
+        """number of points"""
+        return int(np.product(self.ptshape))
+
     @bbox.setter
     def bbox(self, plane):
         """read radiance geometry file as boundary path"""
@@ -50,6 +75,8 @@ class SpaceMapper(object):
             p = (np.concatenate((pt, [pt[0]])) - bbox[0, 0:2])/self._sf
             xy = Path(p, closed=True)
             self._path.append(xy)
+        size = (bbox[1, 0:2] - bbox[0, 0:2])/self.ptres
+        self._ptshape = np.ceil(size).astype(int)
 
     def ro_pts(self, points, rdir=-1):
         """
@@ -106,6 +133,37 @@ class SpaceMapper(object):
         """
         uv = (self.ro_pts(xyz, rdir=1) - self.bbox[0])[:, 0:2] / self._sf
         return uv
+
+    def idx2pt(self, idx):
+        shape = self.ptshape
+        si = np.stack(np.unravel_index(idx, shape)).T
+        return self.uv2pt((si + .5)/shape)
+
+    def pts(self):
+        shape = self.ptshape
+        return self.idx2pt(np.arange(np.product(shape)))
+
+    def in_area(self, uv):
+        """check if point is in boundary path
+
+        Parameters
+        ----------
+        uv: np.array
+            uv coordinates, shape (N, 2)
+
+        Returns
+        -------
+        mask: np.array
+            boolean array, shape (N,)
+        """
+        path = self.path
+        if path is None:
+            return np.full((uv.shape[0]), True)
+        else:
+            result = np.empty((len(path), uv.shape[0]), bool)
+            for i, p in enumerate(path):
+                result[i] = p.contains_points(uv)
+        return np.any(result, 0)
 
     def _rad_scene_to_bbox(self, plane):
         with open(plane, 'r') as f:

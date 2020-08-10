@@ -28,11 +28,14 @@ def tmpdir(tmp_path_factory):
     yield data + '/workflow'
     os.chdir(cpath)
 
+
 @pytest.mark.skip('slow')
 def test_cli(runner, tmpdir):
-    result = runner.invoke(cli.main, "-c run.cfg demo sky sunrun")
+    result = runner.invoke(cli.main, "-c run.cfg demo sky")
     assert result.exit_code == 0
-    result = runner.invoke(cli.main, "-c run.cfg demo integrate --no-illum")
+    result = runner.invoke(cli.main, "-c run.cfg demo sunrun")
+    assert result.exit_code == 0
+    result = runner.invoke(cli.main, "-c run.cfg demo integrate --no-metric")
     assert result.exit_code == 0
     hdr = runner.invoke(hdrcli.img_cr, "'demo_view*.hdr'")
     hdr = np.fromstring(hdr.output, sep=' ').reshape(-1, 5)[:, 1:3]

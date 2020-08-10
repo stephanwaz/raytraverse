@@ -56,7 +56,7 @@ class Sampler(object):
         self.idres = idres
         self.levels = fdres
         #: np.array: holds weights for self.draw
-        self.weights = np.full(np.concatenate((self.scene.ptshape,
+        self.weights = np.full(np.concatenate((self.scene.area.ptshape,
                                                self.levels[0])), 1e-7,
                                dtype=np.float32)
         #: int: index of next level to sample
@@ -169,7 +169,7 @@ class Sampler(object):
         vecs: np.array
             sample vectors
         """
-        shape = np.concatenate((self.scene.ptshape, self.levels[self.idx]))
+        shape = np.concatenate((self.scene.area.ptshape, self.levels[self.idx]))
         # index assignment
         si = np.stack(np.unravel_index(pdraws, shape))
         # convert to UV directions and positions
@@ -191,7 +191,7 @@ class Sampler(object):
         vecs: np.array
             ray directions to write
         """
-        ptidx = np.ravel_multi_index((si[0], si[1]), self.scene.ptshape)
+        ptidx = np.ravel_multi_index((si[0], si[1]), self.scene.area.ptshape)
         outf = f'{self.scene.outdir}/{self.stype}_vecs.out'
         f = open(outf, 'ab')
         f.write(io.np2bytes(np.vstack((ptidx.reshape(1, -1), vecs.T)).T))
@@ -208,7 +208,7 @@ class Sampler(object):
             index array of flattened samples chosen to sample at next level
         """
         dres = self.levels[self.idx]
-        pres = self.scene.ptshape
+        pres = self.scene.area.ptshape
         if self.idx == 0 and np.var(self.weights) < 1e-9:
             pdraws = np.arange(np.prod(dres)*np.prod(pres))
         else:
@@ -243,7 +243,7 @@ class Sampler(object):
     def get_scheme(self):
         scheme = np.ones((self.levels.shape[0], self.levels.shape[1] + 4))
         scheme[:, 2:-2] = self.levels
-        scheme[:, 0:2] = self.scene.ptshape
+        scheme[:, 0:2] = self.scene.area.ptshape
         scheme[:, -2] = self.srcn
         scheme[:, -1] = self.levelsamples
         return scheme.astype(int)
@@ -270,7 +270,7 @@ class Sampler(object):
         print('{:>8}  {:>25}  {:<10}  {:<8}  {}'.format(*hdr), file=sys.stderr)
         fsize = 0
         for i in range(self.idx, self.levels.shape[0]):
-            shape = np.concatenate((self.scene.ptshape, self.levels[i]))
+            shape = np.concatenate((self.scene.area.ptshape, self.levels[i]))
             self.idx = i
             self.weights = translate.resample(self.weights, shape)
             draws = self.draw()

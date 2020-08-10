@@ -83,8 +83,8 @@ def scene(ctx, **kwargs):
         print('Analysis Area:', file=sys.stderr)
         print('-'*60, file=sys.stderr)
         print(f'extents:\n{s.area.bbox}', file=sys.stderr)
-        print(f'resolution: {s.area.sf/s.ptshape}', file=sys.stderr)
-        print(f'number of points: {s.ptshape[0]*s.ptshape[1]}', file=sys.stderr)
+        print(f'resolution: {s.area.sf/s.area.ptshape}', file=sys.stderr)
+        print(f'number of points: {s.area.npts}', file=sys.stderr)
         print(f'rotation: {s.ptro}', file=sys.stderr)
         print(f'sky sampling resolution: {s.skyres}', file=sys.stderr)
 

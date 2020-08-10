@@ -74,18 +74,6 @@ def test_tp2xyz(thetas):
     assert np.allclose(thetas, theta2)
 
 
-def test_xyz2xy():
-    pxy = (np.stack(np.mgrid[0:100, 0:100], 2) + .5)/100
-    r = np.linalg.norm(pxy, axis=2)
-    pxy = pxy[r < 1]
-    xyz = translate.pxy2xyz(pxy)
-    print(xyz[0])
-    xy = translate.xyz2xy(xyz, flip=False)
-    for a, b in zip(pxy, xy):
-        print(a, b)
-        assert np.allclose((a-.5)*2, b)
-
-
 def test_chord():
     x = np.linspace(0, 1, 200)
     theta = x*np.pi

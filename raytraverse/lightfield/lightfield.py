@@ -73,6 +73,6 @@ class LightField(object):
         return f"{self.scene.outdir}_{self.prefix}_{istr}"
 
     def items(self):
-        return range(np.product(self.scene.ptshape))
+        return range(self.scene.area.npts)
 
 
