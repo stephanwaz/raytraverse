@@ -21,11 +21,11 @@ with open('HISTORY.rst') as history_file:
 requirements = ['clasp', 'numpy', 'scipy', 'pywavelets', 'matplotlib',
                 'skyfield', 'clipt']
 
-setup_requirements = ['pytest-runner', ]
+setup_requirements = ['pytest-runner', 'wheel']
 
 test_requirements = ['pytest', 'hdrstats']
 
-data_files = [('bin', 'raytraverse/genskyvec.pl')]
+data_files = []
 package_data = {}
 
 setup(
@@ -52,7 +52,7 @@ setup(
     include_package_data=True,
     keywords='raytraverse',
     name='raytraverse',
-    packages=find_packages(include=['raytraverse']),
+    packages=find_packages(),
     data_files=data_files,
     package_data=package_data,
     setup_requires=setup_requirements,
