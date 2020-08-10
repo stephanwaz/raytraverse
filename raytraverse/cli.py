@@ -16,7 +16,6 @@ import numpy as np
 from clasp import click
 import clasp.click_ext as clk
 import raytraverse
-from raytraverse import metric
 from raytraverse.integrator import Integrator
 from raytraverse.sampler import SCBinSampler, SunSampler
 from raytraverse.scene import Scene, SunSetter, SunSetterLoc, SunSetterPositions
@@ -36,7 +35,6 @@ def np_load(ctx, param, s):
             return np.loadtxt(s)
     else:
         return np.array([[float(i) for i in j.split(',')] for j in s.split()])
-
 
 
 @click.group(chain=True, invoke_without_command=True)
@@ -200,13 +198,14 @@ def sunrun(ctx, plotdview=False, run=True, rmraw=False, **kwargs):
 @click.option('-skyro', default=0.0)
 @click.option('--skyonly/--no-skyonly', default=False)
 @click.option('--hdr/--no-hdr', default=True)
-@click.option('--illum/--no-illum', default=True)
+@click.option('--metric/--no-metric', default=True)
+@click.option('--header/--no-header', default=False)
 @click.option('--rebuildsky/--no-rebuildsky', default=False)
 @click.option('--rebuildsun/--no-rebuildsun', default=False)
 @clk.shared_decs(clk.command_decs(raytraverse.__version__, wrap=True))
 def integrate(ctx, pts=None, vdirs=None, skyonly=False, hdr=True,
-              illum=True, res=800, interp=12, vname='view',
-              rebuildsky=False, rebuildsun=False, **kwargs):
+              metric=True, res=800, interp=12, vname='view',
+              rebuildsky=False, rebuildsun=False, header=False, **kwargs):
     """build integrator and make images"""
     if 'scene' not in ctx.obj:
         clk.invoke_dependency(ctx, scene)
@@ -225,14 +224,16 @@ def integrate(ctx, pts=None, vdirs=None, skyonly=False, hdr=True,
         for i, vd in enumerate(vdirs):
             vn = f'{vname}{i:02d}'
             itg.hdr(pts, vd, *skymtx, interp=interp, res=res, vname=vn)
-    if illum:
-        mf = (metric.illum, metric.sqlum)
+    if metric:
+        mf = (raytraverse.metric.illum, raytraverse.metric.sqlum)
         metrics = itg.metric(pts, vdirs, *skymtx, scale=179, metricfuncs=mf)
-        # print("view\tpoint\tsky\t" + "\t".join([f.__name__ for f in mf]))
+        if header:
+            print("view\tpoint\tsky\t" + "\t".join([f.__name__ for f in mf]))
         for v, views in enumerate(metrics):
             for p, pts in enumerate(views):
                 for s, skies in enumerate(pts):
-                    print(f"{v}\t{p}\t{s}\t" + "\t".join([f"{i}" for i in skies]))
+                    print(f"{v}\t{p}\t{s}\t" +
+                          "\t".join([f"{i}" for i in skies]))
 
 
 @main.resultcallback()

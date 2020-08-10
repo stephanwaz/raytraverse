@@ -5,7 +5,6 @@
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 # =======================================================================
-import itertools
 import os
 import sys
 from concurrent.futures import ProcessPoolExecutor, as_completed
@@ -292,10 +291,12 @@ class Integrator(object):
         with ProcessPoolExecutor() as exc:
             fu = []
             for pi in pis:
-                vstr = vstring + ' -vp {} {} {}'.format(*self.scene.idx2pt([pi])[0])
+                vstr = (vstring +
+                        ' -vp {} {} {}'.format(*self.scene.idx2pt([pi])[0]))
                 si = self.skyfield.query_ray(pi, pdirs[mask], interp=interp)
                 for sj, skyv in enumerate(smtx):
-                    outf = f"{self.scene.outdir}_{vm.name}_{pi:04d}_{sj:04d}.hdr"
+                    outf = (f"{self.scene.outdir}_{vm.name}_{pi:04d}_{sj:04d}"
+                            ".hdr")
                     fu.append(exc.submit(self._hdr, res, vm, keymap, pi,
                                          suni[sj], suns[sj], pdirs, si, vstr,
                                          outf, interp, mask, skyv))
@@ -376,15 +377,31 @@ class Integrator(object):
                     if sunidx[i]:
                         sunvalue += 1
                         sunrays = self.sunfield.vec[psi][sunidx[i]]
+                        osun = np.squeeze(self.sunfield.omega[psi][sunidx[i]])
+                        lmsun = sunlm[sunidx[i]]
+
+                        # TODO cross match samples
+                        # currently implements a nearest neighbor and then
+                        # averages the two results (using the skyweight term,
+                        # this is subject to some error a better approach is
+                        # to query the ray for neighbors with a radius derived
+                        # from omega and average in the case of no result
+                        # (when omega_other is larger) use the nearest neighbor.
+                        # This will likely need to be implemented in c++ to be
+                        # practical, and alternative is to interpolate samples
+                        # like hdr image generation and then naively add.
                         sunsky, err = self.sunfield.query_ray(psi, skyrays)
                         skysun, err = self.skyfield.query_ray(pi, sunrays)
-                        lmsun = skylm[skysun] + sunlm[sunidx[i]]
+                        lmsun += skylm[skysun]
                         lmsky += sunlm[sunsky]
-                        osun = np.squeeze(self.sunfield.omega[psi][sunidx[i]])
                         skyweight = .5
+
                         fsun = [f(v, sunrays, osun, lmsun, **kwargs) * skyweight
                                 for f in metricfuncs]
                         mstack.append(fsun)
+                    fsky = [f(v, skyrays, osky, lmsky, **kwargs)*skyweight
+                            for f in metricfuncs]
+                    mstack.append(fsky)
                     try:
                         fsv = self.sunfield.view.metric(psi, v, s, metricfuncs,
                                                         **kwargs)
@@ -393,13 +410,10 @@ class Integrator(object):
                     else:
                         sunvalue += 1
                         mstack.append(fsv)
-                    fsky = [f(v, skyrays, osky, lmsky, **kwargs) * skyweight
-                            for f in metricfuncs]
-                    mstack.append(fsky)
                     vmetrics.append(np.concatenate((np.sum(mstack, 0),
                                                     [sunvalue])))
                 smetrics.append(vmetrics)
             pmetrics.append(smetrics)
-        # (points, skys, views, metrics)
-        # (view, points, skys, metrics)
+        # loop returns shape: (points, skys, views, metrics)
+        # transpose reorganizes as: (view, points, skys, metrics)
         return np.transpose(pmetrics, (2, 0, 1, 3))
