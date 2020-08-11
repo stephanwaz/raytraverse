@@ -92,7 +92,11 @@ class Scene(object):
             if self.reload and os.path.isfile(a):
                 pass
             else:
-                shutil.copy(area, a)
+                try:
+                    shutil.copy(area, a)
+                except TypeError:
+                    raise ValueError('Cannot initialize Scene with '
+                                     f'area={area}')
             try:
                 ptload = np.loadtxt(a)[:, 0:3]
             except ValueError:

@@ -60,6 +60,9 @@ class SunSetterPositions(SunSetter):
             elif dat.shape[1] == 4:
                 xyz = translate.aa2xyz(dat[:, 0:2])
                 self._candidates = np.hstack((xyz, dat[:, 3:4]))
+            elif dat.shape[1] == 5 and np.max(dat[:, 0:3] <= 1):
+                xyz = translate.norm(dat[:, 0:3])
+                self._candidates = np.hstack((xyz, dat[:, 3:4]))
             else:
                 raise ValueError
         except ValueError:

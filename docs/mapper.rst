@@ -10,6 +10,15 @@ SpaceMapper
     :show-inheritance:
     :private-members:
 
+SpaceMapperPt
+------------------------------
+
+.. autoclass:: raytraverse.mapper.SpaceMapperPt
+    :members:
+    :undoc-members:
+    :show-inheritance:
+    :private-members:
+
 ViewMapper
 ------------------------------
 

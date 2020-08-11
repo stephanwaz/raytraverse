@@ -83,9 +83,7 @@ def scene(ctx, **kwargs):
         print('Analysis Area:', file=sys.stderr)
         print('-'*60, file=sys.stderr)
         print(f'extents:\n{s.area.bbox}', file=sys.stderr)
-        print(f'resolution: {s.area.sf/s.area.ptshape}', file=sys.stderr)
         print(f'number of points: {s.area.npts}', file=sys.stderr)
-        print(f'rotation: {s.ptro}', file=sys.stderr)
         print(f'sky sampling resolution: {s.skyres}', file=sys.stderr)
 
 
@@ -120,10 +118,12 @@ def sky(ctx, plotdview=False, run=True, rmraw=True, executable='rcontrib',
 @click.option('-sunres', default=10.0)
 @click.option('-loc', callback=clk.split_float)
 @click.option('-wea')
+@click.option('--plotdview/--no-plotdview', default=False)
 @click.option('--reload/--no-reload', default=True)
 @click.option('--usepositions/--no-usepositions', default=False)
 @clk.shared_decs(clk.command_decs(raytraverse.__version__, wrap=True))
-def suns(ctx, loc=None, wea=None, usepositions=False, **kwargs):
+def suns(ctx, loc=None, wea=None, usepositions=False, plotdview=False,
+         **kwargs):
     """create sun positions"""
     if 'scene' not in ctx.obj:
         clk.invoke_dependency(ctx, scene)
@@ -139,7 +139,8 @@ def suns(ctx, loc=None, wea=None, usepositions=False, **kwargs):
         s = SunSetterLoc(ctx.obj['scene'], loc, **kwargs)
     else:
         s = SunSetter(ctx.obj['scene'], **kwargs)
-    s.direct_view()
+    if plotdview:
+        s.direct_view()
     ctx.obj['suns'] = s
 
 
@@ -240,10 +241,14 @@ def integrate(ctx, pts=None, vdirs=None, skyonly=False, hdr=True,
 @click.pass_context
 def printconfig(ctx, returnvalue, **kwargs):
     """callback to save config file"""
+    rv = dict([i[0:2] for i in returnvalue])
     try:
-        info = str(ctx.command.commands['scene'].
-                   context_settings['default_map']['info'])
-        if info.lower() in ('1', 'yes', 'y', 't', 'true'):
+        if 'scene' in rv:
+            info = rv['scene']['info']
+        else:
+            info = (ctx.command.commands['scene'].
+                    context_settings['default_map']['info'])
+        if str(info).lower() in ('1', 'yes', 'y', 't', 'true'):
             s = ctx.obj['scene']
             print('\nCallback Scene Info:', file=sys.stderr)
             print('='*60 + '\n', file=sys.stderr)

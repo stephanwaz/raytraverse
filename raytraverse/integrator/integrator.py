@@ -107,9 +107,9 @@ class Integrator(object):
             This method takes either a file path or np.array. File path can
             point to a wea, epw, or .npy file. Loaded array must be one of the
             following:
-                - 4 col: alt, az, dir, diff
-                - 5 col: dx, dy, dz, dir, diff
-                - 5 col: m, d, h, dir, diff'
+            - 4 col: alt, az, dir, diff
+            - 5 col: dx, dy, dz, dir, diff
+            - 5 col: m, d, h, dir, diff'
 
         Returns
         -------
@@ -315,7 +315,7 @@ class Integrator(object):
         vdirs: np.array
             view directions
         smtx: np.array
-            shape (len(skydata), skyres**2) coefficients for each sky patch
+            shape (len(skydata), skyres^2) coefficients for each sky patch
             each row is a timestep, timesteps where a sun exists exclude the
             sun coefficient, otherwise the patch enclosing the sun position
             contains the energy of the sun
@@ -333,7 +333,7 @@ class Integrator(object):
             below horizon
         metricfuncs: tuple
             list of metric functions to apply, with the call signature:
-            f(view, rays, omegas, lum, **kwargs)
+            f(view, rays, omegas, lum, kwargs)
 
         Returns
         -------
