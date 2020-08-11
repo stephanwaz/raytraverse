@@ -7,18 +7,9 @@ int add(int i, int j) {
 
 namespace py = pybind11;
 
-PYBIND11_MODULE(cfuncs, m) {
+PYBIND11_MODULE(craytraverse, m) {
     m.doc() = R"pbdoc(
-        Pybind11 example plugin
-        -----------------------
-
-        .. currentmodule:: python_example
-
-        .. autosummary::
-           :toctree: _generate
-
-           add
-           subtract
+           raytraverse helper functions written in c++
     )pbdoc";
 
     m.def("add", py::vectorize(add), R"pbdoc(

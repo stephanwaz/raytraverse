@@ -8,6 +8,7 @@ raytraverse (|release|)
    sampler
    lightfield
    integrator
+   craytraverse
    draw
    io
    plot
