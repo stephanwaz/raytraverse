@@ -9,6 +9,7 @@
 """wavelet and associated probability functions."""
 import numpy as np
 import pywt
+from raytraverse import craytraverse
 
 
 def get_detail(samps, axes):
@@ -38,11 +39,12 @@ def get_detail(samps, axes):
 
 
 def from_pdf(pdf, threshold):
-    nsampc = int(np.sum(pdf > threshold))
+    candidates = np.empty(pdf.size, dtype=np.uint32)
+    bidx = np.empty(pdf.size, dtype=np.uint32)
+    cs, bs, nsampc = craytraverse.from_pdf(pdf, candidates, bidx, threshold)
     if nsampc == 0:
-        return None
-    clip = pdf > threshold/2
-    pnorm = pdf[clip]/np.sum(pdf[clip])
-    candidates = np.arange(pdf.size, dtype=np.uint32)[clip]
-    return np.random.default_rng().choice(candidates, nsampc, replace=False,
-                                          p=pnorm)
+        return bidx[:bs]
+    pdfc = pdf[candidates[:cs]]/np.sum(pdf[candidates[:cs]])
+    cidx = np.random.default_rng().choice(candidates[:cs], nsampc,
+                                          replace=False, p=pdfc)
+    return np.concatenate((bidx[:bs], cidx))

@@ -191,8 +191,7 @@ def sunrun(ctx, plotdview=False, run=True, rmraw=False, **kwargs):
 @main.command()
 @click.option('-loc', callback=clk.split_float)
 @click.option('-wea')
-@click.option('-pts', default='0,0,0', callback=np_load)
-@click.option('-vdirs', default='0,-1,0', callback=np_load)
+@click.option('-pts', default='0,0,0,0,-1,0', callback=np_load)
 @click.option('-res', default=800)
 @click.option('-interp', default=12)
 @click.option('-vname', default='view')
@@ -222,19 +221,15 @@ def integrate(ctx, pts=None, vdirs=None, skyonly=False, hdr=True,
     itg = Integrator(sk, su, **kwargs)
     skymtx = itg.get_sky_mtx()
     if hdr:
-        for i, vd in enumerate(vdirs):
-            vn = f'{vname}{i:02d}'
-            itg.hdr(pts, vd, *skymtx, interp=interp, res=res, vname=vn)
+        itg.hdr(pts, *skymtx, interp=interp, res=res, vname=vname)
     if metric:
         mf = (raytraverse.metric.illum, raytraverse.metric.sqlum)
-        metrics = itg.metric(pts, vdirs, *skymtx, scale=179, metricfuncs=mf)
+        metrics = itg.metric(pts, *skymtx, scale=179, metricfuncs=mf)
         if header:
             print("view\tpoint\tsky\t" + "\t".join([f.__name__ for f in mf]))
-        for v, views in enumerate(metrics):
-            for p, pts in enumerate(views):
-                for s, skies in enumerate(pts):
-                    print(f"{v}\t{p}\t{s}\t" +
-                          "\t".join([f"{i}" for i in skies]))
+        for p, pts in enumerate(metrics):
+            for s, skies in enumerate(pts):
+                print(f"{p}\t{s}\t" + "\t".join([f"{i}" for i in skies]))
 
 
 @main.resultcallback()

@@ -236,16 +236,14 @@ class Integrator(object):
         io.array2hdr(img, outf, self.header() + [vstr])
         return outf
 
-    def hdr(self, pts, vdir, smtx, grnd=None, suns=None, suni=None,
+    def hdr(self, pts, smtx, grnd=None, suns=None, suni=None,
             daysteps=None, vname='view', viewangle=180.0, res=400, interp=1):
         """
 
         Parameters
         ----------
         pts: np.array
-            points
-        vdir: tuple
-            view direction for images
+            points and view dirs shape (N, 6)
         smtx: np.array
             shape (len(skydata), skyres**2) coefficients for each sky patch
             each row is a timestep, timesteps where a sun exists exclude the
@@ -278,25 +276,23 @@ class Integrator(object):
 
         """
         npts = self.scene.area.npts
-        perrs, pis = self.scene.area.pt_kd.query(pts)
-        vm = ViewMapper(viewangle=viewangle, dxyz=vdir, name=vname)
-        vstring = 'VIEW= -vta -vv {0} -vh {0} -vd {1} {2} {3}'.format(viewangle,
-                                                                      *vdir)
-        pdirs = vm.pixelrays(res)
-        mask = vm.in_view(pdirs)
+        perrs, pis = self.scene.area.pt_kd.query(pts[:, 0:3])
         if self.suns:
             keymap = self.sunfield.keymap()
         else:
             keymap = np.full((npts, 1), False)
         with ProcessPoolExecutor() as exc:
             fu = []
-            for pi in pis:
-                vstr = (vstring +
-                        ' -vp {} {} {}'.format(*self.scene.area.idx2pt([pi])[0])
-                        )
+            for pj, (pi, vdir) in enumerate(zip(pis, pts[:, 3:6])):
+                vm = ViewMapper(viewangle=viewangle, dxyz=vdir, name=vname)
+                vp = self.scene.area.idx2pt([pi])[0]
+                vstr = ('VIEW= -vta -vv {0} -vh {0} -vd {1} {2} {3}'
+                        ' -vp {4} {5} {6}'.format(viewangle, *vdir, *vp))
+                pdirs = vm.pixelrays(res)
+                mask = vm.in_view(pdirs)
                 si = self.skyfield.query_ray(pi, pdirs[mask], interp=interp)
                 for sj, skyv in enumerate(smtx):
-                    outf = (f"{self.scene.outdir}_{vm.name}_{pi:04d}_{sj:04d}"
+                    outf = (f"{self.scene.outdir}_{vname}_{pj:04d}_{sj:04d}"
                             ".hdr")
                     fu.append(exc.submit(self._hdr, res, vm, keymap, pi,
                                          suni[sj], suns[sj], pdirs, si, vstr,
@@ -304,16 +300,14 @@ class Integrator(object):
             for future in as_completed(fu):
                 print(future.result(), file=sys.stderr)
 
-    def metric(self, pts, vdirs, smtx, grnd=None, suns=None, suni=None,
+    def metric(self, pts, smtx, grnd=None, suns=None, suni=None,
                daysteps=None, metricfuncs=(metric.illum,), **kwargs):
         """calculate luminance based metrics for given sensors and skyvecs
 
         Parameters
         ----------
         pts: np.array
-            points
-        vdirs: np.array
-            view directions
+            points and view dirs shape (N, 6)
         smtx: np.array
             shape (len(skydata), skyres^2) coefficients for each sky patch
             each row is a timestep, timesteps where a sun exists exclude the
@@ -344,77 +338,73 @@ class Integrator(object):
             and 2 when a view to the sun also exists.
         """
         npts = self.scene.area.npts
-        perrs, pis = self.scene.area.pt_kd.query(pts)
-        vms = [ViewMapper(v, viewangle=180) for v in vdirs]
+        perrs, pis = self.scene.area.pt_kd.query(pts[:, 0:3])
         if self.suns:
             keymap = self.sunfield.keymap()
         else:
             keymap = np.full((npts, 1), False)
         pmetrics = []
-        for pi in pis:
+        for pi, vdir in zip(pis, pts[:, 3:6]):
             # get sky vectors
-            skyidx = self.skyfield.query_ball(pi, vdirs)
+            skyidx = self.skyfield.query_ball(pi, [vdir])
             smetrics = []
+            vm = ViewMapper(vdir, viewangle=180)
             for skyv, s, (si, sb) in zip(smtx, suns, suni):
                 psi = (pi, si)
                 if keymap[pi, si] and s[-2] > 0:
                     skyvec = skyv
-                    sunidx = self.sunfield.query_ball(psi, vdirs)
+                    sunidx = self.sunfield.query_ball(psi, [vdir])
                     sunlm = np.squeeze(self.sunfield.apply_coef(psi, s[-2]))
                 else:
                     skyvec = np.copy(skyv)
                     skyvec[sb] += s[-1]
-                    sunidx = [False] * len(vdirs)
+                    sunidx = False
                     sunlm = False
                 skylm = np.squeeze(self.skyfield.apply_coef(pi, skyvec))
-                vmetrics = []
-                for i, v in enumerate(vms):
-                    skyrays = self.skyfield.vec[pi][skyidx[i]]
-                    osky = np.squeeze(self.skyfield.omega[pi][skyidx[i]])
-                    lmsky = skylm[skyidx[i]]
-                    sunvalue = 0
-                    mstack = []
-                    skyweight = 1
-                    if sunidx[i]:
-                        sunvalue += 1
-                        sunrays = self.sunfield.vec[psi][sunidx[i]]
-                        osun = np.squeeze(self.sunfield.omega[psi][sunidx[i]])
-                        lmsun = sunlm[sunidx[i]]
+                skyrays = self.skyfield.vec[pi][skyidx[0]]
+                osky = np.squeeze(self.skyfield.omega[pi][skyidx[0]])
+                lmsky = skylm[skyidx[0]]
+                sunvalue = 0
+                mstack = []
+                skyweight = 1
+                if sunidx:
+                    sunvalue += 1
+                    sunrays = self.sunfield.vec[psi][sunidx[0]]
+                    osun = np.squeeze(self.sunfield.omega[psi][sunidx[0]])
+                    lmsun = sunlm[sunidx[0]]
 
-                        # TODO cross match samples
-                        # currently implements a nearest neighbor and then
-                        # averages the two results (using the skyweight term,
-                        # this is subject to some error a better approach is
-                        # to query the ray for neighbors with a radius derived
-                        # from omega and average in the case of no result
-                        # (when omega_other is larger) use the nearest neighbor.
-                        # This will likely need to be implemented in c++ to be
-                        # practical, and alternative is to interpolate samples
-                        # like hdr image generation and then naively add.
-                        sunsky, err = self.sunfield.query_ray(psi, skyrays)
-                        skysun, err = self.skyfield.query_ray(pi, sunrays)
-                        lmsun += skylm[skysun]
-                        lmsky += sunlm[sunsky]
-                        skyweight = .5
+                    # TODO cross match samples
+                    # currently implements a nearest neighbor and then
+                    # averages the two results (using the skyweight term,
+                    # this is subject to some error a better approach is
+                    # to query the ray for neighbors with a radius derived
+                    # from omega and average in the case of no result
+                    # (when omega_other is larger) use the nearest neighbor.
+                    # This will likely need to be implemented in c++ to be
+                    # practical, and alternative is to interpolate samples
+                    # like hdr image generation and then naively add.
+                    sunsky, err = self.sunfield.query_ray(psi, skyrays)
+                    skysun, err = self.skyfield.query_ray(pi, sunrays)
+                    lmsun += skylm[skysun]
+                    lmsky += sunlm[sunsky]
+                    skyweight = .5
 
-                        fsun = [f(v, sunrays, osun, lmsun, **kwargs) * skyweight
-                                for f in metricfuncs]
-                        mstack.append(fsun)
-                    fsky = [f(v, skyrays, osky, lmsky, **kwargs)*skyweight
+                    fsun = [f(vm, sunrays, osun, lmsun, **kwargs) * skyweight
                             for f in metricfuncs]
-                    mstack.append(fsky)
-                    try:
-                        fsv = self.sunfield.view.metric(psi, v, s, metricfuncs,
-                                                        **kwargs)
-                    except (AttributeError, ValueError):
-                        pass
-                    else:
-                        sunvalue += 1
-                        mstack.append(fsv)
-                    vmetrics.append(np.concatenate((np.sum(mstack, 0),
-                                                    [sunvalue])))
-                smetrics.append(vmetrics)
+                    mstack.append(fsun)
+                fsky = [f(vm, skyrays, osky, lmsky, **kwargs)*skyweight
+                        for f in metricfuncs]
+                mstack.append(fsky)
+                try:
+                    fsv = self.sunfield.view.metric(psi, vm, s, metricfuncs,
+                                                    **kwargs)
+                except (AttributeError, ValueError):
+                    pass
+                else:
+                    sunvalue += 1
+                    mstack.append(fsv)
+                smetrics.append(np.concatenate((np.sum(mstack, 0), [sunvalue])))
             pmetrics.append(smetrics)
-        # loop returns shape: (points, skys, views, metrics)
+        # loop returns shape: (points, skys, metrics)
         # transpose reorganizes as: (view, points, skys, metrics)
-        return np.transpose(pmetrics, (2, 0, 1, 3))
+        return np.array(pmetrics)

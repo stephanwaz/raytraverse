@@ -5,3 +5,4 @@ clasp
 numpy
 scipy
 pywavelets
+pybind11

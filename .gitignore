@@ -105,3 +105,7 @@ ENV/
 
 # mypy
 .mypy_cache/
+
+# pycharm build dirs
+cmake-build*/
+ 
