@@ -11,6 +11,14 @@ from scipy import stats
 from clipt import mplt
 
 
+def test_version():
+    with craytraverse.ostream_redirect():
+        craytraverse.rtrace("rtrace -defaults".split())
+    print(craytraverse.version())
+
+    # print(craytraverse.__doc__)
+    # print(craytraverse.rtdefaults())
+
 def test_from_pdf():
     rv = stats.norm()
     nsamp = 500000
@@ -20,7 +28,6 @@ def test_from_pdf():
     exp = np.sum(pdf > t)
     # c2 = draw.from_pdf2(pdf, t)
     c = draw.from_pdf(pdf, t)
-    print(np.sum(pdf))
     # print(np.sum(pdf > t), c.size, c2.size)
     # hist = np.histogram(x[c], 50)
     # mplt.quick_scatter([hist[1][1:], [0, 0]], [hist[0], [0, 7000]])

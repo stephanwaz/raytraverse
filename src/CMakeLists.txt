@@ -1,57 +1,33 @@
 cmake_minimum_required(VERSION 3.15)
-
-project(src)
 set(CMAKE_CXX_STANDARD 14)
+#set(CMAKE_VERBOSE_MAKEFILE on)
 
-#get_filename_component(PARENT_DIR ${CMAKE_CURRENT_SOURCE_DIR} DIRECTORY)
-#
-#include_directories(/usr/local/include)
-#link_directories(/usr/local/lib)
-#
-#find_package(pybind11)
-#
-#include_directories("${pybind11_INCLUDE_DIRS}")
-#
-#set(LIBRARY_OUTPUT_DIRECTORY "/Users/stephenwasilewski/dev/raytraverse/")
-#
-#pybind11_add_module(craytraverse craytraverse.cpp)
-#
-#message("${CMAKE_BUILD_TYPE}")
-#
-#IF(CMAKE_BUILD_TYPE MATCHES RelWithDebInfo)
-#    set_target_properties(craytraverse PROPERTIES LIBRARY_OUTPUT_DIRECTORY "${PARENT_DIR}/raytraverse/")
-#ENDIF(CMAKE_BUILD_TYPE MATCHES RelWithDebInfo)
+project(raytraverse)
 
-#set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c11 -std=c++11 -stdlib=libc++")
-#add_definitions(-DBSD -DNOSTEREO -Dfreebsd)
-#set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -mmacosx-version-min=10.7")
-#
-#include_directories(/Users/stephenwasilewski/dev/compile_radiance/ray/src/rt)
-#include_directories(/Users/stephenwasilewski/dev/compile_radiance/ray/src/common)
-#
-#
 
-if(UNIX)
-    set(CPACK_PACKAGING_INSTALL_PREFIX "/usr/local/radiance")
-    add_definitions(-Dlinux -D_FILE_OFFSET_BITS=64 -DNOSTEREO)
-else()
-    set(CPACK_PACKAGING_INSTALL_PREFIX "/")
-endif()
+include_directories(/usr/local/include)
+link_directories(/usr/local/lib)
 
-set(CPACK_PACKAGE_FILE_NAME "${CMAKE_PROJECT_NAME}-${PROJECT_VERSION_MAJOR}.${PROJECT_VERSION_MINOR}.${PROJECT_VERSION_TWEAK}-${CMAKE_SYSTEM_NAME}")
+include_directories(ray/src/rt ray/src/common)
 
-if(APPLE)
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c11 -std=c++11 -stdlib=libc++")
-    add_definitions(-DBSD -DNOSTEREO -Dfreebsd)
-    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -mmacosx-version-min=10.7")
-endif()
+add_subdirectory(ray/src/common)
+add_subdirectory(ray/src/rt)
 
-if(APPLE)
-    set(CPACK_GENERATOR "PackageMaker")
-elseif(UNIX)
-    set(CPACK_GENERATOR "TGZ")
-endif()
 
-include(CPack)
 
-add_subdirectory("ray/src")
+find_package(pybind11)
+include_directories("${pybind11_INCLUDE_DIRS}")
+
+# link in radiance libraries
+link_libraries(raycalls radiance rtrad)
+# required to build rtcall
+set(RTFILES rtrace.c duphead.c persist.c)
+list(TRANSFORM RTFILES PREPEND ray/src/rt/)
+
+pybind11_add_module(craytraverse craytraverse.cpp pyhelpers.cpp radiance.cpp render.cpp rtrace.cpp rtcall.c ${RTFILES})
+
+
+IF(CMAKE_BUILD_TYPE MATCHES RelWithDebInfo)
+    get_filename_component(PARENT_DIR ${CMAKE_CURRENT_SOURCE_DIR} DIRECTORY)
+    set_target_properties(craytraverse PROPERTIES LIBRARY_OUTPUT_DIRECTORY "${PARENT_DIR}/raytraverse/")
+ENDIF(CMAKE_BUILD_TYPE MATCHES RelWithDebInfo)
