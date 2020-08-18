@@ -17,6 +17,7 @@ public:
     void initialize(pybind11::object pyargv11);
     void initc(int argc, char **argv) override;
     void call(char *fname) override;
+    void updateOSpec(char *vs, char of);
 
 };
 

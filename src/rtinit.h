@@ -16,8 +16,10 @@ static void onsig(int  signo);
 static void sigdie(int  signo, char  *msg);
 static void printdefaults(void);
 extern int rtinit(int  argc, char  **argv);
+extern void setoutput2(char *vs, char outform);
 extern void rtrace_setup(int nproc);
 extern void rtrace_call(char *fname);
+static void oputrad(RAY  *r);
 
 #ifdef __cplusplus
 }

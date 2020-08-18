@@ -23,6 +23,8 @@ rtrace_setup(				/* initialize processes */
 		ray_popen(nproc);
 		ray_fifo_out = printvals;
 	}
+  /* set up output */
+  setoutput2(outvals, outform);
 }
 
 extern void
@@ -46,19 +48,6 @@ rtrace_call(				/* run rtrace process */
   }
   if (inform != 'a')
     SET_FILE_BINARY(fp);
-  /* set up output */
-  setoutput(outvals);
-  switch (outform) {
-    case 'a': putreal = puta; break;
-    case 'f': putreal = putf; break;
-    case 'd': putreal = putd; break;
-    case 'c':
-      if (outvals[0] && (outvals[1] || !strchr("vrx", outvals[0])))
-        error(USER, "color format only with -ov, -or, -ox");
-      putreal = putrgbe; break;
-    default:
-      error(CONSISTENCY, "botched output format");
-  }
   if (hresolu > 0) {
     if (vresolu > 0)
       fprtresolu(hresolu, vresolu, stdout);
@@ -106,6 +95,141 @@ rtrace_call(				/* run rtrace process */
     error(USER, "unexpected EOF on input");
   if (fname != NULL)
     fclose(fp);
+}
+
+
+extern void
+setoutput2( /* set up output tables */
+        char  *vs,
+        char of
+)
+{
+  oputf_t **table = ray_out;
+
+  castonly = 1;
+  while (*vs)
+    switch (*vs++) {
+      case 'T':				/* trace sources */
+        if (!*vs) break;
+        trace_sources();
+        /* fall through */
+      case 't':				/* trace */
+        if (!*vs) break;
+        *table = NULL;
+        table = every_out;
+        trace = ourtrace;
+        castonly = 0;
+        break;
+      case 'o':				/* origin */
+        *table++ = oputo;
+        break;
+      case 'd':				/* direction */
+        *table++ = oputd;
+        break;
+      case 'r':				/* reflected contrib. */
+        *table++ = oputr;
+        castonly = 0;
+        break;
+      case 'R':				/* reflected distance */
+        *table++ = oputR;
+        castonly = 0;
+        break;
+      case 'x':				/* xmit contrib. */
+        *table++ = oputx;
+        castonly = 0;
+        break;
+      case 'X':				/* xmit distance */
+        *table++ = oputX;
+        castonly = 0;
+        break;
+      case 'v':				/* value */
+        *table++ = oputv;
+        castonly = 0;
+        break;
+      case 'V':				/* contribution */
+        *table++ = oputV;
+        if (ambounce > 0 && (ambacc > FTINY || ambssamp > 0))
+          error(WARNING,
+                "-otV accuracy depends on -aa 0 -as 0");
+        break;
+      case 'l':				/* effective distance */
+        *table++ = oputl;
+        castonly = 0;
+        break;
+      case 'c':				/* local coordinates */
+        *table++ = oputc;
+        break;
+      case 'L':				/* single ray length */
+        *table++ = oputL;
+        break;
+      case 'p':				/* point */
+        *table++ = oputp;
+        break;
+      case 'n':				/* perturbed normal */
+        *table++ = oputn;
+        castonly = 0;
+        break;
+      case 'N':				/* unperturbed normal */
+        *table++ = oputN;
+        break;
+      case 's':				/* surface */
+        *table++ = oputs;
+        break;
+      case 'w':				/* weight */
+        *table++ = oputw;
+        break;
+      case 'W':				/* coefficient */
+        *table++ = oputW;
+        castonly = 0;
+        if (ambounce > 0 && (ambacc > FTINY) | (ambssamp > 0))
+          error(WARNING,
+                "-otW accuracy depends on -aa 0 -as 0");
+        break;
+      case 'm':				/* modifier */
+        *table++ = oputm;
+        break;
+      case 'M':				/* material */
+        *table++ = oputM;
+        break;
+      case '~':				/* tilde */
+        *table++ = oputtilde;
+        break;
+      case 'Z': /* radiance */
+        *table++ = oputrad;
+        castonly = 0;
+        break;
+    }
+  *table = NULL;
+  /* compatibility */
+  for (table = ray_out; *table != NULL; table++) {
+    if ((*table == oputV) | (*table == oputW))
+      error(WARNING, "-oVW options require trace mode");
+    if ((do_irrad | imm_irrad) &&
+        (*table == oputr) | (*table == oputR) |
+        (*table == oputx) | (*table == oputX))
+      error(WARNING, "-orRxX options incompatible with -I+ and -i+");
+  }
+  switch (of) {
+    case 'z': break;
+    case 'a': putreal = puta; break;
+    case 'f': putreal = putf; break;
+    case 'd': putreal = putd; break;
+    case 'c':
+      if (outvals[0] && (outvals[1] || !strchr("vrx", outvals[0])))
+        error(USER, "color format only with -ov, -or, -ox");
+      putreal = putrgbe; break;
+    default:
+      error(CONSISTENCY, "botched output format");
+  }
+}
+
+static void
+oputrad(				/* print value -o spec: Z*/
+        RAY  *r
+)
+{
+  RREAL	lum = bright(r->rcol);
+  (*putreal)(&lum, 1);
 }
 
 #ifdef __cplusplus

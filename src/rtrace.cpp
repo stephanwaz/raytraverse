@@ -2,7 +2,6 @@
 // Created by Stephen Wasilewski on 8/14/20.
 //
 #include <iostream>
-#include <sstream>
 #include "rtrace.h"
 
 namespace ray{
@@ -22,16 +21,18 @@ Renderer& Rtrace::getInstance() {
 }
 
 void Rtrace::initialize(pybind11::object pyargv11) {
-//  resetInstance();
   Renderer::initialize(pyargv11.ptr());
   nproc = ray::rtinit(argc, argv);
   ray::rtrace_setup(nproc);
 }
 
 void Rtrace::initc(int argcount, char** argvector) {
-//  resetInstance();
   Renderer::initc(argcount, argvector);
   nproc = ray::rtinit(argc, argv);
   ray::rtrace_setup(nproc);
+}
+
+void Rtrace::updateOSpec(char *vs, char of) {
+  ray::setoutput2(vs, of);
 }
 
