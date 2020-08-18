@@ -8,16 +8,24 @@
 
 class Renderer {
 
+protected:
+    Renderer() = default;
+
 public:
-    explicit Renderer(PyObject* pyargv);
-    virtual void call(std::string fname);
+    ~Renderer() = default;
+    virtual void initialize(PyObject* pyargv);
+    virtual void initc(int argcount, char **argvector);
+    virtual void call(char *fname);
+    static Renderer& getInstance();
+    static void resetInstance();
+    static void resetRadiance();
 
 protected:
+    static Renderer* renderer;
     int nproc = 1;
     int argc = 0;
     char** argv = nullptr;
 };
-
 
 
 #endif //RAYTRAVERSE_RENDER_H

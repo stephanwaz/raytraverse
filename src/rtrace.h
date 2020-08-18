@@ -9,9 +9,14 @@
 
 class Rtrace : public Renderer {
 
+private:
+    Rtrace() = default;
+
 public:
-    explicit Rtrace(pybind11::object pyargv11);
-    void call(std::string fname) override;
+    static Renderer& getInstance();
+    void initialize(pybind11::object pyargv11);
+    void initc(int argc, char **argv) override;
+    void call(char *fname) override;
 
 };
 

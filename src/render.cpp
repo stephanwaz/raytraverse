@@ -4,8 +4,12 @@
 
 #include "render.h"
 
-Renderer::Renderer(PyObject* pyargv) {
+namespace ray{
+#include <ray.h>
+}
 
+/* -------------------------------------------------------------------------- */
+void Renderer::initialize(PyObject *pyargv){
   //code snippet to convert python sequence of strings to char**
   // from: https://stackoverflow.com/questions/60067092/passing-a-list-of-strings
   // -from-python-to-c-through-pybind11/60068350#60068350
@@ -34,6 +38,29 @@ Renderer::Renderer(PyObject* pyargv) {
   //end snippet
 }
 
-/* -------------------------------------------------------------------------- */
+void Renderer::initc(int argcount, char **argvector) {
+  argc = argcount;
+  argv = argvector;
+}
 
-void Renderer::call(std::string fname) {}
+void Renderer::resetRadiance() {
+  for (int i = 1; ray::addobjnotify[i] != NULL; i++){
+    ray::addobjnotify[i] = NULL;
+  }
+  ray::ray_pdone(0);
+}
+
+Renderer& Renderer::getInstance() {
+  return *renderer;
+}
+
+void Renderer::resetInstance() {
+  resetRadiance();
+  delete renderer;
+  renderer = nullptr;
+}
+
+Renderer* Renderer::renderer = nullptr;
+
+void Renderer::call(char *fname) {}
+

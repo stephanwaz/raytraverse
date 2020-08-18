@@ -4,7 +4,7 @@
 
 namespace ray{
 #include <ray.h>
-#include "rtcall.h"
+#include "rtinit.h"
 }
 
 #include "rtrace.h"
@@ -15,6 +15,9 @@ using namespace pybind11::literals;
 void init_radiance(py::module &m) {
   m.def("version", [](){return ray::VersionID;});
   py::class_<Rtrace>(m, "Rtrace")
-          .def(py::init<pybind11::object>())
+          .def("getInstance", &Rtrace::getInstance, py::return_value_policy::reference)
+          .def("resetInstance", [](py::args& args){Rtrace::resetInstance();})
+          .def("reset", [](py::args& args){Rtrace::resetRadiance();})
+          .def("initialize", &Rtrace::initialize)
           .def("call", &Rtrace::call);
 }

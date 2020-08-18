@@ -76,7 +76,7 @@ pybind11::tuple from_pdf(py::array_t<double> &pdf,
 
 using namespace pybind11::literals;
 void init_pyhelpers(py::module &m) {
-  m.def("from_pdf", from_pdf,
+  m.def("from_pdf", &from_pdf,
         "pdf"_a,
         "candidates"_a,
         "bidx"_a,

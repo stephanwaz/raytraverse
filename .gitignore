@@ -108,4 +108,6 @@ ENV/
 
 # pycharm build dirs
 cmake-build*/
+
+src/ray/
  

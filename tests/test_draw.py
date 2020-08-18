@@ -19,6 +19,7 @@ def test_version():
     # print(craytraverse.__doc__)
     # print(craytraverse.rtdefaults())
 
+
 def test_from_pdf():
     rv = stats.norm()
     nsamp = 500000
