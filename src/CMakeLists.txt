@@ -38,7 +38,7 @@ add_library(raymod STATIC rtinit.h rtinit.c)
 # link in radiance libraries
 link_libraries(raycalls radiance rtrad)
 # required to build rtcall
-set(RTFILES duphead.c persist.c)
+set(RTFILES duphead.c persist.c source.c pmapray.c)
 list(TRANSFORM RTFILES PREPEND ray/src/rt/)
 
 

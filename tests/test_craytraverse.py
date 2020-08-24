@@ -78,34 +78,31 @@ def main():
         r.call('rays.txt')
     print('Captured stdout:\n' + capture.stdout)
 
-
+    r.reset()
+    r.initialize(args)
     r = craytraverse.Rtrace.get_instance()
     with CaptureStdOut() as capture:
         r.call('rays.txt')
     print('Captured stdout:\n' + capture.stdout)
 
-    # time.sleep(1)
-    # # r = craytraverse.Rtrace.getInstance()
+    # r = craytraverse.Rtrace.getInstance()
+    with CaptureStdOut() as capture:
+        r.call('rays.txt')
+    print('Captured stdout:\n' + capture.stdout)
+    r.reset()
+    r.initialize(args)
+
+    # r = craytraverse.Rtrace.getInstance()
+    with CaptureStdOut() as capture:
+        r.call('rays.txt')
+    print('Captured stdout:\n' + capture.stdout)
+    r.reset()
+    #
     # with CaptureStdOut() as capture:
     #     r.call('rays.txt')
     # print('Captured stdout:\n' + capture.stdout)
-    # r.reset()
     #
-    # time.sleep(1)
-    #
-    # r.initialize(args)
-    #
-    # # r = craytraverse.Rtrace.getInstance()
-    # with CaptureStdOut() as capture:
-    #     r.call('rays.txt')
-    # print('Captured stdout:\n' + capture.stdout)
-    # r.reset()
-    # #
-    # # with CaptureStdOut() as capture:
-    # #     r.call('rays.txt')
-    # # print('Captured stdout:\n' + capture.stdout)
-    # #
-    # # print('done')
+    # print('done')
 
 
 

@@ -6,25 +6,21 @@ extern "C" {
 #include "rtinit.h"
 
 extern void
-rtrace_setup(				/* initialize processes */
+rtrace_setup( /* initialize processes */
 	int  nproc
 )
 {
-	long  nextflush = (!vresolu | (hresolu <= 1)) * hresolu;
-	if (imm_irrad)
-		castonly = 0;
-	else if (castonly)
-		nproc = 1;		/* don't bother multiprocessing */
-	if ((nextflush > 0) & (nproc > nextflush)) {
-		error(WARNING, "reducing number of processes to match flush interval");
-		nproc = nextflush;
-	}
-	if (nproc > 1) {		/* start multiprocessing */
-		ray_popen(nproc);
-		ray_fifo_out = printvals;
-	}
-  /* set up output */
-  setoutput2(outvals, outform);
+  long  nextflush = (!vresolu | (hresolu <= 1)) * hresolu;
+  if (castonly || every_out[0] != NULL)
+    nproc = 1;		/* don't bother multiprocessing */
+  if ((nextflush > 0) & (nproc > nextflush)) {
+    error(WARNING, "reducing number of processes to match flush interval");
+    nproc = nextflush;
+  }
+  if (nproc > 1) {		/* start multiprocessing */
+    ray_popen(nproc);
+    ray_fifo_out = printvals;
+  }
 }
 
 extern void
@@ -41,24 +37,25 @@ rtrace_call(				/* run rtrace process */
   FVECT  orig, direc;
   /* set up input */
   if (fname == NULL)
-    fp = stdin;
-  else if ((fp = fopen(fname, "r")) == NULL) {
+    inpfp = stdin;
+  else if ((inpfp = fopen(fname, "r")) == NULL) {
     sprintf(errmsg, "cannot open input file \"%s\"", fname);
     error(SYSTEM, errmsg);
   }
+#ifdef getc_unlocked
+  flockfile(inpfp);		/* avoid lock/unlock overhead */
+  flockfile(stdout);
+#endif
   if (inform != 'a')
-    SET_FILE_BINARY(fp);
+          SET_FILE_BINARY(inpfp);
   if (hresolu > 0) {
     if (vresolu > 0)
       fprtresolu(hresolu, vresolu, stdout);
     else
       fflush(stdout);
   }
-  /* process file */
-  while (getvec(orig, inform, fp) == 0 &&
-         getvec(direc, inform, fp) == 0) {
-
-    d = normalize(direc);
+  /* process input rays */
+  while ((d = nextray(orig, direc)) >= 0.0) {
     if (d == 0.0) {				/* flush request? */
       if (something2flush) {
         if (ray_pnprocs > 1 && ray_fifo_flush() < 0)
@@ -71,8 +68,7 @@ rtrace_call(				/* run rtrace process */
         bogusray();
     } else {				/* compute and print */
       rtcompute(orig, direc, lim_dist ? d : 0.0);
-      /* flush if time */
-      if (!--nextflush) {
+      if (!--nextflush) {		/* flush if time */
         if (ray_pnprocs > 1 && ray_fifo_flush() < 0)
           error(USER, "child(ren) died");
         fflush(stdout);
@@ -89,32 +85,36 @@ rtrace_call(				/* run rtrace process */
     if (ray_fifo_flush() < 0)
       error(USER, "unable to complete processing");
   }
+  if (vcount)
+    error(WARNING, "unexpected EOF on input");
   if (fflush(stdout) < 0)
     error(SYSTEM, "write error");
-  if (vcount)
-    error(USER, "unexpected EOF on input");
-  if (fname != NULL)
-    fclose(fp);
+  if (fname != NULL) {
+    fclose(inpfp);
+    inpfp = NULL;
+  }
+  nextray(NULL, NULL);
 }
 
 
-extern void
-setoutput2( /* set up output tables */
-        char  *vs,
-        char of
-)
+int
+setoutput2(char  *vs, char of)			/* set up output tables, return #comp */
 {
   oputf_t **table = ray_out;
+  int  ncomp = 0;
 
-  castonly = 1;
-  while (*vs)
-    switch (*vs++) {
+  if (!*vs)
+    error(USER, "empty output specification");
+
+  castonly = 1;			/* sets castonly as side-effect */
+  do
+    switch (*vs) {
       case 'T':				/* trace sources */
-        if (!*vs) break;
+        if (!vs[1]) break;
         trace_sources();
         /* fall through */
       case 't':				/* trace */
-        if (!*vs) break;
+        if (!vs[1]) break;
         *table = NULL;
         table = every_out;
         trace = ourtrace;
@@ -122,64 +122,82 @@ setoutput2( /* set up output tables */
         break;
       case 'o':				/* origin */
         *table++ = oputo;
+        ncomp += 3;
         break;
       case 'd':				/* direction */
         *table++ = oputd;
+        ncomp += 3;
         break;
       case 'r':				/* reflected contrib. */
         *table++ = oputr;
+        ncomp += 3;
         castonly = 0;
         break;
       case 'R':				/* reflected distance */
         *table++ = oputR;
+        ncomp++;
         castonly = 0;
         break;
       case 'x':				/* xmit contrib. */
         *table++ = oputx;
+        ncomp += 3;
         castonly = 0;
         break;
       case 'X':				/* xmit distance */
         *table++ = oputX;
+        ncomp++;
         castonly = 0;
         break;
       case 'v':				/* value */
         *table++ = oputv;
+        ncomp += 3;
         castonly = 0;
         break;
       case 'V':				/* contribution */
         *table++ = oputV;
+        ncomp += 3;
+        castonly = 0;
         if (ambounce > 0 && (ambacc > FTINY || ambssamp > 0))
           error(WARNING,
                 "-otV accuracy depends on -aa 0 -as 0");
         break;
       case 'l':				/* effective distance */
         *table++ = oputl;
+        ncomp++;
         castonly = 0;
         break;
       case 'c':				/* local coordinates */
         *table++ = oputc;
+        ncomp += 2;
         break;
       case 'L':				/* single ray length */
         *table++ = oputL;
+        ncomp++;
         break;
       case 'p':				/* point */
         *table++ = oputp;
+        ncomp += 3;
         break;
       case 'n':				/* perturbed normal */
         *table++ = oputn;
+        ncomp += 3;
         castonly = 0;
         break;
       case 'N':				/* unperturbed normal */
         *table++ = oputN;
+        ncomp += 3;
         break;
       case 's':				/* surface */
         *table++ = oputs;
+        ncomp++;
         break;
       case 'w':				/* weight */
         *table++ = oputw;
+        ncomp++;
         break;
       case 'W':				/* coefficient */
         *table++ = oputW;
+        ncomp += 3;
         castonly = 0;
         if (ambounce > 0 && (ambacc > FTINY) | (ambssamp > 0))
           error(WARNING,
@@ -187,20 +205,32 @@ setoutput2( /* set up output tables */
         break;
       case 'm':				/* modifier */
         *table++ = oputm;
+        ncomp++;
         break;
       case 'M':				/* material */
         *table++ = oputM;
+        ncomp++;
         break;
       case '~':				/* tilde */
         *table++ = oputtilde;
         break;
-      case 'Z': /* radiance */
+      case 'Z':
         *table++ = oputrad;
         castonly = 0;
+        ncomp++;
         break;
+      default:
+        sprintf(errmsg, "unrecognized output option '%c'", *vs);
+        error(USER, errmsg);
     }
+  while (*++vs);
+
   *table = NULL;
+  if (*every_out != NULL)
+    ncomp = 0;
   /* compatibility */
+  if ((do_irrad | imm_irrad) && castonly)
+    error(USER, "-I+ and -i+ options require some value output");
   for (table = ray_out; *table != NULL; table++) {
     if ((*table == oputV) | (*table == oputW))
       error(WARNING, "-oVW options require trace mode");
@@ -215,12 +245,15 @@ setoutput2( /* set up output tables */
     case 'f': putreal = putf; break;
     case 'd': putreal = putd; break;
     case 'c':
-      if (outvals[0] && (outvals[1] || !strchr("vrx", outvals[0])))
+      if (outvals[1] || !strchr("vrx", outvals[0]))
         error(USER, "color format only with -ov, -or, -ox");
       putreal = putrgbe; break;
     default:
       error(CONSISTENCY, "botched output format");
   }
+
+
+  return(ncomp);
 }
 
 static void

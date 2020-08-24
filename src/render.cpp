@@ -6,6 +6,11 @@
 
 namespace ray{
 #include <ray.h>
+extern "C" {
+#include <ambient.h>
+#include <pmapray.h>
+}
+
 }
 
 /* -------------------------------------------------------------------------- */
@@ -48,6 +53,8 @@ void Renderer::resetRadiance() {
     ray::addobjnotify[i] = NULL;
   }
   ray::ray_pdone(0);
+  ray::ambdone();
+  ray::ray_done_pmap();
 }
 
 Renderer& Renderer::getInstance() {

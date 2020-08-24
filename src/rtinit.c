@@ -3,7 +3,7 @@ extern "C" {
 #endif
 
 #ifndef lint
-static const char	RCSid[] = "$Id: rtmain.c,v 2.30 2019/08/14 20:07:20 greg Exp $";
+static const char	RCSid[] = "$Id: rtmain.c,v 2.34 2020/04/08 00:57:39 greg Exp $";
 #endif
 /*
  *  rtmain.c - main for rtrace per-ray calculation program
@@ -24,8 +24,6 @@ static const char	RCSid[] = "$Id: rtmain.c,v 2.30 2019/08/14 20:07:20 greg Exp $
 #include  "pmapray.h"
 #include "rtinit.h"
 
-extern char  *formstr();		/* string from format */
-char  *outvals = "v";			/* output specification */
 extern char	*progname;		/* global argv[0] */
 
 extern char	*shm_boundary;		/* boundary of shared memory */
@@ -42,12 +40,17 @@ char  *errfile = NULL;			/* error output file */
 
 int  nproc = 1;				/* number of processes */
 
+extern char  *formstr(int f);		/* string from format */
+extern int  setrtoutput(void);		/* set output values */
 
 int  inform = 'a';			/* input format */
 int  outform = 'a';			/* output format */
+char  *outvals = "v";			/* output specification */
 
 int  hresolu = 0;			/* horizontal (scan) size */
 int  vresolu = 0;			/* vertical resolution */
+
+extern int  castonly;			/* only doing ray-casting? */
 
 int  imm_irrad = 0;			/* compute immediate irradiance? */
 int  lim_dist = 0;			/* limit distance? */
@@ -63,6 +66,7 @@ char  *tralist[MAXMODLIST];		/* list of modifers to trace (or no) */
 int  traincl = -1;			/* include == 1, exclude == 0 */
 
 static int  loadflags = ~IO_FILES;	/* what to load from octree */
+
 
 int
 rtinit(int  argc, char  *argv[])
@@ -237,12 +241,8 @@ rtinit(int  argc, char  *argv[])
         goto badopt;
     }
   }
-  if (nproc > 1) {
-    if (!vresolu && hresolu > 0 && hresolu < nproc)
-      error(WARNING, "number of cores should not exceed horizontal resolution");
-    if (trace != NULL)
-      error(WARNING, "multiprocessing does not work properly with trace mode");
-  }
+  if (nproc > 1 && persist)
+    error(USER, "multiprocessing incompatible with persist file");
   /* initialize object types */
   initotypes();
   /* initialize urand */
@@ -294,6 +294,7 @@ rtinit(int  argc, char  *argv[])
   /* set up output */
   if (outform != 'a')
           SET_FILE_BINARY(stdout);
+  rval = setoutput2(outvals, outform);
   readoct(octname = octnm, loadflags, &thescene, NULL);
   nsceneobjs = nobjects;
 
@@ -301,34 +302,37 @@ rtinit(int  argc, char  *argv[])
     printargs(i, argv, stdout);
     printf("SOFTWARE= %s\n", VersionID);
     fputnow(stdout);
+    if (rval > 0)		/* saved from setrtoutput() call */
+      printf("NCOMP=%d\n", rval);
     if ((outform == 'f') | (outform == 'd'))
       fputendian(stdout);
     fputformat(formstr(outform), stdout);
     putchar('\n');
   }
 
-  ray_init_pmap();     /* PMAP: set up & load photon maps */
+  if (!castonly) {	/* any actual ray traversal to do? */
 
-  marksources();			/* find and mark sources */
+    ray_init_pmap();	/* PMAP: set up & load photon maps */
 
-  setambient();			/* initialize ambient calculation */
+    marksources();		/* find and mark sources */
+
+    setambient();		/* initialize ambient calculation */
+  } else
+    distantsources();	/* else mark only distant sources */
+
   complete = 1;
-  /* trace rays */
-//  rtrace(NULL, nproc);
-//  /* flush ambient file */
-//  ambsync();
-
 //  ray_done_pmap();           /* PMAP: free photon maps */
 //
 //  quit(0);
 
   badopt:
   if (!complete){
-            sprintf(errmsg, "command line error at '%s'", argv[i]);
-            error(USER, errmsg);
+    sprintf(errmsg, "command line error at '%s'", argv[i]);
+    error(USER, errmsg);
   }
 
-return nproc;
+  return nproc; /* pro forma return */
+
 #undef	check
 #undef	check_bool
 }
@@ -446,6 +450,7 @@ printdefaults(void)			/* print default values to stdout */
          "-w-\t\t\t\t# warning messages off\n");
   print_rdefaults();
 }
+
 
 #ifdef __cplusplus
 }
