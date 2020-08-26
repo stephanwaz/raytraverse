@@ -5,12 +5,11 @@
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 # =======================================================================
+from raytraverse.renderer.radiancerenderer import RadianceRenderer
 
-"""Top-level package for raytraverse."""
 
-__author__ = """Stephen Wasilewski"""
-__email__ = 'stephanwaz@gmail.com'
-__version__ = '0.1.0'
-__all__ = ['io', 'skycalc', 'translate', 'draw', 'metric', 'craytraverse',
-           'lightfield', 'integrator', 'mapper', 'sampler', 'scene', 'renderer']
-
+class Rcontrib(RadianceRenderer):
+    """singleton wrapper for c++
+    singleton class, note that all instances of this class will point to same
+    c++ instance"""
+    from raytraverse.crenderer import cRcontrib as Engine

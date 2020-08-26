@@ -59,7 +59,7 @@ int  lim_dist = 0;			/* limit distance? */
 #define	MAXMODLIST	1024		/* maximum modifiers we'll track */
 #endif
 
-extern void  (*addobjnotify[])();	/* object notification calls */
+	/* object notification calls */
 extern void  tranotify(OBJECT obj);
 
 char  *tralist[MAXMODLIST];		/* list of modifers to trace (or no) */
@@ -92,10 +92,16 @@ rtinit(int  argc, char  *argv[])
   /* global program name */
   progname = argv[0] = fixargv0(argv[0]);
   /* add trace notify function */
-  for (i = 0; addobjnotify[i] != NULL; i++)
-    ;
-  addobjnotify[i] = tranotify;
+  for (i = 0; addobjnotify[i] != NULL; i++) {
+    addobjnotify[i] = NULL;
+  }
+  addobjnotify[0] = ambnotify;
+  addobjnotify[1] = tranotify;
   /* option city */
+  /* reset these with each call */
+  imm_irrad = 0;			/* compute immediate irradiance? */
+  lim_dist = 0;			/* limit distance? */
+  loadflags = ~IO_FILES;
   for (i = 1; i < argc; i++) {
     /* expand arguments */
     while ((rval = expandarg(&argc, &argv, i)) > 0)
@@ -331,7 +337,7 @@ rtinit(int  argc, char  *argv[])
     error(USER, errmsg);
   }
 
-  return nproc; /* pro forma return */
+  return nproc;
 
 #undef	check
 #undef	check_bool

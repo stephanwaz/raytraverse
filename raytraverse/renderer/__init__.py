@@ -6,11 +6,10 @@
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 # =======================================================================
 
-"""Top-level package for raytraverse."""
+"""renderer objects"""
 
-__author__ = """Stephen Wasilewski"""
-__email__ = 'stephanwaz@gmail.com'
-__version__ = '0.1.0'
-__all__ = ['io', 'skycalc', 'translate', 'draw', 'metric', 'craytraverse',
-           'lightfield', 'integrator', 'mapper', 'sampler', 'scene', 'renderer']
+__all__ = ['RadianceRenderer', 'Rtrace', 'Rcontrib']
 
+from raytraverse.renderer.radiancerenderer import RadianceRenderer
+from raytraverse.renderer.rtrace import Rtrace
+from raytraverse.renderer.rcontrib import Rcontrib

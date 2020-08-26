@@ -1,9 +1,11 @@
 #include <pybind11/pybind11.h>
+#include <pybind11/stl.h>
 #include <pybind11/numpy.h>
+#include <iostream>
 
 namespace py = pybind11;
 
-
+const char* docstring = R"pbdoc(raytraverse helper functions written in c++)pbdoc";
 
 const char* from_pdf_docstring =R"pbdoc(helper function for draw.from_pdf
 
@@ -31,6 +33,7 @@ bcnt: int
 nsampc: int
     the number of draws that should be selected from the candidates
     )pbdoc";
+
 pybind11::tuple from_pdf(py::array_t<double> &pdf,
                          py::array_t<u_int32_t> candidates,
                          py::array_t<u_int32_t> bidx,
@@ -74,8 +77,15 @@ pybind11::tuple from_pdf(py::array_t<double> &pdf,
   return py::make_tuple(ccnt, bcnt, nsampc);
 }
 
+void oldf(char** argv, int argc){
+  for (int idx=0; idx<argc; ++idx) {
+    std::cout << argv[idx] << std::endl;
+  }
+}
+
 using namespace pybind11::literals;
-void init_pyhelpers(py::module &m) {
+PYBIND11_MODULE(craytraverse, m) {
+  m.doc() = docstring;
   m.def("from_pdf", &from_pdf,
         "pdf"_a,
         "candidates"_a,
@@ -84,4 +94,10 @@ void init_pyhelpers(py::module &m) {
         "lb"_a=.5,
         "ub"_a=4.0,
         from_pdf_docstring);
+
+#ifdef VERSION_INFO
+  m.attr("__version__") = VERSION_INFO;
+#else
+  m.attr("__version__") = "dev";
+#endif
 }

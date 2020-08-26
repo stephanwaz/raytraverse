@@ -2,109 +2,81 @@
 # -*- coding: utf-8 -*-
 
 """Tests for raytraverse.craytraverse"""
+import importlib
 
-from raytraverse import craytraverse
+from raytraverse import craytraverse, io, renderer
 import numpy as np
-from memory_profiler import profile
+import pytest
 
-import os
-import sys
-import threading
-from concurrent.futures import ProcessPoolExecutor
-import time
+import clasp.script_tools as cst
 
 
-class CaptureStdOut:
-
-    def __init__(self, b=False):
-        # Create pipe and dup2() the write end of it on top of stdout,
-        # saving a copy  of the old stdout
-        self.bytes = b
-        self.fileno = sys.stdout.fileno()
-        self.save = os.dup(self.fileno)
-        self.pipe = os.pipe()
-        os.dup2(self.pipe[1], self.fileno)
-        os.close(self.pipe[1])
-        if b:
-            self.stdout = b''
-            self.threader = threading.Thread(target=self.drain_bytes)
-        else:
-            self.stdout = ''
-            self.threader = threading.Thread(target=self.drain_str)
-        self.threader.start()
-
-    def __enter__(self):
-        return self
-
-    def drain_bytes(self):
-        while True:
-            data = os.read(self.pipe[0], 1024)
-            if not data:
-                break
-            self.stdout += data
-
-    def drain_str(self):
-        while True:
-            data = os.read(self.pipe[0], 1024)
-            if not data:
-                break
-            self.stdout += data.decode()
-
-    def __exit__(self, exc_type, exc_value, traceback):
-        # Close the write end of the pipe to unblock the reader thread and
-        # trigger it to exit
-        os.close(self.fileno)
-        self.threader.join()
-        # Clean up the pipe and restore the original stdout
-        os.close(self.pipe[0])
-        os.dup2(self.save, self.fileno)
-        os.close(self.save)
-
-
-@profile
-def main():
-    args = "rtrace -n 4 -ab 3 -ar 600 -ad 2000 -aa .2 -as 1500 -I test_run/sky.oct".split()
-    print('Start')
-    r = craytraverse.Rtrace.get_instance()
-    r.initialize(args)
-    r.call('rays.txt')
-    r.update_ospec('Z', 'd')
-    with CaptureStdOut(True) as capture:
-        r.call('rays.txt')
-    print(b'Captured stdout:\n' + capture.stdout)
+def test_rtrace_call():
+    args = ("rtrace -n 4 -ab 1 -ar 600 -ad 2000 -aa .2 -as 1500 -I -h "
+            "tests/test/test_run/sky.oct").split()
+    check = cst.pipeline([' '.join(args)], inp='tests/test/rays.txt',
+                         forceinpfile=True)
+    check = np.fromstring(check, sep=' ').reshape(-1, 3)
+    r = renderer.Rtrace(args)
+    ans = r.call('tests/test/rays.txt')
+    test = np.fromstring(ans, sep=' ').reshape(-1, 3)
     r.update_ospec('ZL', 'a')
-    print('capturing')
-    with CaptureStdOut() as capture:
-        r.call('rays.txt')
-    print('Captured stdout:\n' + capture.stdout)
-
-    r.reset()
-    r.initialize(args)
-    r = craytraverse.Rtrace.get_instance()
-    with CaptureStdOut() as capture:
-        r.call('rays.txt')
-    print('Captured stdout:\n' + capture.stdout)
-
-    # r = craytraverse.Rtrace.getInstance()
-    with CaptureStdOut() as capture:
-        r.call('rays.txt')
-    print('Captured stdout:\n' + capture.stdout)
-    r.reset()
-    r.initialize(args)
-
-    # r = craytraverse.Rtrace.getInstance()
-    with CaptureStdOut() as capture:
-        r.call('rays.txt')
-    print('Captured stdout:\n' + capture.stdout)
-    r.reset()
-    #
-    # with CaptureStdOut() as capture:
-    #     r.call('rays.txt')
-    # print('Captured stdout:\n' + capture.stdout)
-    #
-    # print('done')
+    ans = r.call('tests/test/rays.txt')
+    test2 = np.fromstring(ans, sep=' ').reshape(-1, 2)
+    r.reset(args)
+    ans = r.call('tests/test/rays.txt')
+    test3 = np.fromstring(ans, sep=' ').reshape(-1, 3)
+    print('check', check)
+    print('test', test)
+    print('test3', test3)
+    assert np.allclose(check, test, atol=.03)
+    assert np.allclose(check[:, 1], test2[:, 0], atol=.03)
+    assert np.allclose(test, test3, atol=.03)
+    # r.reset_instance()
+    print(test3)
 
 
+def test_rcontrib_call():
+    args = ('rcontrib -V+ -I+ -ab 2 -ad 60000 -as 30000 -h -lw 1e-7 -n 1 -e side:6'
+            ' -f tests/test/scbins.cal -b bin -bn 36 -m skyglow '
+            'tests/test/test_run/sky.oct').split()
+    print(renderer.Rcontrib.initialized)
+    r = renderer.Rcontrib(args)
+    # print(r._pyinstance)
+    # print(renderer.Rcontrib.initialized)
+    # print(r.instance)
+    ans = r.call('tests/test/rays.txt')
+    test4 = np.fromstring(ans, sep=' ').reshape(-1, 36, 3)
+    print(test4[-1, -8])
+    ans = r.call('tests/test/rays.txt')
+    # ans = r.call('tests/test/rays.txt')
+    # ans = r.call('tests/test/rays.txt')
+    test4 = np.fromstring(ans, sep=' ').reshape(-1, 36, 3)
+    print(test4[-1, -8])
+    # r.reset_instance()
 
 
-main()
+if __name__ == "__main__":
+    rc = renderer.Rcontrib()
+    rt = renderer.Rtrace()
+    print(rt.instance)
+    test_rtrace_call()
+    rt.reset()
+    test_rtrace_call()
+    rt.reset_instance()
+    test_rtrace_call()
+    rt = renderer.Rtrace()
+    print(rt.instance)
+
+    print(rc.instance)
+    test_rcontrib_call()
+    rc.reset()
+    print(rc.instance)
+    test_rcontrib_call()
+    rc.reset_instance()
+    test_rcontrib_call()
+    rc = renderer.Rcontrib()
+    print(rc.instance)
+
+    # test_rcontrib_call()
+

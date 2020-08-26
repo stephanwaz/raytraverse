@@ -2,7 +2,7 @@
 // Created by Stephen Wasilewski on 8/17/20.
 //
 #include <iostream>
-#include "rtrace.h"
+#include "rtrace.hh"
 
 int main(int argc, char** argv) {
   Renderer& rdr = Rtrace::getInstance();

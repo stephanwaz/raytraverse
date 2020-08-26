@@ -3,17 +3,12 @@
 //
 
 #include "render.h"
+#include "iostream"
 
-namespace ray{
-#include <ray.h>
-extern "C" {
-#include <ambient.h>
-#include <pmapray.h>
-}
 
-}
 
 /* -------------------------------------------------------------------------- */
+
 void Renderer::initialize(PyObject *pyargv){
   //code snippet to convert python sequence of strings to char**
   // from: https://stackoverflow.com/questions/60067092/passing-a-list-of-strings
@@ -21,8 +16,8 @@ void Renderer::initialize(PyObject *pyargv){
   if (PySequence_Check(pyargv)) {
     Py_ssize_t sz = PySequence_Size(pyargv);
     argc = (int) sz;
-
     argv = (char **) malloc(sz * sizeof(char *));
+
     for (Py_ssize_t i = 0; i < sz; ++i) {
       PyObject *item = PySequence_GetItem(pyargv, i);
       //assumes python 3 string (unicode)
@@ -47,27 +42,6 @@ void Renderer::initc(int argcount, char **argvector) {
   argc = argcount;
   argv = argvector;
 }
-
-void Renderer::resetRadiance() {
-  for (int i = 1; ray::addobjnotify[i] != NULL; i++){
-    ray::addobjnotify[i] = NULL;
-  }
-  ray::ray_pdone(0);
-  ray::ambdone();
-  ray::ray_done_pmap();
-}
-
-Renderer& Renderer::getInstance() {
-  return *renderer;
-}
-
-void Renderer::resetInstance() {
-  resetRadiance();
-  delete renderer;
-  renderer = nullptr;
-}
-
-Renderer* Renderer::renderer = nullptr;
 
 void Renderer::call(char *fname) {}
 

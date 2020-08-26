@@ -34,22 +34,44 @@ add_subdirectory(ray/src/rt)
 find_package(pybind11)
 include_directories("${pybind11_INCLUDE_DIRS}")
 
+pybind11_add_module(craytraverse pyhelpers.cpp)
+
 add_library(raymod STATIC rtinit.h rtinit.c)
+add_library(rcmod STATIC rcinit.h rcinit.c)
+
+if(WIN32)
+    set(rayp_SOURCES raypwin.c)
+else()
+    set(rayp_SOURCES raypcalls.c)
+endif()
+
+set(RCCALLFILES ${rayp_SOURCES} rayfifo.c)
+list(TRANSFORM RCCALLFILES PREPEND ray/src/rt/)
+add_library(rcraycalls rcraycalls.c ${RCCALLFILES})
 # link in radiance libraries
-link_libraries(raycalls radiance rtrad)
+#link_libraries(raycalls radiance rtrad)
 # required to build rtcall
 set(RTFILES duphead.c persist.c source.c pmapray.c)
+set(RCFILES rc2.c)
 list(TRANSFORM RTFILES PREPEND ray/src/rt/)
+list(TRANSFORM RCFILES PREPEND ray/src/rt/)
 
 
+add_executable(rtracemain main.cpp render.cpp rtrace.cpp rtinit.c rtraceparts.c ${RTFILES})
+target_link_libraries(rtracemain PRIVATE pybind11::embed raycalls radiance rtrad raymod)
 
-add_executable(rtracemain main.cpp radiance.cpp render.cpp rtrace.cpp rtinit.c rtraceparts.c ${RTFILES})
-target_link_libraries(rtracemain PRIVATE pybind11::embed raymod)
+add_executable(rcontribmain mainrc.cpp render.cpp rcontrib.cpp rcinit.c rcontribparts.c rc3.c ${RCFILES})
+target_link_libraries(rcontribmain PRIVATE pybind11::embed rcraycalls radiance rcmod rtrad)
 
-pybind11_add_module(craytraverse craytraverse.cpp pyhelpers.cpp radiance.cpp render.cpp rtrace.cpp rtinit.c rtraceparts.c ${RTFILES})
+pybind11_add_module(rtrace_c render.cpp rtrace.cpp rtinit.c rtraceparts.c ${RTFILES})
+target_link_libraries(rtrace_c PRIVATE raycalls radiance rtrad raymod)
 
+pybind11_add_module(rcontrib_c render.cpp rcontrib.cpp rcinit.c rcontribparts.c rc3.c ${RCFILES})
+target_link_libraries(rcontrib_c PRIVATE rcraycalls rcmod radiance rtrad)
 
 IF(CMAKE_BUILD_TYPE MATCHES RelWithDebInfo)
     get_filename_component(PARENT_DIR ${CMAKE_CURRENT_SOURCE_DIR} DIRECTORY)
     set_target_properties(craytraverse PROPERTIES LIBRARY_OUTPUT_DIRECTORY "${PARENT_DIR}/raytraverse/")
+    set_target_properties(rtrace_c PROPERTIES LIBRARY_OUTPUT_DIRECTORY "${PARENT_DIR}/raytraverse/crenderer")
+    set_target_properties(rcontrib_c PROPERTIES LIBRARY_OUTPUT_DIRECTORY "${PARENT_DIR}/raytraverse/crenderer")
 ENDIF(CMAKE_BUILD_TYPE MATCHES RelWithDebInfo)
