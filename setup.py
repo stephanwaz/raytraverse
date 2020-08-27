@@ -90,8 +90,7 @@ class get_pybind_include(object):
 ext_modules = [
     Extension(
         'raytraverse.craytraverse',
-        ['src/craytraverse.cpp',
-         'src/pyhelpers.cpp'],
+        ['src/pyhelpers.cpp'],
         include_dirs=[
             # Path to pybind11 headers
             get_pybind_include()

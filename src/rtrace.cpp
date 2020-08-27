@@ -43,7 +43,7 @@ Rtrace& Rtrace::getInstance() {
 }
 
 void Rtrace::resetRadiance() {
-  ray::ray_pdone(0);
+  ray::ray_pdone(1);
   ray::ambdone();
   ray::ray_done_pmap();
 }

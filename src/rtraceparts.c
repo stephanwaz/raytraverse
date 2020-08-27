@@ -119,6 +119,9 @@ rtrace_call(				/* run rtrace process */
     inpfp = NULL;
   }
   nextray(NULL, NULL);
+#ifdef getc_unlocked
+  funlockfile(stdout);
+#endif
 }
 
 
