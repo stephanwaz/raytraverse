@@ -5,6 +5,8 @@ raytraverse (|release|)
 
    scene
    mapper
+   renderer
+
    sampler
    lightfield
    integrator

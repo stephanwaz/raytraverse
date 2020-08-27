@@ -1,0 +1,236 @@
+# RCSid: $Id: Rmakefile,v 2.85 2020/04/21 02:42:35 greg Exp $
+#
+# Makefile for ray tracing library routines
+#
+
+OPT = -O
+MACH = -DBSD
+CFLAGS = $(MACH) $(OPT)
+CC = cc
+AR = ar
+SPECIAL =
+
+COMPAT = erf.o strcmp.o strlcpy.o
+
+LIBDIR = /usr/local/lib/ray
+
+RTOBJ = cone.o face.o free_os.o instance.o readobj.o readoct.o otypes.o \
+	objset.o octree.o readfargs.o modobject.o getlibpath.o \
+	addobjnotify.o zeroes.o mesh.o readmesh.o tmesh.o sceneio.o
+
+PICOBJ = color.o header.o image.o lamps.o resolu.o rexpr.o spec_rgb.o \
+	colrops.o font.o tonemap.o tmapcolrs.o tmapluv.o tmaptiff.o \
+	tmap16bit.o bmpfile.o falsecolor.o depthcodec.o normcodec.o \
+	idmap.o fltdepth.o
+
+UTLOBJ = ezxml.o ccolor.o ccyrgb.o bsdf.o bsdf_m.o bsdf_t.o loadbsdf.o \
+	disk2square.o hilbert.o interp2d.o triangulate.o
+
+STDOBJ = fgetline.o fropen.o linregr.o xf.o mat4.o invmat4.o fvect.o urand.o \
+	urind.o calexpr.o caldefn.o calfunc.o calprnt.o biggerlib.o multisamp.o \
+	unix_process.o process.o gethomedir.o getpath.o error.o savestr.o \
+	savqstr.o badarg.o fgetword.o words.o expandarg.o wordfile.o fgetval.o \
+	clip.o plocate.o eputs.o wputs.o quit.o lookup.o bmalloc.o \
+	loadvars.o tcos.o fputword.o chanvalue.o dircode.o paths.o byteswap.o \
+	cvtcmd.o
+
+SYSOBJ = ealloc.o fdate.o portio.o myhostname.o $(COMPAT)
+
+MGFOBJ = mgf_parser.o mgf_object.o mgf_xf.o mgf_context.o
+
+WFOBJ = objutil.o readwfobj.o convertobj.o writewfobj.o
+
+REETZOBJ = g3affine.o g3flist.o g3sphere.o g3vector.o gbasic.o muc_randvar.o
+
+OGLOBJ = rglfile.o rglmat.o rgldomat.o rglsurf.o rglinst.o rglsrc.o
+
+LIBFILES = tmesh.cal
+
+librtrad.a:	$(RTOBJ) $(PICOBJ) $(UTLOBJ) $(STDOBJ) $(SYSOBJ)
+	rm -f librtrad.a
+	$(AR) rc librtrad.a $(RTOBJ) $(PICOBJ) $(UTLOBJ) $(STDOBJ) $(SYSOBJ)
+	-ranlib librtrad.a
+
+libmgf.a:	$(MGFOBJ)
+	rm -f libmgf.a
+	$(AR) rc libmgf.a $(MGFOBJ)
+	-ranlib libmgf.a
+
+libwfobj.a:	$(WFOBJ)
+	rm -f libwfobj.a
+	$(AR) rc libwfobj.a $(WFOBJ)
+	-ranlib libwfobj.a
+
+libreetz.a:	$(REETZOBJ)
+	rm -f libreetz.a
+	$(AR) rc libreetz.a $(REETZOBJ)
+	-ranlib libreetz.a
+
+install:	all
+	mv -f librtrad.a libmgf.a libwfobj.a libreetz.a ../lib
+	cd $(LIBDIR) && rm -f $(LIBFILES)
+	cp -f $(LIBFILES) $(LIBDIR)
+
+all:	librtrad.a libmgf.a libwfobj.a libreetz.a $(SPECIAL)
+
+clean:
+	rm -f *.o *.a
+
+ogl:	$(OGLOBJ)
+	rm -f librgl.a
+	$(AR) rc librgl.a $(OGLOBJ)
+	-ranlib librgl.a
+	mv -f librgl.a ../lib
+
+x10:
+
+aed:
+
+sgi:
+
+sun:
+
+getlibpath.o:	getlibpath.c
+	$(CC) $(CFLAGS) -DDEFPATH=\":$(LIBDIR)\" -c getlibpath.c
+
+tmapcolrs.o:	tmapcolrs.c
+	$(CC) $(CFLAGS) -DPCOND=\"pcond\" -c tmapcolrs.c
+
+testBSDF:	testBSDF.c bsdf.h rtio.h
+	$(CC) -L../lib $(CFLAGS) -o testBSDF testBSDF.c -lrtrad -lm
+
+color.o colrops.o lamps.o spec_rgb.o:	color.h
+
+cone.o:		cone.h
+
+face.o:		face.h
+
+fvect.o:	fvect.h random.h
+
+instance.o:	instance.h
+
+linregr.o:	linregr.h
+
+mat4.o invmat4.o:		mat4.h fvect.h
+
+cone.o face.o instance.o objset.o otypes.o \
+mesh.o modobject.o readfargs.o readmesh.o \
+readobj.o readoct.o sceneio.o:	object.h
+
+mesh.o objset.o octree.o readmesh.o readoct.o sceneio.o:	octree.h
+
+cone.o mesh.o modobject.o otypes.o \
+readobj.o readoct.o sceneio.o:	otypes.h
+
+multisamp.o urand.o:	random.h
+
+cone.o face.o free_os.o image.o instance.o objset.o \
+octree.o modobject.o readfargs.o otypes.o mesh.o \
+readmesh.o readobj.o readoct.o sceneio.o:	standard.h \
+rtmisc.h rtio.h rtmath.h rterror.h fvect.h mat4.h tiff.h
+
+image.o:	view.h
+
+caldefn.o calexpr.o calfunc.o calprnt.o:	calcomp.h
+
+clip.o plocate.o:	plocate.h
+
+font.o:	font.h
+
+cvtcmd.o fropen.o getpath.o image.o:	paths.h
+
+lookup.o:	lookup.h
+
+loadvars.o:	vars.h
+
+mesh.o readmesh.o:	mesh.h lookup.h
+
+tonemap.o tmapcolrs.o tmapluv.o tmap16bit.o:	tmprivat.h tonemap.h \
+tiff.h color.h
+
+tmapluv.o:	tiffio.h tmaptiff.h tiff.h
+
+falsecolor.o:	falsecolor.h tmprivat.h tonemap.h color.h tiff.h
+
+tonemap.o:	tmerrmsg.h
+
+tmaptiff.o:	tmprivat.h tmaptiff.h color.h tonemap.h tiff.h
+
+rglfile.o rglmat.o rgldomat.o rglsurf.o rglinst.o rglsrc.o:	radogl.h \
+standard.h mat4.h fvect.h color.h object.h otypes.h lookup.h
+
+free_os.o:	octree.h object.h otypes.h face.h cone.h instance.h
+
+tmesh.o:	tmesh.h fvect.h
+
+fgetword.o fputword.o fgetval.o fgetline.o fdate.o unix_process.o \
+byteswap.o expandarg.o badarg.o xf.o:	rtio.h
+
+expandarg.o:	rtmisc.h
+
+dircode.o interp2d.o xf.o:	rtmath.h mat4.h fvect.h tiff.h
+
+error.o:	rterror.h
+
+bmpfile.o:	bmpfile.h tiff.h
+
+header.o readmesh.o readoct.o resolu.o rglinst.o tmapcolrs.o:	resolu.h
+
+ezxml.o bsdf.o bsdf_m.o bsdf_t.o:	ezxml.h
+
+bsdf_m.o bsdf_t.o:	rtio.h
+
+bsdf.o:	bsdf.h fvect.h bsdf_m.h bsdf_t.h hilbert.h ezxml.h
+
+bsdf.o bsdf_m.o bsdf_t.o ccolor.o:	ccolor.h
+
+mgf_parser.o mgf_context.o mgf_xf.o mgf_object.o:	mgf_parser.h ccolor.h
+
+ccyrgb.o:	ccolor.h color.h
+
+mgf_parser.o mgf_context.o:	lookup.h
+
+mgf_parser.o:	mgf_mesg.h
+
+bsdf_m.o:	bsdf.h bsdf_m.h
+
+bsdf_t.o:	bsdf.h bsdf_t.h hilbert.h
+
+hilbert.o:	hilbert.h
+
+loadbsdf.o:	bsdf.h rtio.h rterror.h paths.h
+
+interp2d.o:	interp2d.h
+
+triangulate.o:	triangulate.h
+
+process.o readobj.o readoct.o rglfile.o \
+tmapcolrs.o unix_process.o win_process.o:	rtprocess.h
+
+gbasic.o:	gbasic.h
+
+g3flist.o g3affine.o g3sphere.o g3vector.o:	g3vector.h gbasic.h fvect.h
+
+g3affine.o:	g3affine.h
+
+g3affine.o g3sphere.o:	g3sphere.h
+
+g3flist.o:	g3flist.h
+
+maxheap.o:	maxheap.h
+
+ezxml.o readmesh.o readobj.o readoct.o rglinst.o wordfile.o:	platform.h
+
+depthcodec.o:	depthcodec.h view.h fvect.h resolu.h rtio.h
+
+normcodec.o:	normcodec.h rtmath.h mat4.h fvect.h resolu.h rtio.h
+
+idmap.o:	idmap.h resolu.h platform.h rtio.h
+
+rcode_ident.o:	lookup.h
+
+objutil.o:	objutil.h rterror.h rtio.h rtmath.h mat4.h fvect.h lookup.h
+
+readwfobj.o:	objutil.h rtio.h rterror.h fvect.h
+
+writewfobj.o:	objutil.h rterror.h

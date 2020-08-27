@@ -9,9 +9,7 @@ from raytraverse.renderer.radiancerenderer import RadianceRenderer
 
 
 class Rtrace(RadianceRenderer):
-    """singleton wrapper for c++
-    singleton class, note that all instances of this class will point to same
-    c++ instance"""
+    """singleton wrapper for c++ crenderer.cRtrace singleton class"""
     from raytraverse.crenderer import cRtrace as Engine
 
     @classmethod

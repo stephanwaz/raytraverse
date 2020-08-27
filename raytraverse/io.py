@@ -13,46 +13,78 @@ import os
 import sys
 import threading
 from subprocess import Popen, PIPE
+from io import StringIO, BytesIO
 
 import numpy as np
 
 
 class CaptureStdOut:
-    """capture stdoutput for the life of the object
+    """redirect output streams at system level (including c printf)
 
-    Usage:
-    ------
+    Parameters
+    ----------
+
+    b: bool, optional
+        read data as bytes
+    store: bool, optional
+        record stdout in a IOStream, value accesible through self.stdout
+    outf: IOBase, optional
+        if not None, must be writable, closed on exit
+
+    Notes
+    -----
     ::
 
         with CaptureStdOut() as capture:
             do stuff
         capout = capture.stdout
 
-    Notes:
-    ------
     when using with pytest include the -s flag or this class has no effect
 
     """
 
-    def __init__(self, b=False):
+    def __init__(self, b=False, store=True, outf=None):
         # Create pipe and dup2() the write end of it on top of stdout,
         # saving a copy of the old stdout
-        self.bytes = b
+        if outf is not None and not hasattr(outf, "write"):
+            raise AttributeError('If outf is not None, it must have a write'
+                                 ' attribute')
         self.fileno = sys.stdout.fileno()
         self.save = os.dup(self.fileno)
         self.pipe = os.pipe()
         os.dup2(self.pipe[1], self.fileno)
         os.close(self.pipe[1])
+        self._stdout = None
+        self._file = outf
         if b:
-            self.stdout = b''
             self.threader = threading.Thread(target=self.drain_bytes)
+            if store:
+                self._stdout = BytesIO()
         else:
-            self.stdout = ''
             self.threader = threading.Thread(target=self.drain_str)
+            if store:
+                self._stdout = StringIO()
         self.threader.start()
+
+    @property
+    def stdout(self):
+        try:
+            return self._stdout.getvalue()
+        except AttributeError:
+            return None
 
     def __enter__(self):
         return self
+
+    def _write(self, data):
+        try:
+            self._stdout.write(data)
+        except AttributeError:
+            pass
+        try:
+            self._file.write(data)
+        except AttributeError:
+            pass
 
     def drain_bytes(self):
         """read stdout as bytes"""
@@ -60,15 +92,15 @@ class CaptureStdOut:
             data = os.read(self.pipe[0], 1024)
             if not data:
                 break
-            self.stdout += data
+            self._write(data)
 
     def drain_str(self):
         """read stdout as unicode"""
         while True:
-            data = os.read(self.pipe[0], 1024)
+            data = os.read(self.pipe[0], 1024).decode()
             if not data:
                 break
-            self.stdout += data.decode()
+            self._write(data)
 
     def __exit__(self, exc_type, exc_value, traceback):
         """restore stdout and join threads"""

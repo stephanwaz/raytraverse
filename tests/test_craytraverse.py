@@ -48,12 +48,6 @@ def test_rcontrib_call():
     ans = r.call('tests/test/rays.txt')
     test4 = np.fromstring(ans, sep=' ').reshape(-1, 36, 3)
     print(test4[-1, -8])
-    ans = r.call('tests/test/rays.txt')
-    # ans = r.call('tests/test/rays.txt')
-    # ans = r.call('tests/test/rays.txt')
-    test4 = np.fromstring(ans, sep=' ').reshape(-1, 36, 3)
-    print(test4[-1, -8])
-    # r.reset_instance()
 
 
 if __name__ == "__main__":

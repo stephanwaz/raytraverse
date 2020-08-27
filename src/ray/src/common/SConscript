@@ -1,0 +1,71 @@
+from __future__ import division, print_function, unicode_literals
+
+import os
+
+Import('env')
+
+# compose paths
+def radlib(name): return os.path.join(env['RAD_BUILDLIB'], name)
+
+# custom flags
+getlibpath = env.StaticObject(source='getlibpath.c',
+        CPPFLAGS='-DDEFPATH="\\"%s\\""' % env['RAD_RLIBDIR'].replace('\\','/'))
+tmapcolrs = env.StaticObject(source='tmapcolrs.c',
+        CPPFLAGS='-DPCOND=\\"pcond\\"')
+ezxml = env.StaticObject('ezxml.c',
+		CPPDEFINES=env.get('CPPDEFINES',[]) + env.get('EZXML_CPPDEFINES',[]))
+objs = [getlibpath, tmapcolrs, ezxml]
+
+# the definition of addobjnotify conflicts with definitions in other files
+# that are more essential to the library.
+# We need to pass this one around and include it individually
+addobjn = env.StaticObject(source='addobjnotify.c')
+env['ADDOBJNOTIFY'] = addobjn
+
+# source and object dependencies
+RTSCENE = Split('''cone.c face.c free_os.c instance.c readobj.c readoct.c
+		otypes.c objset.c octree.c readfargs.c modobject.c
+		font.c mesh.c readmesh.c tmesh.c sceneio.c xf.c''')
+RTPIC = Split('''color.c colrops.c resolu.c image.c bmpfile.c falsecolor.c
+		tonemap.c tmapluv.c tmap16bit.c tmaptiff.c''')
+RTERROR = Split('''error.c eputs.c wputs.c quit.c''')
+RTCONT = Split('''lookup.c savestr.c savqstr.c ccolor.c ccyrgb.c
+		spec_rgb.c bsdf.c bsdf_m.c bsdf_t.c loadbsdf.c
+		disk2square.c hilbert.c interp2d.c triangulate.c''')
+RTMATH = Split('''fvect.c invmat4.c linregr.c mat4.c tcos.c urand.c urind.c
+		zeroes.c dircode.c clip.c multisamp.c plocate.c byteswap.c'''
+		) + env.get('RAD_MATHCOMPAT', [])
+RTFUNC = Split('''biggerlib.c caldefn.c calexpr.c calfunc.c calprnt.c
+		chanvalue.c''')
+RTIO = Split('''fdate.c fgetline.c fgetval.c fgetword.c fputword.c loadvars.c
+		portio.c wordfile.c words.c header.c timegm.c cvtcmd.c''')
+RTARGS = Split('''badarg.c expandarg.c''') + env.get('RAD_ARGSCOMPAT', [])
+RTPATH = Split('''getpath.c gethomedir.c paths.c''')
+RTLAMPS = Split('''fropen.c rexpr.c lamps.c''')
+RTPROC = Split('''process.c''') + env.get('RAD_PROCESS', [])
+RTMEM = Split('ealloc.c bmalloc.c')
+RTNET = Split('myhostname.c')
+
+librtrad = env.StaticLibrary(target=radlib('rtrad'),
+		source=RTERROR + RTPATH + RTARGS + RTIO + RTMATH + RTCONT + RTMEM
+			+ RTFUNC + RTPROC + RTLAMPS + RTSCENE + RTPIC + RTNET + objs)
+
+MGF = Split('''mgf_parser.c mgf_object.c mgf_xf.c mgf_context.c''')
+libmgf = env.StaticLibrary(target=radlib('mgf'), source=MGF)
+
+REETZ = Split('g3affine.c g3flist.c g3sphere.c g3vector.c gbasic.c maxheap.c muc_randvar.c')
+libreetz = env.StaticLibrary(target=radlib('reetz'), source=REETZ)
+
+LIBFILES = Split('tmesh.cal')
+env.Append(RAD_RLIBINSTALL=env.Install(env['RAD_RLIBDIR'], LIBFILES))
+
+if env.has_key('OGL'):
+	oglincl = env.get('CPPPATH', []) + env.get('OGLINCLUDE', [])
+	RGL = Split('rglfile.c rglmat.c rgldomat.c rglsurf.c rglinst.c rglsrc.c')
+	librgl = env.StaticLibrary(target=radlib('rgl'), source=RGL,
+			CPPPATH=oglincl)
+	Default(librgl)
+
+# vim: set syntax=python:
+# vi: set ts=4 sw=4 :
+

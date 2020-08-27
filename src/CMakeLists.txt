@@ -4,9 +4,10 @@ set(CMAKE_CXX_STANDARD 14)
 
 project(raytraverse)
 
-
+# modify these based on your system
 include_directories(/usr/local/include)
 link_directories(/usr/local/lib)
+
 
 include_directories(ray/src/rt ray/src/common)
 
@@ -26,11 +27,12 @@ endmacro()
 
 set(BUILD_HEADLESS true)
 
+# create libraries needed for compilation (these files are from radiance repository)
 add_subdirectory(ray/src/common)
 add_subdirectory(ray/src/rt)
 
 
-
+# if pybind is not installed on system, then clone and add_subdirectory instead
 find_package(pybind11)
 include_directories("${pybind11_INCLUDE_DIRS}")
 
@@ -45,30 +47,33 @@ else()
     set(rayp_SOURCES raypcalls.c)
 endif()
 
+# rcontrib needs a seperate call library from rtrace to avoid redundant declerations
+# in the radiance source.
 set(RCCALLFILES ${rayp_SOURCES} rayfifo.c)
 list(TRANSFORM RCCALLFILES PREPEND ray/src/rt/)
 add_library(rcraycalls rcraycalls.c ${RCCALLFILES})
-# link in radiance libraries
-#link_libraries(raycalls radiance rtrad)
-# required to build rtcall
+
 set(RTFILES duphead.c persist.c source.c pmapray.c)
 set(RCFILES rc2.c)
 list(TRANSFORM RTFILES PREPEND ray/src/rt/)
 list(TRANSFORM RCFILES PREPEND ray/src/rt/)
 
 
+# these are for testing buy building as an exectuble, should function the same as rtrace/rcontrib
+# except input is given as last argument instead of stdin
 add_executable(rtracemain main.cpp render.cpp rtrace.cpp rtinit.c rtraceparts.c ${RTFILES})
 target_link_libraries(rtracemain PRIVATE pybind11::embed raycalls radiance rtrad raymod)
-
 add_executable(rcontribmain mainrc.cpp render.cpp rcontrib.cpp rcinit.c rcontribparts.c rc3.c ${RCFILES})
 target_link_libraries(rcontribmain PRIVATE pybind11::embed rcraycalls radiance rcmod rtrad)
 
+# rtrace and rcontrib are built seperately to avoid namespace conflicts
 pybind11_add_module(rtrace_c render.cpp rtrace.cpp rtinit.c rtraceparts.c ${RTFILES})
 target_link_libraries(rtrace_c PRIVATE raycalls radiance rtrad raymod)
 
 pybind11_add_module(rcontrib_c render.cpp rcontrib.cpp rcinit.c rcontribparts.c rc3.c ${RCFILES})
 target_link_libraries(rcontrib_c PRIVATE rcraycalls rcmod radiance rtrad)
 
+# move submodules to raytraverse
 IF(CMAKE_BUILD_TYPE MATCHES RelWithDebInfo)
     get_filename_component(PARENT_DIR ${CMAKE_CURRENT_SOURCE_DIR} DIRECTORY)
     set_target_properties(craytraverse PROPERTIES LIBRARY_OUTPUT_DIRECTORY "${PARENT_DIR}/raytraverse/")

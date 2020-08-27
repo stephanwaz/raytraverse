@@ -1,94 +1,28 @@
-#ifndef lint
-static const char	RCSid[] = "$Id: raycalls.c,v 2.25 2019/04/19 16:29:10 greg Exp $";
-#endif
-/*
- *  raycalls.c - interface for running Radiance rendering as a library
+/* Copyright (c) 2020 Stephen Wasilewski
+ * =======================================================================
+ * This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/.
+ *=======================================================================
  *
- *  External symbols declared in ray.h
+ * The Following code is copied from, adapts, includes, and/or links parts of
+ * the Radiance source code which is licensed by the following:
+ *
+ * The Radiance Software License, Version 1.0
+ *
+ * Copyright (c) 1990 - 2018 The Regents of the University of California,
+ * through Lawrence Berkeley National Laboratory.   All rights reserved.
+ *
+ * If a copy of the full text of the License was not distributed with this file
+ * (in ./ray/License.txt) the License is available at
+ * https://www.radiance-online.org/download-install/license
+ */
+
+/*
+ *  rcrayalls.c - modified raycalls.c, removes redundant declarations for compiling with rcontrib.c.
  */
 
 #include "copyright.h"
-
-/*
- *  These routines are designed to aid the programmer who wishes
- *  to call Radiance as a library.  Unfortunately, the system was
- *  not originally intended to be run this way, and there are some
- *  awkward limitations to contend with.  The most irritating
- *  perhaps is that the global variables and functions do not have
- *  a prefix, and the symbols are a bit generic.  This results in a
- *  serious invasion of the calling application's name-space, and
- *  you may need to rename either some Radiance routines or some
- *  of your routines to avoid conflicts.  Another limitation is
- *  that the global variables are not gathered together into any
- *  sort of context, so it is impossible to simultaneously run
- *  this library on multiple scenes or in multiple threads.
- *  You get one scene and one thread, and if you want more, you
- *  will have to go with the process model defined in raypcalls.c.
- *  Finally, unrecoverable errors result in a call to the application-
- *  defined function quit().  The usual thing to do is to call exit().
- *  You might want to do something else instead, like
- *  call setjmp()/longjmp() to bring you back to the calling
- *  function for recovery.  You may also wish to define your own
- *  wputs(s) and eputs(s) functions to output warning and error
- *  messages, respectively.
- *
- *  With those caveats, we have attempted to make the interface
- *  as simple as we can.  Global variables and their defaults
- *  are defined below, and including "ray.h" declares these
- *  along with all the routines you are likely to need.  First,
- *  assign the global variable progname to your argv[0], then
- *  change the rendering parameters as you like.  If you have a set
- *  of option arguments you are working from, the getrenderopt(ac,av)
- *  call should be very useful.  Before tracing any rays, you
- *  must read in the octree with a call to ray_init(oct).
- *  Passing NULL for the file name causes ray_init() to read
- *  the octree from the standard input -- rarely a good idea.
- *  However, one may read an octree from a program (such as
- *  oconv) by preceding a shell command by a '!' character.
- *
- *  To trace a ray, define a RAY object myRay and assign:
- *
- *	myRay.rorg = ( ray origin point )
- *	myRay.rdir = ( normalized ray direction )
- *	myRay.rmax = ( maximum length, or zero for no limit )
- *
- *  If you are rendering from a VIEW structure, this can be
- *  accomplished with a single call for the ray at (x,y):
- *
- *	myRay.rmax = viewray(myRay.rorg, myRay.rdir, &myView, x, y);
- *
- *  Then, trace the primary ray with:
- *
- *	ray_trace(&myRay);
- *
- *  The resulting contents of myRay should provide you with
- *  more than enough information about what the ray hit,
- *  the computed value, etc.  For further clues of how to
- *  compute irradiance, how to get callbacks on the evaluated
- *  ray tree, etc., see the contents of rtrace.c.  See
- *  also the rpmain.c, rtmain.c, and rvmain.c modules
- *  to learn more how rendering options are processed.
- *
- *  When you are done, you may call ray_done(1) to clean
- *  up memory used by Radiance.  It doesn't free everything,
- *  but it makes a valiant effort.  If you call ray_done(0),
- *  it leaves data that is likely to be reused, including
- *  loaded data files and fonts.  The library may be
- *  restarted at any point by calling ray_init() on a new
- *  octree.
- *
- *  The call ray_save(rp) fills a parameter structure
- *  with the current global parameter settings, which may be
- *  restored at any time with a call to ray_restore(rp).
- *  This buffer contains no linked information, and thus
- *  may be passed between processes using write() and
- *  read() calls, so long as byte order is maintained.
- *  Calling ray_restore(NULL) restores the original
- *  default parameters, which is also retrievable with
- *  the call ray_defaults(rp).  (These  should be the
- *  same as the defaults for rtrace.)
- */
-
 #include <string.h>
 #include <time.h>
 
@@ -105,55 +39,8 @@ static const char	RCSid[] = "$Id: raycalls.c,v 2.25 2019/04/19 16:29:10 greg Exp
 char	*progname = "unknown_app";	/* caller sets to argv[0] */
 
 char	*octname;			/* octree name we are given */
-
-//char	*shm_boundary = NULL;		/* boundary of shared memory */
-
-//CUBE	thescene;			/* our scene */
-//OBJECT	nsceneobjs;			/* number of objects in our scene */
-
 int	dimlist[MAXDIM];		/* sampling dimensions */
-//int	ndims = 0;			/* number of sampling dimensions */
-//int	samplendx = 0;			/* index for this sample */
-
-//void	(*trace)() = NULL;		/* trace call */
-
-//void	(*addobjnotify[8])() = {ambnotify, NULL};
-
-//int	do_irrad = 0;			/* compute irradiance? */
-
-//int	rand_samp = 1;			/* pure Monte Carlo sampling? */
-
-//double	dstrsrc = 0.0;			/* square source distribution */
-//double	shadthresh = .03;		/* shadow threshold */
-//double	shadcert = .75;			/* shadow certainty */
-//int	directrelay = 2;		/* number of source relays */
-//int	vspretest = 512;		/* virtual source pretest density */
-//int	directvis = 1;			/* sources visible? */
-//double	srcsizerat = .2;		/* maximum ratio source size/dist. */
-
-//COLOR	cextinction = BLKCOLOR;		/* global extinction coefficient */
-//COLOR	salbedo = BLKCOLOR;		/* global scattering albedo */
-//double	seccg = 0.;			/* global scattering eccentricity */
-//double	ssampdist = 0.;			/* scatter sampling distance */
-
-//double	specthresh = .15;		/* specular sampling threshold */
-//double	specjitter = 1.;		/* specular sampling jitter */
-
-//int	backvis = 1;			/* back face visibility */
-
-//int	maxdepth = -10;			/* maximum recursion depth */
-//double	minweight = 2e-3;		/* minimum ray weight */
-
-//char	*ambfile = NULL;		/* ambient file name */
-//COLOR	ambval = BLKCOLOR;		/* ambient value */
-//int	ambvwt = 0;			/* initial weight for ambient value */
-//double	ambacc = 0.1;			/* ambient accuracy */
-//int	ambres = 256;			/* ambient resolution */
-//int	ambdiv = 1024;			/* ambient divisions */
-//int	ambssamp = 512;			/* ambient super-samples */
-//int	ambounce = 0;			/* ambient bounces */
 char	*amblist[AMBLLEN+1];		/* ambient include/exclude list */
-//int	ambincl = -1;			/* include == 1, exclude == 0 */
 
 
 static void
