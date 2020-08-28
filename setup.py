@@ -51,14 +51,11 @@
 
 
 """The setup script."""
-import re
-
 from setuptools import setup, find_packages, Extension
 from setuptools.command.build_ext import build_ext
 from distutils import ccompiler
 import sys
 import setuptools
-
 
 with open('README.rst') as readme_file:
     readme = readme_file.read()
@@ -73,89 +70,19 @@ setup_requirements = []
 
 test_requirements = ['pytest', 'hdrstats']
 
+# TODO: add necessary radiance .cal files (and make sure source files are
+# included in in dist before creating pypi.
 data_files = []
 package_data = {}
 
+# Note: These are platform dependent
+# TODO: add system check to set compiler flags for radiance
 radiance_compile_args = ["-O2", "-DBSD", "-DNOSTEREO", "-Dfreebsd"]
 radiance_include = ['ray/src/rt', 'ray/src/common']
 lib_dir = 'src/lib'
 srcdir = 'src/'
 
-
-class get_pybind_include(object):
-    """Helper class to determine the pybind11 include path
-
-    The purpose of this class is to postpone importing pybind11
-    until it is actually installed, so that the ``get_include()``
-    method can be invoked. """
-
-    def __str__(self):
-        import pybind11
-        return pybind11.get_include()
-
-
-radiancelib = [
-    "Version.c",
-    "ray/src/common/paths.c",
-    "ray/src/rt/ambcomp.c",
-    "ray/src/rt/ambient.c",
-    "ray/src/rt/ambio.c",
-    "ray/src/rt/aniso.c",
-    "ray/src/rt/ashikhmin.c",
-    "ray/src/rt/data.c",
-    "ray/src/rt/dielectric.c",
-    "ray/src/rt/fprism.c",
-    "ray/src/rt/freeobjmem.c",
-    "ray/src/rt/func.c",
-    "ray/src/rt/glass.c",
-    "ray/src/rt/initotypes.c",
-    "ray/src/rt/m_alias.c",
-    "ray/src/rt/m_brdf.c",
-    "ray/src/rt/m_bsdf.c",
-    "ray/src/rt/m_clip.c",
-    "ray/src/rt/m_direct.c",
-    "ray/src/rt/m_mirror.c",
-    "ray/src/rt/m_mist.c",
-    "ray/src/rt/mx_data.c",
-    "ray/src/rt/mx_func.c",
-    "ray/src/rt/noise3.c",
-    "ray/src/rt/normal.c",
-    "ray/src/rt/o_cone.c",
-    "ray/src/rt/o_face.c",
-    "ray/src/rt/o_instance.c",
-    "ray/src/rt/o_mesh.c",
-    "ray/src/rt/p_data.c",
-    "ray/src/rt/p_func.c",
-    "ray/src/rt/pmap.c",
-    "ray/src/rt/pmapamb.c",
-    "ray/src/rt/pmapbias.c",
-    "ray/src/rt/pmapcontrib.c",
-    "ray/src/rt/pmapdata.c",
-    "ray/src/rt/pmapdiag.c",
-    "ray/src/rt/pmapio.c",
-    "ray/src/rt/pmapmat.c",
-    "ray/src/rt/pmapopt.c",
-    "ray/src/rt/pmapparm.c",
-    "ray/src/rt/pmaprand.c",
-    "ray/src/rt/pmapray.c",
-    "ray/src/rt/pmapsrc.c",
-    "ray/src/rt/pmaptype.c",
-    "ray/src/rt/pmcontrib2.c",
-    "ray/src/rt/pmutil.c",
-    "ray/src/rt/preload.c",
-    "ray/src/rt/raytrace.c",
-    "ray/src/rt/renderopts.c",
-    "ray/src/rt/source.c",
-    "ray/src/rt/sphere.c",
-    "ray/src/rt/srcobstr.c",
-    "ray/src/rt/srcsamp.c",
-    "ray/src/rt/srcsupp.c",
-    "ray/src/rt/t_data.c",
-    "ray/src/rt/t_func.c",
-    "ray/src/rt/text.c",
-    "ray/src/rt/virtuals.c"
-    ]
-
+# TODO: add system check to set unix_process.c / windows_process.c
 rtradlib = [
     "ray/src/common/addobjnotify.c",
     "ray/src/common/badarg.c",
@@ -258,6 +185,68 @@ rtradlib = [
     "ray/src/common/unix_process.c"
     ]
 
+radiancelib = [
+    "Version.c",
+    "ray/src/common/paths.c",
+    "ray/src/rt/ambcomp.c",
+    "ray/src/rt/ambient.c",
+    "ray/src/rt/ambio.c",
+    "ray/src/rt/aniso.c",
+    "ray/src/rt/ashikhmin.c",
+    "ray/src/rt/data.c",
+    "ray/src/rt/dielectric.c",
+    "ray/src/rt/fprism.c",
+    "ray/src/rt/freeobjmem.c",
+    "ray/src/rt/func.c",
+    "ray/src/rt/glass.c",
+    "ray/src/rt/initotypes.c",
+    "ray/src/rt/m_alias.c",
+    "ray/src/rt/m_brdf.c",
+    "ray/src/rt/m_bsdf.c",
+    "ray/src/rt/m_clip.c",
+    "ray/src/rt/m_direct.c",
+    "ray/src/rt/m_mirror.c",
+    "ray/src/rt/m_mist.c",
+    "ray/src/rt/mx_data.c",
+    "ray/src/rt/mx_func.c",
+    "ray/src/rt/noise3.c",
+    "ray/src/rt/normal.c",
+    "ray/src/rt/o_cone.c",
+    "ray/src/rt/o_face.c",
+    "ray/src/rt/o_instance.c",
+    "ray/src/rt/o_mesh.c",
+    "ray/src/rt/p_data.c",
+    "ray/src/rt/p_func.c",
+    "ray/src/rt/pmap.c",
+    "ray/src/rt/pmapamb.c",
+    "ray/src/rt/pmapbias.c",
+    "ray/src/rt/pmapcontrib.c",
+    "ray/src/rt/pmapdata.c",
+    "ray/src/rt/pmapdiag.c",
+    "ray/src/rt/pmapio.c",
+    "ray/src/rt/pmapmat.c",
+    "ray/src/rt/pmapopt.c",
+    "ray/src/rt/pmapparm.c",
+    "ray/src/rt/pmaprand.c",
+    "ray/src/rt/pmapray.c",
+    "ray/src/rt/pmapsrc.c",
+    "ray/src/rt/pmaptype.c",
+    "ray/src/rt/pmcontrib2.c",
+    "ray/src/rt/pmutil.c",
+    "ray/src/rt/preload.c",
+    "ray/src/rt/raytrace.c",
+    "ray/src/rt/renderopts.c",
+    "ray/src/rt/source.c",
+    "ray/src/rt/sphere.c",
+    "ray/src/rt/srcobstr.c",
+    "ray/src/rt/srcsamp.c",
+    "ray/src/rt/srcsupp.c",
+    "ray/src/rt/t_data.c",
+    "ray/src/rt/t_func.c",
+    "ray/src/rt/text.c",
+    "ray/src/rt/virtuals.c"
+    ]
+
 libs = {
     'rcraycalls': ['rcraycalls.c', 'ray/src/rt/raypcalls.c',
                    'ray/src/rt/rayfifo.c'],
@@ -279,6 +268,19 @@ radiance_include = [f'{srcdir}{i}' for i in radiance_include]
 
 for ke in libs:
     libs[ke] = [f'{srcdir}{i}' for i in libs[ke]]
+
+
+class get_pybind_include(object):
+    """Helper class to determine the pybind11 include path
+
+    The purpose of this class is to postpone importing pybind11
+    until it is actually installed, so that the ``get_include()``
+    method can be invoked. """
+
+    def __str__(self):
+        import pybind11
+        return pybind11.get_include()
+
 
 ext_modules = [
     Extension(
@@ -307,7 +309,7 @@ ext_modules = [
         library_dirs=[lib_dir],
         language='c++'
         )
-]
+    ]
 
 
 def compile_c_libraries():
@@ -363,11 +365,11 @@ class BuildExt(build_ext):
     c_opts = {
         'msvc': ['/EHsc'],
         'unix': [],
-    }
+        }
     l_opts = {
         'msvc': [],
         'unix': [],
-    }
+        }
 
     if sys.platform == 'darwin':
         darwin_opts = ['-stdlib=libc++']
@@ -378,7 +380,6 @@ class BuildExt(build_ext):
         ct = self.compiler.compiler_type
         opts = self.c_opts.get(ct, [])
         link_opts = self.l_opts.get(ct, [])
-        # self.compile_static_libraries()
         dependencies = compile_c_libraries()
         if ct == 'unix':
             opts.append(cpp_flag(self.compiler))
@@ -390,9 +391,8 @@ class BuildExt(build_ext):
                                                 get_version()))]
             ext.extra_compile_args = opts
             ext.extra_link_args = link_opts
-            ext.dependencies = [v for k, v in dependencies.items()
-                                if k in ext.libraries]
-
+            ext.depends = [v for k, v in dependencies.items()
+                           if k in ext.libraries]
         build_ext.build_extensions(self)
 
 

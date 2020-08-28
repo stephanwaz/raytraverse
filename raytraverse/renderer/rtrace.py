@@ -6,15 +6,16 @@
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 # =======================================================================
 from raytraverse.renderer.radiancerenderer import RadianceRenderer
+from raytraverse.crenderer import cRtrace
 
 
 class Rtrace(RadianceRenderer):
     """singleton wrapper for c++ crenderer.cRtrace singleton class"""
-    from raytraverse.crenderer import cRtrace as Engine
+    Engine = cRtrace
+    name = 'rtrace'
 
     @classmethod
     def update_ospec(cls, vs, of='a'):
         if not cls.initialized:
             raise ValueError('Rtrace instance not initialized')
         cls.instance.update_ospec(vs, of)
-

@@ -364,39 +364,10 @@ rcontrib_init(int argc, char *argv[])
 #ifdef	NICE
   nice(NICE);			/* lower priority */
 #endif
-  /* get octree */
-  if (i == argc)
-    octname = NULL;
-  else if (i == argc-1)
-    octname = argv[i];
-  else
+  if (i != argc)
     goto badopt;
-  if (octname == NULL)
-    error(USER, "missing octree argument");
-
-  readoct(octname, ~(IO_FILES|IO_INFO), &thescene, NULL);
-  nsceneobjs = nobjects;
-
-  /* PMAP: set up & load photon maps */
-  ray_init_pmap();
-
-  marksources();			/* find and mark sources */
-
-  /* PMAP: init photon map for light source contributions */
-  initPmapContrib(&modconttab, nmods);
-
-  setambient();			/* initialize ambient calculation */
-
-//  rcontrib();			/* trace ray contributions (loop) */
-//
-//  ambsync();			/* flush ambient file */
 
   complete = 1;
-  /* PMAP: free photon maps */
-//  ray_done_pmap();
-//
-//  quit(0);	/* exit clean */
-
   badopt:
   if (!complete) {
     fprintf(stderr,
@@ -405,11 +376,30 @@ rcontrib_init(int argc, char *argv[])
     sprintf(errmsg, "command line error at '%s'", argv[i]);
     error(USER, errmsg);
   }
-
+  //ignore all header flags
+  header = 0;
   return nproc;
 
 #undef	check
 #undef	check_bool
+}
+
+void
+rcontrib_loadscene(char* octname) {
+  /* get octree */
+
+  readoct(octname, ~(IO_FILES | IO_INFO), &thescene, NULL);
+  nsceneobjs = nobjects;
+
+  /* PMAP: set up & load photon maps */
+  ray_init_pmap();
+
+  marksources();      /* find and mark sources */
+
+  /* PMAP: init photon map for light source contributions */
+  initPmapContrib(&modconttab, nmods);
+
+  setambient();      /* initialize ambient calculation */
 }
 
 

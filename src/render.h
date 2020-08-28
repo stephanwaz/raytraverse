@@ -33,6 +33,7 @@ public:
     virtual void initialize(PyObject* pyargv);
     virtual void initc(int argcount, char **argvector);
     virtual void call(char *fname);
+    virtual void loadscene(char* octname);
 
 protected:
     int nproc = 1;

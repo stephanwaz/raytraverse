@@ -11,7 +11,7 @@ import sys
 
 import numpy as np
 
-from raytraverse import draw
+from raytraverse import draw, renderer
 from raytraverse.lightfield import SCBinField
 from raytraverse.sampler import Sampler
 
@@ -37,6 +37,8 @@ class SunViewSampler(Sampler):
         if not os.path.isfile(sunfile):
             print('Warning! no sun file found!', file=sys.stderr)
             sunfile = ''
+        self.engine = renderer.Rtrace()
+        self.engine.reset()
         super().__init__(scene, stype='sunview', idres=4, fdres=6,
                          srcdef=sunfile, **kwargs)
         self.samplemap = self.suns.map
@@ -93,18 +95,6 @@ class SunViewSampler(Sampler):
     def _uv2xyz(self, uv, si):
         return self.samplemap.uv2xyz(uv, si[2])
 
-    def dump_vecs(self, si, vecs):
-        """save vectors to file
-
-        Parameters
-        ----------
-        si: np.array
-            sample indices
-        vecs: np.array
-            ray directions to write
-        """
-        pass
-
     def draw(self):
         """draw first level based on sky visibility"""
         if self.idx == 0:
@@ -117,6 +107,7 @@ class SunViewSampler(Sampler):
     def run_callback(self):
         """post sampling, right full resolution (including interpolated values)
          non zero rays to result file."""
+        super().run_callback()
         shape = self.levels[self.idx, -2:]
         size = np.prod(shape)
         vals = self.weights.reshape(-1, self.weights.shape[2], size)

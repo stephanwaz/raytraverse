@@ -10,7 +10,7 @@ import os
 
 import numpy as np
 
-from raytraverse import translate
+from raytraverse import translate, renderer
 from raytraverse.sampler.sampler import Sampler
 
 
@@ -32,6 +32,8 @@ class SCBinSampler(Sampler):
         f.close()
         skydeg = ("void glow skyglow 0 0 4 1 1 1 0 skyglow source sky 0 0 4"
                   " 0 0 1 180")
+        self.engine = renderer.Rcontrib()
+        self.engine.reset()
         super().__init__(scene, srcn=scene.skyres**2, stype='sky',
                          srcdef=skydeg, accuracy=accuracy, **kwargs)
 

@@ -9,7 +9,7 @@ import os
 
 import numpy as np
 
-from raytraverse import translate, quickplot, draw
+from raytraverse import translate, quickplot, draw, renderer
 from raytraverse.lightfield import SCBinField
 from raytraverse.sampler.sampler import Sampler
 
@@ -41,6 +41,8 @@ class SingleSunSampler(Sampler):
         self.srct = suns.srct
         dec = suns.write_sun(sidx)
         anorm = accuracy * scene.skyres * (1 - np.cos(.533*np.pi/360))
+        self.engine = renderer.Rtrace()
+        self.engine.reset()
         super().__init__(scene, stype=f"sun_{sidx:04d}", fdres=fdres,
                          accuracy=anorm, srcdef=dec, **kwargs)
         self.specidx = speclevel - self.idres

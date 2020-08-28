@@ -5,9 +5,14 @@
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 # =======================================================================
+import re
+import shlex
+
 from raytraverse.renderer.radiancerenderer import RadianceRenderer
+from raytraverse.crenderer import cRcontrib
 
 
 class Rcontrib(RadianceRenderer):
     """singleton wrapper for c++ crenderer.cRcontrib singleton class"""
-    from raytraverse.crenderer import cRcontrib as Engine
+    Engine = cRcontrib
+    name = 'rcontrib'

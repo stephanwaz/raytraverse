@@ -6,6 +6,7 @@
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 # =======================================================================
 import os
+import shutil
 import sys
 
 import numpy as np
@@ -16,6 +17,10 @@ from raytraverse import translate, io, draw, quickplot
 
 class Sampler(object):
     """base sampling class
+
+    To implement a proper-subclass an engine attribute must be set to a
+    renderer instance prior to calling Sampler.__init__. Also, the method
+    sample must be overriden to properly set up arguments for the renderer.call
 
     Parameters
     ----------
@@ -42,10 +47,26 @@ class Sampler(object):
         append results of run to existing sample files (if present in scene)
         otherwise overwrites with call to run
     """
+    engine = None
 
     def __init__(self, scene, fdres=9, srcn=1, accuracy=1, idres=4,
                  stype='generic', append=False, srcdef=None, plotp=False,
-                 **kwargs):
+                 bands=1, **kwargs):
+        try:
+            self.engine.reset()
+        except AttributeError:
+            name = type(self).__name__
+            if name == "Sampler":
+                raise NotImplementedError("Sampler base class should not be "
+                                          "instantiated directly")
+            else:
+                raise NotImplementedError(f"Subclass {name} of Sampler is ill"
+                                          " defined, an engine attribute must"
+                                          " be set to a valid renderer class"
+                                          " before invoking Sampler.__init__")
+        #: int: number of spectral bands / channels returned by renderer
+        #: based on given renderopts (user ensures these agree).
+        self.bands = bands
         self.scene = scene
         #: func: mapper to use for sampling
         self.samplemap = self.scene.view
@@ -68,6 +89,8 @@ class Sampler(object):
         self.compiledscene = srcdef
         self.plotp = plotp
         self.levelsamples = np.ones(self.levels.shape[0])
+        # track vector files written for concatenation / cleanup after run
+        self._vecfiles = []
 
     def __del__(self):
         try:
@@ -139,16 +162,16 @@ class Sampler(object):
         """Set this sampler's scene and create sky octree"""
         self._scene = scene
 
-    def sample(self, vecs, call=None, **kwargs):
+    def sample(self, vecf, nsamps):
         """generic sample function
         """
-        if call is None:
-            raise NotImplementedError(f'{self.__class__} does'
-                                      ' not have a valid sample method')
         outf = f'{self.scene.outdir}/{self.stype}_vals.out'
-        shape = (vecs.shape[0], self.srcn, 3)
-        lum = io.call_sampler(outf, call, vecs, shape)
-        return lum
+        f = open(outf, 'a+b')
+        lumb = self.engine.call(vecf, outf=f)
+        f.close()
+        shape = (nsamps, self.srcn, self.bands)
+        lum = io.bytes2np(lumb, shape)
+        return np.squeeze(lum)
 
     def _uv2xyz(self, uv, si):
         """including to allow overriding mapping bevahior of daughter classes"""
@@ -192,10 +215,12 @@ class Sampler(object):
             ray directions to write
         """
         ptidx = np.ravel_multi_index((si[0], si[1]), self.scene.area.ptshape)
-        outf = f'{self.scene.outdir}/{self.stype}_vecs.out'
-        f = open(outf, 'ab')
+        outf = f'{self.scene.outdir}/{self.stype}_vecs_{si:02d}.out'
+        f = open(outf, 'wb')
         f.write(io.np2bytes(np.vstack((ptidx.reshape(1, -1), vecs.T)).T))
         f.close()
+        self._vecfiles.append(outf)
+        return outf
 
     def draw(self):
         """draw samples based on detail calculated from weights
@@ -238,7 +263,14 @@ class Sampler(object):
         self.weights[tuple(si)] = lum
 
     def run_callback(self):
-        pass
+        outf = f'{self.scene.outdir}/{self.stype}_vecs.out'
+        f = open(outf, 'wb')
+        for vecf in self._vecfiles:
+            fsrc = open(vecf, 'rb')
+            shutil.copyfileobj(fsrc, f)
+            fsrc.close()
+            os.remove(vecf)
+        f.close()
 
     def get_scheme(self):
         scheme = np.ones((self.levels.shape[0], self.levels.shape[1] + 4))
@@ -289,8 +321,8 @@ class Sampler(object):
                        si.shape[1], f"{srate:.02%}", fsize]
                 print('{:>8}  {:>25}  {:<10}  {:<8}  {:.03f}'.format(*row),
                       file=sys.stderr)
-                self.dump_vecs(si, vecs[:, 3:])
-                lum = self.sample(vecs, **skwargs)
+                vecf = self.dump_vecs(si, vecs[:, 3:])
+                lum = self.sample(vecf, si.shape[1])
                 self.update_pdf(si, lum)
                 a = lum.shape[0]
                 allc += a

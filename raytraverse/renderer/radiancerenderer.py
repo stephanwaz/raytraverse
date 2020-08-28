@@ -5,6 +5,9 @@
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 # =======================================================================
+import os
+import shlex
+
 from raytraverse import io
 
 
@@ -15,29 +18,40 @@ class RadianceRenderer(object):
     instance = None
     _pyinstance = None
     Engine = None
+    name = None
+    header = ""
 
-    def __new__(cls, rayargs=None):
+    def __new__(cls, rayargs=None, scene=None, nproc=None, iot="ff"):
         cls.instance = cls.Engine.get_instance()
         if cls._pyinstance is None:
             cls._pyinstance = object.__new__(cls)
         return cls._pyinstance
 
-    def __init__(self, rayargs=None):
-        self.initialize(rayargs)
+    def __init__(self, rayargs=None, scene=None, nproc=None, iot="ff"):
+        self.initialize(rayargs, scene, nproc, iot)
 
     @classmethod
-    def initialize(cls, args):
+    def _set_args(cls, args, iot, nproc):
+        return shlex.split(f"{cls.name} {args} -f{iot} -h+ -n {nproc}")
+
+    @classmethod
+    def initialize(cls, args, scene, nproc=None, iot="ff"):
         if cls.instance is None:
             cls.instance = cls.Engine.get_instance()
         if args is not None and not cls.initialized:
-            cls.initialized = args
-            cls.instance.initialize(cls.initialized)
+            if nproc is None:
+                nproc = os.cpu_count()
+            cls.initialized = cls._set_args(args, iot, nproc)
+            with io.CaptureStdOut() as capture:
+                cls.instance.initialize(cls.initialized)
+            cls.header = capture.stdout
+            cls.instance.load_scene(scene)
 
     @classmethod
-    def call(cls, rayfile, returnbytes=False):
+    def call(cls, rayfile, returnbytes=False, store=True, outf=None):
         if not cls.initialized:
             raise ValueError(f'{cls.__name__} instance not initialized')
-        with io.CaptureStdOut(returnbytes) as capture:
+        with io.CaptureStdOut(returnbytes, store, outf) as capture:
             try:
                 cls.instance.call(rayfile)
             except SystemExit as ex:
@@ -45,14 +59,15 @@ class RadianceRenderer(object):
         return capture.stdout
 
     @classmethod
-    def reset(cls, args=None):
+    def reset(cls):
         cls.instance.reset()
         cls.initialized = False
-        cls.initialize(args)
+        cls.header = ""
 
     @classmethod
     def reset_instance(cls):
         cls.instance.reset_instance()
         cls.instance = None
         cls.initialized = False
+        cls.header = ""
 

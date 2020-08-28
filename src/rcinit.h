@@ -26,6 +26,7 @@ extern "C" {
 
 static void rcprintdefaults(void);
 extern int rcontrib_init(int  argc, char  *argv[]);
+extern void rcontrib_loadscene(char* octname);
 extern void rcontrib_call(char *fname);
 extern void rcontrib_clear(void);
 static FILE* rcinit2(char *fname);

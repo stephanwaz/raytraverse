@@ -100,10 +100,8 @@ rtinit(int  argc, char  *argv[])
 				case 'n': case 'N': case 'f': case 'F': \
 				case '-': case '0': var = 0; break; \
 				default: goto badopt; }
-  extern char  *octname;
   int  persist = 0;
   int complete = 0;
-  char  *octnm = NULL;
   char  **tralp = NULL;
   int  duped1 = -1;
   int  rval;
@@ -308,20 +306,13 @@ rtinit(int  argc, char  *argv[])
   nice(NICE);			/* lower priority */
 #endif
   /* get octree */
-  if (i == argc)
-    octnm = NULL;
-  else if (i == argc-1)
-    octnm = argv[i];
-  else
+  if (i != argc)
     goto badopt;
-  if (octnm == NULL)
-    error(USER, "missing octree argument");
   /* set up output */
   if (outform != 'a')
           SET_FILE_BINARY(stdout);
   rval = setoutput2(outvals, outform);
-  readoct(octname = octnm, loadflags, &thescene, NULL);
-  nsceneobjs = nobjects;
+
 
   if (loadflags & IO_INFO) {	/* print header */
     printargs(i, argv, stdout);
@@ -335,15 +326,6 @@ rtinit(int  argc, char  *argv[])
     putchar('\n');
   }
 
-  if (!castonly) {	/* any actual ray traversal to do? */
-
-    ray_init_pmap();	/* PMAP: set up & load photon maps */
-
-    marksources();		/* find and mark sources */
-
-    setambient();		/* initialize ambient calculation */
-  } else
-    distantsources();	/* else mark only distant sources */
 
   complete = 1;
 //  ray_done_pmap();           /* PMAP: free photon maps */
@@ -360,6 +342,24 @@ rtinit(int  argc, char  *argv[])
 
 #undef	check
 #undef	check_bool
+}
+
+void
+rtrace_loadscene(char* pyoctnm) {
+  /* get octree */
+  char octnm[strlen(pyoctnm)];
+  strcpy(octnm, pyoctnm);
+  extern char  *octname;
+  readoct(octname = octnm, loadflags & ~IO_INFO, &thescene, NULL);
+  nsceneobjs = nobjects;
+  if (!castonly) {	/* any actual ray traversal to do? */
+    ray_init_pmap();	/* PMAP: set up & load photon maps */
+
+    marksources();		/* find and mark sources */
+
+    setambient();		/* initialize ambient calculation */
+  } else
+    distantsources();	/* else mark only distant sources */
 }
 
 

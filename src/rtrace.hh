@@ -32,6 +32,7 @@ private:
 public:
     static Rtrace& getInstance();
     void initialize(pybind11::object pyargv11);
+    void loadscene(char* octname) override;
     void initc(int argc, char **argv) override;
     void call(char *fname) override;
     void updateOSpec(char *vs, char of);

@@ -48,6 +48,10 @@ void Rcontrib::initialize(pybind11::object pyargv11) {
   nproc = rayrc::rcontrib_init(argc, argv);
 }
 
+void Rcontrib::loadscene(char* octname) {
+  rayrc::rcontrib_loadscene(octname);
+}
+
 void Rcontrib::initc(int argcount, char** argvector) {
   Renderer::initc(argcount, argvector);
   nproc = rayrc::rcontrib_init(argc, argv);
@@ -62,8 +66,8 @@ void Rcontrib::resetRadiance() {
 
 void Rcontrib::resetInstance() {
   resetRadiance();
-//  delete renderer;
-//  renderer = nullptr;
+  delete renderer;
+  renderer = nullptr;
 }
 
 namespace py = pybind11;
@@ -73,6 +77,7 @@ PYBIND11_MODULE(rcontrib_c, m) {
           .def("reset_instance", [](py::args& args){Rcontrib::resetInstance();})
           .def("reset", [](py::args& args){Rcontrib::resetRadiance();})
           .def("initialize", &Rcontrib::initialize)
+          .def("load_scene", &Rcontrib::loadscene)
           .def("call", &Rcontrib::call)
           .def_property_readonly_static("version", [](py::object) { return rayrc::VersionID; });
 
