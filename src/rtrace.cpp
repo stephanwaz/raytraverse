@@ -66,8 +66,8 @@ void Rtrace::updateOSpec(char *vs, char of) {
 
 void Rtrace::resetInstance() {
   resetRadiance();
-  delete renderer;
-  renderer = nullptr;
+//  delete renderer;
+//  renderer = nullptr;
 }
 
 namespace py = pybind11;

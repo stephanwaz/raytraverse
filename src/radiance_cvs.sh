@@ -7,3 +7,4 @@
 
 cvs -d :pserver:anonymous@radiance-online.org:/home/cvsd/radiance co ray/src/common
 cvs -d :pserver:anonymous@radiance-online.org:/home/cvsd/radiance co ray/src/rt
+cvs -d :pserver:anonymous@radiance-online.org:/home/cvsd/radiance co ray/License.txt 

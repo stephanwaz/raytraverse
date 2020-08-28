@@ -1,7 +1,6 @@
 cmake_minimum_required(VERSION 3.15)
 set(CMAKE_CXX_STANDARD 14)
-#set(CMAKE_VERBOSE_MAKEFILE on)
-
+set(CMAKE_VERBOSE_MAKEFILE on)
 project(raytraverse)
 
 # modify these based on your system
@@ -11,7 +10,7 @@ link_directories(/usr/local/lib)
 
 include_directories(ray/src/rt ray/src/common)
 
-message("${radiance_SOURCE_DIR}/ray/src/rt/Version.c")
+#message("${radiance_SOURCE_DIR}/ray/src/rt/Version.c")
 
 macro(create_version_file version_file)
     add_custom_command(
@@ -38,8 +37,6 @@ include_directories("${pybind11_INCLUDE_DIRS}")
 
 pybind11_add_module(craytraverse pyhelpers.cpp)
 
-add_library(raymod STATIC rtinit.h rtinit.c)
-add_library(rcmod STATIC rcinit.h rcinit.c)
 
 if(WIN32)
     set(rayp_SOURCES raypwin.c)
@@ -58,20 +55,21 @@ set(RCFILES rc2.c)
 list(TRANSFORM RTFILES PREPEND ray/src/rt/)
 list(TRANSFORM RCFILES PREPEND ray/src/rt/)
 
-
 # these are for testing buy building as an exectuble, should function the same as rtrace/rcontrib
 # except input is given as last argument instead of stdin
 add_executable(rtracemain main.cpp render.cpp rtrace.cpp rtinit.c rtraceparts.c ${RTFILES})
 target_link_libraries(rtracemain PRIVATE pybind11::embed raycalls radiance rtrad raymod)
-add_executable(rcontribmain mainrc.cpp render.cpp rcontrib.cpp rcinit.c rcontribparts.c rc3.c ${RCFILES})
-target_link_libraries(rcontribmain PRIVATE pybind11::embed rcraycalls radiance rcmod rtrad)
+add_executable(rcontribmain mainrc.cpp render.cpp rcontrib.cpp )
+target_link_libraries(rcontribmain PRIVATE pybind11::embed rcraycalls radiance rtrad)
 
 # rtrace and rcontrib are built seperately to avoid namespace conflicts
-pybind11_add_module(rtrace_c render.cpp rtrace.cpp rtinit.c rtraceparts.c ${RTFILES})
-target_link_libraries(rtrace_c PRIVATE raycalls radiance rtrad raymod)
+add_library(rtracecfiles rtinit.c rtraceparts.c ${RTFILES})
+pybind11_add_module(rtrace_c render.cpp rtrace.cpp)
+target_link_libraries(rtrace_c PRIVATE raycalls radiance rtrad rtracecfiles)
 
-pybind11_add_module(rcontrib_c render.cpp rcontrib.cpp rcinit.c rcontribparts.c rc3.c ${RCFILES})
-target_link_libraries(rcontrib_c PRIVATE rcraycalls rcmod radiance rtrad)
+add_library(rcontribcfiles rcinit.c rcontribparts.c rc3.c ${RCFILES})
+pybind11_add_module(rcontrib_c render.cpp rcontrib.cpp)
+target_link_libraries(rcontrib_c PRIVATE rcraycalls radiance rtrad rcontribcfiles)
 
 # move submodules to raytraverse
 IF(CMAKE_BUILD_TYPE MATCHES RelWithDebInfo)

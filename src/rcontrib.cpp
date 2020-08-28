@@ -62,8 +62,8 @@ void Rcontrib::resetRadiance() {
 
 void Rcontrib::resetInstance() {
   resetRadiance();
-  delete renderer;
-  renderer = nullptr;
+//  delete renderer;
+//  renderer = nullptr;
 }
 
 namespace py = pybind11;
