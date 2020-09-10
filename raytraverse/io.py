@@ -166,7 +166,7 @@ def np2bytes(ar, dtype='<f'):
 
 
 def bytes2np(buf, shape, dtype='<f'):
-    """format ar as bytestring
+    """read ar from bytestring
 
     Parameters
     ----------

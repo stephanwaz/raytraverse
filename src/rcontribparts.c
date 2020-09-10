@@ -91,8 +91,7 @@ rcinit2(char *fname)
   if ((account = accumulate) > 1)
     raysleft *= accumulate;
   waitflush = (yres > 0) & (xres > 1) ? 0 : xres;
-
-  if (nproc > 1 && in_rchild())	/* forked child? */{
+  if (nproc > 1 && in_rchild2())	/* forked child? */{
     return stdin;      /* return to main processing loop */
   }
 
@@ -120,7 +119,6 @@ rcinit2(char *fname)
     parental_loop2(fname);
   }
   return NULL;
-//  quit(0);			/* parent musn't return! */
 }
 
 
@@ -132,7 +130,6 @@ void rcontrib_call(char *fname){
   FILE *fp;
   fp = rcinit2(fname);
   if (fp == NULL){
-//    end_children(0);
     return;
   }
   else if (fp != stdin) {
@@ -183,10 +180,10 @@ void rcontrib_call(char *fname){
   }
   if (raysleft)
     error(USER, "unexpected EOF on input");
+  quit(0);
 }
 
 void rcontrib_clear(){
-  lu_done(&ofiletab);		/* close output files */
 //  lu_doall(&modconttab, &lu_delete, NULL);
   for (int i = 0; i < nmods; i++)
     lu_delete(&modconttab, modname[i]);

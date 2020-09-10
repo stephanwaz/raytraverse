@@ -88,10 +88,9 @@ def scene(ctx, **kwargs):
 
 
 @main.command()
-@click.option('-accuracy', default=1)
+@click.option('-accuracy', default=1.0)
 @click.option('-idres', default=4)
 @click.option('-fdres', default=9)
-@click.option('-executable', default='rcontrib')
 @click.option('-rcopts',
               default='-ab 7 -ad 60000 -as 30000 -lw 1e-7 -st 0 -ss 16')
 @click.option('--plotp/--no-plotp', default=False)
@@ -106,7 +105,7 @@ def sky(ctx, plotdview=False, run=True, rmraw=True, executable='rcontrib',
         clk.invoke_dependency(ctx, scene)
     sampler = SCBinSampler(ctx.obj['scene'], **kwargs)
     if run:
-        sampler.run(rcopts=kwargs['rcopts'], executable=executable)
+        sampler.run()
     sk = SCBinField(ctx.obj['scene'], rebuild=run, rmraw=rmraw)
     if plotdview:
         sk.direct_view()
@@ -145,7 +144,7 @@ def suns(ctx, loc=None, wea=None, usepositions=False, plotdview=False,
 
 
 @main.command()
-@click.option('-accuracy', default=1)
+@click.option('-accuracy', default=1.0)
 @click.option('-idres', default=4)
 @click.option('-fdres', default=10)
 @click.option('-speclevel', default=9)

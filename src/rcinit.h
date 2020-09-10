@@ -32,7 +32,9 @@ extern void rcontrib_clear(void);
 static FILE* rcinit2(char *fname);
 extern void parental_loop2(char *fname);
 extern void feeder_loop2(char *fname);
+extern int in_rchild2(void);
 extern int getvecfp(FVECT vec, FILE *fp);
+extern int outbright;
 
 #ifdef __cplusplus
 }

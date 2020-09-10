@@ -44,7 +44,7 @@ class SunSampler(object):
             **kwargs):
         if view and self.suns.suns.size > 0:
             print("Sampling Sun Visibility", file=sys.stderr)
-            self.viewsampler.run(rcopts='-ab 0', executable=executable)
+            self.viewsampler.run()
         if reflection:
             for sidx, sb in enumerate(self.sunbin):
                 print(f"Sampling Sun Reflections {sidx+1} of "
@@ -52,5 +52,4 @@ class SunSampler(object):
                 print(f'Sun Position: {self.suns.suns[sidx]}', file=sys.stderr)
                 self.reflsampler = SingleSunSampler(self.scene, self.suns, sidx,
                                                     sb, **self.sampleargs)
-                self.reflsampler.run(rcopts=rcopts, executable=executable,
-                                     **kwargs)
+                self.reflsampler.run()

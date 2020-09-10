@@ -98,6 +98,8 @@ parental_loop2(char *fname)
   fclose(fp);
   free_binq(NULL);			/* clean up */
   lu_done(&ofiletab);
+  end_children(0); /* wait for children */
+  nchild = 0; /* reset child count in case of future call*/
   if (raysleft)
     error(USER, "unexpected EOF on input");
 }
@@ -173,4 +175,51 @@ feeder_loop2(char *fname)
   fclose(fp);
   if (raysleft)
     error(USER, "unexpected EOF on input");
+}
+
+/* Start child processes if we can (call only once in parent!) */
+int
+in_rchild2()
+{
+  int	rval;
+
+  while (nchild < nproc) {	/* fork until target reached */
+    errno = 0;
+    rval = open_process(&kidpr[nchild], NULL);
+    if (rval < 0)
+      error(SYSTEM, "open_process() call failed");
+    if (rval == 0) {	/* if in child, set up & return true */
+      lu_doall(&modconttab, &set_stdout, NULL);
+      lu_done(&ofiletab);
+      while (nchild--) {	/* don't share other pipes */
+        close(kidpr[nchild].w);
+        fclose(kida[nchild].infp);
+      }
+      inpfmt = (sizeof(RREAL)==sizeof(double)) ? 'd' : 'f';
+      outfmt = 'z'; /* to bybass possible brightness output in parent */
+      header = 0;
+      yres = 0;
+      raysleft = 0;
+      if (accumulate == 1) {
+        waitflush = xres = 1;
+        account = accumulate = 1;
+      } else {	/* parent controls accumulation */
+        waitflush = xres = 0;
+        account = accumulate = 0;
+      }
+      return(1);	/* return "true" in child */
+    }
+    if (rval != PIPE_BUF)
+      error(CONSISTENCY, "bad value from open_process()");
+    /* connect to child's output */
+    kida[nchild].infp = fdopen(kidpr[nchild].r, "rb");
+    if (kida[nchild].infp == NULL)
+      error(SYSTEM, "out of memory in in_rchild()");
+    kida[nchild++].nr = 0;	/* mark as available */
+  }
+#ifdef getc_unlocked
+  for (rval = nchild; rval--; )	/* avoid mutex overhead */
+    flockfile(kida[rval].infp);
+#endif
+  return(0);			/* return "false" in parent */
 }

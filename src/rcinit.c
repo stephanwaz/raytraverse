@@ -52,6 +52,7 @@ int	inpfmt = 'a';			/* input format */
 int	outfmt = 'a';			/* output format */
 
 int	header = 1;			/* output header? */
+int outbright = 0;
 int	force_open = 0;			/* truncate existing output? */
 int	recover = 0;			/* recover previous output? */
 int	accumulate = 1;			/* input rays per output record */
@@ -217,7 +218,7 @@ rcontrib_init(int argc, char *argv[])
   using_stdout = 0;		/* are we using stdout? */
   imm_irrad = 0;			/* compute immediate irradiance? */
   lim_dist = 0;			/* limit distance? */
-
+  outbright = 0; /* output one component brightness */
   /* option city */
   for (i = 1; i < argc; i++) {
     /* expand arguments */
@@ -326,6 +327,9 @@ rcontrib_init(int argc, char *argv[])
       case 'M':			/* modifier file */
         check(2,"s");
         addmodfile(argv[++i], curout, prms, binval, bincnt);
+        break;
+      case 'Z':			/* brightness output */
+        check_bool(2,outbright);
         break;
       default:
         goto badopt;

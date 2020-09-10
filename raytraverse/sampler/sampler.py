@@ -30,28 +30,29 @@ class Sampler(object):
         final directional resolution given as log2(res)
     srcn: int, optional
         number of sources return per vector by run
-    t0: float, optional
-        in range 0-1, fraction of uniform random samples taken at first step
-    t1: float, optional
-        in range 0-t0, fraction of uniform random samples taken at final step
-    minrate: float, optional
-        in range 0-1, fraction of samples at first step.
-    minrate: float, optional
-        in range 0-1, fraction of samples at final step (this is not the total
-        sampling rate, which depends on the number of levels).
+    accuracy: float, optional
+        parameter to set threshold at sampling level relative to final level
+        threshold (smaller number will increase sampling, default is 1.0)
     idres: int, optional
         initial direction resolution (as log2(res))
     stype: str, optional
         sampler type (prefixes output files)
-    append: bool, optional
-        append results of run to existing sample files (if present in scene)
-        otherwise overwrites with call to run
+    srcdef: str, optional
+        path or string with source definition to add to scene
+    plotp: bool, optional
+        show probability distribution plots at each level (first point only)
+    bands: int, optional
+        number of spectral bands returned by the engine
+    engine_args: str, optional
+        command line arguments used to initialize engine
+    nproc: int, optional
+        number of processors to give to the engine, if None, uses os.cpu_count()
     """
     engine = None
 
-    def __init__(self, scene, fdres=9, srcn=1, accuracy=1, idres=4,
-                 stype='generic', append=False, srcdef=None, plotp=False,
-                 bands=1, **kwargs):
+    def __init__(self, scene, fdres=9, srcn=1, accuracy=1.0, idres=4,
+                 stype='generic', srcdef=None, plotp=False,
+                 bands=1, engine_args="", nproc=None, **kwargs):
         try:
             self.engine.reset()
         except AttributeError:
@@ -84,9 +85,9 @@ class Sampler(object):
         self.idx = 0
         #: str: sampler type
         self.stype = stype
-        # bool: overwrites existing results files when false
-        self.append = append
         self.compiledscene = srcdef
+        self.engine.initialize(engine_args, self.compiledscene, nproc=nproc,
+                               iot="ff")
         self.plotp = plotp
         self.levelsamples = np.ones(self.levels.shape[0])
         # track vector files written for concatenation / cleanup after run
@@ -162,16 +163,16 @@ class Sampler(object):
         """Set this sampler's scene and create sky octree"""
         self._scene = scene
 
-    def sample(self, vecf, nsamps):
+    def sample(self, vecf):
         """generic sample function
         """
         outf = f'{self.scene.outdir}/{self.stype}_vals.out'
         f = open(outf, 'a+b')
         lumb = self.engine.call(vecf, outf=f)
         f.close()
-        shape = (nsamps, self.srcn, self.bands)
+        shape = (-1, self.srcn, self.bands)
         lum = io.bytes2np(lumb, shape)
-        return np.squeeze(lum)
+        return np.squeeze(lum, axis=-1)
 
     def _uv2xyz(self, uv, si):
         """including to allow overriding mapping bevahior of daughter classes"""
@@ -200,26 +201,36 @@ class Sampler(object):
         pos = self.scene.area.uv2pt((si.T[:, 0:2] + .5)/shape[0:2])
         uv += (np.random.default_rng().random(uv.shape))/shape[3]
         # mplt.quick_scatter([uv[:, 0]], [uv[:, 1]], ms=3, lw=0)
-        xyz = self._uv2xyz(uv, si)
+        if pos.size == 0:
+            xyz = pos
+        else:
+            xyz = self._uv2xyz(uv, si)
         vecs = np.hstack((pos, xyz))
         return si, vecs
 
-    def dump_vecs(self, si, vecs):
+    def dump_vecs(self, vecs, si=None):
         """save vectors to file
 
         Parameters
         ----------
-        si: np.array
-            sample indices
         vecs: np.array
             ray directions to write
+        si: np.array, optional
+            sample indices
         """
-        ptidx = np.ravel_multi_index((si[0], si[1]), self.scene.area.ptshape)
-        outf = f'{self.scene.outdir}/{self.stype}_vecs_{si:02d}.out'
+        outf = f'{self.scene.outdir}/{self.stype}_vecs_{self.idx:02d}.out'
         f = open(outf, 'wb')
-        f.write(io.np2bytes(np.vstack((ptidx.reshape(1, -1), vecs.T)).T))
+        f.write(io.np2bytes(vecs))
         f.close()
-        self._vecfiles.append(outf)
+        if si is not None:
+            ptidx = np.ravel_multi_index((si[0], si[1]), self.scene.area.ptshape)
+            outif = f'{self.scene.outdir}/{self.stype}_vecpidx_{self.idx:02d}.out'
+            f = open(outif, 'wb')
+            f.write(io.np2bytes(ptidx))
+            f.close()
+        else:
+            outif = None
+        self._vecfiles.append((outif, outf))
         return outf
 
     def draw(self):
@@ -265,11 +276,20 @@ class Sampler(object):
     def run_callback(self):
         outf = f'{self.scene.outdir}/{self.stype}_vecs.out'
         f = open(outf, 'wb')
-        for vecf in self._vecfiles:
+        for idxf, vecf in self._vecfiles:
             fsrc = open(vecf, 'rb')
-            shutil.copyfileobj(fsrc, f)
+            vecs = io.bytefile2np(fsrc, (-1, 6))
             fsrc.close()
             os.remove(vecf)
+            if idxf is not None:
+                fidx = open(idxf, 'rb')
+                ptidx = io.bytefile2np(fidx, (1, -1))
+                fidx.close()
+                os.remove(idxf)
+                f.write(io.np2bytes(np.vstack((ptidx.reshape(1, -1),
+                                               vecs[:, 3:].T)).T))
+            else:
+                f.write(io.np2bytes(vecs))
         f.close()
 
     def get_scheme(self):
@@ -281,22 +301,12 @@ class Sampler(object):
         return scheme.astype(int)
 
     # @profile
-    def run(self, **skwargs):
-        """execute sampler
-
-        Parameters
-        ----------
-        skwargs
-            keyword arguments passed to self.sample
-
-        """
+    def run(self):
+        """execute sampler"""
 
         allc = 0
-        if not self.append:
-            f = open(f'{self.scene.outdir}/{self.stype}_vecs.out', 'wb')
-            f.close()
-            f = open(f'{self.scene.outdir}/{self.stype}_vals.out', 'wb')
-            f.close()
+        f = open(f'{self.scene.outdir}/{self.stype}_vals.out', 'wb')
+        f.close()
         print('Sampling...', file=sys.stderr)
         hdr = ['level', 'shape', 'samples', 'rate', 'filesize (MB)']
         print('{:>8}  {:>25}  {:<10}  {:<8}  {}'.format(*hdr), file=sys.stderr)
@@ -316,13 +326,13 @@ class Sampler(object):
                 self.levelsamples[self.idx] = draws.size
                 si, vecs = self.sample_idx(draws)
                 srate = si.shape[1]/np.prod(shape)
-                fsize += 12*self.srcn*si.shape[1]/1000000
+                fsize += 4*self.bands*self.srcn*si.shape[1]/1000000
                 row = [f'{i+1} of {self.levels.shape[0]}', str(shape),
                        si.shape[1], f"{srate:.02%}", fsize]
                 print('{:>8}  {:>25}  {:<10}  {:<8}  {:.03f}'.format(*row),
                       file=sys.stderr)
-                vecf = self.dump_vecs(si, vecs[:, 3:])
-                lum = self.sample(vecf, si.shape[1])
+                vecf = self.dump_vecs(vecs, si)
+                lum = self.sample(vecf)
                 self.update_pdf(si, lum)
                 a = lum.shape[0]
                 allc += a

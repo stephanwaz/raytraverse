@@ -118,6 +118,9 @@ rtinit(int  argc, char  *argv[])
   /* reset these with each call */
   imm_irrad = 0;			/* compute immediate irradiance? */
   lim_dist = 0;			/* limit distance? */
+  inform = 'a';			/* input format */
+  outform = 'a';			/* output format */
+  outvals = "v";			/* output specification */
   loadflags = ~IO_FILES;
   for (i = 1; i < argc; i++) {
     /* expand arguments */

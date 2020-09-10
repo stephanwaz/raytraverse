@@ -96,8 +96,6 @@ class LightFieldKD(LightField):
         return [dfile, vfile]
 
     def _to_mem_map(self, ar, offset=0):
-        if type(ar) == tuple and type(ar[0]) == str:
-            ar = io.bytefile2rad(ar[0], ar[1], slc=ar[2], subs='ijk,k->ij')
         outf = f'{self.scene.outdir}/{self.prefix}_kd_lum.dat'
         mar = np.memmap(outf, dtype='<f', mode='r+',
                         offset=offset, shape=ar.shape)
@@ -114,9 +112,8 @@ class LightFieldKD(LightField):
                                     f" a Sampler of type {self.prefix} for"
                                     f" scene {self.scene.outdir}?")
         fvecs = io.bytefile2np(open(vfile, 'rb'), (-1, 4))
-        ishape = (fvecs.shape[0], self.srcn, 3)
+        alums = io.bytefile2np(open(dfile, 'rb'), (fvecs.shape[0], self.srcn))
         if fvrays:
-            alums = io.bytefile2rad(dfile, ishape, subs='ijk,k->ij')
             blindsquirrel = (np.max(alums, 1) < self.scene.maxspec)
             fvecs = fvecs[blindsquirrel]
             alums = alums[blindsquirrel]
@@ -135,10 +132,7 @@ class LightFieldKD(LightField):
                     pts.append(i)
                     vecs[i] = fvecs[pt0:pt, 1:4]
                     slc = sorting[pt0:pt]
-                    try:
-                        ar = alums[slc]
-                    except NameError:
-                        ar = (dfile, ishape, slc)
+                    ar = alums[slc]
                     lums.append(exc.submit(self._to_mem_map, ar,
                                            offset=os0 + 4*pt0*self.srcn))
                     pt0 = pt

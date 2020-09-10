@@ -108,13 +108,14 @@ class SunSetter(object):
         si = np.stack(np.unravel_index(np.arange(uvsize**2),
                                        (uvsize, uvsize)))
         skyb = self.load_sky_facs()
+        print(uvsize)
         uv = si.T/uvsize
         ib = np.full(uv.shape[0], True)
         ib = (skyb*ib > self.srct)
         border = 2*uvsize/180
         j = np.random.default_rng().uniform(border, 1 - border, si.shape)
         # j = .5
-        uv = (si.T[ib] + j)/uvsize
+        uv = (si + j).T[ib]/uvsize
         xyz = translate.uv2xyz(uv, xsign=1)
         return xyz
 

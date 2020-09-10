@@ -29,6 +29,8 @@ namespace rayrc{
     }
 }
 
+namespace py = pybind11;
+
 Rcontrib* Rcontrib::renderer = nullptr;
 
 void Rcontrib::call(char *fname) {
@@ -70,7 +72,7 @@ void Rcontrib::resetInstance() {
   renderer = nullptr;
 }
 
-namespace py = pybind11;
+
 PYBIND11_MODULE(rcontrib_c, m) {
   py::class_<Rcontrib>(m, "cRcontrib")
           .def("get_instance", &Rcontrib::getInstance, py::return_value_policy::reference)
@@ -78,7 +80,7 @@ PYBIND11_MODULE(rcontrib_c, m) {
           .def("reset", [](py::args& args){Rcontrib::resetRadiance();})
           .def("initialize", &Rcontrib::initialize)
           .def("load_scene", &Rcontrib::loadscene)
-          .def("call", &Rcontrib::call)
+          .def("call", &Rcontrib::call, py::call_guard<py::gil_scoped_release>())
           .def_property_readonly_static("version", [](py::object) { return rayrc::VersionID; });
 
 #ifdef VERSION_INFO

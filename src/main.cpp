@@ -22,9 +22,11 @@
 
 int main(int argc, char** argv) {
   Renderer& rdr = Rtrace::getInstance();
-  argc -= 1;
-  char *inp = argv[argc];
+  argc -= 2;
+  char *inp = argv[argc + 1];
+  char *octname = argv[argc];
   rdr.initc(argc, argv);
+  rdr.loadscene(octname);
   rdr.call(inp);
 
 }

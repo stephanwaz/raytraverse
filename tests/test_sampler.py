@@ -63,7 +63,9 @@ def test_init(tmpdir, scene):
     assert np.alltrue(res == sampler.levels)
 
 
-def test_sky_sample(tmpdir, scene):
+def test_sky_sample(tmpdir, scene, capfd):
     sampler = SCBinSampler(scene)
-    lum = sampler.sample(np.array([[5, 5, 1.25, 0, -1, 0]]))
-    assert np.sum(lum) > .05/179
+    vecf = sampler.dump_vecs(np.array([[5, 5, 1.25, 0, -1, 0]]))
+    with capfd.disabled():
+        lum = sampler.sample(vecf)
+    assert lum > .05/179

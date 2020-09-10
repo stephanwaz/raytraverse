@@ -40,7 +40,7 @@ class SunViewSampler(Sampler):
         self.engine = renderer.Rtrace()
         self.engine.reset()
         super().__init__(scene, stype='sunview', idres=4, fdres=6,
-                         srcdef=sunfile, **kwargs)
+                         srcdef=sunfile, engine_args='-oZ -ab 0', **kwargs)
         self.samplemap = self.suns.map
 
     @property
@@ -69,28 +69,21 @@ class SunViewSampler(Sampler):
                                isviz.shape + (self.weights.shape[-2:]))
         return suns
 
-    def sample(self, vecs, rcopts='-ab 0',
-               nproc=12, executable='rtrace'):
+    def sample(self, vecf):
         """call rendering engine to sample direct view rays
 
         Parameters
         ----------
-        vecs: np.array
-            shape (N, 6) vectors to calculate contributions for
-        rcopts: str, optional
-            option string to send to executable
-        nproc: int, optional
-            number of processes executable should use
-        executable: str, optional
-            path to rendering binary
+        vecf: str
+            path of file name with sample vectors
+            shape (N, 6) vectors in binary float format
 
         Returns
         -------
         lum: np.array
             array of shape (N,) to update weights
         """
-        rc = f"{executable} -fff {rcopts} -h -n {nproc} {self.compiledscene}"
-        return super().sample(vecs, call=rc).ravel()
+        return super().sample(vecf).ravel()
 
     def _uv2xyz(self, uv, si):
         return self.samplemap.uv2xyz(uv, si[2])

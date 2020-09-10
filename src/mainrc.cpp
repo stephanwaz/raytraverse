@@ -27,12 +27,11 @@ void test_run(int argc, char** argv, char* inp){
 
 int main(int argc, char** argv) {
   Rcontrib& rdr = Rcontrib::getInstance();
-  argc -= 1;
-  char *inp = argv[argc];
+  argc -= 2;
+  char *inp = argv[argc + 1];
+  char *octname = argv[argc];
   rdr.initc(argc, argv);
+  rdr.loadscene(octname);
   rdr.call(inp);
-  rdr.call(inp);
-  test_run(argc, argv, inp);
-  rdr.resetInstance();
 
 }

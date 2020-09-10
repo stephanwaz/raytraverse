@@ -7,6 +7,11 @@
 # =======================================================================
 import os
 import shlex
+from threading import Thread
+import sys
+
+import psutil
+
 
 from raytraverse import io
 
@@ -20,6 +25,8 @@ class RadianceRenderer(object):
     Engine = None
     name = None
     header = ""
+    returnbytes = False
+    arg_prefix = ''
 
     def __new__(cls, rayargs=None, scene=None, nproc=None, iot="ff"):
         cls.instance = cls.Engine.get_instance()
@@ -32,7 +39,8 @@ class RadianceRenderer(object):
 
     @classmethod
     def _set_args(cls, args, iot, nproc):
-        return shlex.split(f"{cls.name} {args} -f{iot} -h+ -n {nproc}")
+        return shlex.split(f"{cls.name} -f{iot} -h- -n {nproc} {cls.arg_prefix}"
+                           f" {args}")
 
     @classmethod
     def initialize(cls, args, scene, nproc=None, iot="ff"):
@@ -42,20 +50,17 @@ class RadianceRenderer(object):
             if nproc is None:
                 nproc = os.cpu_count()
             cls.initialized = cls._set_args(args, iot, nproc)
-            with io.CaptureStdOut() as capture:
-                cls.instance.initialize(cls.initialized)
-            cls.header = capture.stdout
+            cls.instance.initialize(cls.initialized)
+            cls.header = ""
             cls.instance.load_scene(scene)
+        cls.returnbytes = iot[-1] != "a"
 
     @classmethod
-    def call(cls, rayfile, returnbytes=False, store=True, outf=None):
+    def call(cls, rayfile, store=True, outf=None):
         if not cls.initialized:
             raise ValueError(f'{cls.__name__} instance not initialized')
-        with io.CaptureStdOut(returnbytes, store, outf) as capture:
-            try:
-                cls.instance.call(rayfile)
-            except SystemExit as ex:
-                print(ex)
+        with io.CaptureStdOut(cls.returnbytes, store, outf) as capture:
+            cls.instance.call(rayfile)
         return capture.stdout
 
     @classmethod

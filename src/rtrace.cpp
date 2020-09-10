@@ -85,7 +85,7 @@ PYBIND11_MODULE(rtrace_c, m) {
                R"pbdoc(pyargv11 (a sequence of strings) must be a member of calling
 instance and persist for duration of program)pbdoc")
           .def("load_scene", &Rtrace::loadscene)
-          .def("call", &Rtrace::call)
+          .def("call", &Rtrace::call, py::call_guard<py::gil_scoped_release>())
           .def("update_ospec", &Rtrace::updateOSpec,
                   "vs"_a, "of"_a='z')
           .def_property_readonly_static("version", [](py::object) { return ray::VersionID; });

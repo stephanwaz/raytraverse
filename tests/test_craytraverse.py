@@ -3,6 +3,7 @@
 
 """Tests for raytraverse.craytraverse"""
 import importlib
+import sys
 
 from raytraverse import craytraverse, io, renderer, draw
 import numpy as np
@@ -40,44 +41,60 @@ def test_empty_reset():
     assert True
 
 
-def test_rtrace_call():
+def test_rtrace_call(capfd):
     args = "-ab 1 -ar 600 -ad 2000 -aa .2 -as 1500 -I"
     cargs = f"rtrace -h {args} -n 4 tests/test/test_run/sky.oct"
     check = cst.pipeline([cargs], inp='tests/test/rays.txt',
                          forceinpfile=True)
     check = np.fromstring(check, sep=' ').reshape(-1, 3)
+    check2 = np.einsum('ij,j->i', check, [47.435/179, 119.93/179, 11.635/179])
     r = renderer.Rtrace(args, "tests/test/test_run/sky.oct", iot='aa')
     print(r, r.initialized)
-    ans = r.call('tests/test/rays.txt')
+    try:
+        with capfd.disabled():
+            ans = r.call('tests/test/rays.txt')
+    except AttributeError:
+        ans = r.call('tests/test/rays.txt')
     test = np.fromstring(ans, sep=' ').reshape(-1, 3)
     r.update_ospec('ZL', 'a')
-    ans = r.call('tests/test/rays.txt')
+    try:
+        with capfd.disabled():
+            ans = r.call('tests/test/rays.txt')
+    except AttributeError:
+        ans = r.call('tests/test/rays.txt')
     test2 = np.fromstring(ans, sep=' ').reshape(-1, 2)
     r.reset()
-    r.initialize(args, "tests/test/test_run/sky.oct", iot='aa')
-    ans = r.call('tests/test/rays.txt')
-    test3 = np.fromstring(ans, sep=' ').reshape(-1, 3)
+    args2 = args + ' -oZ'
+    r.initialize(args2, "tests/test/test_run/sky.oct", iot='af')
+    try:
+        with capfd.disabled():
+            ans = r.call('tests/test/rays.txt')
+    except AttributeError:
+        ans = r.call('tests/test/rays.txt')
+    # test3 = np.fromstring(ans, sep=' ').reshape(-1, 3)
+    test3 = np.frombuffer(ans, '<f')
     assert np.allclose(check, test, atol=.03)
-    assert np.allclose(check[:, 1], test2[:, 0], atol=.03)
-    assert np.allclose(test, test3, atol=.03)
-    print(r.header)
+    assert np.allclose(check2, test2[:, 0], atol=.03)
+    assert np.allclose(check2, test3, atol=.03)
+    # print(r.header)
 
 
-def test_rcontrib_call():
-    args = ('-V+ -I+ -ab 2 -ad 60000 -as 30000 -h -lw 1e-7 -n 5 -e side:6'
+def test_rcontrib_call(capfd):
+    args = ('-V+ -I+ -ab 2 -ad 60000 -as 30000 -lw 1e-7 -e side:6'
             ' -f tests/test/scbins.cal -b bin -bn 36 -m skyglow ')
-    cargs = f"rcontrib -n 4 {args}  tests/test/test_run/sky.oct"
+    cargs = f"rcontrib -n 5 -h- {args}  tests/test/test_run/sky.oct"
     check = cst.pipeline([cargs], inp='tests/test/rays2.txt',
                          forceinpfile=True)
     check = np.fromstring(check, sep=' ').reshape(-1, 36, 3)
-    r = renderer.Rcontrib(args, 'tests/test/test_run/sky.oct', iot='aa')
-    print(r, r.initialized)
-    ans = r.call('tests/test/rays.txt')
-    # print(check)
-    test = np.fromstring(ans, sep=' ').reshape(-1, 36, 3)
-    print(test[-1, -8])
+    check = np.einsum('ikj,j->ik', check, [47.435/179, 119.93/179, 11.635/179])
+    r = renderer.Rcontrib('-Z+' + args, 'tests/test/test_run/sky.oct', iot='aa')
+    try:
+        with capfd.disabled():
+            ans = r.call('tests/test/rays.txt')
+    except AttributeError:
+        ans = r.call('tests/test/rays.txt')
+    test = np.fromstring(ans, sep=' ').reshape(-1, 36)
     assert np.allclose(check, test, atol=.03)
-    print(r.header)
 
 
 if __name__ == "__main__":
@@ -85,29 +102,32 @@ if __name__ == "__main__":
     rc = renderer.Rcontrib()
     # rt = renderer.Rtrace()
     # print(rt.instance)
-    test_rtrace_call()
+    test_rtrace_call(None)
     rt = renderer.Rtrace()
     print(rt.header)
     rt.reset()
-    test_rtrace_call()
+    test_rtrace_call(None)
     rt.reset_instance()
-    test_rtrace_call()
+    test_rtrace_call(None)
     rt = renderer.Rtrace()
     rt.reset_instance()
     # print(rt.instance)
     print('rt done')
 
     # print(rc.instance)
-    test_rcontrib_call()
+    print('rc 1')
+    test_rcontrib_call(None)
     print(rc.header)
     rc.reset()
     # print(rc.instance)
-    test_rcontrib_call()
-    rc.reset_instance()
-    test_rcontrib_call()
+    print('rc 2')
+    test_rcontrib_call(None)
+    # rc.reset_instance()
+    print('rc 3')
+    test_rcontrib_call(None)
     rc = renderer.Rcontrib()
     # print(rc.instance)
-
-    test_rcontrib_call()
-    test_rtrace_call()
+    print('rc 4')
+    test_rcontrib_call(None)
+    test_rtrace_call(None)
 

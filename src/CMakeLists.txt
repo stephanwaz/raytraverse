@@ -51,25 +51,21 @@ list(TRANSFORM RCCALLFILES PREPEND ray/src/rt/)
 add_library(rcraycalls rcraycalls.c ${RCCALLFILES})
 
 set(RTFILES duphead.c persist.c source.c pmapray.c)
-set(RCFILES rc2.c)
 list(TRANSFORM RTFILES PREPEND ray/src/rt/)
 list(TRANSFORM RCFILES PREPEND ray/src/rt/)
-
-# these are for testing buy building as an exectuble, should function the same as rtrace/rcontrib
-# except input is given as last argument instead of stdin
-add_executable(rtracemain main.cpp render.cpp rtrace.cpp rtinit.c rtraceparts.c ${RTFILES})
-target_link_libraries(rtracemain PRIVATE pybind11::embed raycalls radiance rtrad raymod)
-add_executable(rcontribmain mainrc.cpp render.cpp rcontrib.cpp )
-target_link_libraries(rcontribmain PRIVATE pybind11::embed rcraycalls radiance rtrad)
 
 # rtrace and rcontrib are built seperately to avoid namespace conflicts
 add_library(rtracecfiles rtinit.c rtraceparts.c ${RTFILES})
 pybind11_add_module(rtrace_c render.cpp rtrace.cpp)
 target_link_libraries(rtrace_c PRIVATE raycalls radiance rtrad rtracecfiles)
 
-add_library(rcontribcfiles rcinit.c rcontribparts.c rc3.c ${RCFILES})
+add_library(rcontribcfiles rcinit.c rcontribparts.c rc3.c rc2.c)
 pybind11_add_module(rcontrib_c render.cpp rcontrib.cpp)
 target_link_libraries(rcontrib_c PRIVATE rcraycalls radiance rtrad rcontribcfiles)
+
+# target for building 3 craytraverse modules
+ADD_CUSTOM_TARGET(python_all)
+ADD_DEPENDENCIES(python_all rtrace_c rcontrib_c craytraverse)
 
 # move submodules to raytraverse
 IF(CMAKE_BUILD_TYPE MATCHES RelWithDebInfo)
@@ -78,3 +74,10 @@ IF(CMAKE_BUILD_TYPE MATCHES RelWithDebInfo)
     set_target_properties(rtrace_c PROPERTIES LIBRARY_OUTPUT_DIRECTORY "${PARENT_DIR}/raytraverse/crenderer")
     set_target_properties(rcontrib_c PROPERTIES LIBRARY_OUTPUT_DIRECTORY "${PARENT_DIR}/raytraverse/crenderer")
 ENDIF(CMAKE_BUILD_TYPE MATCHES RelWithDebInfo)
+
+# these are for testing buy building as an exectuble, should function the same as rtrace/rcontrib
+# except input is given as last argument instead of stdin
+add_executable(rtracemain main.cpp render.cpp rtrace.cpp)
+target_link_libraries(rtracemain PRIVATE pybind11::embed raycalls radiance rtrad rtracecfiles)
+add_executable(rcontribmain mainrc.cpp render.cpp rcontrib.cpp)
+target_link_libraries(rcontribmain PRIVATE pybind11::embed rcraycalls radiance rtrad rcontribcfiles)

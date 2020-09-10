@@ -26,7 +26,9 @@ class SingleSunSampler(Sampler):
     """
 
     def __init__(self, scene, suns, sidx, sb=None, speclevel=9,
-                 fdres=10, accuracy=1, keepamb=False, **kwargs):
+                 fdres=10, accuracy=1,
+                 rcopts='-ab 6 -ad 3000 -as 1500 -st 0 -ss 16 -aa .1',
+                 keepamb=False, ambcache=True, **kwargs):
         #: np.array: sun position x,y,z
         self.sunpos = suns.suns[sidx]
         #: int: sun index of sunpos from associated SunSetter (for naming)
@@ -43,8 +45,13 @@ class SingleSunSampler(Sampler):
         anorm = accuracy * scene.skyres * (1 - np.cos(.533*np.pi/360))
         self.engine = renderer.Rtrace()
         self.engine.reset()
+        if ambcache:
+            afile = f'{scene.outdir}/sun_{sidx:04d}.amb'
+            rcopts += f' -af {afile}'
+        engine_args = f"{rcopts} -oZ"
         super().__init__(scene, stype=f"sun_{sidx:04d}", fdres=fdres,
-                         accuracy=anorm, srcdef=dec, **kwargs)
+                         accuracy=anorm, engine_args=engine_args, srcdef=dec,
+                         **kwargs)
         self.specidx = speclevel - self.idres
         self._keepamb = keepamb
         shape = np.concatenate((self.scene.area.ptshape, self.levels[0]))
@@ -90,35 +97,21 @@ class SingleSunSampler(Sampler):
             lum = np.where(lum > self.scene.maxspec, 0, lum)
         return lum
 
-    def sample(self, vecs,
-               rcopts='-ab 6 -ad 3000 -as 1500 -st 0 -ss 16 -aa .1',
-               nproc=12, ambcache=False, executable='rtrace', **kwargs):
+    def sample(self, vecf):
         """call rendering engine to sample sky contribution
 
         Parameters
         ----------
-        vecs: np.array
-            shape (N, 6) vectors to calculate contributions for
-        rcopts: str, optional
-            option string to send to executable
-        nproc: int, optional
-            number of processes executable should use
-        ambcache: bool, optional
-            use ambient caching (rcopts should be combatible, appends
-            appropriate -af argument)
-        executable: str, optional
-            path to rendering binary
+        vecf: str
+            path of file name with sample vectors
+            shape (N, 6) vectors in binary float format
 
         Returns
         -------
         lum: np.array
             array of shape (N,) to update weights
         """
-        if ambcache:
-            afile = self.compiledscene.replace('.oct', '.amb')
-            rcopts += f' -af {afile}'
-        rc = f"{executable} -fff {rcopts} -h -n {nproc} {self.compiledscene}"
-        return super().sample(vecs, call=rc).ravel()
+        return super().sample(vecf).ravel()
 
     # @profile
     def draw(self):

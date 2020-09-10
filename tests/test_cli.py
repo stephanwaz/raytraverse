@@ -8,6 +8,7 @@ import shutil
 import pytest
 from click.testing import CliRunner
 import numpy as np
+import clasp.click_ext as clk
 
 from raytraverse import cli
 import hdrstats.cli as hdrcli
@@ -30,16 +31,15 @@ def tmpdir(tmp_path_factory):
 
 
 @pytest.mark.skip('slow')
-def test_cli(runner, tmpdir):
-    result = runner.invoke(cli.main, "-c run.cfg demo sky")
-    assert result.exit_code == 0
-    result = runner.invoke(cli.main, "-c run.cfg demo sunrun")
-    assert result.exit_code == 0
-    result = runner.invoke(cli.main, "-c run.cfg demo integrate --no-metric")
-    assert result.exit_code == 0
+def test_cli(tmpdir, capfd, runner):
+    with pytest.raises(SystemExit) as exc_info:
+        with capfd.disabled():
+            cli.main.main(args=["-c", "run.cfg", "demo", "sky", "sunrun"])
+    assert exc_info.value.args[0] == 0
+    runner.invoke(cli.main, "-c run.cfg demo integrate --no-metric")
     hdr = runner.invoke(hdrcli.img_cr, "'demo_view*.hdr'")
     hdr = np.fromstring(hdr.output, sep=' ').reshape(-1, 5)[:, 1:3]
-    pt = runner.invoke(cli.main, "-c run.cfg demo integrate --debug --no-hdr")
-    pt = np.fromstring(pt.output, sep=' ').reshape(-1, 6)[:, 3:5]
+    pt = runner.invoke(cli.main, "-c run.cfg demo integrate --no-hdr")
+    pt = np.fromstring(pt.output, sep=' ').reshape(-1, 5)[:, 2:4]
     corr = corr_calc(hdr[:, 0], pt[:, 0])
     assert corr[0] > .95

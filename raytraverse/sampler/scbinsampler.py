@@ -26,7 +26,8 @@ class SCBinSampler(Sampler):
         side of square sky resolution
     """
 
-    def __init__(self, scene, accuracy=1, **kwargs):
+    def __init__(self, scene, accuracy=1,
+                 rcopts='-ab 7 -ad 60000 -as 30000 -lw 1e-7', **kwargs):
         f = open(f'{scene.outdir}/scbins.cal', 'w')
         f.write(translate.scbinscal)
         f.close()
@@ -34,8 +35,12 @@ class SCBinSampler(Sampler):
                   " 0 0 1 180")
         self.engine = renderer.Rcontrib()
         self.engine.reset()
-        super().__init__(scene, srcn=scene.skyres**2, stype='sky',
-                         srcdef=skydeg, accuracy=accuracy, **kwargs)
+        srcn = scene.skyres**2
+        engine_args = (f"-V+ {rcopts} -Z+ -e 'side:{scene.skyres}' -f "
+                       f"{scene.outdir}/scbins.cal -b bin -bn {srcn} "
+                       f"-m skyglow")
+        super().__init__(scene, srcn=srcn, stype='sky',  srcdef=skydeg,
+                         accuracy=accuracy, engine_args=engine_args, **kwargs)
 
     def __del__(self):
         super().__del__()
@@ -44,29 +49,19 @@ class SCBinSampler(Sampler):
         except (IOError, TypeError):
             pass
 
-    def sample(self, vecs, rcopts='-ab 7 -ad 60000 -as 30000 -lw 1e-7',
-               nproc=12, executable='rcontrib'):
+    def sample(self, vecf):
         """call rendering engine to sample sky contribution
 
         Parameters
         ----------
-        vecs: np.array
-            shape (N, 6) vectors to calculate contributions for
-        rcopts: str, optional
-            option string to send to executable
-        nproc: int, optional
-            number of processes executable should use
-        executable: str, optional
-            rendering engine binary
+        vecf: str
+            path of file name with sample vectors
+            shape (N, 6) vectors in binary float format
 
         Returns
         -------
         lum: np.array
             array of shape (N,) to update weights
         """
-        rc = (f"{executable} -V+ -fff {rcopts} -h -n {nproc} -e "
-              f"'side:{self.scene.skyres}' -f "
-              f"{self.scene.outdir}/scbins.cal -b bin -bn {self.srcn} "
-              f"-m skyglow {self.compiledscene}")
-        lum = super().sample(vecs, call=rc)
+        lum = super().sample(vecf)
         return np.max(lum, 1)
