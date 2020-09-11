@@ -61,5 +61,7 @@ void Renderer::initc(int argcount, char **argvector) {
 
 void Renderer::call(char *fname) {}
 
-void Renderer::loadscene(char* octname) {}
+void Renderer::loadscene(char* octname) {
+  octree = octname;
+}
 

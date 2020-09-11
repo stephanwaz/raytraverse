@@ -130,7 +130,7 @@ printheader(FILE *fout, const char *info)
     checkheader(fin, OCTFMT, fout);
     fclose(fin);
   }
-  printargs(gargc-1, gargv, fout);	/* add our command */
+  printargs(gargc, gargv, fout);	/* add our command */
   fprintf(fout, "SOFTWARE= %s\n", VersionID);
   fputnow(fout);
   if (outbright)
@@ -241,25 +241,25 @@ getostream(const char *ospec, const char *mname, int bn, int noopen)
     if (accumulate > 0) {		/* global resolution */
       sop->xr = xres; sop->yr = yres;
     }
-    if (header) {
-      cp = info;
-      if (ofl & OF_MODIFIER || sop->reclen == 1) {
-        sprintf(cp, "MODIFIER=%s\n", mname);
-        while (*cp) ++cp;
-      }
-      if (ofl & OF_BIN) {
-        sprintf(cp, "BIN=%d\n", bn);
-        while (*cp) ++cp;
-      }
-      if (sop->yr > 0) {
-        sprintf(cp, "NROWS=%d\n", sop->yr *
-                                  (sop->xr + !sop->xr) );
-        while (*cp) ++cp;
-      }
-      if ((sop->xr <= 0) | (sop->reclen > 1))
-        sprintf(cp, "NCOLS=%d\n", sop->reclen);
-      printheader(sop->ofp, info);
-    }
+//    if (header) {
+//      cp = info;
+//      if (ofl & OF_MODIFIER || sop->reclen == 1) {
+//        sprintf(cp, "MODIFIER=%s\n", mname);
+//        while (*cp) ++cp;
+//      }
+//      if (ofl & OF_BIN) {
+//        sprintf(cp, "BIN=%d\n", bn);
+//        while (*cp) ++cp;
+//      }
+//      if (sop->yr > 0) {
+//        sprintf(cp, "NROWS=%d\n", sop->yr *
+//                                  (sop->xr + !sop->xr) );
+//        while (*cp) ++cp;
+//      }
+//      if ((sop->xr <= 0) | (sop->reclen > 1))
+//        sprintf(cp, "NCOLS=%d\n", sop->reclen);
+//      printheader(sop->ofp, info);
+//    }
     if (sop->reclen == 1)
       printresolu(sop->ofp, sop->xr, sop->yr);
     if (waitflush > 0)

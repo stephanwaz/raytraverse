@@ -66,6 +66,8 @@ int	using_stdout = 0;		/* are we using stdout? */
 int	imm_irrad = 0;			/* compute immediate irradiance? */
 int	lim_dist = 0;			/* limit distance? */
 
+int	report_intvl = 0;		/* reporting interval (seconds) */
+
 const char	*modname[MAXMODLIST];	/* ordered modifier name list */
 int		nmods = 0;		/* number of modifiers */
 
@@ -219,6 +221,7 @@ rcontrib_init(int argc, char *argv[])
   imm_irrad = 0;			/* compute immediate irradiance? */
   lim_dist = 0;			/* limit distance? */
   outbright = 0; /* output one component brightness */
+  report_intvl = 0;		/* reporting interval (seconds) */
   /* option city */
   for (i = 1; i < argc; i++) {
     /* expand arguments */
@@ -328,6 +331,10 @@ rcontrib_init(int argc, char *argv[])
         check(2,"s");
         addmodfile(argv[++i], curout, prms, binval, bincnt);
         break;
+      case 't':			/* reporting interval */
+        check(2,"i");
+        report_intvl = atoi(argv[++i]);
+        break;
       case 'Z':			/* brightness output */
         check_bool(2,outbright);
         break;
@@ -389,9 +396,9 @@ rcontrib_init(int argc, char *argv[])
 }
 
 void
-rcontrib_loadscene(char* octname) {
+rcontrib_loadscene(char* ocn) {
   /* get octree */
-
+  octname = ocn;
   readoct(octname, ~(IO_FILES | IO_INFO), &thescene, NULL);
   nsceneobjs = nobjects;
 

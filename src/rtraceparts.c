@@ -49,7 +49,7 @@ rtrace_setup( /* initialize processes */
 }
 
 extern void
-rtrace_call(				/* run rtrace process */
+rtrace_call( /* run rtrace process */
         char *fname
 )
 {

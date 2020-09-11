@@ -38,6 +38,7 @@ public:
 protected:
     int nproc = 1;
     int argc = 0;
+    char* octree;
     char** argv = nullptr;
 };
 

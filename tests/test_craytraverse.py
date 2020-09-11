@@ -49,7 +49,6 @@ def test_rtrace_call(capfd):
     check = np.fromstring(check, sep=' ').reshape(-1, 3)
     check2 = np.einsum('ij,j->i', check, [47.435/179, 119.93/179, 11.635/179])
     r = renderer.Rtrace(args, "tests/test/test_run/sky.oct", iot='aa')
-    print(r, r.initialized)
     try:
         with capfd.disabled():
             ans = r.call('tests/test/rays.txt')

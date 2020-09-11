@@ -45,8 +45,6 @@ extern "C" {
 
 extern char	*progname;		/* global argv[0] */
 
-extern char	*shm_boundary;		/* boundary of shared memory */
-
 /* persistent processes define */
 #ifdef  F_SETLKW
 #define  PERSIST	1		/* normal persist */
@@ -316,18 +314,18 @@ rtinit(int  argc, char  *argv[])
           SET_FILE_BINARY(stdout);
   rval = setoutput2(outvals, outform);
 
-
-  if (loadflags & IO_INFO) {	/* print header */
-    printargs(i, argv, stdout);
-    printf("SOFTWARE= %s\n", VersionID);
-    fputnow(stdout);
-    if (rval > 0)		/* saved from setrtoutput() call */
-      printf("NCOMP=%d\n", rval);
-    if ((outform == 'f') | (outform == 'd'))
-      fputendian(stdout);
-    fputformat(formstr(outform), stdout);
-    putchar('\n');
-  }
+//ignore header
+//  if (loadflags & IO_INFO) {	/* print header */
+//    printargs(i, argv, stdout);
+//    printf("SOFTWARE= %s\n", VersionID);
+//    fputnow(stdout);
+//    if (rval > 0)		/* saved from setrtoutput() call */
+//      printf("NCOMP=%d\n", rval);
+//    if ((outform == 'f') | (outform == 'd'))
+//      fputendian(stdout);
+//    fputformat(formstr(outform), stdout);
+//    putchar('\n');
+//  }
 
 
   complete = 1;

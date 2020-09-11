@@ -39,7 +39,7 @@ class RadianceRenderer(object):
 
     @classmethod
     def _set_args(cls, args, iot, nproc):
-        return shlex.split(f"{cls.name} -f{iot} -h- -n {nproc} {cls.arg_prefix}"
+        return shlex.split(f"{cls.name} -f{iot} -n {nproc} {cls.arg_prefix}"
                            f" {args}")
 
     @classmethod
@@ -51,8 +51,9 @@ class RadianceRenderer(object):
                 nproc = os.cpu_count()
             cls.initialized = cls._set_args(args, iot, nproc)
             cls.instance.initialize(cls.initialized)
-            cls.header = ""
             cls.instance.load_scene(scene)
+            # TODO: populate header
+            cls.header = ""
         cls.returnbytes = iot[-1] != "a"
 
     @classmethod

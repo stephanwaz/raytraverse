@@ -70,7 +70,8 @@ void Rtrace::resetInstance() {
 }
 
 void Rtrace::loadscene(char *octname) {
-  ray::rtrace_loadscene(octname);
+  Renderer::loadscene(octname);
+  ray::rtrace_loadscene(octree);
   ray::rtrace_setup(nproc);
 }
 
@@ -81,7 +82,7 @@ PYBIND11_MODULE(rtrace_c, m) {
           .def("get_instance", &Rtrace::getInstance, py::return_value_policy::reference)
           .def("reset_instance", [](py::args& args){Rtrace::resetInstance();})
           .def("reset", [](py::args& args){Rtrace::resetRadiance();})
-          .def("initialize", &Rtrace::initialize,
+          .def("initialize", &Rtrace::initialize, py::call_guard<py::gil_scoped_release>(),
                R"pbdoc(pyargv11 (a sequence of strings) must be a member of calling
 instance and persist for duration of program)pbdoc")
           .def("load_scene", &Rtrace::loadscene)

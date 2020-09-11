@@ -10,8 +10,6 @@ link_directories(/usr/local/lib)
 
 include_directories(ray/src/rt ray/src/common)
 
-#message("${radiance_SOURCE_DIR}/ray/src/rt/Version.c")
-
 macro(create_version_file version_file)
     add_custom_command(
             OUTPUT "${version_file}"

@@ -51,7 +51,8 @@ void Rcontrib::initialize(pybind11::object pyargv11) {
 }
 
 void Rcontrib::loadscene(char* octname) {
-  rayrc::rcontrib_loadscene(octname);
+  Renderer::loadscene(octname);
+  rayrc::rcontrib_loadscene(octree);
 }
 
 void Rcontrib::initc(int argcount, char** argvector) {

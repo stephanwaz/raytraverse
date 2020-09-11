@@ -29,9 +29,8 @@ int main(int argc, char** argv) {
   Rcontrib& rdr = Rcontrib::getInstance();
   argc -= 2;
   char *inp = argv[argc + 1];
-  char *octname = argv[argc];
   rdr.initc(argc, argv);
-  rdr.loadscene(octname);
+  rdr.loadscene(argv[argc]);
   rdr.call(inp);
 
 }
