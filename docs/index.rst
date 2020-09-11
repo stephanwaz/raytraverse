@@ -13,6 +13,7 @@ raytraverse (|release|)
    craytraverse
    draw
    io
+   metric
    plot
    skycalc
    translate

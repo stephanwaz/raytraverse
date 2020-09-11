@@ -22,6 +22,11 @@ macro(create_version_file version_file)
     )
 endmacro()
 
+# used by setup.py for distribution
+set(STATIC_VERSION_FILE "../StaticVersion.c")
+create_version_file("${STATIC_VERSION_FILE}")
+
+
 set(BUILD_HEADLESS true)
 
 # create libraries needed for compilation (these files are from radiance repository)
@@ -53,11 +58,11 @@ list(TRANSFORM RTFILES PREPEND ray/src/rt/)
 list(TRANSFORM RCFILES PREPEND ray/src/rt/)
 
 # rtrace and rcontrib are built seperately to avoid namespace conflicts
-add_library(rtracecfiles rtinit.c rtraceparts.c ${RTFILES})
+add_library(rtracecfiles rtinit.c rtraceparts.c ${RTFILES} ${STATIC_VERSION_FILE})
 pybind11_add_module(rtrace_c render.cpp rtrace.cpp)
 target_link_libraries(rtrace_c PRIVATE raycalls radiance rtrad rtracecfiles)
 
-add_library(rcontribcfiles rcinit.c rcontribparts.c rc3.c rc2.c)
+add_library(rcontribcfiles rcinit.c rcontribparts.c rc3.c rc2.c ${STATIC_VERSION_FILE})
 pybind11_add_module(rcontrib_c render.cpp rcontrib.cpp)
 target_link_libraries(rcontrib_c PRIVATE rcraycalls radiance rtrad rcontribcfiles)
 

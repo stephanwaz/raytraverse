@@ -14,3 +14,4 @@ sphinx-click
 sphinxcontrib-programoutput
 pyreverse
 hdrstats
+pytest-cov

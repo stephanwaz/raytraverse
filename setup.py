@@ -68,7 +68,7 @@ requirements = ['clasp', 'numpy', 'scipy', 'pywavelets', 'matplotlib',
 
 setup_requirements = []
 
-test_requirements = ['pytest', 'hdrstats']
+test_requirements = ['pytest', 'hdrstats', 'pytest-cov']
 
 # TODO: add necessary radiance .cal files (and make sure source files are
 # included in in dist before creating pypi.
@@ -78,6 +78,7 @@ package_data = {}
 # Note: These are platform dependent
 # TODO: add system check to set compiler flags for radiance
 radiance_compile_args = ["-O2", "-DBSD", "-DNOSTEREO", "-Dfreebsd"]
+
 radiance_include = ['ray/src/rt', 'ray/src/common']
 lib_dir = 'src/lib'
 srcdir = 'src/'
@@ -186,7 +187,7 @@ rtradlib = [
     ]
 
 radiancelib = [
-    "Version.c",
+    "StaticVersion.c",
     "ray/src/common/paths.c",
     "ray/src/rt/ambcomp.c",
     "ray/src/rt/ambient.c",
@@ -252,8 +253,7 @@ libs = {
                    'ray/src/rt/rayfifo.c'],
     'raycalls': ['ray/src/rt/raycalls.c', 'ray/src/rt/raypcalls.c',
                  'ray/src/rt/rayfifo.c'],
-    'rcontribcfiles': ['rcinit.c', 'rcontribparts.c', 'rc3.c',
-                       '/ray/src/rt/rc2.c'],
+    'rcontribcfiles': ['rcinit.c', 'rcontribparts.c', 'rc3.c', 'rc2.c'],
     'rtracecfiles': ['rtinit.c', 'rtraceparts.c', 'ray/src/rt/duphead.c',
                      'ray/src/rt/persist.c', 'ray/src/rt/source.c',
                      'ray/src/rt/pmapray.c'],

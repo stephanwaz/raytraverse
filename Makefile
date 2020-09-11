@@ -62,8 +62,8 @@ test-all: ## run tests on every Python version with tox
 	tox
 
 coverage: ## check code coverage quickly with the default Python
-	coverage run --source raytraverse -m pytest
-	coverage report -m
+	pytest --cov=raytraverse
+	pytest --cov=raytraverse --cov-append --slowtest tests/test_skycalc.py tests/test_cli.py
 	coverage html
 	$(BROWSER) htmlcov/index.html
 
