@@ -32,7 +32,7 @@ namespace ray{
 Rtrace* Rtrace::renderer = nullptr;
 
 void Rtrace::call(char *fname) {
-  ray::rtrace_call(fname);
+  ray::rtrace_call(fname, nproc);
 }
 
 Rtrace& Rtrace::getInstance() {
@@ -43,7 +43,7 @@ Rtrace& Rtrace::getInstance() {
 }
 
 void Rtrace::resetRadiance() {
-  ray::ray_pdone(1);
+  ray::ray_done(1);
   ray::ambdone();
   ray::ray_done_pmap();
 }

@@ -32,7 +32,7 @@ extern int rtinit(int  argc, char  **argv);
 extern void rtrace_loadscene(char* octname);
 extern int setoutput2(char *vs, char of);
 extern void rtrace_setup(int nproc);
-extern void rtrace_call(char *fname);
+extern void rtrace_call(char *fname, int nproc);
 static void oputrad(RAY  *r);
 
 #ifdef __cplusplus

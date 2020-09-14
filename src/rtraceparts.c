@@ -30,6 +30,8 @@ extern "C" {
 #include "rtrace.c"
 #include "rtinit.h"
 
+extern char	*shm_boundary;		/* boundary of shared memory */
+
 extern void
 rtrace_setup( /* initialize processes */
 	int  nproc
@@ -50,9 +52,11 @@ rtrace_setup( /* initialize processes */
 
 extern void
 rtrace_call( /* run rtrace process */
-        char *fname
+        char *fname,
+        int nproc
 )
 {
+  rtrace_setup(nproc);
   unsigned long  vcount = (hresolu > 1) ? (unsigned long)hresolu*vresolu
                                         : (unsigned long)vresolu;
   long  nextflush = (!vresolu | (hresolu <= 1)) * hresolu;
@@ -109,6 +113,13 @@ rtrace_call( /* run rtrace process */
   if (ray_pnprocs > 1) {				/* clean up children */
     if (ray_fifo_flush() < 0)
       error(USER, "unable to complete processing");
+    ambsync();
+    ray_pclose(0);			/* close child processes */
+
+    if (shm_boundary != NULL) {	/* clear shared memory boundary */
+      free((void *)shm_boundary);
+      shm_boundary = NULL;
+    }
   }
   if (vcount)
     error(WARNING, "unexpected EOF on input");
