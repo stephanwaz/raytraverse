@@ -7,7 +7,6 @@
 # =======================================================================
 import os
 import pickle
-import sys
 
 import numpy as np
 
@@ -29,18 +28,18 @@ class SunViewSampler(Sampler):
         scene class containing geometry, location and analysis plane
     suns: raytraverse.sunsetter.SunSetter
         sun class containing sun locations.
+    loadsrc: bool
+        include suns.rad in base scene initialization. if False,
+        self.engine.load_source must be invoked before call.
     """
+    EngineClass = renderer.Rtrace
 
     def __init__(self, scene, suns, **kwargs):
         self.suns = suns
-        sunfile = f"{scene.outdir}/suns.rad"
-        if not os.path.isfile(sunfile):
-            print('Warning! no sun file found!', file=sys.stderr)
-            sunfile = ''
-        self.engine = renderer.Rtrace()
-        self.engine.reset()
+        self.engine = self.EngineClass()
         super().__init__(scene, stype='sunview', idres=4, fdres=6,
-                         srcdef=sunfile, engine_args='-oZ -ab 0', **kwargs)
+                         srcdef=None, engine_args='-oZ -ab 0', **kwargs)
+        self.engine.load_source(f"{scene.outdir}/suns.rad")
         self.samplemap = self.suns.map
 
     @property

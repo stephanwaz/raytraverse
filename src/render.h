@@ -29,11 +29,13 @@ protected:
     Renderer() = default;
 
 public:
+    int srcobj = 0;
     ~Renderer() = default;
     virtual void initialize(PyObject* pyargv);
     virtual void initc(int argcount, char **argvector);
     virtual void call(char *fname);
     virtual void loadscene(char* octname);
+    virtual void loadsrc(char *srcname, int freesrc);
 
 protected:
     int nproc = 1;

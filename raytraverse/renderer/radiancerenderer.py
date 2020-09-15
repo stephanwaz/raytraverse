@@ -14,30 +14,37 @@ from raytraverse.renderer.renderer import Renderer
 class RadianceRenderer(Renderer):
     """Virtual class for wrapping c++ Radiance renderer executable classes"""
 
+    returnbytes = False
+
     def __new__(cls, rayargs=None, scene=None, nproc=None, iot="ff"):
         cls.instance = cls.Engine.get_instance()
         return super().__new__(cls, rayargs=rayargs, scene=scene, nproc=nproc,
                                iot=iot)
 
     @classmethod
+    def update_param(cls, args, nproc=None, iot="ff"):
+        cls.returnbytes = iot[-1] != "a"
+        if nproc is None:
+            nproc = os.cpu_count()
+        cls.initialized = cls._set_args(args, iot, nproc)
+        cls.instance.initialize(cls.initialized)
+
+    @classmethod
     def initialize(cls, args, scene, nproc=None, iot="ff"):
         if cls.instance is None:
             cls.instance = cls.Engine.get_instance()
-        if nproc is None:
-            nproc = os.cpu_count()
-        if args is not None and not cls.initialized:
-            cls.initialized = cls._set_args(args, iot, nproc)
-            cls.instance.initialize(cls.initialized)
-            cls.instance.load_scene(scene)
-            # TODO: populate header
-            cls.header = ""
-        super().initialize(args, scene, nproc, iot)
+        if args is not None:
+            firstload = not cls.initialized
+            cls.update_param(args, nproc, iot)
+            if firstload:
+                cls.instance.load_scene(scene)
+                # TODO: populate header
+                cls.header = ""
 
     @classmethod
     def call(cls, rayfile, store=True, outf=None):
         if not cls.initialized:
             raise ValueError(f'{cls.__name__} instance not initialized')
-        print(" ".join(cls.initialized), file=sys.stderr)
         with io.CaptureStdOut(cls.returnbytes, store, outf) as capture:
             cls.instance.call(rayfile)
         return capture.stdout
@@ -50,5 +57,5 @@ class RadianceRenderer(Renderer):
     @classmethod
     def reset_instance(cls):
         cls.instance.reset_instance()
-        super().reset()
+        super().reset_instance()
 

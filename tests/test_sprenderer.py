@@ -21,13 +21,11 @@ def test_rtrace_call(capfd):
     check = np.fromstring(check, sep=' ').reshape(-1, 3)
     check2 = np.einsum('ij,j->i', check, [47.435/179, 119.93/179, 11.635/179])
     r = renderer.SPRtrace(args, "tests/test/test_run/sky.oct", iot='af')
-    print('call')
     try:
         with capfd.disabled():
             ans = r.call('tests/test/rays.txt')
     except AttributeError:
         ans = r.call('tests/test/rays.txt')
-    print('call done')
     test = np.frombuffer(ans, '<f')
     r.initialize(args, "tests/test/test_run/sky.oct", iot='af')
     try:

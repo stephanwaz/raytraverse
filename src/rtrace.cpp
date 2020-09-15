@@ -44,14 +44,11 @@ Rtrace& Rtrace::getInstance() {
 
 void Rtrace::resetRadiance() {
   ray::ray_done(1);
-  ray::ambdone();
-  ray::ray_done_pmap();
 }
 
 void Rtrace::initialize(pybind11::object pyargv11) {
   Renderer::initialize(pyargv11.ptr());
   nproc = ray::rtinit(argc, argv);
-
 }
 
 void Rtrace::initc(int argcount, char** argvector) {
@@ -72,7 +69,13 @@ void Rtrace::resetInstance() {
 void Rtrace::loadscene(char *octname) {
   Renderer::loadscene(octname);
   ray::rtrace_loadscene(octree);
-  ray::rtrace_setup(nproc);
+  ray::rtrace_loadsrc(NULL, 0);
+}
+
+void Rtrace::loadsrc(char *srcname, int freesrc) {
+  if (freesrc < 0)
+    freesrc = srcobj;
+  srcobj += ray::rtrace_loadsrc(srcname, freesrc);
 }
 
 namespace py = pybind11;
@@ -86,6 +89,7 @@ PYBIND11_MODULE(rtrace_c, m) {
                R"pbdoc(pyargv11 (a sequence of strings) must be a member of calling
 instance and persist for duration of program)pbdoc")
           .def("load_scene", &Rtrace::loadscene)
+          .def("load_source", &Rtrace::loadsrc, "srcname"_a, "freesrc"_a=-1)
           .def("call", &Rtrace::call, py::call_guard<py::gil_scoped_release>())
           .def("update_ospec", &Rtrace::updateOSpec,
                   "vs"_a, "of"_a='z')

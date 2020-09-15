@@ -168,7 +168,7 @@ def sunrun(ctx, plotdview=False, run=True, rmraw=False, **kwargs):
     sns = ctx.obj['suns']
     sampler = SunSampler(scn, sns, **kwargs)
     if run:
-        sampler.run(**kwargs)
+        sampler.run(kwargs['view'], kwargs['reflection'])
     if kwargs['view']:
         try:
             sv = SunViewField(scn, sns, rebuild=run, rmraw=rmraw)

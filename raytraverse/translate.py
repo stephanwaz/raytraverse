@@ -386,3 +386,9 @@ def aa2xyz(aa):
     tp = np.pi/2 - aa * np.pi/180
     tp[:, 1] += np.pi
     return tp2xyz(tp)
+
+
+def xyz2aa(xyz):
+    tp = xyz2tp(xyz)
+    tp[:, 1] -= np.pi
+    return (np.pi/2 - tp)/(np.pi/180)

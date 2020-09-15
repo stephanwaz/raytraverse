@@ -30,6 +30,7 @@ static void sigdie(int  signo, char  *msg);
 static void printdefaults(void);
 extern int rtinit(int  argc, char  **argv);
 extern void rtrace_loadscene(char* octname);
+extern int rtrace_loadsrc(char* srcname, int freesrc);
 extern int setoutput2(char *vs, char of);
 extern void rtrace_setup(int nproc);
 extern void rtrace_call(char *fname, int nproc);

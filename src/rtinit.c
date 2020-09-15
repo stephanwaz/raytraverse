@@ -104,6 +104,9 @@ rtinit(int  argc, char  *argv[])
   int  duped1 = -1;
   int  rval;
   int  i;
+  ambdone();
+  freeqstr(ambfile);
+  ambfile = NULL;
   /* global program name */
   progname = argv[0] = fixargv0(argv[0]);
   /* add trace notify function */
@@ -352,15 +355,28 @@ rtrace_loadscene(char* pyoctnm) {
   strcpy(octnm, pyoctnm);
   extern char  *octname;
   readoct(octname = octnm, loadflags & ~IO_INFO, &thescene, NULL);
+  octname = NULL;
   nsceneobjs = nobjects;
+}
+
+int
+rtrace_loadsrc(char* srcname, int freesrc) {
+  int oldcnt = nobjects;
+  ambnotify(OVOID);
+  freesources();
+  if (freesrc > 0) {
+    freeobjects(nobjects - freesrc, freesrc);
+  }
+  if (srcname != NULL) {
+    readobj(srcname);
+    nsceneobjs = nobjects;
+  }
   if (!castonly) {	/* any actual ray traversal to do? */
     ray_init_pmap();	/* PMAP: set up & load photon maps */
-
     marksources();		/* find and mark sources */
-
-    setambient();		/* initialize ambient calculation */
   } else
     distantsources();	/* else mark only distant sources */
+  return nobjects - oldcnt;
 }
 
 

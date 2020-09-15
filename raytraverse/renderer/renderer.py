@@ -17,16 +17,15 @@ class Renderer(object):
     Engine = None
     name = None
     header = ""
-    returnbytes = False
     arg_prefix = ''
 
-    def __new__(cls, rayargs=None, scene=None, nproc=None, iot="ff"):
+    def __new__(cls, rayargs=None, scene=None, nproc=None, **kwargs):
         if cls._pyinstance is None:
             cls._pyinstance = object.__new__(cls)
         return cls._pyinstance
 
-    def __init__(self, rayargs=None, scene=None, nproc=None, iot="ff"):
-        self.initialize(rayargs, scene, nproc, iot)
+    def __init__(self, rayargs=None, scene=None, nproc=None, **kwargs):
+        self.initialize(rayargs, scene, nproc, **kwargs)
 
     @classmethod
     def _set_args(cls, args, iot, nproc):
@@ -34,8 +33,8 @@ class Renderer(object):
                            f" {args}")
 
     @classmethod
-    def initialize(cls, args, scene, nproc=None, iot="ff"):
-        cls.returnbytes = iot[-1] != "a"
+    def initialize(cls, args, scene, nproc=None, **kwargs):
+        pass
 
     @classmethod
     def call(cls, rayfile, store=True, outf=None):

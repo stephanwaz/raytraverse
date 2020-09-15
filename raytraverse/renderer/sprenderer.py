@@ -28,16 +28,14 @@ class SPRenderer(Renderer):
             cls.initialized = cls._set_args(args + " -h- " + scene, iot, nproc)
             # TODO: populate header
             cls.header = ""
-        super().initialize(args, scene, nproc, iot)
 
     @classmethod
     def call(cls, rayfile, store=True, outf=None, vecs2stdin=True):
-        print(cls.initialized)
         if not cls.initialized:
             raise ValueError(f'{cls.__name__} instance not initialized')
         if cls.Engine is None:
             raise NotImplementedError(f'{cls.__name__} is a virtual class')
-        with io.CaptureStdOut(cls.returnbytes, store, outf) as capture:
+        with io.CaptureStdOut(True, store, outf) as capture:
             if vecs2stdin:
                 p = Popen(cls.initialized, stdout=PIPE,
                           stdin=open(rayfile, 'rb'))
@@ -51,6 +49,7 @@ class SPRenderer(Renderer):
 class SPRtrace(SPRenderer):
     Engine = 'rtrace'
     name = 'rtrace'
+
 
 class SPRcontrib(SPRenderer):
     Engine = 'rcontrib'

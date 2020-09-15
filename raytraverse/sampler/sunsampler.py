@@ -27,29 +27,26 @@ class SunSampler(object):
     def __init__(self, scene, suns, plotp=False, **kwargs):
         self.scene = scene
         self.suns = suns
-        self.plotp = plotp
         #: raytraverse.sampler.SunViewSampler
         self.viewsampler = SunViewSampler(scene, suns, plotp=False)
         #: dict: sampling arguments for SingleSunSampler
         self.sampleargs = dict(idres=4, fdres=10, speclevel=9, plotp=plotp)
-        sunuv = translate.xyz2uv(self.suns.suns, flipu=False)
-        #: np.array: sun bins for each sun position (used to match naming)
-        self.sunbin = translate.uv2bin(sunuv, scene.skyres).astype(int)
         #: raytraverse.sampler.SingleSunSampler
         self.reflsampler = None
         self.sampleargs.update(**kwargs)
 
-    def run(self, view=True, reflection=True, executable='rtrace',
-            rcopts='-ab 6 -ad 3000 -as 1500 -st 0 -ss 16 -aa .1',
-            **kwargs):
+    def run(self, view=True, reflection=True):
         if view and self.suns.suns.size > 0:
             print("Sampling Sun Visibility", file=sys.stderr)
             self.viewsampler.run()
         if reflection:
-            for sidx, sb in enumerate(self.sunbin):
+            suncnt = self.suns.suns.shape[0]
+            aa = translate.xyz2aa(self.suns.suns)
+            for sidx in range(suncnt):
                 print(f"Sampling Sun Reflections {sidx+1} of "
-                      f"{self.sunbin.size}", file=sys.stderr)
-                print(f'Sun Position: {self.suns.suns[sidx]}', file=sys.stderr)
+                      f"{suncnt}", file=sys.stderr)
+                print(f'Sun Position: alt={aa[sidx, 0]:.01f},'
+                      f' az={aa[sidx, 1]:.01f}', file=sys.stderr)
                 self.reflsampler = SingleSunSampler(self.scene, self.suns, sidx,
-                                                    sb, **self.sampleargs)
+                                                    **self.sampleargs)
                 self.reflsampler.run()

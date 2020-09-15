@@ -6,7 +6,6 @@
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 # =======================================================================
 import os
-import shutil
 import sys
 
 import numpy as np
@@ -53,18 +52,17 @@ class Sampler(object):
     def __init__(self, scene, fdres=9, srcn=1, accuracy=1.0, idres=4,
                  stype='generic', srcdef=None, plotp=False,
                  bands=1, engine_args="", nproc=None, **kwargs):
-        try:
-            self.engine.reset()
-        except AttributeError:
-            name = type(self).__name__
-            if name == "Sampler":
-                raise NotImplementedError("Sampler base class should not be "
-                                          "instantiated directly")
-            else:
-                raise NotImplementedError(f"Subclass {name} of Sampler is ill"
-                                          " defined, an engine attribute must"
-                                          " be set to a valid renderer class"
-                                          " before invoking Sampler.__init__")
+        name = type(self).__name__
+        self._staticscene = True
+        if name == "Sampler":
+            raise NotImplementedError("Sampler base class should not be "
+                                      "instantiated directly")
+        elif not all(hasattr(self.engine, atr) for atr
+                     in ['initialize', 'call']):
+            raise NotImplementedError(f"Subclass {name} of Sampler is ill"
+                                      " defined, an engine attribute must"
+                                      " be set to a valid renderer class"
+                                      " before invoking Sampler.__init__")
         #: int: number of spectral bands / channels returned by renderer
         #: based on given renderopts (user ensures these agree).
         self.bands = bands
@@ -94,10 +92,11 @@ class Sampler(object):
         self._vecfiles = []
 
     def __del__(self):
-        try:
-            os.remove(self.compiledscene)
-        except (IOError, TypeError):
-            pass
+        if not self._staticscene:
+            try:
+                os.remove(self.compiledscene)
+            except (IOError, TypeError):
+                pass
 
     @property
     def compiledscene(self):
@@ -105,10 +104,11 @@ class Sampler(object):
 
     @compiledscene.setter
     def compiledscene(self, src):
-        self._compiledscene = f'{self.scene.outdir}/{self.stype}.oct'
-        if src is None:
-            pass
+        self._staticscene = src is None
+        if self._staticscene:
+            self._compiledscene = f'{self.scene.outdir}/scene.oct'
         else:
+            self._compiledscene = f'{self.scene.outdir}/{self.stype}.oct'
             if os.path.isfile(src):
                 ocom = f'oconv -f -i {self.scene.outdir}/scene.oct {src}'
                 inp = None

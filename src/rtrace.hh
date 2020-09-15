@@ -38,7 +38,7 @@ public:
     void updateOSpec(char *vs, char of);
     static void resetRadiance();
     static void resetInstance();
-
+    void loadsrc(char* srcname, int freesrc) override;
 };
 
 

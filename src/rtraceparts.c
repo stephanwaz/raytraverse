@@ -37,6 +37,7 @@ rtrace_setup( /* initialize processes */
 	int  nproc
 )
 {
+  setambient();
   long  nextflush = (!vresolu | (hresolu <= 1)) * hresolu;
   if (castonly || every_out[0] != NULL)
     nproc = 1;		/* don't bother multiprocessing */
@@ -113,7 +114,6 @@ rtrace_call( /* run rtrace process */
   if (ray_pnprocs > 1) {				/* clean up children */
     if (ray_fifo_flush() < 0)
       error(USER, "unable to complete processing");
-    ambsync();
     ray_pclose(0);			/* close child processes */
 
     if (shm_boundary != NULL) {	/* clear shared memory boundary */
@@ -133,6 +133,7 @@ rtrace_call( /* run rtrace process */
 #ifdef getc_unlocked
   funlockfile(stdout);
 #endif
+  ambdone();
 }
 
 

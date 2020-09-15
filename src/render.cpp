@@ -65,3 +65,4 @@ void Renderer::loadscene(char* octname) {
   octree = octname;
 }
 
+void Renderer::loadsrc(char *srcname, int freesrc) {}

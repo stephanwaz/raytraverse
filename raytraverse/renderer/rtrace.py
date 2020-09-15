@@ -19,3 +19,11 @@ class Rtrace(RadianceRenderer):
         if not cls.initialized:
             raise ValueError('Rtrace instance not initialized')
         cls.instance.update_ospec(vs, of)
+
+    @classmethod
+    def new_amb(cls, af):
+        cls.instance.new_amb(af)
+
+    @classmethod
+    def load_source(cls, srcname, freesrc=-1):
+        cls.instance.load_source(srcname, freesrc)
