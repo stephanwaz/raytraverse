@@ -44,6 +44,8 @@ def from_pdf(pdf, threshold):
     cs, bs, nsampc = craytraverse.from_pdf(pdf, candidates, bidx, threshold)
     if nsampc == 0:
         return bidx[:bs]
+    # if normalization happens in c-func floating point precision does not
+    # guarantee that pdfc adds to 1, which choice() requires.
     pdfc = pdf[candidates[:cs]]/np.sum(pdf[candidates[:cs]])
     cidx = np.random.default_rng().choice(candidates[:cs], nsampc,
                                           replace=False, p=pdfc)

@@ -61,15 +61,9 @@ pybind11::tuple from_pdf(py::array_t<double> &pdf,
   auto parr = pdf.unchecked<1>();
   auto carr = candidates.mutable_unchecked<1>();
   auto barr = bidx.mutable_unchecked<1>();
-
   u_int32_t ccnt = 0, bcnt = 0, nsampc = 0, cumsum = 0;
-  bool cliplow, cliphigh, clip;
-  double pdfnorm = 0;
 
   for (size_t idx = 0; idx < parr.shape(0); idx++) {
-    cliplow = parr(idx) > threshold * lb;
-    cliphigh = parr(idx) < (threshold * ub);
-    clip = parr(idx) > threshold;
     // cliphigh
     if (parr(idx) < threshold * ub){
       // clip: set number of samples
@@ -79,8 +73,6 @@ pybind11::tuple from_pdf(py::array_t<double> &pdf,
       // cliplow: add to candidates and update probability
       if (parr(idx) > threshold * lb){
         carr(ccnt) = cumsum + ccnt;
-//        pdfnorm += parr(idx);
-//        parr(ccnt) = parr(idx);
         ccnt++;
       }
         // add to index offset

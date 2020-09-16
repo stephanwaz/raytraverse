@@ -1,7 +1,11 @@
 raytraverse (|release|)
 ======================================
 
+.. include:: ../README.rst
+
 .. toctree::
+   :maxdepth: 2
+   :hidden:
 
    scene
    mapper
@@ -18,8 +22,6 @@ raytraverse (|release|)
    skycalc
    translate
    cli
-
-.. include:: ../README.rst
 
 .. toctree::
    :maxdepth: 3

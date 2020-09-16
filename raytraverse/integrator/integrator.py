@@ -19,7 +19,7 @@ from raytraverse.scene import SkyInfo
 
 
 class Integrator(object):
-    """class to generate outputsfrom skyfield sunfield and sky conditions
+    """class to generate outputs from skyfield sunfield and sky conditions
 
     This class provides an interface to:
 
