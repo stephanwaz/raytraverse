@@ -16,7 +16,7 @@ recursive-exclude * *.py[co]
 recursive-exclude * *.so
 
 recursive-include raytraverse *.pl *.cal
-recursive-include docs *.rst conf.py Makefile make.bat *.jpg *.png *.gif *.css *.html
+recursive-include docs *.rst conf.py Makefile make.bat *.jpg *.png *.gif *.css *.html *.txt
 recursive-exclude src .*
 recursive-include src *.c *.h *.cpp *.hh *.txt *.cmake *.sh VERSION
 include *.txt
