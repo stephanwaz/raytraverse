@@ -92,8 +92,8 @@ add_library(raycalls ${RAYCALLS})
 
 
 # if pybind is not installed on system, then clone and add_subdirectory instead
-find_package(pybind11)
-include_directories("${pybind11_INCLUDE_DIRS}")
+add_subdirectory(pybind11)
+include_directories(pybind11/include/pybind11)
 
 pybind11_add_module(craytraverse pyhelpers.cpp)
 
