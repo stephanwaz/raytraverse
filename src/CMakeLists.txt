@@ -3,6 +3,8 @@ set(CMAKE_CXX_STANDARD 14)
 set(CMAKE_VERBOSE_MAKEFILE on)
 project(raytraverse)
 
+set(CMAKE_CXX_FLAGS "-flto")
+
 # modify these based on your system
 include_directories(/usr/local/include)
 link_directories(/usr/local/lib)
@@ -116,11 +118,20 @@ list(TRANSFORM RCFILES PREPEND Radiance/src/rt/)
 
 # rtrace and rcontrib are built seperately to avoid namespace conflicts
 add_library(rtracecfiles STATIC rtinit.c rtraceparts.c ${RTFILES} ${STATIC_VERSION_FILE})
-pybind11_add_module(rtrace_c render.cpp rtrace.cpp)
+add_library(rtrace_c render.cpp rtrace.cpp)
+target_link_libraries(rtrace_c PRIVATE pybind11::module)
+set_target_properties(rtrace_c PROPERTIES PREFIX "${PYTHON_MODULE_PREFIX}"
+        SUFFIX "${PYTHON_MODULE_EXTENSION}")
+
+#pybind11_add_module(rtrace_c render.cpp rtrace.cpp)
 target_link_libraries(rtrace_c PRIVATE raycalls radiance rtrad rtracecfiles)
 
 add_library(rcontribcfiles STATIC rcinit.c rcontribparts.c rc3.c rc2.c ${STATIC_VERSION_FILE})
-pybind11_add_module(rcontrib_c render.cpp rcontrib.cpp)
+add_library(rcontrib_c render.cpp rcontrib.cpp)
+target_link_libraries(rcontrib_c PRIVATE pybind11::module)
+set_target_properties(rcontrib_c PROPERTIES PREFIX "${PYTHON_MODULE_PREFIX}"
+        SUFFIX "${PYTHON_MODULE_EXTENSION}")
+#pybind11_add_module(rcontrib_c render.cpp rcontrib.cpp)
 target_link_libraries(rcontrib_c PRIVATE rcraycalls radiance rtrad rcontribcfiles)
 
 # target for building 3 craytraverse modules
