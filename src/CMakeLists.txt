@@ -62,7 +62,7 @@ else()
 endif()
 
 list(TRANSFORM rtrad_SOURCES PREPEND Radiance/src/common/)
-add_library(rtrad ${rtrad_SOURCES})
+add_library(rtrad STATIC ${rtrad_SOURCES})
 target_link_libraries(rtrad ${LIB_M})
 
 
@@ -78,7 +78,7 @@ set(RADIANCE_RT
         )
 list(TRANSFORM RADIANCE_RT PREPEND Radiance/src/rt/)
 list(TRANSFORM RADIANCE_COMMON PREPEND Radiance/src/common/)
-add_library(radiance ${STATIC_VERSION_FILE} ${RADIANCE_COMMON} ${RADIANCE_RT})
+add_library(radiance STATIC ${STATIC_VERSION_FILE} ${RADIANCE_COMMON} ${RADIANCE_RT})
 
 if(WIN32)
     set(rayp_SOURCES raypwin.c)
@@ -88,7 +88,7 @@ endif()
 
 set(RAYCALLS raycalls.c ${rayp_SOURCES} rayfifo.c)
 list(TRANSFORM RAYCALLS PREPEND Radiance/src/rt/)
-add_library(raycalls ${RAYCALLS})
+add_library(raycalls STATIC ${RAYCALLS})
 
 
 # if pybind is not installed on system, then clone and add_subdirectory instead
@@ -108,18 +108,18 @@ endif()
 # in the radiance source.
 set(RCCALLFILES ${rayp_SOURCES} rayfifo.c)
 list(TRANSFORM RCCALLFILES PREPEND Radiance/src/rt/)
-add_library(rcraycalls rcraycalls.c ${RCCALLFILES})
+add_library(rcraycalls STATIC rcraycalls.c ${RCCALLFILES})
 
 set(RTFILES duphead.c persist.c source.c pmapray.c)
 list(TRANSFORM RTFILES PREPEND Radiance/src/rt/)
 list(TRANSFORM RCFILES PREPEND Radiance/src/rt/)
 
 # rtrace and rcontrib are built seperately to avoid namespace conflicts
-add_library(rtracecfiles rtinit.c rtraceparts.c ${RTFILES} ${STATIC_VERSION_FILE})
+add_library(rtracecfiles STATIC rtinit.c rtraceparts.c ${RTFILES} ${STATIC_VERSION_FILE})
 pybind11_add_module(rtrace_c render.cpp rtrace.cpp)
 target_link_libraries(rtrace_c PRIVATE raycalls radiance rtrad rtracecfiles)
 
-add_library(rcontribcfiles rcinit.c rcontribparts.c rc3.c rc2.c ${STATIC_VERSION_FILE})
+add_library(rcontribcfiles STATIC rcinit.c rcontribparts.c rc3.c rc2.c ${STATIC_VERSION_FILE})
 pybind11_add_module(rcontrib_c render.cpp rcontrib.cpp)
 target_link_libraries(rcontrib_c PRIVATE rcraycalls radiance rtrad rcontribcfiles)
 
