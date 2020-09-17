@@ -1,0 +1,5 @@
+scikit-build
+Sphinx
+sphinx-click
+sphinxcontrib-programoutput
+

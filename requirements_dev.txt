@@ -12,7 +12,6 @@ pytest-runner
 nose
 sphinx-click
 sphinxcontrib-programoutput
-pyreverse
 hdrstats
 pytest-cov
 setuptools

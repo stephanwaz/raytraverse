@@ -10,20 +10,49 @@ raytraverse
         :target: https://raytraverse.readthedocs.io/en/latest/?badge=latest
         :alt: Documentation Status
 
-
-
-
-variance based adaptive sampling for CBDM
-
+raytraverse is a complete workflow for climate based daylight modelling,
+simulation, and evaluation of architectural spaces. Built around a variance
+based adaptive sampling strategy, raytraverse can fully explore the daylight
+conditions throughout a space with efficient use of processing power and
+storage space.
 
 * Free software: Mozilla Public License 2.0 (MPL 2.0)
 * Documentation: https://raytraverse.readthedocs.io.
 
 
-Features
---------
+Installation
+------------
+The easiest way to install raytraverse is with pip::
 
-* TODO
+    pip install clipt
+
+or if you have cloned this repository::
+
+    cd path/to/this/file
+    pip install .
+
+note that on first run one of the required modules will download some auxilary
+data which could take a minute, after that first run start-up is much faster.
+
+Usage
+-----
+raytraverse includes a complete command line interface with all commands
+nested under the `raytraverse` parent command enter::
+
+    raytraverse --help
+
+raytraverse also exposes an object oriented API written primarily in python.
+calls to Radiance are made through Renderer objects that wrap the radiance
+c source code in c++ classes, which are made available in python with pybind11.
+see the src/ directory for more.
+
+For complete documentation of the API and the command line interface either
+use the Documentation link included above or::
+
+    pip install -r requirements_dev.txt
+    make docs
+
+ to generate local documentation.
 
 Licence
 -------
