@@ -1,5 +1,5 @@
 scikit-build
-Sphinx
+Sphinx==3.0.4
 sphinx-click
 sphinxcontrib-programoutput
 clipt
