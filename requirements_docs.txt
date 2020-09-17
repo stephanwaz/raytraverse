@@ -2,4 +2,11 @@ scikit-build
 Sphinx
 sphinx-click
 sphinxcontrib-programoutput
-
+clipt
+skyfield
+matplotlib
+clasp
+numpy
+scipy
+pywavelets
+pybind11
