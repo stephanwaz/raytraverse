@@ -10,7 +10,7 @@
 
 __author__ = """Stephen Wasilewski"""
 __email__ = 'stephanwaz@gmail.com'
-__version__ = '0.1.0'
+__version__ = '0.1.1'
 __all__ = ['io', 'skycalc', 'translate', 'draw', 'metric', 'craytraverse',
            'lightfield', 'integrator', 'mapper', 'sampler', 'scene', 'renderer']
 
