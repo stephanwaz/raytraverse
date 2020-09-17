@@ -107,7 +107,7 @@ setup(
     setup_requires=setup_requirements,
     test_suite='tests',
     tests_require=test_requirements,
-    url='https://gitlab.enterpriselab.ch/lightfields/raytraverse',
+    url='https://github.com/stephanwaz/raytraverse',
     version='0.1.1',
     zip_safe=False,
     )
