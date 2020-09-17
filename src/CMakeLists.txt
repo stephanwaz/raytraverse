@@ -25,6 +25,8 @@ endmacro()
 if(NOT SKBUILD)
     set(STATIC_VERSION_FILE "../StaticVersion.c")
     create_version_file("${STATIC_VERSION_FILE}")
+else()
+    set(STATIC_VERSION_FILE "StaticVersion.c")
 endif(NOT SKBUILD)
 
 
