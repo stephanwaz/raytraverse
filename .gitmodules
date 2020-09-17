@@ -1,0 +1,4 @@
+[submodule "src/Radiance"]
+	path = src/Radiance
+	url = https://github.com/LBNL-ETA/Radiance.git
+	branch = master
