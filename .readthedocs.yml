@@ -24,4 +24,5 @@ python:
     - method: pip
       path: .
 
-    
+submodules:
+  include: all
