@@ -23,8 +23,10 @@ macro(create_version_file version_file)
 endmacro()
 
 # used by setup.py for distribution
-set(STATIC_VERSION_FILE "../StaticVersion.c")
-create_version_file("${STATIC_VERSION_FILE}")
+if(NOT SKBUILD)
+    set(STATIC_VERSION_FILE "../ray/src/rt/Version.c")
+    create_version_file("${STATIC_VERSION_FILE}")
+endif(NOT SKBUILD)
 
 
 set(BUILD_HEADLESS true)
@@ -80,7 +82,9 @@ ENDIF(CMAKE_BUILD_TYPE MATCHES RelWithDebInfo)
 
 # these are for testing buy building as an exectuble, should function the same as rtrace/rcontrib
 # except input is given as last argument instead of stdin
-add_executable(rtracemain main.cpp render.cpp rtrace.cpp)
-target_link_libraries(rtracemain PRIVATE pybind11::embed raycalls radiance rtrad rtracecfiles)
-add_executable(rcontribmain mainrc.cpp render.cpp rcontrib.cpp)
-target_link_libraries(rcontribmain PRIVATE pybind11::embed rcraycalls radiance rtrad rcontribcfiles)
+if(NOT SKBUILD)
+    add_executable(rtracemain main.cpp render.cpp rtrace.cpp)
+    target_link_libraries(rtracemain PRIVATE pybind11::embed raycalls radiance rtrad rtracecfiles)
+    add_executable(rcontribmain mainrc.cpp render.cpp rcontrib.cpp)
+    target_link_libraries(rcontribmain PRIVATE pybind11::embed rcraycalls radiance rtrad rcontribcfiles)
+endif(NOT SKBUILD)

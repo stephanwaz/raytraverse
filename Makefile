@@ -36,6 +36,7 @@ clean-build: ## remove build artifacts
 	rm -fr var/
 	rm -fr dist/
 	rm -fr .eggs/
+	rm -rf _skbuild/
 	# find . -name '*.egg-info' -exec rm -fr {} +
 	find . -name '*.egg' -exec rm -f {} +
 	find . -name '*.o' -exec rm -f {} +

@@ -15,3 +15,7 @@ sphinxcontrib-programoutput
 pyreverse
 hdrstats
 pytest-cov
+setuptools
+scikit-build
+cmake
+ninja

@@ -1,9 +1,25 @@
 include HISTORY.rst
 include LICENSE
 include README.rst
+include Makefile
+include tox.ini
+include *.in
+include *.sh
+include *.toml
+include MANIFEST
 
+
+recursive-exclude tests .*
 recursive-include tests *
 recursive-exclude * __pycache__
 recursive-exclude * *.py[co]
+recursive-exclude * *.so
 
-recursive-include docs *.rst conf.py Makefile make.bat *.jpg *.png *.gif
+recursive-include raytraverse *.pl *.cal
+recursive-include docs *.rst conf.py Makefile make.bat *.jpg *.png *.gif *.css *.html
+recursive-exclude src .*
+recursive-include src *.c *.h *.cpp *.hh *.txt *.cmake *.sh VERSION
+include *.txt
+
+prune src/cmake-*
+prune docs/_build
