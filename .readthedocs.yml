@@ -23,7 +23,7 @@ python:
 
   install:
     - requirements: docs/requirements.txt
-    - method: pip
+    - method: setuptools
       path: .
 
 submodules:
