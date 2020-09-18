@@ -8,8 +8,10 @@ function(pybind11_add_module_libs target_name)
     message(FATAL_ERROR "Can't be both MODULE and SHARED")
   elseif(ARG_SHARED)
     set(lib_type SHARED)
-  else()
+  elseif(ARG_MODULE)
     set(lib_type MODULE)
+  else()
+    set(lib_type STATIC)
   endif()
 
   if(ARG_EXCLUDE_FROM_ALL)
@@ -37,30 +39,30 @@ function(pybind11_add_module_libs target_name)
   # py::module_local).  We force it on everything inside the `pybind11`
   # namespace; also turning it on for a pybind module compilation here avoids
   # potential warnings or issues from having mixed hidden/non-hidden types.
-#  set_target_properties(${target_name} PROPERTIES CXX_VISIBILITY_PRESET "hidden"
-#          CUDA_VISIBILITY_PRESET "hidden")
+  set_target_properties(${target_name} PROPERTIES CXX_VISIBILITY_PRESET "hidden"
+          CUDA_VISIBILITY_PRESET "hidden")
 
-#  if(ARG_NO_EXTRAS)
-#    return()
-#  endif()
+  if(ARG_NO_EXTRAS)
+    return()
+  endif()
 
-#  if(NOT DEFINED CMAKE_INTERPROCEDURAL_OPTIMIZATION)
-#    if(ARG_THIN_LTO)
-#      target_link_libraries(${target_name} PRIVATE pybind11::thin_lto)
-#    else()
-#      target_link_libraries(${target_name} PRIVATE pybind11::lto)
-#    endif()
-#  endif()
+  if(NOT DEFINED CMAKE_INTERPROCEDURAL_OPTIMIZATION)
+    if(ARG_THIN_LTO)
+      target_link_libraries(${target_name} PRIVATE pybind11::thin_lto)
+    else()
+      target_link_libraries(${target_name} PRIVATE pybind11::lto)
+    endif()
+  endif()
 
-#  if(NOT MSVC AND NOT ${CMAKE_BUILD_TYPE} MATCHES Debug|RelWithDebInfo)
-#    pybind11_strip(${target_name})
-#  endif()
-#
-#  if(MSVC)
-#    target_link_libraries(${target_name} PRIVATE pybind11::windows_extras)
-#  endif()
-#
-#  if(ARG_OPT_SIZE)
-#    target_link_libraries(${target_name} PRIVATE pybind11::opt_size)
-#  endif()
+  if(NOT MSVC AND NOT ${CMAKE_BUILD_TYPE} MATCHES Debug|RelWithDebInfo)
+    pybind11_strip(${target_name})
+  endif()
+
+  if(MSVC)
+    target_link_libraries(${target_name} PRIVATE pybind11::windows_extras)
+  endif()
+
+  if(ARG_OPT_SIZE)
+    target_link_libraries(${target_name} PRIVATE pybind11::opt_size)
+  endif()
 endfunction()

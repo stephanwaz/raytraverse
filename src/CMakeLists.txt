@@ -117,10 +117,18 @@ list(TRANSFORM RCFILES PREPEND Radiance/src/rt/)
 
 # rtrace and rcontrib are built seperately to avoid namespace conflicts
 add_library(rtracecfiles STATIC rtinit.c rtraceparts.c ${RTFILES} ${STATIC_VERSION_FILE})
-pybind11_add_module_libs(rtrace_c render.cpp rtrace.cpp LINKLIBS raycalls radiance rtrad rtracecfiles)
+pybind11_add_module_libs(rtrace_c MODULE render.cpp rtrace.cpp LINKLIBS raycalls radiance rtrad rtracecfiles)
+#add_library(rtrace_c render.cpp rtrace.cpp )
+#target_link_libraries(rtrace_c PRIVATE pybind11::module)
+#pybind11_extension(rtrace_c)
+#target_link_libraries(rtrace_c PRIVATE raycalls radiance rtrad rtracecfiles)
 
 add_library(rcontribcfiles STATIC rcinit.c rcontribparts.c rc3.c rc2.c ${STATIC_VERSION_FILE})
-pybind11_add_module_libs(rcontrib_c render.cpp rcontrib.cpp LINKLIBS rcraycalls radiance rtrad rcontribcfiles)
+pybind11_add_module_libs(rcontrib_c MODULE render.cpp rcontrib.cpp LINKLIBS rcraycalls radiance rtrad rcontribcfiles)
+#add_library(rcontrib_c render.cpp rcontrib.cpp)
+#target_link_libraries(rcontrib_c PRIVATE pybind11::module)
+#pybind11_extension(rcontrib_c)
+#target_link_libraries(rcontrib_c PRIVATE rcraycalls radiance rtrad rcontribcfiles)
 
 # target for building 3 craytraverse modules
 ADD_CUSTOM_TARGET(python_all)
@@ -133,12 +141,12 @@ if(SKBUID)
     set_target_properties(rcontrib_c PROPERTIES LIBRARY_OUTPUT_DIRECTORY "${PYTHON_SITE_PACKAGES_DIR}/raytraverse/crenderer")
 else()
     # move submodules to raytraverse
-    IF(CMAKE_BUILD_TYPE MATCHES Release)
+    IF(CMAKE_BUILD_TYPE MATCHES RelWithDebInfo)
         get_filename_component(PARENT_DIR ${CMAKE_CURRENT_SOURCE_DIR} DIRECTORY)
         set_target_properties(craytraverse PROPERTIES LIBRARY_OUTPUT_DIRECTORY "${PARENT_DIR}/raytraverse/")
         set_target_properties(rtrace_c PROPERTIES LIBRARY_OUTPUT_DIRECTORY "${PARENT_DIR}/raytraverse/crenderer/")
         set_target_properties(rcontrib_c PROPERTIES LIBRARY_OUTPUT_DIRECTORY "${PARENT_DIR}/raytraverse/crenderer/")
-    ENDIF(CMAKE_BUILD_TYPE MATCHES Release)
+    ENDIF(CMAKE_BUILD_TYPE MATCHES RelWithDebInfo)
     # these are for testing buy building as an exectuble, should function the same as rtrace/rcontrib
     # except input is given as last argument instead of stdin
     add_executable(rtracemain main.cpp render.cpp rtrace.cpp)
