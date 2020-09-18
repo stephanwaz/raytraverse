@@ -1,13 +1,27 @@
 cmake_minimum_required(VERSION 3.15)
 set(CMAKE_CXX_STANDARD 14)
 set(CMAKE_VERBOSE_MAKEFILE on)
+set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 project(raytraverse)
 
-set(CMAKE_CXX_FLAGS "-flto -fvisibility=hidden")
+set(CMAKE_CXX_FLAGS "-fcommon -flto -fvisibility=hidden")
+set(CMAKE_C_FLAGS "-fcommon -DNOSTEREO")
 
-# modify these based on your system
+	
+
+
+# if pybind is not installed on system, then clone and add_subdirectory instead
+add_subdirectory(pybind11)
+include_directories(pybind11/include/pybind11)
+include(pybind11_add_module_libs.cmake)
+
+pybind11_add_module(craytraverse pyhelpers.cpp)
+
+
+# for mac os
 include_directories(/usr/local/include)
 link_directories(/usr/local/lib)
+
 
 include_directories(Radiance/src/rt Radiance/src/common)
 
@@ -31,11 +45,7 @@ else()
     set(STATIC_VERSION_FILE "StaticVersion.c")
 endif(NOT SKBUILD)
 
-
-set(BUILD_HEADLESS true)
-
-# create libraries needed for compilation from radiance source
-
+# make lists of radiance source files for library creation
 set(rtrad_SOURCES
         addobjnotify.c badarg.c biggerlib.c bmalloc.c bmpfile.c bsdf.c bsdf_m.c
         bsdf_t.c byteswap.c caldefn.c calexpr.c calfunc.c calprnt.c ccolor.c ccyrgb.c
@@ -63,11 +73,6 @@ else()
     set(LIB_M)
 endif()
 
-list(TRANSFORM rtrad_SOURCES PREPEND Radiance/src/common/)
-add_library(rtrad STATIC ${rtrad_SOURCES})
-target_link_libraries(rtrad ${LIB_M})
-
-
 set(RADIANCE_COMMON paths.c platform.h random.h)
 set(RADIANCE_RT
         ambcomp.c ambient.c ambio.c aniso.c ashikhmin.c data.c dielectric.c fprism.c
@@ -78,9 +83,6 @@ set(RADIANCE_RT
         pmcontrib2.c pmutil.c preload.c raytrace.c renderopts.c source.c sphere.c srcobstr.c srcsamp.c
         srcsupp.c t_data.c t_func.c text.c virtuals.c
         )
-list(TRANSFORM RADIANCE_RT PREPEND Radiance/src/rt/)
-list(TRANSFORM RADIANCE_COMMON PREPEND Radiance/src/common/)
-add_library(radiance STATIC ${STATIC_VERSION_FILE} ${RADIANCE_COMMON} ${RADIANCE_RT})
 
 if(WIN32)
     set(rayp_SOURCES raypwin.c)
@@ -89,56 +91,66 @@ else()
 endif()
 
 set(RAYCALLS raycalls.c ${rayp_SOURCES} rayfifo.c)
-list(TRANSFORM RAYCALLS PREPEND Radiance/src/rt/)
-add_library(raycalls STATIC ${RAYCALLS})
 
-
-# if pybind is not installed on system, then clone and add_subdirectory instead
-add_subdirectory(pybind11)
-include_directories(pybind11/include/pybind11)
-include(pybind11_add_module_libs.cmake)
-
-pybind11_add_module(craytraverse pyhelpers.cpp)
-
-if(WIN32)
-    set(rayp_SOURCES raypwin.c)
-else()
-    set(rayp_SOURCES raypcalls.c)
-endif()
 # rcontrib needs a seperate call library from rtrace to avoid redundant declerations
 # in the radiance source.
 set(RCCALLFILES ${rayp_SOURCES} rayfifo.c)
-list(TRANSFORM RCCALLFILES PREPEND Radiance/src/rt/)
-add_library(rcraycalls STATIC rcraycalls.c ${RCCALLFILES})
 
 set(RTFILES duphead.c persist.c source.c pmapray.c)
+
+#prepend source directories
+list(TRANSFORM rtrad_SOURCES PREPEND Radiance/src/common/)
+list(TRANSFORM RADIANCE_RT PREPEND Radiance/src/rt/)
+list(TRANSFORM RADIANCE_COMMON PREPEND Radiance/src/common/)
+list(TRANSFORM RAYCALLS PREPEND Radiance/src/rt/)
+list(TRANSFORM RCCALLFILES PREPEND Radiance/src/rt/)
 list(TRANSFORM RTFILES PREPEND Radiance/src/rt/)
-list(TRANSFORM RCFILES PREPEND Radiance/src/rt/)
+
+
+add_library(rtrad STATIC ${rtrad_SOURCES})
+add_library(radiance STATIC ${STATIC_VERSION_FILE} ${RADIANCE_COMMON} ${RADIANCE_RT})
+add_library(raycalls STATIC ${RAYCALLS})
+add_library(rcraycalls STATIC rcraycalls.c ${RCCALLFILES})
+add_library(rtracecfiles STATIC rtinit.c rtraceparts.c ${RTFILES} ${STATIC_VERSION_FILE})
+add_library(rcontribcfiles STATIC rcinit.c rcontribparts.c rc3.c rc2.c ${STATIC_VERSION_FILE})
+
+set_property(TARGET rtrad PROPERTY C_STANDARD 99)
+set_property(TARGET radiance PROPERTY C_STANDARD 99)
+set_property(TARGET raycalls PROPERTY C_STANDARD 99)
+set_property(TARGET rcraycalls PROPERTY C_STANDARD 99)
+set_property(TARGET rtracecfiles PROPERTY C_STANDARD 99)
+set_property(TARGET rcontribcfiles PROPERTY C_STANDARD 99)
+
+target_link_libraries(rtrad ${LIB_M})
+
+
+
 
 # rtrace and rcontrib are built seperately to avoid namespace conflicts
-add_library(rtracecfiles STATIC rtinit.c rtraceparts.c ${RTFILES} ${STATIC_VERSION_FILE})
-pybind11_add_module_libs(rtrace_c MODULE render.cpp rtrace.cpp LINKLIBS raycalls radiance rtrad rtracecfiles)
-#add_library(rtrace_c render.cpp rtrace.cpp )
-#target_link_libraries(rtrace_c PRIVATE pybind11::module)
-#pybind11_extension(rtrace_c)
-#target_link_libraries(rtrace_c PRIVATE raycalls radiance rtrad rtracecfiles)
 
-add_library(rcontribcfiles STATIC rcinit.c rcontribparts.c rc3.c rc2.c ${STATIC_VERSION_FILE})
-pybind11_add_module_libs(rcontrib_c MODULE render.cpp rcontrib.cpp LINKLIBS rcraycalls radiance rtrad rcontribcfiles)
-#add_library(rcontrib_c render.cpp rcontrib.cpp)
-#target_link_libraries(rcontrib_c PRIVATE pybind11::module)
-#pybind11_extension(rcontrib_c)
-#target_link_libraries(rcontrib_c PRIVATE rcraycalls radiance rtrad rcontribcfiles)
+# pybind11_add_module_libs(rtrace_c render.cpp rtrace.cpp LINKLIBS raycalls radiance rtrad rtracecfiles)
+add_library(rtrace_c MODULE render.cpp rtrace.cpp )
+target_link_libraries(rtrace_c PRIVATE pybind11::module)
+pybind11_extension(rtrace_c)
+target_link_libraries(rtrace_c PRIVATE raycalls radiance rtrad rtracecfiles)
+
+
+# pybind11_add_module_libs(rcontrib_c render.cpp rcontrib.cpp LINKLIBS rcraycalls radiance rtrad rcontribcfiles)
+add_library(rcontrib_c MODULE render.cpp rcontrib.cpp)
+target_link_libraries(rcontrib_c PRIVATE pybind11::module)
+pybind11_extension(rcontrib_c)
+target_link_libraries(rcontrib_c PRIVATE rcraycalls radiance rtrad rcontribcfiles)
+
 
 # target for building 3 craytraverse modules
 ADD_CUSTOM_TARGET(python_all)
 ADD_DEPENDENCIES(python_all rtrace_c rcontrib_c craytraverse)
 
 
-if(SKBUID)
-    set_target_properties(craytraverse PROPERTIES LIBRARY_OUTPUT_DIRECTORY "${PYTHON_SITE_PACKAGES_DIR}/raytraverse/")
-    set_target_properties(rtrace_c PROPERTIES LIBRARY_OUTPUT_DIRECTORY "${PYTHON_SITE_PACKAGES_DIR}/raytraverse/crenderer")
-    set_target_properties(rcontrib_c PROPERTIES LIBRARY_OUTPUT_DIRECTORY "${PYTHON_SITE_PACKAGES_DIR}/raytraverse/crenderer")
+if(SKBUILD)
+    set_target_properties(craytraverse PROPERTIES LIBRARY_OUTPUT_DIRECTORY "raytraverse/")
+    set_target_properties(rtrace_c PROPERTIES LIBRARY_OUTPUT_DIRECTORY "raytraverse/crenderer")
+    set_target_properties(rcontrib_c PROPERTIES LIBRARY_OUTPUT_DIRECTORY "raytraverse/crenderer")
 else()
     # move submodules to raytraverse
     IF(CMAKE_BUILD_TYPE MATCHES RelWithDebInfo)
