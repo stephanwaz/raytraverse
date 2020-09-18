@@ -122,8 +122,8 @@ set_property(TARGET rtracecfiles PROPERTY C_STANDARD 99)
 set_property(TARGET rcontribcfiles PROPERTY C_STANDARD 99)
 
 target_link_libraries(rtrad ${LIB_M})
-
-
+target_link_libraries(rcontribcfiles rcraycalls radiance rtrad)
+target_link_libraries(rtracecfiles raycalls radiance rtrad)
 
 
 # rtrace and rcontrib are built seperately to avoid namespace conflicts
@@ -132,14 +132,14 @@ target_link_libraries(rtrad ${LIB_M})
 add_library(rtrace_c MODULE render.cpp rtrace.cpp )
 target_link_libraries(rtrace_c PRIVATE pybind11::module)
 pybind11_extension(rtrace_c)
-target_link_libraries(rtrace_c PRIVATE raycalls radiance rtrad rtracecfiles)
+target_link_libraries(rtrace_c PRIVATE rtracecfiles)
 
 
 # pybind11_add_module_libs(rcontrib_c render.cpp rcontrib.cpp LINKLIBS rcraycalls radiance rtrad rcontribcfiles)
 add_library(rcontrib_c MODULE render.cpp rcontrib.cpp)
 target_link_libraries(rcontrib_c PRIVATE pybind11::module)
 pybind11_extension(rcontrib_c)
-target_link_libraries(rcontrib_c PRIVATE rcraycalls radiance rtrad rcontribcfiles)
+target_link_libraries(rcontrib_c PRIVATE rcontribcfiles)
 
 
 # target for building 3 craytraverse modules
