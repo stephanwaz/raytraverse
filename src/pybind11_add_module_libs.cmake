@@ -20,7 +20,8 @@ function(pybind11_add_module_libs target_name)
 
   add_library(${target_name} ${lib_type} ${exclude_from_all} ${ARG_UNPARSED_ARGUMENTS})
 
-  target_link_libraries(${target_name} PRIVATE pybind11::module ${ARG_LINKLIBS})
+  target_link_libraries(${target_name} PRIVATE pybind11::module)
+  target_link_libraries(${target_name} PRIVATE ${ARG_LINKLIBS})
 
   if(ARG_SYSTEM)
     message(
@@ -39,17 +40,17 @@ function(pybind11_add_module_libs target_name)
 #  set_target_properties(${target_name} PROPERTIES CXX_VISIBILITY_PRESET "hidden"
 #          CUDA_VISIBILITY_PRESET "hidden")
 
-  if(ARG_NO_EXTRAS)
-    return()
-  endif()
+#  if(ARG_NO_EXTRAS)
+#    return()
+#  endif()
 
-  if(NOT DEFINED CMAKE_INTERPROCEDURAL_OPTIMIZATION)
-    if(ARG_THIN_LTO)
-      target_link_libraries(${target_name} PRIVATE pybind11::thin_lto)
-    else()
-      target_link_libraries(${target_name} PRIVATE pybind11::lto)
-    endif()
-  endif()
+#  if(NOT DEFINED CMAKE_INTERPROCEDURAL_OPTIMIZATION)
+#    if(ARG_THIN_LTO)
+#      target_link_libraries(${target_name} PRIVATE pybind11::thin_lto)
+#    else()
+#      target_link_libraries(${target_name} PRIVATE pybind11::lto)
+#    endif()
+#  endif()
 
 #  if(NOT MSVC AND NOT ${CMAKE_BUILD_TYPE} MATCHES Debug|RelWithDebInfo)
 #    pybind11_strip(${target_name})
