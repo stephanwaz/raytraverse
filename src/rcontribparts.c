@@ -121,6 +121,18 @@ rcinit2(char *fname)
   return NULL;
 }
 
+/* Quit program */
+void
+quitrc(
+        int  code
+)
+{
+  if (nchild > 0)		/* close children if any */
+    end_children(code != 0);
+  else if (nchild < 0)
+    _exit(code);	/* avoid flush() in child */
+  exit(code);
+}
 
 
 void rcontrib_call(char *fname){
@@ -180,7 +192,7 @@ void rcontrib_call(char *fname){
   }
   if (raysleft)
     error(USER, "unexpected EOF on input");
-  quit(0);
+  quitrc(0);
 }
 
 void rcontrib_clear(){

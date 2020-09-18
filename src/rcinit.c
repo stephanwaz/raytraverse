@@ -135,6 +135,36 @@ setformat(const char *fmt)
   error(USER, errmsg);
 }
 
+void
+eputsrc(				/* put string to stderr */
+        char  *s
+)
+{
+  static int  midline = 0;
+
+  if (!*s)
+    return;
+  if (!midline++) {
+    fputs(progname, stderr);
+    fputs(": ", stderr);
+  }
+  fputs(s, stderr);
+  if (s[strlen(s)-1] == '\n') {
+    fflush(stderr);
+    midline = 0;
+  }
+}
+
+void
+wputsrc(				/* warning output function */
+        char	*s
+)
+{
+  int  lasterrno = errno;
+  eputsrc(s);
+  errno = lasterrno;
+}
+
 static void
 onsig(				/* fatal signal */
         int  signo
@@ -149,9 +179,9 @@ onsig(				/* fatal signal */
   alarm(15);			/* allow 15 seconds to clean up */
   signal(SIGALRM, SIG_DFL);	/* make certain we do die */
 #endif
-  eputs("signal - ");
-  eputs(sigerr[signo]);
-  eputs("\n");
+  eputsrc("signal - ");
+  eputsrc(sigerr[signo]);
+  eputsrc("\n");
   quit(3);
 }
 
@@ -269,7 +299,7 @@ rcontrib_init(int argc, char *argv[])
       case 'w':			/* warnings */
         rval = (erract[WARNING].pf != NULL);
         check_bool(2,rval);
-        if (rval) erract[WARNING].pf = wputs;
+        if (rval) erract[WARNING].pf = wputsrc;
         else erract[WARNING].pf = NULL;
         break;
       case 'e':			/* expression */
@@ -413,37 +443,6 @@ rcontrib_loadscene(char* ocn) {
   setambient();      /* initialize ambient calculation */
 }
 
-
-void
-wputs(				/* warning output function */
-        char	*s
-)
-{
-  int  lasterrno = errno;
-  eputs(s);
-  errno = lasterrno;
-}
-
-
-void
-eputs(				/* put string to stderr */
-        char  *s
-)
-{
-  static int  midline = 0;
-
-  if (!*s)
-    return;
-  if (!midline++) {
-    fputs(progname, stderr);
-    fputs(": ", stderr);
-  }
-  fputs(s, stderr);
-  if (s[strlen(s)-1] == '\n') {
-    fflush(stderr);
-    midline = 0;
-  }
-}
 
 #ifdef __cplusplus
 }
