@@ -53,10 +53,6 @@
 """The setup script."""
 from setuptools import find_packages
 from skbuild import setup
-# from setuptools.command.build_ext import build_ext
-# from distutils import ccompiler
-# import sys
-# import setuptools
 
 with open('README.rst') as readme_file:
     readme = readme_file.read()
@@ -74,9 +70,13 @@ test_requirements = ['pytest', 'hdrstats', 'pytest-cov']
 # TODO: add necessary radiance .cal files (and make sure source files are
 # included in in dist before creating pypi.
 data_files = []
-package_data = {}
+package_data = {"raytraverse": ["*.pl", "*.bsp", "cal/*.cal"]}
 
-setup(
+exclude_package_data = {"": ['*.rst', 'LICENSE', 'MAkefile', '*.ini', '*.in',
+                             '*.txt', '*.sh', '*.toml', 'MANIFEST', 'tests',
+                             'docs', 'src' ]}
+
+setup_dict = dict(
     author="Stephen Wasilewski",
     author_email='stephanwaz@gmail.com',
     classifiers=[
@@ -85,20 +85,20 @@ setup(
         'Natural Language :: English',
         'Programming Language :: Python :: 3.6',
         'Programming Language :: Python :: 3.7',
-    ],
+        ],
     description="variance based adaptive sampling for CBDM",
     python_requires=">=3.6",
     entry_points={
         'console_scripts': [
             'raytraverse=raytraverse.cli:main',
             'genskyvec_sc=raytraverse.gsv:main'
-        ],
-    },
+            ],
+        },
     cmake_minimum_required_version="3.15",
     install_requires=requirements,
     license="Mozilla Public License 2.0 (MPL 2.0)",
     long_description=readme + '\n\n' + history,
-    include_package_data=True,
+    include_package_data=False,
     keywords='raytraverse',
     name='raytraverse',
     packages=find_packages(),
@@ -111,3 +111,5 @@ setup(
     version='0.1.1',
     zip_safe=False,
     )
+
+setup(**setup_dict)
