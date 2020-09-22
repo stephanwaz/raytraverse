@@ -4,18 +4,9 @@ set(CMAKE_VERBOSE_MAKEFILE on)
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 project(raytraverse)
 
-set(CMAKE_CXX_FLAGS "-fcommon -flto -fvisibility=hidden")
-set(CMAKE_C_FLAGS "-fcommon -nostdlib -DNOSTEREO")
-
-
-
-
-# if pybind is not installed on system, then clone and add_subdirectory instead
 add_subdirectory(pybind11)
 include_directories(pybind11/include/pybind11)
 include(pybind11_add_module_libs.cmake)
-
-pybind11_add_module(craytraverse pyhelpers.cpp)
 
 
 # for mac os
@@ -31,18 +22,18 @@ macro(create_version_file version_file)
             COMMAND "${CMAKE_COMMAND}"
             -DRADIANCE_VERSION="${PROJECT_VERSION_MAJOR}.${PROJECT_VERSION_MINOR}.${PROJECT_VERSION_TWEAK}"
             -DVERSION_OUT_FILE="${version_file}"
-            -DVERSION_IN_FILE="${radiance_SOURCE_DIR}/Radiance/src/rt/VERSION"
-            -DVERSION_GOLD="${radiance_SOURCE_DIR}/Radiance/src/rt/Version.c"
-            -P "${radiance_SOURCE_DIR}/Radiance/src/rt/create_version.cmake"
+            -DVERSION_IN_FILE="${CMAKE_CURRENT_SOURCE_DIR}/Radiance/src/rt/VERSION"
+            -DVERSION_GOLD="${CMAKE_CURRENT_SOURCE_DIR}/Radiance/src/rt/Version.c"
+            -P "${CMAKE_CURRENT_SOURCE_DIR}/Radiance/src/rt/create_version.cmake"
     )
 endmacro()
 
 # used by setup.py for distribution
 if(NOT SKBUILD)
-    set(STATIC_VERSION_FILE "../StaticVersion.c")
+    set(STATIC_VERSION_FILE "${CMAKE_CURRENT_SOURCE_DIR}/StaticVersion.c")
     create_version_file("${STATIC_VERSION_FILE}")
 else()
-    set(STATIC_VERSION_FILE "StaticVersion.c")
+    set(STATIC_VERSION_FILE "${CMAKE_CURRENT_SOURCE_DIR}/StaticVersion.c")
 endif(NOT SKBUILD)
 
 # make lists of radiance source files for library creation
@@ -91,7 +82,6 @@ else()
 endif()
 
 set(RAYCALLS raycalls.c ${rayp_SOURCES} rayfifo.c)
-
 # rcontrib needs a seperate call library from rtrace to avoid redundant declerations
 # in the radiance source.
 set(RCCALLFILES ${rayp_SOURCES} rayfifo.c)
@@ -105,7 +95,7 @@ list(TRANSFORM RADIANCE_COMMON PREPEND Radiance/src/common/)
 list(TRANSFORM RAYCALLS PREPEND Radiance/src/rt/)
 list(TRANSFORM RCCALLFILES PREPEND Radiance/src/rt/)
 list(TRANSFORM RTFILES PREPEND Radiance/src/rt/)
-
+#add additional modified sources from parent directory
 list(APPEND rtrad_SOURCES calcompcal.c)
 list(APPEND RADIANCE_RT func.c)
 
@@ -119,24 +109,11 @@ add_library(rcontribcfiles STATIC rcinit.c rcontribparts.c rc3.c rc2.c ${STATIC_
 
 
 target_link_libraries(rtrad ${LIB_M})
-target_link_libraries(rcontribcfiles rcraycalls radiance rtrad)
-target_link_libraries(rtracecfiles raycalls radiance rtrad)
-
 
 # rtrace and rcontrib are built seperately to avoid namespace conflicts
-
-# pybind11_add_module_libs(rtrace_c render.cpp rtrace.cpp LINKLIBS raycalls radiance rtrad rtracecfiles)
-add_library(rtrace_c MODULE render.cpp rtrace.cpp )
-target_link_libraries(rtrace_c PRIVATE pybind11::module)
-pybind11_extension(rtrace_c)
-target_link_libraries(rtrace_c PRIVATE rtracecfiles)
-
-
-# pybind11_add_module_libs(rcontrib_c render.cpp rcontrib.cpp LINKLIBS rcraycalls radiance rtrad rcontribcfiles)
-add_library(rcontrib_c MODULE render.cpp rcontrib.cpp)
-target_link_libraries(rcontrib_c PRIVATE pybind11::module)
-pybind11_extension(rcontrib_c)
-target_link_libraries(rcontrib_c PRIVATE rcontribcfiles)
+pybind11_add_module(craytraverse pyhelpers.cpp)
+pybind11_add_module_libs(rtrace_c render.cpp rtrace.cpp LINKLIBS raycalls radiance rtrad rtracecfiles)
+pybind11_add_module_libs(rcontrib_c render.cpp rcontrib.cpp LINKLIBS rcraycalls radiance rtrad rcontribcfiles)
 
 
 # target for building 3 craytraverse modules
@@ -150,12 +127,10 @@ if(SKBUILD)
     set_target_properties(rcontrib_c PROPERTIES LIBRARY_OUTPUT_DIRECTORY "raytraverse/crenderer")
 else()
     # move submodules to raytraverse
-    IF(CMAKE_BUILD_TYPE MATCHES RelWithDebInfo)
-        get_filename_component(PARENT_DIR ${CMAKE_CURRENT_SOURCE_DIR} DIRECTORY)
-        set_target_properties(craytraverse PROPERTIES LIBRARY_OUTPUT_DIRECTORY "${PARENT_DIR}/raytraverse/")
-        set_target_properties(rtrace_c PROPERTIES LIBRARY_OUTPUT_DIRECTORY "${PARENT_DIR}/raytraverse/crenderer/")
-        set_target_properties(rcontrib_c PROPERTIES LIBRARY_OUTPUT_DIRECTORY "${PARENT_DIR}/raytraverse/crenderer/")
-    ENDIF(CMAKE_BUILD_TYPE MATCHES RelWithDebInfo)
+    get_filename_component(PARENT_DIR ${CMAKE_CURRENT_SOURCE_DIR} DIRECTORY)
+    set_target_properties(craytraverse PROPERTIES LIBRARY_OUTPUT_DIRECTORY "${PARENT_DIR}/raytraverse/")
+    set_target_properties(rtrace_c PROPERTIES LIBRARY_OUTPUT_DIRECTORY "${PARENT_DIR}/raytraverse/crenderer/")
+    set_target_properties(rcontrib_c PROPERTIES LIBRARY_OUTPUT_DIRECTORY "${PARENT_DIR}/raytraverse/crenderer/")
     # these are for testing buy building as an exectuble, should function the same as rtrace/rcontrib
     # except input is given as last argument instead of stdin
     add_executable(rtracemain main.cpp render.cpp rtrace.cpp)

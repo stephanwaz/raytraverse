@@ -28,7 +28,7 @@ extern "C" {
  */
 
 #include "copyright.h"
-
+#include "calcompcal.h"
 #include <signal.h>
 #include <time.h>
 #include <rcontrib.h>
@@ -239,7 +239,7 @@ rcontrib_init(int argc, char *argv[])
 #endif
   /* initialize calcomp routines early */
   initfunc();
-  setcontext(RCCONTEXT);
+  setcontextcal(RCCONTEXT);
 
   /* initialize switch variables again in case of reinit */
   header = 1;			/* output header? */
