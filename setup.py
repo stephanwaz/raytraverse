@@ -76,6 +76,8 @@ exclude_package_data = {"": ['*.rst', 'LICENSE', 'MAkefile', '*.ini', '*.in',
                              '*.txt', '*.sh', '*.toml', 'MANIFEST', 'tests',
                              'docs', 'src' ]}
 
+
+
 setup_dict = dict(
     author="Stephen Wasilewski",
     author_email='stephanwaz@gmail.com',

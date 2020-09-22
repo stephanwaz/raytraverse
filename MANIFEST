@@ -88,6 +88,9 @@ raytraverse/scene/sunsetterloc.py
 raytraverse/scene/sunsetterpositions.py
 src/CMakeLists.txt
 src/StaticVersion.c
+src/calcompcal.c
+src/calcompcal.h
+src/func.c
 src/main.cpp
 src/mainrc.cpp
 src/pybind11_add_module_libs.cmake

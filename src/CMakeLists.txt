@@ -1,17 +1,21 @@
 cmake_minimum_required(VERSION 3.15)
 set(CMAKE_CXX_STANDARD 14)
-set(CMAKE_VERBOSE_MAKEFILE on)
+#set(CMAKE_VERBOSE_MAKEFILE on)
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 project(raytraverse)
+
+set(PYBIND11_PYTHON_VERSION 3.6)
+
+# for mac os
+if("${CMAKE_SYSTEM_NAME}" STREQUAL "Darwin")
+    set(MACOSX_DEPLOYMENT_TARGET 10.9)
+    include_directories(/usr/local/include)
+    link_directories(/usr/local/lib)
+endif()
 
 add_subdirectory(pybind11)
 include_directories(pybind11/include/pybind11)
 include(pybind11_add_module_libs.cmake)
-
-
-# for mac os
-include_directories(/usr/local/include)
-link_directories(/usr/local/lib)
 
 
 include_directories(Radiance/src/rt Radiance/src/common)
@@ -28,13 +32,17 @@ macro(create_version_file version_file)
     )
 endmacro()
 
+
+set(STATIC_VERSION_FILE "${CMAKE_CURRENT_SOURCE_DIR}/StaticVersion.c")
+create_version_file("${STATIC_VERSION_FILE}")
+
 # used by setup.py for distribution
-if(NOT SKBUILD)
-    set(STATIC_VERSION_FILE "${CMAKE_CURRENT_SOURCE_DIR}/StaticVersion.c")
-    create_version_file("${STATIC_VERSION_FILE}")
-else()
-    set(STATIC_VERSION_FILE "${CMAKE_CURRENT_SOURCE_DIR}/StaticVersion.c")
-endif(NOT SKBUILD)
+#if(NOT SKBUILD)
+#    set(STATIC_VERSION_FILE "${CMAKE_CURRENT_SOURCE_DIR}/StaticVersion.c")
+#    create_version_file("${STATIC_VERSION_FILE}")
+#else()
+#    set(STATIC_VERSION_FILE "${CMAKE_CURRENT_SOURCE_DIR}/StaticVersion.c")
+#endif(NOT SKBUILD)
 
 # make lists of radiance source files for library creation
 set(rtrad_SOURCES
