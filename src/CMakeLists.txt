@@ -5,9 +5,9 @@ set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 project(raytraverse)
 
 set(CMAKE_CXX_FLAGS "-fcommon -flto -fvisibility=hidden")
-set(CMAKE_C_FLAGS "-fcommon -DNOSTEREO")
+set(CMAKE_C_FLAGS "-fcommon -nostdlib -DNOSTEREO")
 
-	
+
 
 
 # if pybind is not installed on system, then clone and add_subdirectory instead
@@ -48,7 +48,7 @@ endif(NOT SKBUILD)
 # make lists of radiance source files for library creation
 set(rtrad_SOURCES
         addobjnotify.c badarg.c biggerlib.c bmalloc.c bmpfile.c bsdf.c bsdf_m.c
-        bsdf_t.c byteswap.c caldefn.c calexpr.c calfunc.c calprnt.c ccolor.c ccyrgb.c
+        bsdf_t.c byteswap.c calexpr.c calfunc.c calprnt.c ccolor.c ccyrgb.c
         chanvalue.c clip.c color.c colrops.c cone.c cvtcmd.c depthcodec.c dircode.c disk2square.c
         ealloc.c eputs.c erf.c error.c expandarg.c ezxml.c face.c falsecolor.c fdate.c fgetline.c
         fgetval.c fgetword.c fixargv0.c fltdepth.c font.c fputword.c free_os.c fropen.c fvect.c
@@ -76,7 +76,7 @@ endif()
 set(RADIANCE_COMMON paths.c platform.h random.h)
 set(RADIANCE_RT
         ambcomp.c ambient.c ambio.c aniso.c ashikhmin.c data.c dielectric.c fprism.c
-        freeobjmem.c func.c glass.c initotypes.c m_alias.c m_brdf.c m_bsdf.c m_clip.c
+        freeobjmem.c glass.c initotypes.c m_alias.c m_brdf.c m_bsdf.c m_clip.c
         m_direct.c m_mirror.c m_mist.c mx_data.c mx_func.c noise3.c normal.c o_cone.c o_face.c
         o_instance.c o_mesh.c p_data.c p_func.c pmap.c pmapamb.c pmapbias.c pmapcontrib.c pmapdata.c
         pmapdiag.c pmapio.c pmapmat.c pmapopt.c pmapparm.c pmaprand.c pmapray.c pmapsrc.c pmaptype.c
@@ -106,6 +106,9 @@ list(TRANSFORM RAYCALLS PREPEND Radiance/src/rt/)
 list(TRANSFORM RCCALLFILES PREPEND Radiance/src/rt/)
 list(TRANSFORM RTFILES PREPEND Radiance/src/rt/)
 
+list(APPEND rtrad_SOURCES calcompcal.c)
+list(APPEND RADIANCE_RT func.c)
+
 
 add_library(rtrad STATIC ${rtrad_SOURCES})
 add_library(radiance STATIC ${STATIC_VERSION_FILE} ${RADIANCE_COMMON} ${RADIANCE_RT})
@@ -114,12 +117,6 @@ add_library(rcraycalls STATIC rcraycalls.c ${RCCALLFILES})
 add_library(rtracecfiles STATIC rtinit.c rtraceparts.c ${RTFILES} ${STATIC_VERSION_FILE})
 add_library(rcontribcfiles STATIC rcinit.c rcontribparts.c rc3.c rc2.c ${STATIC_VERSION_FILE})
 
-set_property(TARGET rtrad PROPERTY C_STANDARD 99)
-set_property(TARGET radiance PROPERTY C_STANDARD 99)
-set_property(TARGET raycalls PROPERTY C_STANDARD 99)
-set_property(TARGET rcraycalls PROPERTY C_STANDARD 99)
-set_property(TARGET rtracecfiles PROPERTY C_STANDARD 99)
-set_property(TARGET rcontribcfiles PROPERTY C_STANDARD 99)
 
 target_link_libraries(rtrad ${LIB_M})
 target_link_libraries(rcontribcfiles rcraycalls radiance rtrad)
