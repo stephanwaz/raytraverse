@@ -2,7 +2,8 @@
 .idea/
 classes.pdf
 packages.pdf
-tinstall/
+venv/
+
 
 
 *.bsp

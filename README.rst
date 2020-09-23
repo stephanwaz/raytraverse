@@ -69,10 +69,10 @@ the repo also depends on two submodules, to initialize run the following::
 	git clone https://github.com/stephanwaz/raytraverse
 	cd raytraverse
 	git submodule init
-	git submodule update
+	git submodule update --remote
 	git -C src/Radiance config core.sparseCheckout true 
 	cp src/sparse-checkout .git/modules/src/Radiance/info/
-	git submodule update --force src/Radiance
+	git submodule update --remote --force src/Radiance
 	
 after a "git pull" make sure you also run::
 

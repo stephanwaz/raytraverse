@@ -1,6 +1,9 @@
 raytraverse.craytraverse
 ==========================================================
 
+Warning! Documentation is only built for craytraverse when raytraverse
+is compiled and installed on a local system.
+
 .. automodule:: raytraverse.craytraverse
     :members:
     :undoc-members:
