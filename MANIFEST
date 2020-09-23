@@ -99,6 +99,7 @@ src/render.cpp
 src/render.hh
 src/rtrace.cpp
 src/rtrace.hh
+src/sparse-checkout
 src/Radiance/License.txt
 src/Radiance/src/common/BSDFfiles.txt
 src/Radiance/src/common/CMakeLists.txt
