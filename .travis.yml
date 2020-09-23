@@ -10,15 +10,15 @@ script:
 - python3 -m cibuildwheel --output-dir wheelhouse
 env:
   global:
-  - CIBW_BUILD=cp36-*
+  - CIBW_BUILD=cp36-* cp37-* cp38-*
 deploy:
   provider: releases
-  draft: 'true'
+  draft: true
   api_key:
-    secure: fGRcjqkDdyDkF/larWYHJIkyHOt/mvN9e3/y0NLwN3Zfprx4ik9jI+QRJfs4OVsncQ9nCj/rbSvkVT5Nms/Izors9BKn4hHr+ksv+69Cbljy4Lr9SydTcbf/lVSefTnoze/n2E88uO85DYqzZNVoz5WNPWLXS68/Ag1ajZUergDhfR/T0AZoODGLZC4O3q4E+qrl8jPkZMyILSd+IM4NsfsUQiNQ/m5AsEYzYoGFsQFIYaux2Cx/cbgvEaqbhBtE1DuUSTLP5ayZ5hO10S4kmOG0RINrdEFTnpATnTZKtZCnKn6om3GUGKcjdaVNjsLpV72dSqlio/9jes5NVt2N8pUsxW5zFAe7WOeLPxNZXc7qrx7pvSIUgmZnZD6HtM3lEAhAzBBc5ZOgulhdS7OlsNq2P7vF+FYJGzFgdaUnVwPkU26KlOdBW66sm4L1fmRyQCBJJtXmeh5qd3NGxIZN0bGb+unLcxh1dZithfgj9vOTP1ZiTc3VHadNhNlrpwxoE6hxtInfhfQpJBQxNFAT76bQnOYFoObpKrscQv3dRCXMj1prn7pnOpzCLDQszUaZaZ/5fyk9fCICdxlQwEOp/RLowJ5ZYZguwomGmjJr6rer9wAq1H/+HEytI+esJIvAzDywJnKLcv+60knVVzezQZiXmhUHySX9sC3OVWEtULY=
+    secure: CIeKvPygslPjUrGHK49nVLPEVQfdsU3ayLW2XXstrRbdCpEV43MeWneLXNuSPKc147mNg9GJ421W6UyAJ1Y2REgaSFuH20NUxhv4QD0+3YmJVrOxk3xnhBj8X6ynMNgJP4oQ1PPLC52deyzMEwrFPJmMFJEH+mwTZe5d15twqF5X2FCUaX+m/8NuSQVqHpzTM8tAdRW6couk5aP3/8KD9zEbY90MEGpOvMiU+VXugKQWU5ZqoMM54n3Jx6W1tlVBhXttWOstq4bo+V/2NvDLjwhc/TGwMQ1k5vKX+GZZB833Q5GMMlKUxdFKOBq+6Zu4NNLIunEuLb4fz0Lzyx6JDMy6RAYRBLMeEPVFkGXIykj0LuEF8PKFzlnI1CTwMVHj5Vx75EzLHMSI4B4OBYGMedPNUT3GYMnMpwSA6XvtI+ZgKThvsbSU+ZYH1DQ8jbblRS38zdzfk10x+bEn84hyuf3hbPAAMPLM5FqgebYDKaoHk6r4vBmmvGodtUbt8uCOQ2frlkU7odYKETdaMxWxudoeb3+YWYoaLq7O/1+s0x9oLRzifleyZBKm055bExDPb5JJCPHjT2rjIs7dih7OI55zPpvBSN2ylYLpKeDrrb9MfZgE4owCLOVs3fNqi0eWqPOzDwhCO4LGR7Lxgg7tVP60zc9okyeQMenGPzj8jL0=
   file_glob: true
-  file: 'wheelhouse/*.whl'
+  file: wheelhouse/*.whl
   on:
     repo: stephanwaz/raytraverse
     branch: release
-  skip_cleanup: 'true'
+  skip_cleanup: true
