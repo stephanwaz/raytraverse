@@ -1,24 +1,24 @@
-# Config file for automatic build at travis-ci.org
-
 language: python
-
 jobs:
   include:
-    # perform a linux build
-    - services: docker
-    # and a mac build
-    - os: osx
-      language: shell
-
-
+  - services: docker
+  - os: osx
+    language: shell
 install:
-  - python3 -m pip install cibuildwheel==1.6.1
-
+- python3 -m pip install cibuildwheel==1.6.1
 script:
-  # build the wheels, put them into './wheelhouse'
-  - python3 -m cibuildwheel --output-dir wheelhouse
-
+- python3 -m cibuildwheel --output-dir wheelhouse
 env:
   global:
-    - CIBW_BUILD=cp36-*
-
+  - CIBW_BUILD=cp36-*
+deploy:
+  provider: releases
+  draft: true
+  api_key:
+    secure: fGRcjqkDdyDkF/larWYHJIkyHOt/mvN9e3/y0NLwN3Zfprx4ik9jI+QRJfs4OVsncQ9nCj/rbSvkVT5Nms/Izors9BKn4hHr+ksv+69Cbljy4Lr9SydTcbf/lVSefTnoze/n2E88uO85DYqzZNVoz5WNPWLXS68/Ag1ajZUergDhfR/T0AZoODGLZC4O3q4E+qrl8jPkZMyILSd+IM4NsfsUQiNQ/m5AsEYzYoGFsQFIYaux2Cx/cbgvEaqbhBtE1DuUSTLP5ayZ5hO10S4kmOG0RINrdEFTnpATnTZKtZCnKn6om3GUGKcjdaVNjsLpV72dSqlio/9jes5NVt2N8pUsxW5zFAe7WOeLPxNZXc7qrx7pvSIUgmZnZD6HtM3lEAhAzBBc5ZOgulhdS7OlsNq2P7vF+FYJGzFgdaUnVwPkU26KlOdBW66sm4L1fmRyQCBJJtXmeh5qd3NGxIZN0bGb+unLcxh1dZithfgj9vOTP1ZiTc3VHadNhNlrpwxoE6hxtInfhfQpJBQxNFAT76bQnOYFoObpKrscQv3dRCXMj1prn7pnOpzCLDQszUaZaZ/5fyk9fCICdxlQwEOp/RLowJ5ZYZguwomGmjJr6rer9wAq1H/+HEytI+esJIvAzDywJnKLcv+60knVVzezQZiXmhUHySX9sC3OVWEtULY=
+  file_glob: true
+  file: 'wheelhouse/*'
+  on:
+    repo: stephanwaz/raytraverse
+    branch: release
+  skip_cleanup: 'true'
