@@ -24,7 +24,7 @@ Installation
 ------------
 The easiest way to install raytraverse is with pip::
 
-    pip install clipt
+    pip install raytraverse
 
 or if you have cloned this repository::
 
@@ -52,7 +52,33 @@ use the Documentation link included above or::
     pip install -r requirements_dev.txt
     make docs
 
- to generate local documentation.
+to generate local documentation.
+
+Git Stuff
+---------
+this project is hosted in too places, a private repo (master branch) at:
+
+	https://gitlab.enterpriselab.ch/lightfields/raytraverse
+
+and a public repo (release branch) at:
+
+	https://github.com/stephanwaz/raytraverse
+
+the repo also depends on two submodules, to initialize run the following::
+
+	git clone https://github.com/stephanwaz/raytraverse
+	cd raytraverse
+	git submodule init
+	git submodule update
+	git -C src/Radiance config core.sparseCheckout true 
+	cp src/sparse-checkout .git/modules/src/Radiance/info/
+	git submodule update --force src/Radiance
+	
+after a "git pull" make sure you also run::
+
+	git submodule update
+	
+to track with the latest commit used by raytraverse.
 
 Licence
 -------
