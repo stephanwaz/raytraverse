@@ -9,7 +9,21 @@
 """wavelet and associated probability functions."""
 import numpy as np
 import pywt
-from raytraverse import craytraverse
+
+try:
+    from raytraverse.craytraverse import from_pdf as _from_pdf
+except (ModuleNotFoundError, ImportError):
+    def _from_pdf(pdf, candidates, bidx, threshold, lb=0.5, ub=4.0):
+        idx = np.arange(pdf.shape[0])
+        cliphigh = pdf > threshold*ub
+        cliplow = np.logical_and(np.logical_not(cliphigh), pdf > threshold*lb)
+        clipcnt = np.logical_and(np.logical_not(cliphigh), pdf > threshold)
+        bcnt = np.sum(cliphigh)
+        bidx[0:bcnt] = idx[cliphigh]
+        ccnt = np.sum(cliplow)
+        candidates[0:ccnt] = idx[cliplow]
+        nsampc = np.sum(clipcnt)
+        return ccnt, bcnt, nsampc
 
 
 def get_detail(samps, axes):
@@ -41,7 +55,7 @@ def get_detail(samps, axes):
 def from_pdf(pdf, threshold):
     candidates = np.empty(pdf.size, dtype=np.uint32)
     bidx = np.empty(pdf.size, dtype=np.uint32)
-    cs, bs, nsampc = craytraverse.from_pdf(pdf, candidates, bidx, threshold)
+    cs, bs, nsampc = _from_pdf(pdf, candidates, bidx, threshold)
     if nsampc == 0:
         return bidx[:bs]
     # if normalization happens in c-func floating point precision does not

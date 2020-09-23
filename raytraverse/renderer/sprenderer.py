@@ -15,9 +15,14 @@ from raytraverse.renderer.renderer import Renderer
 class SPRenderer(Renderer):
     """Subprocess renderer class"""
     cleanup = "rcalc -if3 -of -e $1=.265074126*$1+.670114631*$2+.064811243*$3"
+    scene = ""
 
     @classmethod
-    def initialize(cls, args, scene, nproc=None, iot="ff"):
+    def get_instance(cls):
+        return cls()
+
+    @classmethod
+    def initialize(cls, args, scene=None, nproc=None, iot="ff"):
         if nproc is None:
             nproc = os.cpu_count()
         if args is not None and not cls.initialized:
@@ -25,9 +30,13 @@ class SPRenderer(Renderer):
                 raise ValueError(f'{cls.__name__} must output binary format')
             cls.cleanup = (f"rcalc -i{iot[-1]}3 -o{iot[-1]}"
                            " -e $1=.265074126*$1+.670114631*$2+.064811243*$3")
-            cls.initialized = cls._set_args(args + " -h- " + scene, iot, nproc)
+            cls.initialized = cls._set_args(" ".join(args) + " -h- ", iot, nproc)
             # TODO: populate header
             cls.header = ""
+
+    @classmethod
+    def load_scene(cls, scene):
+        cls.scene = scene
 
     @classmethod
     def call(cls, rayfile, store=True, outf=None, vecs2stdin=True):
