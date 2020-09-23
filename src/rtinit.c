@@ -85,6 +85,37 @@ int  traincl = -1;			/* include == 1, exclude == 0 */
 static int  loadflags = ~IO_FILES;	/* what to load from octree */
 
 
+void
+eputsrt(				/* put string to stderr */
+        register char  *s
+)
+{
+  static int  midline = 0;
+
+  if (!*s)
+    return;
+  if (!midline++) {
+    fputs(progname, stderr);
+    fputs(": ", stderr);
+  }
+  fputs(s, stderr);
+  if (s[strlen(s)-1] == '\n') {
+    fflush(stderr);
+    midline = 0;
+  }
+}
+
+void
+wputsrt(				/* warning output function */
+        char	*s
+)
+{
+  int  lasterrno = errno;
+  eputsrt(s);
+  errno = lasterrno;
+}
+
+
 int
 rtinit(int  argc, char  *argv[])
 {
@@ -165,7 +196,7 @@ rtinit(int  argc, char  *argv[])
       case 'w':				/* warnings */
         rval = erract[WARNING].pf != NULL;
         check_bool(2,rval);
-        if (rval) erract[WARNING].pf = wputs;
+        if (rval) erract[WARNING].pf = wputsrt;
         else erract[WARNING].pf = NULL;
         break;
       case 'e':				/* error file */
@@ -380,38 +411,6 @@ rtrace_loadsrc(char* srcname, int freesrc) {
 }
 
 
-void
-wputs(				/* warning output function */
-        char	*s
-)
-{
-  int  lasterrno = errno;
-  eputs(s);
-  errno = lasterrno;
-}
-
-
-void
-eputs(				/* put string to stderr */
-        register char  *s
-)
-{
-  static int  midline = 0;
-
-  if (!*s)
-    return;
-  if (!midline++) {
-    fputs(progname, stderr);
-    fputs(": ", stderr);
-  }
-  fputs(s, stderr);
-  if (s[strlen(s)-1] == '\n') {
-    fflush(stderr);
-    midline = 0;
-  }
-}
-
-
 static void
 onsig(				/* fatal signal */
         int  signo
@@ -426,9 +425,9 @@ onsig(				/* fatal signal */
   alarm(15);			/* allow 15 seconds to clean up */
   signal(SIGALRM, SIG_DFL);	/* make certain we do die */
 #endif
-  eputs("signal - ");
-  eputs(sigerr[signo]);
-  eputs("\n");
+  eputsrt("signal - ");
+  eputsrt(sigerr[signo]);
+  eputsrt("\n");
   quit(3);
 }
 
