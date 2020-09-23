@@ -21,4 +21,4 @@ deploy:
   on:
     repo: stephanwaz/raytraverse
     branch: release
-  cleanup: false
+  skip_cleanup: true
