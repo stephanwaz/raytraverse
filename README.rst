@@ -5,10 +5,15 @@ raytraverse
 
 .. image:: https://img.shields.io/pypi/v/raytraverse.svg
         :target: https://pypi.python.org/pypi/raytraverse
+		:alt: Release Status
 
 .. image:: https://readthedocs.org/projects/raytraverse/badge/?version=latest
         :target: https://raytraverse.readthedocs.io/en/latest/?badge=latest
         :alt: Documentation Status
+		
+.. image:: https://travis-ci.org/stephanwaz/raytraverse.svg
+	:target: https://travis-ci.org/stephanwaz/raytraverse
+	:alt: Build Status
 
 raytraverse is a complete workflow for climate based daylight modelling,
 simulation, and evaluation of architectural spaces. Built around a variance
