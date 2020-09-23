@@ -20,7 +20,7 @@
 
 #ifndef RAYTRAVERSE_RCONTRIB_HH
 #define RAYTRAVERSE_RCONTRIB_HH
-#include "render.h"
+#include "render.hh"
 #include <pybind11/pybind11.h>
 
 class Rcontrib : public Renderer {

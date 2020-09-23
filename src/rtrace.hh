@@ -20,7 +20,7 @@
 
 #ifndef RAYTRAVERSE_RTRACE_HH
 #define RAYTRAVERSE_RTRACE_HH
-#include "render.h"
+#include "render.hh"
 #include <pybind11/pybind11.h>
 
 class Rtrace : public Renderer {

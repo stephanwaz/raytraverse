@@ -13,18 +13,27 @@ __all__ = ['cRcontrib', 'cRtrace']
 import sys
 import subprocess
 
+
+def _find_radiance(executable):
+    try:
+        versiontxt = subprocess.Popen(f"{executable} -version".split(),
+                                      stdout=subprocess.PIPE).communicate()[0]
+    except FileNotFoundError:
+        version = None
+    else:
+        version = versiontxt.split()[1][0]
+    if version != '5':
+        print(f'Warning: {executable} from radiance 5 not installed or env is not'
+              ' properly set, SPRcontrib will not run')
+
+
 try:
     from raytraverse.crenderer.rcontrib_c import cRcontrib
 except (ModuleNotFoundError, ImportError):
     from raytraverse.renderer.sprenderer import SPRcontrib as cRcontrib
     print("Warning: No cRenderer found, falling back to SPRenderer for"
           " rcontrib", file=sys.stderr)
-    versiontxt = subprocess.Popen("rcontrib -version".split(),
-                                 stdout=subprocess.PIPE).communicate()[0]
-    print(versiontxt, file=sys.stderr)
-    if versiontxt.split()[1][0] != '5':
-        print('Warning: rcontrib from radiance 5 not installed or env is not'
-              ' properly set, SPRcontrib will not run')
+    _find_radiance("rcontrib")
 
 
 try:
@@ -33,9 +42,5 @@ except (ModuleNotFoundError, ImportError):
     from raytraverse.renderer.sprenderer import SPRtrace as cRtrace
     print("Warning: No cRenderer found, falling back to SPRenderer for"
           " rcontrib", file=sys.stderr)
-    versiontxt = subprocess.Popen("rtrace -version".split(),
-                                 stdout=subprocess.PIPE).communicate()[0]
-    if versiontxt.split()[1][0] != '5':
-        print('Warning: rcontrib from radiance 5 not installed or env is not'
-              ' properly set, SPRtrace will not run')
+    _find_radiance("rtrace")
 

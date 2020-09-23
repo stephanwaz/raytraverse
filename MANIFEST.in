@@ -18,7 +18,12 @@ recursive-exclude * *.so
 recursive-include raytraverse *.pl *.cal *.bsp
 recursive-include docs *.rst conf.py Makefile make.bat *.jpg *.png *.gif *.css *.html *.txt
 recursive-exclude src .*
-recursive-include src *.c *.h *.cpp *.hh *.txt *.cmake *.sh VERSION
+include src/*.c src/*.h src/*.cpp src/*.hh src/*.txt src/*.cmake src/*.sh VERSION
+include src/csrc/*.c src/csrc/*.h
+recursive-include src/pybind11 *.h *.cpp *.hh *.txt *.cmake *.sh
+recursive-include src/Radiance/src/rt *.h *.c *.txt *.cmake *.sh VERSION
+recursive-include src/Radiance/src/common *.h *.c *.txt *.cmake *.sh
+include src/Radiance/License.txt
 include *.txt
 
 prune src/cmake-*

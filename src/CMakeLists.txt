@@ -33,7 +33,7 @@ macro(create_version_file version_file)
 endmacro()
 
 
-set(STATIC_VERSION_FILE "${CMAKE_CURRENT_SOURCE_DIR}/StaticVersion.c")
+set(STATIC_VERSION_FILE "${CMAKE_CURRENT_SOURCE_DIR}/Version.c")
 create_version_file("${STATIC_VERSION_FILE}")
 
 # used by setup.py for distribution
@@ -104,16 +104,16 @@ list(TRANSFORM RAYCALLS PREPEND Radiance/src/rt/)
 list(TRANSFORM RCCALLFILES PREPEND Radiance/src/rt/)
 list(TRANSFORM RTFILES PREPEND Radiance/src/rt/)
 #add additional modified sources from parent directory
-list(APPEND rtrad_SOURCES calcompcal.c)
-list(APPEND RADIANCE_RT func.c)
+list(APPEND rtrad_SOURCES csrc/calcompcal.c)
+list(APPEND RADIANCE_RT csrc/func_mod.c)
 
 
 add_library(rtrad STATIC ${rtrad_SOURCES})
 add_library(radiance STATIC ${STATIC_VERSION_FILE} ${RADIANCE_COMMON} ${RADIANCE_RT})
 add_library(raycalls STATIC ${RAYCALLS})
-add_library(rcraycalls STATIC rcraycalls.c ${RCCALLFILES})
-add_library(rtracecfiles STATIC rtinit.c rtraceparts.c ${RTFILES} ${STATIC_VERSION_FILE})
-add_library(rcontribcfiles STATIC rcinit.c rcontribparts.c rc3.c rc2.c ${STATIC_VERSION_FILE})
+add_library(rcraycalls STATIC csrc/rcraycalls.c ${RCCALLFILES})
+add_library(rtracecfiles STATIC csrc/rtinit.c csrc/rtraceparts.c ${RTFILES} ${STATIC_VERSION_FILE})
+add_library(rcontribcfiles STATIC csrc/rcinit.c csrc/rcontribparts.c csrc/rc3_mod.c csrc/rc2_mod.c ${STATIC_VERSION_FILE})
 
 
 target_link_libraries(rtrad ${LIB_M})
@@ -148,39 +148,3 @@ endif()
 # target for building 3 craytraverse modules
 ADD_CUSTOM_TARGET(python_all)
 ADD_DEPENDENCIES(python_all rtrace_c rcontrib_c craytraverse)
-
-
-# Get all propreties that cmake supports
-execute_process(COMMAND cmake --help-property-list OUTPUT_VARIABLE CMAKE_PROPERTY_LIST)
-
-# Convert command output into a CMake list
-STRING(REGEX REPLACE ";" "\\\\;" CMAKE_PROPERTY_LIST "${CMAKE_PROPERTY_LIST}")
-STRING(REGEX REPLACE "\n" ";" CMAKE_PROPERTY_LIST "${CMAKE_PROPERTY_LIST}")
-
-function(print_properties)
-    message ("CMAKE_PROPERTY_LIST = ${CMAKE_PROPERTY_LIST}")
-endfunction(print_properties)
-
-function(print_target_properties tgt)
-    if(NOT TARGET ${tgt})
-        message("There is no target named '${tgt}'")
-        return()
-    endif()
-
-    foreach (prop ${CMAKE_PROPERTY_LIST})
-        string(REPLACE "<CONFIG>" "${CMAKE_BUILD_TYPE}" prop ${prop})
-        # Fix https://stackoverflow.com/questions/32197663/how-can-i-remove-the-the-location-property-may-not-be-read-from-target-error-i
-        if(prop STREQUAL "LOCATION" OR prop MATCHES "^LOCATION_" OR prop MATCHES "_LOCATION$")
-            continue()
-        endif()
-        # message ("Checking ${prop}")
-        get_property(propval TARGET ${tgt} PROPERTY ${prop} SET)
-        if (propval)
-            get_target_property(propval ${tgt} ${prop})
-            message ("${tgt} ${prop} = ${propval}")
-        endif()
-    endforeach(prop)
-endfunction(print_target_properties)
-
-print_target_properties(rcontrib_c)
-print_target_properties(craytraverse)

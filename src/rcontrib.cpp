@@ -22,7 +22,7 @@
 
 namespace rayrc{
 #include <ray.h>
-#include "rcinit.h"
+#include "csrc/rcinit.h"
     extern "C" {
 #include <ambient.h>
 #include <pmapray.h>

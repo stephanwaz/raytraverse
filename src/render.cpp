@@ -18,7 +18,7 @@
  * https://www.radiance-online.org/download-install/license
  */
 
-#include "render.h"
+#include "render.hh"
 #include "iostream"
 
 

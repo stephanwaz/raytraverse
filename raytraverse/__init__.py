@@ -11,6 +11,24 @@
 __author__ = """Stephen Wasilewski"""
 __email__ = 'stephanwaz@gmail.com'
 __version__ = '0.1.1'
-__all__ = ['io', 'skycalc', 'translate', 'draw', 'metric', 'craytraverse',
-           'lightfield', 'integrator', 'mapper', 'sampler', 'scene', 'renderer']
+__all__ = ['io', 'skycalc', 'translate', 'draw', 'metric', 'lightfield',
+           'integrator', 'mapper', 'sampler', 'scene', 'renderer']
 
+
+def set_raypath(basefile=__file__, subd="cal"):
+    import os
+    if subd is not None:
+        suff = os.path.sep + subd
+    else:
+        suff = ""
+    raypath_rt = ['.', os.path.dirname(basefile) + suff]
+    try:
+        raypath_env = os.environ["RAYPATH"].split(os.pathsep)
+    except KeyError:
+        raypath_new = raypath_rt
+    else:
+        raypath_new = list(dict.fromkeys(raypath_rt + raypath_env))
+    os.environ["RAYPATH"] = os.pathsep.join(raypath_new)
+
+
+set_raypath()

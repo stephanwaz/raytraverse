@@ -22,7 +22,7 @@
 
 namespace ray{
 #include <ray.h>
-#include "rtinit.h"
+#include "csrc/rtinit.h"
     extern "C" {
 #include <ambient.h>
 #include <pmapray.h>

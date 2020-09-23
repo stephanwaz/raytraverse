@@ -12,6 +12,7 @@ static const char	RCSid[] = "$Id: func.c,v 2.38 2020/04/02 18:00:34 greg Exp $";
 #include  "otypes.h"
 #include  "func.h"
 #include <ctype.h>
+#include "calcompcal.h"
 
 
 #define  INITFILE	"rayinit.cal"

@@ -37,6 +37,7 @@ extern "C" {
 #include "ambient.h"
 #include "pmapray.h"
 #include "pmapcontrib.h"
+#include "rcinit.h"
 
 int	gargc;				/* global argc */
 char	**gargv;			/* global argv */
