@@ -1,5 +1,5 @@
-raytraverse (|release|)
-======================================
+raytraverse
+===========
 
 .. include:: ../README.rst
 

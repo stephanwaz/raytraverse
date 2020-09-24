@@ -87,6 +87,7 @@ setup_dict = dict(
         'Natural Language :: English',
         'Programming Language :: Python :: 3.6',
         'Programming Language :: Python :: 3.7',
+        'Programming Language :: Python :: 3.8'
         ],
     description="variance based adaptive sampling for CBDM",
     python_requires=">=3.6",

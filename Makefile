@@ -76,6 +76,16 @@ docs: ## generate Sphinx HTML documentation, including API docs
 	$(MAKE) -C docs html
 	$(BROWSER) docs/_build/html/index.html
 
+cdocs: ## generate Sphinx HTML documentation, including API docs
+	# rm -f docs/raytraverse.rst
+	# rm -f docs/modules.rst
+	# sphinx-apidoc -o docs/ raytraverse
+	$(MAKE) -C docs/cdocs clean
+	$(MAKE) -C docs/cdocs html
+	python docs/cdocs/static_html.py
+	$(MAKE) -C docs/cdocs clean
+
+
 servedocs: docs ## compile the docs watching for changes
 	watchmedo shell-command -p '*.rst' -c '$(MAKE) -C docs html' -R -D .
 

@@ -3,14 +3,14 @@ raytraverse
 ===========
 
 
-.. image:: https://img.shields.io/pypi/v/raytraverse.svg
-        :target: https://pypi.python.org/pypi/raytraverse
-		:alt: Release Status
+.. image:: https://badge.fury.io/py/raytraverse.svg
+    :target: https://badge.fury.io/py/raytraverse
+    :alt: Release Status
 
 .. image:: https://readthedocs.org/projects/raytraverse/badge/?version=latest
         :target: https://raytraverse.readthedocs.io/en/latest/?badge=latest
         :alt: Documentation Status
-		
+
 .. image:: https://travis-ci.org/stephanwaz/raytraverse.svg
 	:target: https://travis-ci.org/stephanwaz/raytraverse
 	:alt: Build Status
@@ -75,14 +75,14 @@ the repo also depends on two submodules, to initialize run the following::
 	cd raytraverse
 	git submodule init
 	git submodule update --remote
-	git -C src/Radiance config core.sparseCheckout true 
+	git -C src/Radiance config core.sparseCheckout true
 	cp src/sparse-checkout .git/modules/src/Radiance/info/
 	git submodule update --remote --force src/Radiance
-	
+
 after a "git pull" make sure you also run::
 
 	git submodule update
-	
+
 to track with the latest commit used by raytraverse.
 
 Licence
