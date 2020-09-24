@@ -9,6 +9,7 @@ README.rst
 bump.sh
 flake8.sh
 pyproject.toml
+release.sh
 requirements.txt
 requirements_dev.txt
 setup.cfg
@@ -37,8 +38,13 @@ docs/search.rst
 docs/skycalc.rst
 docs/todo.rst
 docs/translate.rst
+docs/_static/craytraverse.html
 docs/_static/custom.css
 docs/_templates/navigation.html
+docs/cdocs/Makefile
+docs/cdocs/conf.py
+docs/cdocs/craytraverse.rst
+docs/cdocs/index.rst
 raytraverse/__init__.py
 raytraverse/cli.py
 raytraverse/de421.bsp
