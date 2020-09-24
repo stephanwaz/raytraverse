@@ -1,0 +1,14 @@
+halfres=res/2;
+px=$2+rand(($2+1)*($1+3));
+py=$1+rand(($2+1)*($1+3)*($1+2));
+ro=atan2(dy,dx)-PI/2;
+theta=px/res*2*PI-PI/2;
+phi=PI/2-py/halfres*PI;
+$1=x;
+$2=y;
+$3=z;
+xp=sin(theta-PI/2)*cos(phi);
+yp=cos(theta-PI/2)*cos(phi);
+$4=xp*cos(ro) - yp*sin(ro);
+$5=xp*sin(ro) + yp*cos(ro);
+$6=sin(phi);

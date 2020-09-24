@@ -8,22 +8,20 @@
 from raytraverse.renderer.radiancerenderer import RadianceRenderer
 from raytraverse.crenderer import cRtrace
 
+if cRtrace.version == "PyVirtual":
+    from raytraverse.renderer.sprenderer import SPRtrace as Rtrace
+else:
+    class Rtrace(RadianceRenderer):
+        """singleton wrapper for c++ crenderer.cRtrace singleton class"""
+        Engine = cRtrace
+        name = 'rtrace'
 
-class Rtrace(RadianceRenderer):
-    """singleton wrapper for c++ crenderer.cRtrace singleton class"""
-    Engine = cRtrace
-    name = 'rtrace'
+        @classmethod
+        def update_ospec(cls, vs, of='a'):
+            if not cls.initialized:
+                raise ValueError('Rtrace instance not initialized')
+            cls.instance.update_ospec(vs, of)
 
-    @classmethod
-    def update_ospec(cls, vs, of='a'):
-        if not cls.initialized:
-            raise ValueError('Rtrace instance not initialized')
-        cls.instance.update_ospec(vs, of)
-
-    @classmethod
-    def new_amb(cls, af):
-        cls.instance.new_amb(af)
-
-    @classmethod
-    def load_source(cls, srcname, freesrc=-1):
-        cls.instance.load_source(srcname, freesrc)
+        @classmethod
+        def load_source(cls, srcname, freesrc=-1):
+            cls.instance.load_source(srcname, freesrc)

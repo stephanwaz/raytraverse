@@ -2,22 +2,24 @@
 # -*- coding: utf-8 -*-
 
 import pytest
-import _pytest.skipping
 
 
 def pytest_addoption(parser):
     parser.addoption(
-        "--slowtest",
+        "--slow",
         action="store_true",
-        default=False, help="disable skip marks")
+        default=False, help="disable slow skip marks")
 
 
-@pytest.hookimpl(tryfirst=True)
-def pytest_cmdline_preparse(config, args):
-    if "--slowtest" not in args:
+def pytest_configure(config):
+    config.addinivalue_line("markers", "slow: mark test as slow to run")
+
+
+def pytest_collection_modifyitems(config, items):
+    if config.getoption("--slow"):
+        # --runslow given in cli: do not skip slow tests
         return
-
-    def no_skip(*args, **kwargs):
-        return
-
-    _pytest.skipping.skip = no_skip
+    skip_slow = pytest.mark.skip(reason="need --slow option to run")
+    for item in items:
+        if "slow" in item.keywords:
+            item.add_marker(skip_slow)

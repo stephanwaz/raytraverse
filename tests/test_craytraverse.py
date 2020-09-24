@@ -42,6 +42,8 @@ def test_empty_reset():
     assert True
 
 
+@pytest.mark.skipif(renderer.rtrace.cRtrace.version == "PyVirtual",
+                    reason="no c-extension modules present")
 def test_rtrace_call(capfd):
     args = "-ab 1 -ar 600 -ad 2000 -aa .2 -as 1500 -I"
     cargs = f"rtrace -h {args} -n 4 tests/test/test_run/sky.oct"
@@ -81,6 +83,8 @@ def test_rtrace_call(capfd):
     # print(r.header)
 
 
+@pytest.mark.skipif(renderer.rcontrib.cRcontrib.version == "PyVirtual",
+                    reason="no c-extension modules present")
 def test_rcontrib_call(capfd):
     args = ('-V+ -I+ -ab 2 -ad 60000 -as 30000 -lw 1e-7 -e side:6'
             ' -f tests/test/scbins.cal -b bin -bn 36 -m skyglow ')

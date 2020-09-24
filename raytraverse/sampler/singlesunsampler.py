@@ -38,7 +38,6 @@ class SingleSunSampler(Sampler):
         whether the rcopts indicate that the calculation will use ambient
         caching (and thus should write an -af file argument to the engine)
     """
-    EngineClass = renderer.Rtrace
 
     def __init__(self, scene, suns, sidx, speclevel=9,
                  fdres=10, accuracy=1,
@@ -48,16 +47,23 @@ class SingleSunSampler(Sampler):
         self.slimit = suns.srct * .1
         self.srct = suns.srct
         anorm = accuracy * scene.skyres * (1 - np.cos(.533*np.pi/360))
-        self.engine = self.EngineClass()
+        self.engine = renderer.Rtrace()
         engine_args = f"{rcopts} -oZ"
-
+        srcdef = f'{scene.outdir}/tmp_srcdef.rad'
+        f = open(srcdef, 'w')
+        f.write(suns.write_sun(sidx))
+        f.close()
+        if self.engine.Engine == "rtrace":
+            srcdefcomp = srcdef
+        else:
+            srcdefcomp = None
         # update ambient file and args before init
         self._keepamb = keepamb and ambcache
         if ambcache:
             engine_args += f" -af {scene.outdir}/sun_{sidx:04d}.amb"
         super().__init__(scene, stype=f"sun_{sidx:04d}", fdres=fdres,
                          accuracy=anorm, engine_args=engine_args,
-                         srcdef=None, **kwargs)
+                         srcdef=srcdefcomp, **kwargs)
 
         # update parameters post init
         #: int: index of level at which brightness sampling occurs
@@ -73,10 +79,7 @@ class SingleSunSampler(Sampler):
         self.weights = translate.resample(weights, shape)
 
         # load new source
-        srcdef = f'{self.scene.outdir}/tmp_srcdef.rad'
-        f = open(srcdef, 'w')
-        f.write(suns.write_sun(sidx))
-        f.close()
+
         self.engine.load_source(srcdef)
         os.remove(srcdef)
 

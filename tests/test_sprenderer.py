@@ -5,10 +5,8 @@
 import importlib
 import sys
 
-from raytraverse import craytraverse, io, renderer, draw
+from raytraverse import renderer
 import numpy as np
-from scipy import stats
-import pytest
 
 import clasp.script_tools as cst
 

@@ -148,3 +148,78 @@ endif()
 # target for building 3 craytraverse modules
 ADD_CUSTOM_TARGET(python_all)
 ADD_DEPENDENCIES(python_all rtrace_c rcontrib_c craytraverse)
+
+# build required radiance executables
+
+# from rt
+set(RTRACEFILES rtmain.c rtrace.c duphead.c persist.c)
+list(TRANSFORM RTRACEFILES PREPEND Radiance/src/rt/)
+add_executable(rtrace ${RTRACEFILES})
+target_link_libraries(rtrace raycalls radiance rtrad)
+
+set(RCONTRIBFILES rcmain.c rcontrib.c rc2.c rc3.c)
+list(TRANSFORM RCONTRIBFILES PREPEND Radiance/src/rt/)
+add_executable(rcontrib ${RCONTRIBFILES})
+target_link_libraries(rcontrib radiance rtrad)
+
+# from util
+add_executable(getinfo Radiance/src/util/getinfo.c)
+target_link_libraries(getinfo rtrad)
+
+add_executable(vwrays Radiance/src/util/vwrays.c)
+target_link_libraries(vwrays rtrad)
+
+# from cal
+add_executable(cnt Radiance/src/cal/cnt.c)
+
+add_executable(total Radiance/src/cal/total.c)
+target_link_libraries(total rtrad ${LIB_M})
+
+add_executable(rcalc Radiance/src/cal/rcalc.c)
+target_link_libraries(rcalc rtrad)
+
+# from px
+add_executable(pvalue Radiance/src/px/pvalue.c)
+target_link_libraries(pvalue rtrad)
+
+add_executable(pcompos Radiance/src/px/pcompos.c)
+target_link_libraries(pcompos rtrad)
+
+add_executable(pcomb Radiance/src/px/pcomb.c)
+target_link_libraries(pcomb rtrad)
+
+# from ot
+set(OCONVFILES bbox.c initotypes.c o_cone.c o_face.c o_instance.c oconv.c sphere.c writeoct.c)
+list(TRANSFORM OCONVFILES PREPEND Radiance/src/ot/)
+add_executable(oconv ${OCONVFILES})
+target_link_libraries(oconv rtrad)
+
+# from gen
+add_executable(gendaylit Radiance/src/gen/gendaylit.c Radiance/src/gen/sun.c)
+target_link_libraries(gendaylit rtrad ${LIB_M})
+
+
+#if(NOT SKBUILD)
+#
+#set(ALLTARGETS rtrad radiance raycalls rcraycalls rtracecfiles rcontribcfiles rtrace_c rcontrib_c
+#        craytraverse rtrace rcontrib  total cnt rcalc getinfo vwrays pvalue pcompos pcomb oconv gendaylit)
+#
+#set(ALLSOURCES)
+#foreach(TGT IN ITEMS ${ALLTARGETS})
+#    get_target_property(TGTSOURCES ${TGT} SOURCES)
+#    foreach(SRC IN ITEMS ${TGTSOURCES})
+#        list(APPEND ALLSOURCES ${SRC})
+#        endforeach()
+#    endforeach()
+#list(REMOVE_DUPLICATES ALLSOURCES)
+#list(FILTER ALLSOURCES EXCLUDE REGEX ^/.*)
+#list(TRANSFORM ALLSOURCES PREPEND src/)
+#
+#foreach(SRC IN ITEMS ${ALLSOURCES})
+#    message(${SRC})
+#endforeach()
+#
+#string(REPLACE ";" "\n" TOWRITE "${ALLSOURCES}")
+#file(WRITE MANIFEST "${TOWRITE}")
+#
+#endif()

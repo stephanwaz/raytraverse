@@ -15,9 +15,11 @@ import raytraverse
 path = os.path.dirname(raytraverse.__file__)
 rcontrib_capture_file = f'{path}/tmp_rcontrib_capture'
 
-
-class Rcontrib(RadianceRenderer):
-    """singleton wrapper for c++ crenderer.cRcontrib singleton class"""
-    Engine = cRcontrib
-    name = 'rcontrib'
-    arg_prefix = "-o !cat"
+if cRcontrib.version == "PyVirtual":
+    from raytraverse.renderer.sprenderer import SPRcontrib as Rcontrib
+else:
+    class Rcontrib(RadianceRenderer):
+        """singleton wrapper for c++ crenderer.cRcontrib singleton class"""
+        Engine = cRcontrib
+        name = 'rcontrib'
+        arg_prefix = "-o !cat"

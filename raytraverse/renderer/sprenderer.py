@@ -7,6 +7,7 @@
 # =======================================================================
 import os
 import shlex
+import re
 from subprocess import Popen, PIPE
 from raytraverse import io
 from raytraverse.renderer.renderer import Renderer
@@ -15,28 +16,23 @@ from raytraverse.renderer.renderer import Renderer
 class SPRenderer(Renderer):
     """Subprocess renderer class"""
     cleanup = "rcalc -if3 -of -e $1=.265074126*$1+.670114631*$2+.064811243*$3"
-    scene = ""
+    filter_bad_args = [(r"-Z\S*", ""), (r"-oZ", '-ov')]
 
     @classmethod
-    def get_instance(cls):
-        return cls()
-
-    @classmethod
-    def initialize(cls, args, scene=None, nproc=None, iot="ff"):
+    def initialize(cls, args, scene, nproc=None, iot="ff"):
+        super().initialize(args, scene)
         if nproc is None:
             nproc = os.cpu_count()
-        if args is not None and not cls.initialized:
+        if args is not None:
             if iot[-1] == 'a':
                 raise ValueError(f'{cls.__name__} must output binary format')
             cls.cleanup = (f"rcalc -i{iot[-1]}3 -o{iot[-1]}"
                            " -e $1=.265074126*$1+.670114631*$2+.064811243*$3")
-            cls.initialized = cls._set_args(" ".join(args) + " -h- ", iot, nproc)
+            for badarg, repl in cls.filter_bad_args:
+                args = re.sub(badarg, repl, args)
+            cls.initialized = cls._set_args(args + " -h- " + scene, iot, nproc)
             # TODO: populate header
             cls.header = ""
-
-    @classmethod
-    def load_scene(cls, scene):
-        cls.scene = scene
 
     @classmethod
     def call(cls, rayfile, store=True, outf=None, vecs2stdin=True):
@@ -58,6 +54,10 @@ class SPRenderer(Renderer):
 class SPRtrace(SPRenderer):
     Engine = 'rtrace'
     name = 'rtrace'
+
+    @classmethod
+    def load_source(cls, srcname, **kwargs):
+        pass
 
 
 class SPRcontrib(SPRenderer):

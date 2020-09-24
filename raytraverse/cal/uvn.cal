@@ -1,0 +1,16 @@
+{
+ usage: U*UVn and V*UVn
+ refl: normalized tiling 
+ 
+ A1: U tile size 
+ A2: V tile size
+ A3: seam_width
+ usage:
+ void mixfunc floor
+ 4 tile seam refl uvn.cal
+ 0
+ 3 5 5 .05
+
+}
+UVn = if(and(Nx^2+Ny^2-FTINY,Nz^2-FTINY),sin(atan(sqrt(Nx^2+Ny^2)/Nz)),1);
+refl = if(and(abs(frac(U*UVn/A1))-A3/A1,abs(frac(V*UVn/A2))-A3/A2),1,0);

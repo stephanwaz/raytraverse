@@ -63,8 +63,8 @@ test-all: ## run tests on every Python version with tox
 	tox
 
 coverage: ## check code coverage quickly with the default Python
-	pytest --cov=raytraverse
-	pytest --cov=raytraverse --cov-append --slowtest tests/test_skycalc.py tests/test_cli.py
+	pytest --cov=raytraverse --slow
+	#pytest --cov=raytraverse --cov-append --slowtest tests/test_skycalc.py tests/test_cli.py
 	coverage html
 	$(BROWSER) htmlcov/index.html
 
@@ -93,8 +93,8 @@ release: dist ## package and upload a release
 	twine upload dist/*
 
 dist: clean ## builds source and wheel package
-	python setup.py sdist
-	#python setup.py bdist_wheel
+	python setup_dev.py sdist 
+	python setup.py bdist_wheel
 	ls -l dist
 
 install: clean ## install the package to the active Python's site-packages

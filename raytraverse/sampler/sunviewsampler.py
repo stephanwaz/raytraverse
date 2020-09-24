@@ -32,14 +32,18 @@ class SunViewSampler(Sampler):
         include suns.rad in base scene initialization. if False,
         self.engine.load_source must be invoked before call.
     """
-    EngineClass = renderer.Rtrace
 
     def __init__(self, scene, suns, **kwargs):
         self.suns = suns
-        self.engine = self.EngineClass()
+        self.engine = renderer.Rtrace()
+        srcdef = f"{scene.outdir}/suns.rad"
+        if self.engine.Engine == "rtrace":
+            srcdefcomp = srcdef
+        else:
+            srcdefcomp = None
         super().__init__(scene, stype='sunview', idres=4, fdres=6,
-                         srcdef=None, engine_args='-oZ -ab 0', **kwargs)
-        self.engine.load_source(f"{scene.outdir}/suns.rad")
+                         srcdef=srcdefcomp, engine_args='-oZ -ab 0', **kwargs)
+        self.engine.load_source(srcdef)
         self.samplemap = self.suns.map
 
     @property

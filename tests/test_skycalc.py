@@ -36,7 +36,7 @@ def test_row_2_datetime64(epw):
     assert times.size == 8760
 
 
-@pytest.mark.skip('slow')
+@pytest.mark.slow
 def test_sunpos_utc(epw, tmpdir):
     lat, lon, mer = skycalc.get_loc_epw('geneva.epw')
     times = skycalc.row_2_datetime64(epw[:, 0:3])
@@ -47,7 +47,7 @@ def test_sunpos_utc(epw, tmpdir):
     assert np.allclose(az.degrees, aa[:,1] + 180)
 
 
-@pytest.mark.skip('slow')
+@pytest.mark.slow
 def test_sunpos_ro(epw, tmpdir):
     lat, lon, mer = skycalc.get_loc_epw('geneva.epw')
     times = skycalc.row_2_datetime64(epw[:, 0:3])
@@ -149,7 +149,7 @@ def call_generic(commands, n=1):
     return np.fromstring(a, sep=' ').reshape(-1, n)
 
 
-@pytest.mark.skip('slow')
+@pytest.mark.slow
 def test_sky_mtx(check):
     sxyz = check[0][:, -3:]
     side = 20

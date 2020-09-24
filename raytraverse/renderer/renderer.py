@@ -18,6 +18,7 @@ class Renderer(object):
     name = None
     header = ""
     arg_prefix = ''
+    scene = None
 
     def __new__(cls, rayargs=None, scene=None, nproc=None, **kwargs):
         if cls._pyinstance is None:
@@ -34,6 +35,7 @@ class Renderer(object):
 
     @classmethod
     def initialize(cls, args, scene, nproc=None, **kwargs):
+        cls.scene = scene
         pass
 
     @classmethod

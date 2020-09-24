@@ -67,16 +67,8 @@ setup_requirements = ["setuptools", "wheel", "scikit-build", "cmake", "ninja"]
 
 test_requirements = ['pytest', 'hdrstats', 'pytest-cov']
 
-# TODO: add necessary radiance .cal files (and make sure source files are
-# included in in dist before creating pypi.
 data_files = []
 package_data = {"raytraverse": ["*.pl", "*.bsp", "cal/*.cal"]}
-
-exclude_package_data = {"": ['*.rst', 'LICENSE', 'MAkefile', '*.ini', '*.in',
-                             '*.txt', '*.sh', '*.toml', 'MANIFEST', 'tests',
-                             'docs', 'src' ]}
-
-
 
 setup_dict = dict(
     author="Stephen Wasilewski",

@@ -16,7 +16,7 @@ import raytraverse
 from raytraverse import translate, io, skycalc, metric
 from raytraverse.mapper import ViewMapper
 from raytraverse.scene import SkyInfo
-
+from raytraverse.crenderer import cRtrace
 
 class Integrator(object):
     """class to generate outputs from skyfield sunfield and sky conditions
@@ -206,10 +206,7 @@ class Integrator(object):
         tf = "%Y:%m:%d %H:%M:%S"
         hdr.append("CAPDATE= " + datetime.now().strftime(tf))
         hdr.append("GMT= " + datetime.now(timezone.utc).strftime(tf))
-        radversion = subprocess.run('rpict -version'.split(),
-                                    capture_output=True,
-                                    text=True)
-        hdr.append(f"SOFTWARE= {radversion.stdout}")
+        hdr.append(f"SOFTWARE= {cRtrace.version}")
         lastmod = os.path.getmtime(os.path.dirname(raytraverse.__file__))
         tf = "%a %b %d %H:%M:%S %Z %Y"
         lm = datetime.fromtimestamp(lastmod, timezone.utc).strftime(tf)

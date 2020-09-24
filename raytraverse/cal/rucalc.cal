@@ -1,0 +1,27 @@
+PI : 3.14159265358979323846;
+DEGREE : PI/180;
+FTINY : 1e-5;
+and(a,b) : if( a, if(b,1,0), 0 );
+or(a,b) : if( a, a, b );
+not(a) : if( a, -1, 1 );
+abs(x) : if( x, x, -x );
+sgn(x) : if( x, 1, if(-x, -1, 0) );
+sq(x) : x*x;
+max(a,b) : if( a-b, a, b );
+min(a,b) : if( a-b, b, a );
+mod(n,d) : n - floor(n/d)*d;
+inside(a,x,b) : and(x-a,b-x);
+eq(x,y)=and(x-y+.001,y-x+.001);
+dst(m,d) : if(inside(3,m,11),1,0) + if(eq(m,3),if(d-9,1,0),0) + if(eq(m,11),if(2-d,1,0),0);
+working(m,d,h) : if(inside(7,h+dst(m,d),18),1,0);
+
+dst8760(x) : if(inside(1609,x,7321),1,0);
+hour(x) : mod(x/24,1)*24;
+working8760(x) : if(inside(7,hour(x)+dst8760(x),18),1,0);
+
+noneg(v) : if(v,v,0);
+grey(r,g,b) : noneg(.265074126*r + .670114631*g + .064811243*b);
+gray(r,g,b) : noneg(.265074126*r + .670114631*g + .064811243*b);
+
+sum(x) = if(x,in(x)+sum(x-1),0);
+sum2(x,y) = if(y-x+.1,in(y)+sum2(x,y-1),0);

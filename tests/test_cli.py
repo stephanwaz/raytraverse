@@ -30,7 +30,7 @@ def tmpdir(tmp_path_factory):
     os.chdir(cpath)
 
 
-@pytest.mark.skip('slow')
+@pytest.mark.slow
 def test_cli(tmpdir, capfd, runner):
     with pytest.raises(SystemExit) as exc_info:
         with capfd.disabled():

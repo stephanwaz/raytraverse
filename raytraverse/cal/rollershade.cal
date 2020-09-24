@@ -1,0 +1,49 @@
+{
+	Specular transmission through a rollershade. Useful as direct component sandwiched
+    between two bsdf with thickness
+
+		Stephan Wailewski 
+        Modified from grating.cal:
+        Greg Ward for Visarc	8/25/2004
+
+	Use in a BRTDfunc material as follows:
+
+		void BRTDfunc shade
+		10
+			0	0	0
+			spectrans spectrans spectrans
+			0	0	0
+			rollershade.cal
+		0
+		11
+			rrefl grefl brefl ##color of shade cloth
+			rrefl grefl brefl
+			rtrns gtrns btrns ##tvis - openness
+			A10 A11
+
+	The additional BRTDfunc parameters are defined as follows:
+
+		A10 -	orthogonal cutoff angle (due to shade thickness)
+		A11 -	openness factor or the percent of light transmitted at normal incidence(%)
+}
+
+rZ = if(1e-6 - Nx, -acos(Ny), acos(Ny)); {translation to YZ plane}
+rX = if(1e-6 - Ny, -acos(Nz), acos(Nz)); {translation to Z axis}
+
+rZx = cos(rZ)*Dx - sin(rZ)*Dy; {apply YZ translation to ray}
+rZy = sin(rZ)*Dx + cos(rZ)*Dy;
+rZz = Dz;
+
+rXx = rZx; {apply Z axis translation to ray}
+rXy = cos(rX)*rZy - sin(rX)*rZz;
+rXz = sin(rX)*rZy + cos(rX)*rZz;
+
+aDx = abs(rXx); aDy = abs(rXy); aDz = abs(rXz);
+
+open = sqrt(arg(11)*100); {find open square size}
+
+cutoff = 1/tan(arg(10)*PI/180); {calc relative depth of cloth from cutoff angle}
+
+spectrans = if(1e-6 - aDz, 0,
+		max(0, open*(1 - cutoff*aDx/aDz)/100) *
+		max(0, open*(1 - cutoff*aDy/aDz)/100) );

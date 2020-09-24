@@ -4,11 +4,9 @@
 """Tests for raytraverse.draw"""
 
 import pytest
-from raytraverse import draw, craytraverse
+from raytraverse import draw
 import numpy as np
-from scipy.stats import norm, hypergeom, halfnorm
 from scipy import stats
-from clipt import mplt
 
 
 # def test_version():
