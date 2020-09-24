@@ -11,9 +11,9 @@ script:
 env:
   global:
   - CIBW_BUILD='cp36-* cp37-* cp38-*'
+  - TWINE_USERNAME=__token__
 deploy:
   provider: releases
-  draft: true
   api_key:
     secure: CIeKvPygslPjUrGHK49nVLPEVQfdsU3ayLW2XXstrRbdCpEV43MeWneLXNuSPKc147mNg9GJ421W6UyAJ1Y2REgaSFuH20NUxhv4QD0+3YmJVrOxk3xnhBj8X6ynMNgJP4oQ1PPLC52deyzMEwrFPJmMFJEH+mwTZe5d15twqF5X2FCUaX+m/8NuSQVqHpzTM8tAdRW6couk5aP3/8KD9zEbY90MEGpOvMiU+VXugKQWU5ZqoMM54n3Jx6W1tlVBhXttWOstq4bo+V/2NvDLjwhc/TGwMQ1k5vKX+GZZB833Q5GMMlKUxdFKOBq+6Zu4NNLIunEuLb4fz0Lzyx6JDMy6RAYRBLMeEPVFkGXIykj0LuEF8PKFzlnI1CTwMVHj5Vx75EzLHMSI4B4OBYGMedPNUT3GYMnMpwSA6XvtI+ZgKThvsbSU+ZYH1DQ8jbblRS38zdzfk10x+bEn84hyuf3hbPAAMPLM5FqgebYDKaoHk6r4vBmmvGodtUbt8uCOQ2frlkU7odYKETdaMxWxudoeb3+YWYoaLq7O/1+s0x9oLRzifleyZBKm055bExDPb5JJCPHjT2rjIs7dih7OI55zPpvBSN2ylYLpKeDrrb9MfZgE4owCLOVs3fNqi0eWqPOzDwhCO4LGR7Lxgg7tVP60zc9okyeQMenGPzj8jL0=
   file_glob: true
@@ -21,4 +21,23 @@ deploy:
   on:
     repo: stephanwaz/raytraverse
     branch: release
+    tags: true
   skip_cleanup: true
+#deploy:
+#  provider: pypi
+#  on:
+#      tags: true
+#      branch: release
+#  skip_existing: true
+#  skip_cleanup: true
+#  username: __token__
+#  password:
+#    secure: tiGaTWgZrIBkNml+2xtajhIqeVrBj97wXB2w0zMvx4J3x4jDGWc4tGaOTPujuaPHIPodfldsvlK3Np6nBxWLbMjlxdRNQJVlkkDm3yORSJ9K9Wcx+ENyp7ataJAYCDbonKHKGIJywowvs5+OGr+rT/qLPFmh2Pupwk5jot17AIrTUhpnSOvWRfcz7ql3E39OEjVB3k0mvUsRkgw5x48vJFOSUVGzwybXbVzCueJdsJtVPbC6R0dhGxwLiO/obgb71VBsv2g/midQ4DDABT//c5vRK86gVb/jgLZktG+61Xn8eXpLWTVF1KUhcXBBBS8PGeBJHBi66SMfUbqIekRNfwFafJiElVBbt+TxEapbwmJCa+jxxju4XoxqLkkmxynE6Od1jpKdo+/Jva7DiSjJrXRMcoJeS5gg+Ll4x4lOOBEcuFaGuuV+b/63tmXbRk1Uu3O28VJs6K6ePzWf34ZPkK4SyAark7iEhgJbt48UEeq0lOOJNcWymH+eH+o/6RPCmS47U82mGvrKPTd14aN3hpD2QBnPurPmmDCSgbbNxR2OVo8KB1gBqqG7h0yOiak+k2Q2EyefhHiCJVKlhv9zGh4yxMbsteGStcITVmiLblHBNrsPreiMit6fctb6zpxDDVRXhCDkB060Wu9+3bIWnHwqmvU8CGPIDVu4svjI7fM=
+
+after_success:
+  # if the release was tagged, upload them to PyPI
+  - |
+    if [[ $TRAVIS_TAG ]]; then
+      python3 -m pip install twine
+      python3 -m twine upload --skip-existing wheelhouse/*.whl
+    fi
