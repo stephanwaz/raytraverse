@@ -29,6 +29,7 @@ Installation
 ------------
 The easiest way to install raytraverse is with pip::
 
+    pip install --upgrade pip setuptools wheel
     pip install raytraverse
 
 or if you have cloned this repository::
@@ -36,7 +37,11 @@ or if you have cloned this repository::
     cd path/to/this/file
     pip install .
 
-note that on first run one of the required modules will download some auxilary
+for a development install (pip install -e may not work correctly)::
+
+    python setup.py develop
+
+note that on first run one of the required modules may download some auxilary
 data which could take a minute, after that first run start-up is much faster.
 
 Usage

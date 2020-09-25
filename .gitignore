@@ -3,7 +3,8 @@
 classes.pdf
 packages.pdf
 venv/
-
+MANIFEST
+_skbuild/
 
 
 *.bsp

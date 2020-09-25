@@ -8,51 +8,10 @@
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 # =======================================================================
 
-# c++ compiling and pybind setup code copied from https://github.com/pybind/python_example.git
-
-# License:
-
-# Copyright (c) 2016 The Pybind Development Team, All rights reserved.
-#
-# Redistribution and use in source and binary forms, with or without
-# modification, are permitted provided that the following conditions are met:
-#
-# 1. Redistributions of source code must retain the above copyright notice, this
-#    list of conditions and the following disclaimer.
-#
-# 2. Redistributions in binary form must reproduce the above copyright notice,
-#    this list of conditions and the following disclaimer in the documentation
-#    and/or other materials provided with the distribution.
-#
-# 3. Neither the name of the copyright holder nor the names of its contributors
-#    may be used to endorse or promote products derived from this software
-#    without specific prior written permission.
-#
-# THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND
-# ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
-# WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
-# DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
-# FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
-# DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
-# SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
-# CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
-# OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
-# OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
-#
-# You are under no obligation whatsoever to provide any bug fixes, patches, or
-# upgrades to the features, functionality or performance of the source code
-# ("Enhancements") to anyone; however, if you choose to make your Enhancements
-# available either publicly, or directly to the author of this software, without
-# imposing a separate written license agreement for such Enhancements, then you
-# hereby grant the following license: a non-exclusive, royalty-free perpetual
-# license to install, use, modify, prepare derivative works, incorporate into
-# other computer software, distribute, and sublicense such enhancements or
-# derivative works thereof, in binary and source code form.
-
-
 """The setup script."""
-from setuptools import find_packages
-from skbuild import setup
+from setuptools import find_packages, setup
+import sys
+from skbuild import setup as sksetup
 
 with open('README.rst') as readme_file:
     readme = readme_file.read()
@@ -89,7 +48,6 @@ setup_dict = dict(
             'genskyvec_sc=raytraverse.gsv:main'
             ],
         },
-    cmake_minimum_required_version="3.15",
     install_requires=requirements,
     license="Mozilla Public License 2.0 (MPL 2.0)",
     long_description=readme + '\n\n' + history,
@@ -107,4 +65,37 @@ setup_dict = dict(
     zip_safe=False,
     )
 
-setup(**setup_dict)
+orig_argv = [i for i in sys.argv]
+# scikit-build does not seem to package source correctly, revert to setuptools
+morecmds = True
+if 'sdist' in sys.argv:
+    sdistargs = ['sdist']
+    sstart = orig_argv.index('sdist')
+    send = sstart + 1
+    for i in orig_argv[send:]:
+        if i[0] == "-":
+            sdistargs.append(i)
+            send += 1
+        else:
+            break
+    sys.argv = [sys.argv[0]] + sdistargs
+    setup(**setup_dict)
+    sys.argv = orig_argv[:sstart] + orig_argv[send:]
+    morecmds = len(sys.argv) > 1
+# run the remaining commands with scikit-build
+if morecmds:
+    setup_dict["cmake_minimum_required_version"] = "3.15"
+    sksetup(**setup_dict)
+
+# install executables to bin/ with develop install
+if 'develop' in sys.argv:
+    from distutils import dir_util
+    import glob
+    import os
+    try:
+        buildbin = glob.glob("_skbuild/*/cmake-install/bin")[0]
+    except IndexError:
+        print("Warning no executables built", file=sys.stderr)
+    else:
+        dest = os.path.dirname(sys.executable)
+        dir_util.copy_tree(buildbin, dest)

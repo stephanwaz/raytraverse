@@ -6,7 +6,6 @@ include tox.ini
 include *.in
 include *.sh
 include *.toml
-include *.py
 include MANIFEST
 global-exclude .DS_Store
 
