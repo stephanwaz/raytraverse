@@ -99,11 +99,11 @@ list(APPEND RADIANCE_RT csrc/func_mod.c)
 
 
 add_library(rtrad STATIC ${rtrad_SOURCES})
-add_library(radiance STATIC ${STATIC_VERSION_FILE} ${RADIANCE_COMMON} ${RADIANCE_RT})
+add_library(radiance STATIC ${VERSION_FILE} ${RADIANCE_COMMON} ${RADIANCE_RT})
 add_library(raycalls STATIC ${RAYCALLS})
 add_library(rcraycalls STATIC csrc/rcraycalls.c ${RCCALLFILES})
-add_library(rtracecfiles STATIC csrc/rtinit.c csrc/rtraceparts.c ${RTFILES} ${STATIC_VERSION_FILE})
-add_library(rcontribcfiles STATIC csrc/rcinit.c csrc/rcontribparts.c csrc/rc3_mod.c csrc/rc2_mod.c ${STATIC_VERSION_FILE})
+add_library(rtracecfiles STATIC csrc/rtinit.c csrc/rtraceparts.c ${RTFILES} ${VERSION_FILE})
+add_library(rcontribcfiles STATIC csrc/rcinit.c csrc/rcontribparts.c csrc/rc3_mod.c csrc/rc2_mod.c ${VERSION_FILE})
 
 
 target_link_libraries(rtrad ${LIB_M})

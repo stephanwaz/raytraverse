@@ -6,7 +6,7 @@ if [ "$clean" -lt 1 ]; then
         git merge master
         bumpversion --tag --commit "$1"
         make dist
-        make coveralls
+        make coverall
         twine upload dist/*.tar.gz
         git push --follow-tags
         git checkout master
