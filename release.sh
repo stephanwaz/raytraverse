@@ -8,10 +8,12 @@ if [ "$clean" -lt 1 ]; then
         make dist
         make coverall
         twine upload dist/*.tar.gz
-        git push --follow-tags
+        git push
+        git push --tags
         git checkout master
         git merge release
-        git push --follow-tags
+        git push
+        git push --tags
     else
         echo usage: ./release.sh "[patch/minor/major]"
     fi

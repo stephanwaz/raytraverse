@@ -3,18 +3,23 @@ raytraverse
 ===========
 
 .. image:: https://img.shields.io/pypi/pyversions/raytraverse?style=flat-square
+    :target: https://pypi.org/project/raytraverse/0.2.3
     :alt: PyPI - Python Version
 
 .. image:: https://img.shields.io/pypi/l/raytraverse?style=flat-square
+    :target: https://www.mozilla.org/en-US/MPL/2.0/
     :alt: PyPI - License
 
 .. image:: https://img.shields.io/readthedocs/raytraverse/stable?style=flat-square
+    :target: https://raytraverse.readthedocs.io/en/v0.2.3/
     :alt: Read the Docs (version)
 
 .. image:: https://img.shields.io/travis/stephanwaz/raytraverse?style=flat-square
+    :target: https://travis-ci.org/github/stephanwaz/raytraverse/builds
     :alt: Travis (.org)
 
 .. image:: https://img.shields.io/coveralls/github/stephanwaz/raytraverse?style=flat-square
+    :target: https://coveralls.io/github/stephanwaz/raytraverse
     :alt: Coveralls github
 
 raytraverse is a complete workflow for climate based daylight modelling,
@@ -24,7 +29,7 @@ conditions throughout a space with efficient use of processing power and
 storage space.
 
 * Free software: Mozilla Public License 2.0 (MPL 2.0)
-* Documentation: https://raytraverse.readthedocs.io.
+* Documentation: https://raytraverse.readthedocs.io/en/v0.2.3/.
 
 
 Installation
