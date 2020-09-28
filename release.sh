@@ -6,11 +6,12 @@ if [ "$clean" -lt 1 ]; then
         git merge master
         bumpversion --tag --commit "$1"
         make dist
+        make coveralls
         twine upload dist/*.tar.gz
-        git push --tags --follow-tags
+        git push --follow-tags
         git checkout master
         git merge release
-        git push --tags --follow-tags
+        git push --follow-tags
     else
         echo usage: ./release.sh "[patch/minor/major]"
     fi

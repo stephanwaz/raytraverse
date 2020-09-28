@@ -2,18 +2,20 @@
 raytraverse
 ===========
 
+.. image:: https://img.shields.io/pypi/pyversions/raytraverse?style=flat-square
+    :alt: PyPI - Python Version
 
-.. image:: https://badge.fury.io/py/raytraverse.svg
-    :target: https://badge.fury.io/py/raytraverse
-    :alt: Release Status
+.. image:: https://img.shields.io/pypi/l/raytraverse?style=flat-square
+    :alt: PyPI - License
 
-.. image:: https://readthedocs.org/projects/raytraverse/badge/?version=latest
-        :target: https://raytraverse.readthedocs.io/en/latest/?badge=latest
-        :alt: Documentation Status
+.. image:: https://img.shields.io/readthedocs/raytraverse/stable?style=flat-square
+    :alt: Read the Docs (version)
 
-.. image:: https://travis-ci.org/stephanwaz/raytraverse.svg
-	:target: https://travis-ci.org/stephanwaz/raytraverse
-	:alt: Build Status
+.. image:: https://img.shields.io/travis/stephanwaz/raytraverse?style=flat-square
+    :alt: Travis (.org)
+
+.. image:: https://img.shields.io/coveralls/github/stephanwaz/raytraverse?style=flat-square
+    :alt: Coveralls github
 
 raytraverse is a complete workflow for climate based daylight modelling,
 simulation, and evaluation of architectural spaces. Built around a variance
@@ -59,7 +61,7 @@ see the src/ directory for more.
 For complete documentation of the API and the command line interface either
 use the Documentation link included above or::
 
-    pip install -r requirements_dev.txt
+    pip install -r docs/requirements.txt
     make docs
 
 to generate local documentation.

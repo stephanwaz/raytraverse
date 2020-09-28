@@ -278,7 +278,7 @@ class Integrator(object):
             keymap = self.sunfield.keymap()
         else:
             keymap = np.full((npts, 1), False)
-        with ProcessPoolExecutor() as exc:
+        with ProcessPoolExecutor(io.get_nproc()) as exc:
             fu = []
             for pj, (pi, vdir) in enumerate(zip(pis, pts[:, 3:6])):
                 vm = ViewMapper(viewangle=viewangle, dxyz=vdir, name=vname)

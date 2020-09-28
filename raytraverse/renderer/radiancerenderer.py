@@ -24,8 +24,7 @@ class RadianceRenderer(Renderer):
     @classmethod
     def update_param(cls, args, nproc=None, iot="ff"):
         cls.returnbytes = iot[-1] != "a"
-        if nproc is None:
-            nproc = os.cpu_count()
+        nproc = io.get_nproc(nproc)
         cls.initialized = cls._set_args(args, iot, nproc)
         cls.instance.initialize(cls.initialized)
 

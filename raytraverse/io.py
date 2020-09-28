@@ -114,6 +114,34 @@ class CaptureStdOut:
         os.close(self.save)
 
 
+def get_nproc(nproc=None):
+    if nproc is not None:
+        return nproc
+    env_nproc = os.getenv('RAYTRAVERSE_PROC_CAP')
+    try:
+        return int(env_nproc)
+    except (ValueError, TypeError):
+        return os.cpu_count()
+
+
+def set_nproc(nproc):
+    if nproc is None:
+        return None
+    if type(nproc) != int:
+        raise ValueError('nproc must be an int')
+    if nproc < 1:
+        unset_nproc()
+    else:
+        os.environ['RAYTRAVERSE_PROC_CAP'] = str(nproc)
+
+
+def unset_nproc():
+    try:
+        os.environ.pop('RAYTRAVERSE_PROC_CAP')
+    except KeyError:
+        pass
+
+
 def call_sampler(outf, command, vecs, shape):
     """make subprocess call to sampler given as command, expects rgb value
     as return for each vec

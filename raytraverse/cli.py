@@ -45,13 +45,16 @@ def np_load(ctx, param, s):
 @click.option('--template/--no-template', is_eager=True,
               callback=clk.printconfigs,
               help="write default options to std out as config")
+@click.option('-n', default=None, type=int,
+              help='sets the environment variable RAYTRAVERSE_PROC_CAP set to'
+                   '0 to clear (parallel processes will use cpu_limit)')
 @click.option('--opts', '-opts', is_flag=True,
               help="check parsed options")
 @click.option('--debug', is_flag=True,
               help="show traceback on exceptions")
 @click.version_option(version=raytraverse.__version__)
 @click.pass_context
-def main(ctx, out, config, outconfig=None, **kwargs):
+def main(ctx, out, config, n=None,  **kwargs):
     """the raytraverse executable is a command line interface to the raytraverse
     python package for running and evaluating climate based daylight models.
     sub commands of raytraverse can be chained but should be invoked in the
@@ -71,10 +74,14 @@ def main(ctx, out, config, outconfig=None, **kwargs):
     as both scene and sun will be invoked automatically as needed.
 
     Arguments:
+        * ctx: click.Context
         * out: path to new or existing directory for raytraverse run
+        * config: path to config file
+        * n: max number of processes to spawn
     """
+    raytraverse.io.set_nproc(n)
     ctx.info_name = 'raytraverse'
-    clk.get_config_chained(ctx, config, outconfig, None, None)
+    clk.get_config_chained(ctx, config, None, None, None)
     ctx.obj = dict(out=out)
 
 

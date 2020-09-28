@@ -59,8 +59,8 @@ lint: ## check style with flake8
 test: ## run tests quickly with the default Python
 	py.test
 
-test-all: ## run tests on every Python version with tox
-	tox
+slowtest: ## run tests on every Python version with tox
+	py.test --slow
 
 coverage: ## check code coverage quickly with the default Python
 	pytest --cov=raytraverse --slow
@@ -68,7 +68,10 @@ coverage: ## check code coverage quickly with the default Python
 	coverage html
 	$(BROWSER) htmlcov/index.html
 
-docs: ## generate Sphinx HTML documentation, including API docs
+coverall: coverage
+	coveralls
+
+docs: cdocs ## generate Sphinx HTML documentation, including API docs
 	# rm -f docs/raytraverse.rst
 	# rm -f docs/modules.rst
 	# sphinx-apidoc -o docs/ raytraverse
@@ -77,9 +80,6 @@ docs: ## generate Sphinx HTML documentation, including API docs
 	$(BROWSER) docs/_build/html/index.html
 
 cdocs: ## generate Sphinx HTML documentation, including API docs
-	# rm -f docs/raytraverse.rst
-	# rm -f docs/modules.rst
-	# sphinx-apidoc -o docs/ raytraverse
 	$(MAKE) -C docs/cdocs clean
 	$(MAKE) -C docs/cdocs html
 	python docs/cdocs/static_html.py

@@ -157,7 +157,7 @@ def test_sky_mtx(check):
     suni = sun[:, -1]
     print(lum.shape, grnd.shape)
     gsv = [f'genskyvec_sc -sc -m {side} -h -1 -b -s']*45
-    with ProcessPoolExecutor() as exc:
+    with ProcessPoolExecutor(io.get_nproc()) as exc:
         cols = exc.map(call_generic, zip(coms, gsv))
     smtx = np.hstack(list(cols)).T
     irerr = (lum - smtx[:, 1:])/smtx[:, 1:]

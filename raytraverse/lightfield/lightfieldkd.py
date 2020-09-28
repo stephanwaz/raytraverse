@@ -143,7 +143,7 @@ class LightFieldKD(LightField):
     def _mk_tree(self, pref='', ltype=MemArrayDict, os0=0):
         npts = self.scene.area.npts
         vs, lums = self._get_vl(npts, pref=pref, ltype=ltype, os0=os0)
-        with ProcessPoolExecutor() as exc:
+        with ProcessPoolExecutor(io.get_nproc()) as exc:
             d_kd, omega = zip(*exc.map(LightFieldKD.mk_vector_ball,
                                        vs.values()))
         return dict(zip(vs.keys(), d_kd)), vs, dict(zip(vs.keys(), omega)), lums
@@ -171,7 +171,7 @@ class LightFieldKD(LightField):
         futures = []
         idxs = []
         errs = []
-        with ProcessPoolExecutor() as exc:
+        with ProcessPoolExecutor(io.get_nproc()) as exc:
             for pt in self.items():
                 futures.append(exc.submit(self.d_kd[pt].query, vecs, interp))
             for fu in futures:

@@ -24,16 +24,6 @@ deploy:
     branch: release
     tags: true
   skip_cleanup: true
-#deploy:
-#  provider: pypi
-#  on:
-#      tags: true
-#      branch: release
-#  skip_existing: true
-#  skip_cleanup: true
-#  username: __token__
-#  password:
-#    secure: tiGaTWgZrIBkNml+2xtajhIqeVrBj97wXB2w0zMvx4J3x4jDGWc4tGaOTPujuaPHIPodfldsvlK3Np6nBxWLbMjlxdRNQJVlkkDm3yORSJ9K9Wcx+ENyp7ataJAYCDbonKHKGIJywowvs5+OGr+rT/qLPFmh2Pupwk5jot17AIrTUhpnSOvWRfcz7ql3E39OEjVB3k0mvUsRkgw5x48vJFOSUVGzwybXbVzCueJdsJtVPbC6R0dhGxwLiO/obgb71VBsv2g/midQ4DDABT//c5vRK86gVb/jgLZktG+61Xn8eXpLWTVF1KUhcXBBBS8PGeBJHBi66SMfUbqIekRNfwFafJiElVBbt+TxEapbwmJCa+jxxju4XoxqLkkmxynE6Od1jpKdo+/Jva7DiSjJrXRMcoJeS5gg+Ll4x4lOOBEcuFaGuuV+b/63tmXbRk1Uu3O28VJs6K6ePzWf34ZPkK4SyAark7iEhgJbt48UEeq0lOOJNcWymH+eH+o/6RPCmS47U82mGvrKPTd14aN3hpD2QBnPurPmmDCSgbbNxR2OVo8KB1gBqqG7h0yOiak+k2Q2EyefhHiCJVKlhv9zGh4yxMbsteGStcITVmiLblHBNrsPreiMit6fctb6zpxDDVRXhCDkB060Wu9+3bIWnHwqmvU8CGPIDVu4svjI7fM=
 
 after_success:
   # if the release was tagged, upload them to PyPI

@@ -5,6 +5,7 @@ packages.pdf
 venv/
 MANIFEST
 _skbuild/
+.coveralls.yml
 
 
 *.bsp

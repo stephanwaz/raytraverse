@@ -1,6 +1,5 @@
 cmake_minimum_required(VERSION 3.15)
 set(CMAKE_CXX_STANDARD 14)
-#set(CMAKE_VERBOSE_MAKEFILE on)
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 project(raytraverse)
 
@@ -17,7 +16,6 @@ add_subdirectory(pybind11)
 include_directories(pybind11/include/pybind11)
 include(pybind11_add_module_libs.cmake)
 
-
 include_directories(Radiance/src/rt Radiance/src/common)
 
 macro(create_version_file version_file)
@@ -33,16 +31,8 @@ macro(create_version_file version_file)
 endmacro()
 
 
-set(STATIC_VERSION_FILE "${CMAKE_CURRENT_SOURCE_DIR}/Version.c")
-create_version_file("${STATIC_VERSION_FILE}")
-
-# used by setup.py for distribution
-#if(NOT SKBUILD)
-#    set(STATIC_VERSION_FILE "${CMAKE_CURRENT_SOURCE_DIR}/StaticVersion.c")
-#    create_version_file("${STATIC_VERSION_FILE}")
-#else()
-#    set(STATIC_VERSION_FILE "${CMAKE_CURRENT_SOURCE_DIR}/StaticVersion.c")
-#endif(NOT SKBUILD)
+set(VERSION_FILE "${CMAKE_CURRENT_SOURCE_DIR}/Version.c")
+create_version_file("${VERSION_FILE}")
 
 # make lists of radiance source files for library creation
 set(rtrad_SOURCES
@@ -122,10 +112,6 @@ target_link_libraries(rtrad ${LIB_M})
 pybind11_add_module(craytraverse pyhelpers.cpp)
 pybind11_add_module_libs(rtrace_c MODULE render.cpp rtrace.cpp LINKLIBS raycalls radiance rtrad rtracecfiles)
 pybind11_add_module_libs(rcontrib_c MODULE render.cpp rcontrib.cpp LINKLIBS rcraycalls radiance rtrad rcontribcfiles)
-
-
-
-
 
 if(SKBUILD)
     set_target_properties(craytraverse PROPERTIES LIBRARY_OUTPUT_DIRECTORY "raytraverse/")

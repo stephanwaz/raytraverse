@@ -14,7 +14,7 @@ from scipy.stats import norm
 
 from clasp.script_tools import pipeline, sglob
 from raytraverse.lightfield.memarraydict import MemArrayDict
-from raytraverse import translate
+from raytraverse import translate, io
 from raytraverse.lightfield.lightfieldkd import LightFieldKD
 from raytraverse.lightfield.sunviewfield import SunViewField
 
@@ -54,7 +54,7 @@ class SunField(LightFieldKD):
         lums = MemArrayDict({})
         offset = 0
         npts = self.scene.area.npts
-        with ProcessPoolExecutor() as exc:
+        with ProcessPoolExecutor(io.get_nproc()) as exc:
             futures = []
             for i in range(self.suns.suns.shape[0]):
                 dfile = f'{self.scene.outdir}/{self.prefix}_{i:04d}_vals.out'
