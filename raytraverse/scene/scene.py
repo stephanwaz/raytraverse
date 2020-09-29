@@ -55,12 +55,14 @@ class Scene(object):
     maxspec: float, optional
         maximum specular transmission in scene
         (used to clip pdf for sun sampling)
+    frozen: bool, optional
+        create a frozen octree
     """
 
     def __init__(self, outdir, scene=None, area=None, reload=True,
                  overwrite=False, ptres=1.0, ptro=0.0, pttol=1.0,
                  viewdir=(0, 1, 0), viewangle=360, skyres=10.0, maxspec=0.3,
-                 **kwargs):
+                 frozen=True, **kwargs):
         locvar = locals()
         try:
             os.mkdir(outdir)
@@ -82,8 +84,6 @@ class Scene(object):
         else:
             locvar.pop('self')
             locvar.pop('kwargs')
-            with open(js, 'w') as jf:
-                json.dump(locvar, jf)
             #: bool: try to reload scene files
             self.reload = reload
             #: str: path to store scene info and output files
@@ -106,6 +106,7 @@ class Scene(object):
             #: float: maximum specular transmission in scene
             self.maxspec = maxspec
             self._solarbounds = None
+            self._frozen = frozen
             self.scene = scene
             self.reload = False
             #: raytraverse.viewmapper.ViewMapper: view translation class
@@ -118,6 +119,9 @@ class Scene(object):
                 skyres = .7
             self.skyres = skyres
             self.pt_kd = None
+            locvar['scene'] = self.scene
+            with open(js, 'w') as jf:
+                json.dump(locvar, jf)
 
     @property
     def skyres(self):
@@ -148,18 +152,23 @@ class Scene(object):
                 m = re.match(scene + r': [\d.-]+ [\d.-]+ [\d.-]+ [\d.-]+',
                              dims.strip())
             except TypeError:
-                raise ValueError(f'{o} does not exist, Scene() must be invoked'
-                                 ' with a scene= argument')
-            if m:
-                oconv = f'oconv -i {scene}'
+                raise ValueError(f'{scene} does not exist, Scene() must be '
+                                 'invoked with a scene= argument')
+            if not self._frozen and m:
+                o = scene
             else:
-                scene = " ".join(parse_file_list(None, scene))
-                oconv = f'oconv -f {scene}'
-            result, err = cst.pipeline([oconv, ],
-                                       outfile=o,
-                                       close=True, caperr=True, writemode='wb')
-            if b'fatal' in err:
-                raise ChildProcessError(err.decode(cst.encoding))
+                if m:
+                    oconv = f'oconv -i {scene}'
+                else:
+                    scene = " ".join(parse_file_list(None, scene))
+                    if self._frozen:
+                        oconv = f'oconv -f {scene}'
+                    else:
+                        oconv = f'oconv {scene}'
+                result, err = cst.pipeline([oconv, ], outfile=o, close=True,
+                                           caperr=True, writemode='wb')
+                if b'fatal' in err:
+                    raise ChildProcessError(err.decode(cst.encoding))
         self._scene = o
 
     def pts(self):

@@ -1,24 +1,24 @@
-===========
-raytraverse
-===========
+===================
+raytraverse (0.2.3)
+===================
 
-.. image:: https://img.shields.io/pypi/pyversions/raytraverse?style=flat-square
+.. image:: https://img.shields.io/pypi/v/raytraverse?style=flat-square
     :target: https://pypi.org/project/raytraverse/0.2.3
-    :alt: PyPI - Python Version
+    :alt: PyPI
 
 .. image:: https://img.shields.io/pypi/l/raytraverse?style=flat-square
     :target: https://www.mozilla.org/en-US/MPL/2.0/
     :alt: PyPI - License
 
-.. image:: https://img.shields.io/readthedocs/raytraverse/stable?style=flat-square
+.. image:: https://img.shields.io/readthedocs/raytraverse/v0.2.3?style=flat-square
     :target: https://raytraverse.readthedocs.io/en/v0.2.3/
     :alt: Read the Docs (version)
 
-.. image:: https://img.shields.io/travis/stephanwaz/raytraverse?style=flat-square
+.. image:: https://img.shields.io/travis/stephanwaz/raytraverse/v0.2.3?style=flat-square
     :target: https://travis-ci.org/github/stephanwaz/raytraverse/builds
     :alt: Travis (.org)
 
-.. image:: https://img.shields.io/coveralls/github/stephanwaz/raytraverse?style=flat-square
+.. image:: https://img.shields.io/coveralls/github/stephanwaz/raytraverse/v0.2.3?style=flat-square
     :target: https://coveralls.io/github/stephanwaz/raytraverse
     :alt: Coveralls github
 

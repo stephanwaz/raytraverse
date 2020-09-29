@@ -5,9 +5,6 @@
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 # =======================================================================
-import shlex
-
-
 class Renderer(object):
     """virtual renderer class"""
 
@@ -27,11 +24,6 @@ class Renderer(object):
 
     def __init__(self, rayargs=None, scene=None, nproc=None, **kwargs):
         self.initialize(rayargs, scene, nproc, **kwargs)
-
-    @classmethod
-    def _set_args(cls, args, iot, nproc):
-        return shlex.split(f"{cls.name} -f{iot} -n {nproc} {cls.arg_prefix}"
-                           f" {args}")
 
     @classmethod
     def initialize(cls, args, scene, nproc=None, **kwargs):

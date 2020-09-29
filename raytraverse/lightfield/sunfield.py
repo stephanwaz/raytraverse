@@ -99,7 +99,7 @@ class SunField(LightFieldKD):
         sun = np.concatenate((self.suns.suns[pi[1]], [coefs, ]))
         self.view.add_to_img(img, pi, sun, vm)
 
-    def direct_view(self, res=200, showsample=False, items=None):
+    def direct_view(self, res=800, showsample=True, items=None):
         """create a summary image of lightfield for each vpt"""
         super().direct_view(res=res, showsample=showsample, items=items)
         if items is not None:
@@ -110,6 +110,8 @@ class SunField(LightFieldKD):
             files = ' '.join(flist)
             outf = f"{self.scene.outdir}_{self.prefix}_{i:04d}.hdr"
             pcompos = f'pcompos -a -{ssq} -s 5 -b 1 1 1 -la {files}'
-            pipeline([pcompos], outf, close=True, writemode='wb')
+            xscale = min(ssq*res, 2000)
+            pfilt = f'pfilt -1 -e 1 -m .25 -r .6 -x {xscale} -p 1 -'
+            pipeline([pcompos, pfilt], outf, close=True, writemode='wb')
             for fl in flist:
                 os.remove(fl)

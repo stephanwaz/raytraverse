@@ -8,5 +8,5 @@ set(CMAKE_VERBOSE_MAKEFILE on)
 install(TARGETS rtrace_c rcontrib_c LIBRARY DESTINATION raytraverse/crenderer)
 install(TARGETS craytraverse LIBRARY DESTINATION raytraverse)
 install(TARGETS rtrace rcontrib  total cnt rcalc getinfo vwrays
-    pvalue pcompos pcomb oconv gendaylit RUNTIME DESTINATION bin)
+    pvalue pcompos pcomb pfilt oconv gendaylit RUNTIME DESTINATION bin)
 

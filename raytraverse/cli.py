@@ -115,6 +115,8 @@ def main(ctx, out, config, n=None,  **kwargs):
 @click.option('--overwrite/--no-overwrite', default=False,
               help='Warning! if set to True and reload is False all files in'
                    'OUT will be deleted')
+@click.option('--frozen/--no-frozen', default=True,
+              help='create frozen octree from scene files')
 @click.option('--info/--no-info', default=False,
               help='print info on scene to stderr')
 @click.option('--points/--no-points', default=False,
@@ -347,7 +349,10 @@ def sunrun(ctx, plotdview=False, run=True, rmraw=False, **kwargs):
             print(f'Warning: {ex}', file=sys.stderr)
         else:
             if plotdview:
-                su.direct_view(res=200)
+                items = list(su.items())
+                if len(items) >= 20:
+                    items = None
+                su.direct_view(items=items)
 
 
 @main.command()
@@ -422,9 +427,9 @@ def integrate(ctx, pts=None, skyonly=False, hdr=True,
         itg.hdr(pts, *skymtx, interp=interp, res=res, vname=vname)
     if metric:
         mf = (raytraverse.metric.illum, raytraverse.metric.sqlum)
-        metrics = itg.metric(pts, *skymtx, scale=179, metricfuncs=mf)
+        metrics, colhdr = itg.metric(pts, *skymtx, scale=179, metricfuncs=mf)
         if header:
-            print("view\tpoint\tsky\t" + "\t".join([f.__name__ for f in mf]))
+            print("pt-idx\tsky-idx\t" + "\t".join(colhdr))
         for p, pts in enumerate(metrics):
             for s, skies in enumerate(pts):
                 print(f"{p}\t{s}\t" + "\t".join([f"{i}" for i in skies]))

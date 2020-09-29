@@ -1,6 +1,3 @@
-raytraverse (|release|)
-=======================
-
 .. include:: ../README.rst
 
 .. toctree::

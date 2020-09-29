@@ -50,6 +50,11 @@ class SPRenderer(Renderer):
             q.communicate()
         return capture.stdout
 
+    @classmethod
+    def _set_args(cls, args, iot, nproc):
+        return shlex.split(f"{cls.name} -f{iot} -n {nproc} {cls.arg_prefix}"
+                           f" {args} -av 0 0 0")
+
 
 class SPRtrace(SPRenderer):
     Engine = 'rtrace'

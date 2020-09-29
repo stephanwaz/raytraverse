@@ -171,6 +171,10 @@ class Integrator(object):
         daysteps: np.array
             shape (len(skydata),) boolean array masking timesteps when sun is
             below horizon
+        serrs: np.array
+            error (angle in degrees) between sun and proxy source
+        skydata: no.array
+            sun position and dirnorm diffhoriz
         """
         if skydata is None:
             skydata = self.skydata
@@ -179,12 +183,13 @@ class Integrator(object):
         daysteps = skydata[:, 2] > 0
         sxyz = skydata[daysteps, 0:3]
         if self.suns is not None:
-            si = self.suns.proxy_src(sxyz, tol=self.suns.sunres)
+            si, serrs = self.suns.proxy_src(sxyz, tol=self.suns.sunres)
             # nosun = np.arange(hassun.size)[np.logical_not(hassun)]
         else:
             # nosun = np.arange(sxyz.shape[0])
             # hassun = 0
-            si = np.zeros(sxyz.shape[0])
+            si = np.zeros(sxyz.shape[0], dtype=int)
+            serrs = si
         sunuv = translate.xyz2uv(sxyz, flipu=False)
         sunbins = translate.uv2bin(sunuv, self.scene.skyres)
         dirdif = skydata[daysteps, 3:]
@@ -194,7 +199,7 @@ class Integrator(object):
         plum = sun[:, -1] * omegar
         sun = np.hstack((sun, plum[:, None]))
         si = np.stack((si, sunbins)).T
-        return smtx, grnd, sun, si, daysteps
+        return smtx, grnd, sun, si, daysteps, serrs, skydata
 
     def header(self):
         """generate image header string"""
@@ -229,12 +234,13 @@ class Integrator(object):
             self.sunfield.add_to_img(img, mask, psi, j, e, sun[-1], vm)
         else:
             skyv[suni[1]] += sun[4]
-        self.skyfield.add_to_img(img, mask, pi, *si, coefs=skyv)
+        # self.skyfield.add_to_img(img, mask, pi, *si, coefs=skyv)
         io.array2hdr(img, outf, self.header() + [vstr])
         return outf
 
     def hdr(self, pts, smtx, grnd=None, suns=None, suni=None,
-            daysteps=None, vname='view', viewangle=180.0, res=400, interp=1):
+            daysteps=None, sunerrs=None, skydata=None, vname='view',
+            viewangle=180.0, res=400, interp=1):
         """
 
         Parameters
@@ -258,6 +264,10 @@ class Integrator(object):
         daysteps: np.array
             shape (len(skydata),) boolean array masking timesteps when sun is
             below horizon
+        sunerrs: np.array
+            error (angle in degrees) between sun and proxy source
+        skydata: no.array
+            sun position and dirnorm diffhoriz
         vname: str
             view name for output file
         viewangle: float, optional
@@ -298,7 +308,8 @@ class Integrator(object):
                 print(future.result(), file=sys.stderr)
 
     def metric(self, pts, smtx, grnd=None, suns=None, suni=None,
-               daysteps=None, metricfuncs=(metric.illum,), **kwargs):
+               daysteps=None, sunerrs=None, skydata=None,
+               metricfuncs=(metric.illum,), **kwargs):
         """calculate luminance based metrics for given sensors and skyvecs
 
         Parameters
@@ -322,6 +333,10 @@ class Integrator(object):
         daysteps: np.array
             shape (len(skydata),) boolean array masking timesteps when sun is
             below horizon
+        sunerrs: np.array
+            error (angle in degrees) between sun and proxy source
+        skydata: no.array
+            sun position and dirnorm diffhoriz
         metricfuncs: tuple
             list of metric functions to apply, with the call signature:
             f(view, rays, omegas, lum, kwargs)
@@ -333,20 +348,28 @@ class Integrator(object):
             (view, points, skys, metrics) an additional column on the final axis
             is 0 when only the skyfield is used, 1 when sun reflections exists
             and 2 when a view to the sun also exists.
+        colhdr: list
+            column headers
         """
         npts = self.scene.area.npts
         perrs, pis = self.scene.area.pt_kd.query(pts[:, 0:3])
+        mthdr = [f.__name__ for f in metricfuncs]
+        errhdr = ["sun-value", "pt-err", "sun-err"]
+        poshdr = ["x", "y", "z", "dx", "dy", "dz"]
+        sunhdr = ["sun-x", "sun-y", "sun-z", "dir-norm", "diff-horiz"]
+        colhdr = poshdr + mthdr + errhdr + sunhdr
         if self.suns:
             keymap = self.sunfield.keymap()
         else:
             keymap = np.full((npts, 1), False)
         pmetrics = []
-        for pi, vdir in zip(pis, pts[:, 3:6]):
+        for pi, pt, vdir, perr in zip(pis, pts[:, 0:3], pts[:, 3:6], perrs):
             # get sky vectors
             skyidx = self.skyfield.query_ball(pi, [vdir])
             smetrics = []
             vm = ViewMapper(vdir, viewangle=180)
-            for skyv, s, (si, sb) in zip(smtx, suns, suni):
+            for skyv, s, (si, sb), serr, skydat in zip(smtx, suns, suni,
+                                                       sunerrs, skydata):
                 psi = (pi, si)
                 if keymap[pi, si] and s[-2] > 0:
                     skyvec = skyv
@@ -385,11 +408,10 @@ class Integrator(object):
                     lmsun += skylm[skysun]
                     lmsky += sunlm[sunsky]
                     skyweight = .5
-
                     fsun = [f(vm, sunrays, osun, lmsun, **kwargs) * skyweight
                             for f in metricfuncs]
                     mstack.append(fsun)
-                fsky = [f(vm, skyrays, osky, lmsky, **kwargs)*skyweight
+                fsky = [f(vm, skyrays, osky, lmsky, **kwargs) * skyweight
                         for f in metricfuncs]
                 mstack.append(fsky)
                 try:
@@ -400,8 +422,12 @@ class Integrator(object):
                 else:
                     sunvalue += 1
                     mstack.append(fsv)
-                smetrics.append(np.concatenate((np.sum(mstack, 0), [sunvalue])))
+                # colhdr = poshdr + mthdr + errhdr + sunhdr
+                mtcs = np.sum(mstack, 0)
+                errs = [sunvalue, perr, serr]
+                poss = [*pt, *vdir]
+                smetrics.append(np.concatenate((poss, mtcs, errs, skydat)))
             pmetrics.append(smetrics)
         # loop returns shape: (points, skys, metrics)
         # transpose reorganizes as: (view, points, skys, metrics)
-        return np.array(pmetrics)
+        return np.array(pmetrics), colhdr

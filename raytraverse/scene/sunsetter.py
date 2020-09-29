@@ -194,15 +194,16 @@ class SunSetter(object):
         Returns
         -------
         np.array
-            (N,) boolean array if sun has a match
-        np.array
             (N,) index to proxy src
+        list
+            (N,) error in degrees to proxy sun
         """
         stol = translate.theta2chord(tol*np.pi/180)
         suns = translate.norm(tsuns)
         serrs, sis = self.sun_kd.query(suns)
+        serrs = translate.chord2theta(serrs) * 180 / np.pi
         sis = np.where(serrs < stol, sis, self.suns.shape[0])
-        return sis
+        return sis, serrs
 
     def _write_suns(self, sunfile):
         """write suns to file

@@ -5,6 +5,7 @@
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 # =======================================================================
+import shlex
 import sys
 import os
 from raytraverse import io
@@ -58,3 +59,7 @@ class RadianceRenderer(Renderer):
         cls.instance.reset_instance()
         super().reset_instance()
 
+    @classmethod
+    def _set_args(cls, args, iot, nproc):
+        return shlex.split(f"{cls.name} -f{iot} -n {nproc} {cls.arg_prefix}"
+                           f" {args} -av 0 0 0")

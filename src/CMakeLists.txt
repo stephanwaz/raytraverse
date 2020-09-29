@@ -174,6 +174,11 @@ target_link_libraries(pcompos rtrad)
 add_executable(pcomb Radiance/src/px/pcomb.c)
 target_link_libraries(pcomb rtrad)
 
+set(PFILTFILES pf2.c pf3.c pfilt.c)
+list(TRANSFORM PFILTFILES PREPEND Radiance/src/px/)
+add_executable(pfilt ${PFILTFILES})
+target_link_libraries(pfilt rtrad)
+
 # from ot
 set(OCONVFILES bbox.c initotypes.c o_cone.c o_face.c o_instance.c oconv.c sphere.c writeoct.c)
 list(TRANSFORM OCONVFILES PREPEND Radiance/src/ot/)

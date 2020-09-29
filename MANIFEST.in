@@ -27,7 +27,7 @@ recursive-include src/Radiance/src/common *.h *.c
 recursive-include src/Radiance/src/cal *.h cnt.c total.c rcalc.c
 recursive-include src/Radiance/src/gen *.h gendaylit.c sun.c
 recursive-include src/Radiance/src/ot *.h bbox.c initotypes.c o_cone.c o_face.c o_instance.c oconv.c sphere.c writeoct.c
-recursive-include src/Radiance/src/px *.h pvalue.c pcompos.c pcomb.c
+recursive-include src/Radiance/src/px *.h pvalue.c pcompos.c pcomb.c pf2.c pf3.c pfilt.c
 recursive-include src/Radiance/src/util *.h getinfo.c vwrays.c
 include src/Radiance/License.txt
 include *.txt

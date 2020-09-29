@@ -106,14 +106,14 @@ class Sampler(object):
     def compiledscene(self, src):
         self._staticscene = src is None
         if self._staticscene:
-            self._compiledscene = f'{self.scene.outdir}/scene.oct'
+            self._compiledscene = self.scene.scene
         else:
             self._compiledscene = f'{self.scene.outdir}/{self.stype}.oct'
             if os.path.isfile(src):
-                ocom = f'oconv -f -i {self.scene.outdir}/scene.oct {src}'
+                ocom = f'oconv -f -i {self.scene.scene} {src}'
                 inp = None
             else:
-                ocom = f'oconv -f -i {self.scene.outdir}/scene.oct -'
+                ocom = f'oconv -f -i {self.scene.scene} -'
                 inp = src
             f = open(self.compiledscene, 'wb')
             cst.pipeline([ocom], outfile=f, inp=inp, close=True)

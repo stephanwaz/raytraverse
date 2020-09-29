@@ -9,7 +9,8 @@ from raytraverse.renderer.radiancerenderer import RadianceRenderer
 from raytraverse.crenderer import cRtrace
 
 if cRtrace.version == "PyVirtual":
-    from raytraverse.renderer.sprenderer import SPRtrace as Rtrace
+    from raytraverse.renderer.sprenderer import SPRtrace
+    Rtrace = SPRtrace
 else:
     class Rtrace(RadianceRenderer):
         """singleton wrapper for c++ crenderer.cRtrace singleton class"""
