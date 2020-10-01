@@ -37,7 +37,7 @@ class LightFieldKD(LightField):
                 _voronoi.sort_vertices_of_regions(self._simplices, reg)
 
         d_kd = cKDTree(v)
-        omega = SVoronoi(v).calculate_areas()[:, None]
+        omega = SphericalVoronoi(v).calculate_areas()[:, None]
         return d_kd, omega
 
     @property
@@ -66,6 +66,10 @@ class LightFieldKD(LightField):
         kdfile = f'{scene.outdir}/{self.prefix}_kd_data.pickle'
         lumfile = f'{scene.outdir}/{self.prefix}_kd_lum_map.pickle'
         lumdat = f'{self.scene.outdir}/{self.prefix}_kd_lum.dat'
+        if self.rebuild and not all([os.path.isfile(p) for p in
+                                     self.raw_files()]):
+            raise FileNotFoundError("some data-files missing, cannot rebuild"
+                                    " lightfield")
         if (os.path.isfile(kdfile) and os.path.isfile(lumfile)
                 and not self.rebuild):
             f = open(kdfile, 'rb')

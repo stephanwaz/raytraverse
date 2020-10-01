@@ -233,6 +233,21 @@ class Sampler(object):
         self._vecfiles.append((outif, outf))
         return outf
 
+    def _plot_p(self, p):
+        if self.plotp:
+            ps = p.reshape(self.weights.shape)
+            outshape = self.levels[-1][-2:]
+            pixelxyz = self.samplemap.pixelrays(outshape[-1]).reshape(-1, 3)
+            uv = self.samplemap.xyz2uv(pixelxyz)
+            for i, ws in enumerate(self.weights):
+                for j, w in enumerate(ws):
+                    ij = translate.uv2ij(uv, w.shape[-1])
+                    outw = f"{self.scene.outdir}_{self.stype}_weights_{i:04d}_{j:04d}_level{self.idx:02d}.hdr"
+                    outp = f"{self.scene.outdir}_{self.stype}_detail_{i:04d}_{j:04d}_level{self.idx:02d}.hdr"
+                    io.array2hdr(w[ij[:, 0], ij[:, 1]].reshape(outshape), outw)
+                    io.array2hdr(ps[i, j][ij[:, 0], ij[:, 1]].reshape(outshape),
+                                 outp)
+
     def draw(self):
         """draw samples based on detail calculated from weights
         detail is calculated across direction only as it is the most precise
@@ -252,8 +267,7 @@ class Sampler(object):
             daxes = (len(pres) + len(dres) - 2, len(pres) + len(dres) - 1)
             p = draw.get_detail(self.weights, daxes)
             if self.plotp:
-                quickplot.imshow(np.log10(p.reshape(self.weights.shape)[0, 0]),
-                                 [20, 10])
+                self._plot_p(p)
             # draw on pdf
             # threshold is set to accurracy at final
             threshold = self.accuracy * 4**(self.idx - len(self.levels))

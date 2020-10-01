@@ -31,9 +31,12 @@ def np_load(ctx, param, s):
     """
     if os.path.exists(s):
         try:
-            return np.load(s)
+            ar = np.load(s)
         except ValueError:
-            return np.loadtxt(s)
+            ar = np.loadtxt(s)
+        if len(ar.shape) == 1:
+            ar = ar.reshape(1, -1)
+        return ar
     else:
         return np.array([[float(i) for i in j.split(',')] for j in s.split()])
 
@@ -173,7 +176,11 @@ run_opts = [
  click.option('--rmraw/--no-rmraw', default=True,
               help='if True removes output of sampler.run(), after SCBinField'
                    ' is constructed. Note that SCBinField cannot be rebuilt'
-                   ' once raw files are removed')
+                   ' once raw files are removed'),
+ click.option('--overwrite/--no-overwrite', default=False,
+              help='execute run even if simulations exist'),
+ click.option('--rebuild/--no-rebuild', default=False,
+              help='force rebuild kdtree')
     ]
 
 
@@ -189,18 +196,22 @@ run_opts = [
                    ' rcontrib -defaults for more information')
 @clk.shared_decs(run_opts)
 @clk.shared_decs(clk.command_decs(raytraverse.__version__, wrap=True))
-def sky(ctx, plotdview=False, run=True, rmraw=True, executable='rcontrib',
-        **kwargs):
+def sky(ctx, plotdview=False, run=True, rmraw=True, overwrite=False,
+        rebuild=False, **kwargs):
     """the sky command intitializes and runs a sky sampler and then readies
     the results for integration by building a SCBinField. sky should be invoked
     before calling suns, as the sky contributions are used to select the
     necessary sun positions to run"""
     if 'scene' not in ctx.obj:
         clk.invoke_dependency(ctx, scene)
-    sampler = SCBinSampler(ctx.obj['scene'], **kwargs)
+    s = ctx.obj['scene']
+    lumf = f'{s.outdir}/sky_kd_lum.dat'
+    exists = os.path.isfile(lumf) and os.stat(lumf).st_size > 1000
+    run = run and (overwrite or not exists)
     if run:
+        sampler = SCBinSampler(s, **kwargs)
         sampler.run()
-    sk = SCBinField(ctx.obj['scene'], rebuild=run, rmraw=rmraw)
+    sk = SCBinField(s, rebuild=run or rebuild, rmraw=rmraw)
     if plotdview:
         sk.direct_view()
 
@@ -324,7 +335,8 @@ def suns(ctx, loc=None, wea=None, usepositions=False, plotdview=False,
               help="run/build/plot reflected sun components")
 @clk.shared_decs(run_opts)
 @clk.shared_decs(clk.command_decs(raytraverse.__version__, wrap=True))
-def sunrun(ctx, plotdview=False, run=True, rmraw=False, **kwargs):
+def sunrun(ctx, plotdview=False, run=True, rmraw=False, overwrite=False,
+           rebuild=False, **kwargs):
     """the sunrun command intitializes and runs a sun sampler and then readies
     the results for integration by building a SunField."""
     if 'suns' not in ctx.obj:
@@ -332,19 +344,27 @@ def sunrun(ctx, plotdview=False, run=True, rmraw=False, **kwargs):
     scn = ctx.obj['scene']
     sns = ctx.obj['suns']
     sampler = SunSampler(scn, sns, **kwargs)
-    if run:
-        sampler.run(kwargs['view'], kwargs['reflection'])
     if kwargs['view']:
+        lumf = f'{scn.outdir}/sunview_kd_data.pickle'
+        exists = os.path.isfile(lumf) and os.stat(lumf).st_size > 1000
+        vrun = run and (overwrite or not exists)
+        if vrun:
+            sampler.run(view=True, reflection=False)
         try:
-            sv = SunViewField(scn, sns, rebuild=run, rmraw=rmraw)
+            sv = SunViewField(scn, sns, rebuild=vrun or rebuild, rmraw=rmraw)
         except FileNotFoundError as ex:
             print(f'Warning: {ex}', file=sys.stderr)
         else:
             if plotdview:
                 sv.direct_view()
     if kwargs['reflection']:
+        lumf = f'{scn.outdir}/sun_kd_lum.dat'
+        exists = os.path.isfile(lumf) and os.stat(lumf).st_size > 1000
+        rrun = run and (overwrite or not exists)
+        if rrun:
+            sampler.run(view=False, reflection=True)
         try:
-            su = SunField(scn, sns, rebuild=run, rmraw=rmraw)
+            su = SunField(scn, sns, rebuild=rrun or rebuild, rmraw=rmraw)
         except FileNotFoundError as ex:
             print(f'Warning: {ex}', file=sys.stderr)
         else:
@@ -394,6 +414,8 @@ def sunrun(ctx, plotdview=False, run=True, rmraw=False, **kwargs):
               help='counter clockwise rotation (in degrees) of the sky to'
                    ' rotate true North to project North, so if project North'
                    ' is 10 degrees East of North, skyro=10')
+@click.option('-ground_fac', default=0.15,
+              help='ground reflectance')
 @click.option('--skyonly/--no-skyonly', default=False,
               help="if True, only integrate on Sky Field, useful for "
                    "diagnostics")

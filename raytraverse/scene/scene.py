@@ -99,6 +99,9 @@ class Scene(object):
                                      f'area={area}')
             try:
                 ptload = np.loadtxt(a)[:, 0:3]
+            except IndexError:
+                ptload = np.loadtxt(a)[0:3].reshape(1, 3)
+                self.area = SpaceMapperPt(a, ptres, ptro, pttol)
             except ValueError:
                 self.area = SpaceMapper(a, ptres, ptro, pttol)
             else:

@@ -9,11 +9,12 @@ if [ "$clean" -lt 1 ]; then
         make coverall
         twine upload dist/*.tar.gz
         git push
-        git push --tags
         git checkout master
         git merge release
         git push
-        git push --tags
+		echo ######################################################
+        echo check that remote builds are successful than push tags
+		echo ######################################################
     else
         echo usage: ./release.sh "[patch/minor/major]"
     fi

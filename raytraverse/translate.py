@@ -16,7 +16,7 @@ from scipy.ndimage.filters import gaussian_filter, uniform_filter
 scbinscal = ("""
 { map U/V axis to bin divisions }
 axis(x) : mod(floor(side * x), side);
-
+nrbins : side * side;
 { get bin of u,v }
 binl(u, v) : axis(u)*side + axis(v);
 
@@ -38,7 +38,7 @@ b = if(pi4 - phi, phi*r/pi4, if(3*pi4 - phi, r, if(5*pi4 - phi, """
 U = (if(n, 1, 3) - a*n)/2;
 V = (b + 1)/2;
 
-bin = binl(V, U);
+bin = if(n, binl(V, U), nrbins);
 """)
 
 scxyzcal = """

@@ -32,13 +32,13 @@ class SCBinSampler(Sampler):
         f.write(translate.scbinscal)
         f.close()
         skydeg = ("void glow skyglow 0 0 4 1 1 1 0 skyglow source sky 0 0 4"
-                  " 0 0 1 180")
+                  " 0 0 1 180\nskyglow source ground  0 0 4 0 0 -1 180")
+        mods = "-m skyglow"
         self.engine = renderer.Rcontrib()
         self.engine.reset()
-        srcn = scene.skyres**2
+        srcn = scene.skyres**2 + 1
         engine_args = (f"-V+ {rcopts} -Z+ -e 'side:{scene.skyres}' -f "
-                       f"{scene.outdir}/scbins.cal -b bin -bn {srcn} "
-                       f"-m skyglow")
+                       f"{scene.outdir}/scbins.cal -b bin -bn {srcn} {mods}")
         super().__init__(scene, srcn=srcn, stype='sky',  srcdef=skydeg,
                          accuracy=accuracy, engine_args=engine_args, **kwargs)
 
@@ -64,4 +64,4 @@ class SCBinSampler(Sampler):
             array of shape (N,) to update weights
         """
         lum = super().sample(vecf)
-        return np.max(lum, 1)
+        return np.max(lum[:, :self.srcn-1], 1)

@@ -53,7 +53,7 @@ class Integrator(object):
     """
 
     def __init__(self, skyfield, sunfield=None, wea=None, loc=None, skyro=0.0,
-                 **kwargs):
+                 ground_fac=0.15, **kwargs):
         #: raytraverse.scene.Scene
         self.scene = skyfield.scene
         try:
@@ -75,6 +75,7 @@ class Integrator(object):
         self.sunfield = sunfield
         #: raytraverse.lightfield.SCBinField
         self.skyfield = skyfield
+        self.ground_fac = ground_fac
         if wea is not None:
             self.skydata = wea
         else:
@@ -143,7 +144,7 @@ class Integrator(object):
                              '\n5 col: m, d, h, dir, diff')
         return skydat
 
-    def get_sky_mtx(self, skydata=None):
+    def get_sky_mtx(self, skydata=None, ground_fac=None):
         """generate sky, grnd and sun coefficients from sky data using perez
 
         Parameters
@@ -193,7 +194,10 @@ class Integrator(object):
         sunuv = translate.xyz2uv(sxyz, flipu=False)
         sunbins = translate.uv2bin(sunuv, self.scene.skyres)
         dirdif = skydata[daysteps, 3:]
-        smtx, grnd, sun = skycalc.sky_mtx(sxyz, dirdif, self.scene.skyres)
+        if ground_fac is None:
+            ground_fac = self.ground_fac
+        smtx, grnd, sun = skycalc.sky_mtx(sxyz, dirdif, self.scene.skyres,
+                                          ground_fac=ground_fac)
         # ratio between actual solar disc and patch
         omegar = np.square(0.2665 * np.pi * self.scene.skyres / 180) * .5
         plum = sun[:, -1] * omegar
@@ -234,7 +238,7 @@ class Integrator(object):
             self.sunfield.add_to_img(img, mask, psi, j, e, sun[-1], vm)
         else:
             skyv[suni[1]] += sun[4]
-        # self.skyfield.add_to_img(img, mask, pi, *si, coefs=skyv)
+        self.skyfield.add_to_img(img, mask, pi, *si, coefs=skyv)
         io.array2hdr(img, outf, self.header() + [vstr])
         return outf
 
@@ -288,6 +292,8 @@ class Integrator(object):
             keymap = self.sunfield.keymap()
         else:
             keymap = np.full((npts, 1), False)
+        if grnd is not None:
+            smtx = np.hstack((smtx, grnd[:, None]))
         with ProcessPoolExecutor(io.get_nproc()) as exc:
             fu = []
             for pj, (pi, vdir) in enumerate(zip(pis, pts[:, 3:6])):
@@ -363,6 +369,8 @@ class Integrator(object):
         else:
             keymap = np.full((npts, 1), False)
         pmetrics = []
+        if grnd is not None:
+            smtx = np.hstack((smtx, grnd[:, None]))
         for pi, pt, vdir, perr in zip(pis, pts[:, 0:3], pts[:, 3:6], perrs):
             # get sky vectors
             skyidx = self.skyfield.query_ball(pi, [vdir])
@@ -392,7 +400,7 @@ class Integrator(object):
                     sunrays = self.sunfield.vec[psi][sunidx[0]]
                     osun = np.squeeze(self.sunfield.omega[psi][sunidx[0]])
                     lmsun = sunlm[sunidx[0]]
-
+                    print(sunrays.shape, skyrays.shape, osun.shape, osky.shape)
                     # TODO cross match samples
                     # currently implements a nearest neighbor and then
                     # averages the two results (using the skyweight term,

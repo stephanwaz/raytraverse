@@ -45,7 +45,7 @@ class SunField(LightFieldKD):
         for i in range(self.suns.suns.shape[0]):
             rf.append(f'{self.scene.outdir}/{self.prefix}_{i:04d}_vals.out')
             rf.append(f'{self.scene.outdir}/{self.prefix}_{i:04d}_vecs.out')
-        return rf + self.view.raw_files()
+        return rf
 
     def _mk_tree(self, pref='', ltype=list, os0=0):
         d_kds = {}

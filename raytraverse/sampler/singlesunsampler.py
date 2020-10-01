@@ -156,7 +156,7 @@ class SingleSunSampler(Sampler):
             weights = self.pdf_from_sky(skyfield)
             p = translate.resample(weights, shape)
             if self.plotp:
-                quickplot.imshow(p[0, 0], [20, 10])
+                self._plot_p(p)
             pdraws = draw.from_pdf(p.ravel(), self.slimit)
         else:
             pdraws = super().draw()

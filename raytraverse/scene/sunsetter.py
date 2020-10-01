@@ -137,8 +137,8 @@ class SunSetter(object):
                 zeros = np.zeros(len(skylums), dtype=int)
                 with ThreadPoolExecutor() as exc:
                     mxs = list(exc.map(np.max, skylums.values(), zeros))
-                sd = np.max(np.stack(mxs), 0).reshape(self.scene.skyres,
-                                                      self.scene.skyres)
+                sd = np.max(np.stack(mxs), 0)[:-1].reshape(self.scene.skyres,
+                                                           self.scene.skyres)
                 np.save(outf, sd)
         sd = translate.interpolate2d(sd, (self.sunres, self.sunres))
         return sd.ravel()

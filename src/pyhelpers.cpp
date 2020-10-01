@@ -89,82 +89,9 @@ pybind11::tuple from_pdf(py::array_t<double> &pdf,
   return py::make_tuple(ccnt, bcnt, nsampc);
 }
 
-//const char* get_posidx_docstring =R"pbdoc(get the position index of a ray relative to a view direction
-//
-//Parameters
-//----------
-//vx: double
-//  view x
-//vy: double
-//  view y
-//vz: double
-//  view z
-//dx: double
-//  ray x
-//dy: double
-//  ray y
-//dz: double
-//  ray z
-//postype: int
-//  position index type (1=KIM, else guth/iwata)
-//
-//Returns
-//-------
-//posidx: float)pbdoc";
-//
-//double get_posidx(double vx, double vy, double vz, double dx, double dy, double dz, int postype) {
-//  float deg = 180 / 3.1415927;
-//  float fact = 0.8;
-//
-//  double vm = std::sqrt(vx*vx + vy*vy + vz*vz);
-//  double dm = std::sqrt(dx*dx + dy*dy + dz*dz);
-//  double sigma = std::acos((vx*dx + vy*dy + vz*dz)/(vm*dm));
-//  double phi =
-//
-//  if (phi == 0) {
-//    phi = 0.00001;
-//  }
-//  if (sigma <= 0) {
-//    sigma = -sigma;
-//
-//  if (theta == 0) {
-//    theta = 0.0001;
-//  }
-//  tau = tau * deg;
-//  sigma = sigma * deg;
-//
-//  if (postype == 1) {
-///* KIM  model */
-//    posindex = exp ((sigma-(-0.000009*tau*tau*tau+0.0014*tau*tau+0.0866*tau+21.633))/(-0.000009*tau*tau*tau+0.0013*tau*tau+0.0853*tau+8.772));
-//  }else{
-///* Guth model, equation from IES lighting handbook */
-//    posindex =
-//            exp((35.2 - 0.31889 * tau -
-//                 1.22 * exp(-2 * tau / 9)) / 1000 * sigma + (21 +
-//                                                             0.26667 * tau -
-//                                                             0.002963 * tau *
-//                                                             tau) / 100000 *
-//                                                            sigma * sigma);
-///* below line of sight, using Iwata model */
-//    if (phi < 0) {
-//      d = 1 / tan(phi);
-//      s = tan(teta) / tan(phi);
-//      r = sqrt(1 / d * 1 / d + s * s / d / d);
-//      if (r > 0.6)
-//        fact = 1.2;
-//      if (r > 3) {
-//        fact = 1.2;
-//        r = 3;
-//      }
-//
-//      posindex = 1 + fact * r;
-//    }
-//    if (posindex > 16)
-//      posindex = 16;
-//  }
-//
-//  return posindex;
-//}
+
+
+
 
 using namespace pybind11::literals;
 PYBIND11_MODULE(craytraverse, m) {
@@ -177,6 +104,30 @@ PYBIND11_MODULE(craytraverse, m) {
         "lb"_a=.5,
         "ub"_a=4.0,
         from_pdf_docstring);
+  m.def("f", []() {
+      // Allocate and initialize some data; make this big so
+      // we can see the impact on the process memory use:
+      constexpr size_t size = 100*1000*1000;
+      double *foo = new double[size];
+      for (size_t i = 0; i < size; i++) {
+        foo[i] = (double) i;
+      }
+
+      // Create a Python object that will free the allocated
+      // memory when destroyed:
+      py::capsule free_when_done(foo, [](void *f) {
+          double *foo = reinterpret_cast<double *>(f);
+          std::cerr << "Element [0] = " << foo[0] << "\n";
+          std::cerr << "freeing memory @ " << f << "\n";
+          delete[] foo;
+      });
+
+      return py::array_t<double>(
+              {100, 1000, 1000}, // shape
+              {1000*1000*8, 1000*8, 8}, // C-style contiguous strides for double
+              foo, // the data pointer
+              free_when_done); // numpy array references this parent
+  });
 
 #ifdef VERSION_INFO
   m.attr("__version__") = VERSION_INFO;

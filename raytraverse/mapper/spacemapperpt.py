@@ -32,7 +32,10 @@ class SpaceMapperPt(SpaceMapper):
     @bbox.setter
     def bbox(self, plane):
         """read radiance geometry file as boundary path"""
-        self._pts = np.loadtxt(plane)[:, 0:3]
+        try:
+            self._pts = np.loadtxt(plane)[:, 0:3]
+        except IndexError:
+            self._pts = np.loadtxt(plane)[0:3].reshape(1, 3)
         self._bbox = np.stack((np.min(self._pts, 0) - self.tolerance,
                                np.max(self._pts, 0) - self.tolerance))
         self._sf = len(self._pts)

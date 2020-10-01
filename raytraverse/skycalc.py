@@ -449,7 +449,7 @@ def perez_lum(xyz, coefs):
     return (swght * c[..., 0] * rawlum + gwght * c[..., 1]) / (swght + gwght)
 
 
-def perez(sxyz, dirdif, md=None):
+def perez(sxyz, dirdif, md=None, ground_fac=0.2):
     """compute perez coefficients
 
     Notes
@@ -466,6 +466,8 @@ def perez(sxyz, dirdif, md=None):
         (N, 2) direct normal, diffuse horizontal W/m^2
     md: np.array, optional
         (N, 2) month day of sky calcs (for more precise eccentricity calc)
+    ground_fac: float
+        scaling factor (reflecctance) for ground brightness
 
     Returns
     -------
@@ -520,12 +522,12 @@ def perez(sxyz, dirdif, md=None):
     normfactor[skyclear == 1] = 0.777778
     groundbr = zenithbr*normfactor
     groundbr[skyclear > 1] += (6.8e-5/np.pi*solarrad*sxyz[:, 2])[skyclear > 1]
-    groundbr *= 0.2
+    groundbr *= ground_fac
     coefs = np.hstack((diffnorm[:, None], groundbr[:, None], cperez, sxyz))
     return coefs, solarrad
 
 
-def sky_mtx(sxyz, dirdif, side, jn=4):
+def sky_mtx(sxyz, dirdif, side, jn=4, ground_fac=0.2):
     """generate sky, ground and sun values from sun position and sky values
 
     Parameters
@@ -538,6 +540,8 @@ def sky_mtx(sxyz, dirdif, side, jn=4):
         sky subdivision
     jn: int
         sky patch subdivision n = jn^2
+    ground_fac: float
+        scaling factor (reflecctance) for ground brightness
 
     Returns
     -------
@@ -548,11 +552,11 @@ def sky_mtx(sxyz, dirdif, side, jn=4):
     sunval: np.array
         (N, 4) - sun direction and radiance
     """
-    coefs, solarrad = perez(sxyz, dirdif)
+    coefs, solarrad = perez(sxyz, dirdif, ground_fac=ground_fac)
     uv = translate.bin2uv(np.arange(side*side), side)
     jitter = translate.bin2uv(np.arange(jn*jn), jn) + .5/jn
     uvj = uv[:, None, :] + jitter/side
     xyz = translate.uv2xyz(uvj.reshape(-1, 2), xsign=1).reshape(-1, 3)
     lum = perez_lum(xyz, coefs).reshape(coefs.shape[0], -1, jn*jn)
     lum = np.average(lum, -1)
-    return lum, coefs[:, 2], np.hstack((sxyz, solarrad[:, None]))
+    return lum, coefs[:, 1], np.hstack((sxyz, solarrad[:, None]))
