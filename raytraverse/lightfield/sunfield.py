@@ -99,7 +99,7 @@ class SunField(LightFieldKD):
         sun = np.concatenate((self.suns.suns[pi[1]], [coefs, ]))
         self.view.add_to_img(img, pi, sun, vm)
 
-    def direct_view(self, res=800, showsample=True, items=None):
+    def direct_view(self, res=512, showsample=True, items=None):
         """create a summary image of lightfield for each vpt"""
         super().direct_view(res=res, showsample=showsample, items=items)
         if items is not None:

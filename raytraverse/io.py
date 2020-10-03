@@ -14,6 +14,7 @@ import sys
 import threading
 from subprocess import Popen, PIPE
 from io import StringIO, BytesIO
+from scipy.ndimage.filters import uniform_filter
 
 import numpy as np
 
@@ -328,3 +329,29 @@ def rgbe2lum(rgbe):
     lum = np.where(rgbe[:, 0:3] == 0, 0, (rgbe[:, 0:3] + 0.5) * v)
     # luminance = 179 * (0.265*R + 0.670*G + 0.065*B)
     return np.einsum('ij,j', lum, [47.435, 119.93, 11.635])
+
+
+def add_vecs_to_img(vm, img, v, channels=(1, 0, 0), grow=0):
+    res = img.shape[-1]
+    reverse = vm.degrees(v) > 90
+    pa = vm.ivm.ray2pixel(v[reverse], res)
+    pa[:, 0] += res
+    pb = vm.ray2pixel(v[np.logical_not(reverse)], res)
+    xp = np.concatenate((pa[:, 0], pb[:, 0]))
+    yp = np.concatenate((pa[:, 1], pb[:, 1]))
+    r = int(grow*2 + 1)
+    if len(img.shape) == 2:
+        try:
+            channel = channels[0]
+        except TypeError:
+            channel = channels
+        img[xp, yp] = channel
+        if grow > 0:
+            img = uniform_filter(img*r**2, r)
+    else:
+        for i in range(img.shape[0]):
+            if channels[i] is not None:
+                img[i, xp, yp] = channels[i]
+        if grow > 0:
+            img = uniform_filter(img*r**2, (1, r, r))
+    return img

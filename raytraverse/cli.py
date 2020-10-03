@@ -211,6 +211,10 @@ def sky(ctx, plotdview=False, run=True, rmraw=True, overwrite=False,
     if run:
         sampler = SCBinSampler(s, **kwargs)
         sampler.run()
+        try:
+            os.remove(f"{s.outdir}/sunpdfidxs.npz")
+        except IOError:
+            pass
     sk = SCBinField(s, rebuild=run or rebuild, rmraw=rmraw)
     if plotdview:
         sk.direct_view()

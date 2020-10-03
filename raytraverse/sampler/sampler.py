@@ -6,6 +6,7 @@
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 # =======================================================================
 import os
+import re
 import sys
 
 import numpy as np
@@ -234,19 +235,38 @@ class Sampler(object):
         return outf
 
     def _plot_p(self, p):
-        if self.plotp:
-            ps = p.reshape(self.weights.shape)
-            outshape = self.levels[-1][-2:]
-            pixelxyz = self.samplemap.pixelrays(outshape[-1]).reshape(-1, 3)
-            uv = self.samplemap.xyz2uv(pixelxyz)
-            for i, ws in enumerate(self.weights):
-                for j, w in enumerate(ws):
-                    ij = translate.uv2ij(uv, w.shape[-1])
-                    outw = f"{self.scene.outdir}_{self.stype}_weights_{i:04d}_{j:04d}_level{self.idx:02d}.hdr"
-                    outp = f"{self.scene.outdir}_{self.stype}_detail_{i:04d}_{j:04d}_level{self.idx:02d}.hdr"
-                    io.array2hdr(w[ij[:, 0], ij[:, 1]].reshape(outshape), outw)
-                    io.array2hdr(ps[i, j][ij[:, 0], ij[:, 1]].reshape(outshape),
-                                 outp)
+        ps = p.reshape(self.weights.shape)
+        outshape = (1024, 512)
+        res = outshape[-1]
+        pixelxyz = self.samplemap.pixelrays(res)
+        uv = self.samplemap.xyz2uv(pixelxyz.reshape(-1, 3))
+        pdirs = np.concatenate((pixelxyz[0:res], -pixelxyz[res:]), 0)
+        mask = self.samplemap.in_view(pdirs, indices=False).reshape(outshape)
+        for i, ws in enumerate(self.weights):
+            for j, w in enumerate(ws):
+                ij = translate.uv2ij(uv, w.shape[-1])
+                ptidx = np.ravel_multi_index((i, j), self.scene.area.ptshape)
+                outw = (f"{self.scene.outdir}_{self.stype}_weights_"
+                        f"{ptidx:04d}_{self.idx+1:02d}.hdr")
+                outp = (f"{self.scene.outdir}_{self.stype}_detail_"
+                        f"{ptidx:04d}_{self.idx+1:02d}.hdr")
+                img = w[ij[:, 0], ij[:, 1]].reshape(outshape)
+                io.array2hdr(np.where(mask, img, 0), outw)
+                img = ps[i, j][ij[:, 0], ij[:, 1]].reshape(outshape)
+                io.array2hdr(np.where(mask, img, 0), outp)
+
+    def _plot_vecs(self, idx, vecs, level=0):
+        vm = self.samplemap
+        outshape = (1024, 512)
+        for i, ws in enumerate(self.weights):
+            for j, w in enumerate(ws):
+                ptidx = np.ravel_multi_index((i, j), self.scene.area.ptshape)
+                img = np.zeros(outshape)
+                img = io.add_vecs_to_img(vm, img, vecs[np.equal(idx, ptidx)],
+                                         channels=level)
+                outf = (f"{self.scene.outdir}_{self.stype}_samples_"
+                        f"{ptidx:04d}_{level:02d}.hdr")
+                io.array2hdr(img, outf)
 
     def draw(self):
         """draw samples based on detail calculated from weights
@@ -300,8 +320,13 @@ class Sampler(object):
                 ptidx = io.bytefile2np(fidx, (1, -1))
                 fidx.close()
                 os.remove(idxf)
-                f.write(io.np2bytes(np.vstack((ptidx.reshape(1, -1),
-                                               vecs[:, 3:].T)).T))
+                dvecs = vecs[:, 3:]
+                indexed_vecs = np.vstack((ptidx, dvecs.T)).T
+                f.write(io.np2bytes(indexed_vecs))
+                if self.plotp:
+                    level = int(re.split(r"[_.]", idxf)[-2]) + 1
+                    self._plot_vecs(ptidx.ravel(), dvecs, level)
+
             else:
                 f.write(io.np2bytes(vecs))
         f.close()

@@ -91,7 +91,7 @@ class SingleSunSampler(Sampler):
                 pass
         super().__del__()
 
-    def pdf_from_sky(self, skyfield, interp=12, rebuild=False, zero=True,
+    def pdf_from_sky(self, skyfield, interp=1, rebuild=False, zero=True,
                      filterpts=True):
         ishape = np.concatenate((self.scene.area.ptshape,
                                  self.levels[self.specidx-2]))
@@ -111,15 +111,17 @@ class SingleSunSampler(Sampler):
             errs = errs.reshape(-1, interp)
             np.savez(fi, idxs, errs)
         column = skyfield.lum.full_array()[:, self.sbin]
+        lum = column[idxs]
+        if zero:
+            lum = np.where(lum > self.scene.maxspec, 0, lum)
         if interp > 1:
-            lum = np.average(column[idxs], -1, weights=1/errs).reshape(ishape)
+            lum = np.average(lum, -1, weights=1/errs).reshape(ishape)
         else:
-            lum = column[idxs].reshape(ishape)
+            lum = lum.reshape(ishape)
         if filterpts:
             haspeak = np.max(lum, (2, 3)) > self.srct
             lum = lum * haspeak[..., None, None]
-        if zero:
-            lum = np.where(lum > self.scene.maxspec, 0, lum)
+
         return lum
 
     def sample(self, vecf):

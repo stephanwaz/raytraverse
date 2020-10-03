@@ -198,20 +198,13 @@ class LightFieldKD(LightField):
             img = np.repeat(img[None, ...], 3, 0)
             vi = self.query_ball(idx, vm.dxyz, vm.viewangle)
             v = self.vec[idx][vi[0]]
-            reverse = vm.degrees(v) > 90
-            pa = vm.ivm.ray2pixel(v[reverse], res)
-            pa[:, 0] += res
-            pb = vm.ray2pixel(v[np.logical_not(reverse)], res)
-            xp = np.concatenate((pa[:, 0], pb[:, 0]))
-            yp = np.concatenate((pa[:, 1], pb[:, 1]))
-            img[1:, xp, yp] = 0
-            img[0, xp, yp] = 1
+            img = io.add_vecs_to_img(vm, img, v)
             io.carray2hdr(img, outf)
         else:
             io.array2hdr(img, outf)
         return outf
 
-    def direct_view(self, res=800, showsample=True, items=None):
+    def direct_view(self, res=512, showsample=True, items=None):
         """create a summary image of lightfield for each vpt"""
         vm = self.scene.view
         pdirs = vm.pixelrays(res)
