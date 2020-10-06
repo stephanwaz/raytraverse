@@ -29,6 +29,32 @@ class SunViewField(LightField):
     rebuild: bool, optional
         build kd-tree even if one exists
     """
+    @staticmethod
+    def _to_pix(rxyz, atv, vm, res):
+        if atv > 90:
+            ppix = vm.ivm.ray2pixel(rxyz, res)
+            ppix[:, 0] += res
+        else:
+            ppix = vm.ray2pixel(rxyz, res)
+        rec = np.core.records.fromarrays(ppix.T)
+        px, i, cnt = np.unique(rec, return_index=True,
+                               return_counts=True)
+        cnt = cnt.astype(float)
+        omegap = vm.pixel2omega(ppix[i] + .5, res)
+        return px, omegap, cnt
+
+    @staticmethod
+    def _smudge(cnt, omegap, omegasp):
+        """hack to ensure equal energy and max luminance)"""
+        ocnt = cnt - (omegap/omegasp)
+        smdg = np.sum(ocnt[ocnt > 0])
+        cnt[ocnt > 0] = omegap[ocnt > 0]/omegasp
+        # average to redistribute
+        redist = smdg/np.sum(ocnt < 0)
+        # redistribute over pixels with "room" (this could still
+        # overshoot if too many pixels are close to threshold, but
+        # maybe mathematically impossible?
+        cnt[ocnt < -redist] += smdg/np.sum(ocnt < -redist)
 
     def __init__(self, scene, suns, rebuild=False, rmraw=False):
         #: raytraverse.sunsetter.SunSetter
@@ -126,31 +152,6 @@ class SunViewField(LightField):
                 raster[(i, j)] = ras
         return vec, lum, omega, raster
 
-    def _to_pix(self, rxyz, atv, vm, res):
-        if atv > 90:
-            ppix = vm.ivm.ray2pixel(rxyz, res)
-            ppix[:, 0] += res
-        else:
-            ppix = vm.ray2pixel(rxyz, res)
-        rec = np.core.records.fromarrays(ppix.T)
-        px, i, cnt = np.unique(rec, return_index=True,
-                               return_counts=True)
-        cnt = cnt.astype(float)
-        omegap = vm.pixel2omega(ppix[i] + .5, res)
-        return px, omegap, cnt
-
-    def _smudge(self, cnt, omegap, omegasp):
-        """hack to ensure equal energy and max luminance)"""
-        ocnt = cnt - (omegap/omegasp)
-        smdg = np.sum(ocnt[ocnt > 0])
-        cnt[ocnt > 0] = omegap[ocnt > 0]/omegasp
-        # average to redistribute
-        redist = smdg/np.sum(ocnt < 0)
-        # redistribute over pixels with "room" (this could still
-        # overshoot if too many pixels are close to threshold, but
-        # maybe mathematically impossible?
-        cnt[ocnt < -redist] += smdg/np.sum(ocnt < -redist)
-
     def add_to_img(self, img, pi, sun, vm):
         """
         Parameters
@@ -177,18 +178,18 @@ class SunViewField(LightField):
             omegasp = self.omega[pi] / self.raster[pi].shape[0]
             self._smudge(cnt, omegap, omegasp)
             # apply average luminanace over each pixel
-            clum = sun[-1] * self.lum[pi] * cnt * omegasp / omegap
+            clum = sun[3] * self.lum[pi] * cnt * omegasp / omegap
             for p, cl in zip(px, clum):
                 img[tuple(p)] += cl
 
-    def metric(self, psi, v, s, metricfuncs, **kwargs):
-        if v.ctheta(s[0:3]) > 0 and psi in self.items():
-            svlm = [self.lum[psi]*s[-2]]
-            svo = [self.omega[psi]]
-            return [f(v, [s[0:3]], svo, svlm, area=2*np.pi,
-                    **kwargs) for f in metricfuncs]
+    def get_ray(self, psi, v, s):
+        sun = np.asarray(s[0:3]).reshape(1, 3)
+        if v.in_view(sun, indices=False)[0] and psi in self.items():
+            svlm = self.lum[psi]*s[3]
+            svo = self.omega[psi]
+            return s[0:3], svlm, svo
         else:
-            raise ValueError
+            return None
 
     def direct_view(self, res=2):
         """create a summary image of all sun discs from each of vpts"""

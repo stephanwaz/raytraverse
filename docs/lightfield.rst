@@ -38,6 +38,15 @@ SunField
     :show-inheritance:
     :private-members:
 
+SunSkyPt
+---------------------------------
+
+.. autoclass:: raytraverse.lightfield.SunSkyPt
+    :members:
+    :undoc-members:
+    :show-inheritance:
+    :private-members:
+
 
 SunViewField
 ---------------------------------

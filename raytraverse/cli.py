@@ -449,16 +449,14 @@ def integrate(ctx, pts=None, skyonly=False, hdr=True,
     sk = SCBinField(scn)
     itg = Integrator(sk, su, **kwargs)
     skymtx = itg.get_sky_mtx()
-    if hdr:
-        itg.hdr(pts, *skymtx, interp=interp, res=res, vname=vname)
-    if metric:
-        mf = (raytraverse.metric.illum, raytraverse.metric.sqlum)
-        metrics, colhdr = itg.metric(pts, *skymtx, scale=179, metricfuncs=mf)
-        if header:
-            print("pt-idx\tsky-idx\t" + "\t".join(colhdr))
-        for p, pts in enumerate(metrics):
-            for s, skies in enumerate(pts):
-                print(f"{p}\t{s}\t" + "\t".join([f"{i}" for i in skies]))
+    mf = (raytraverse.metric.illum, raytraverse.metric.sqlum)
+    header, data = itg.integrate(pts, *skymtx, interp=interp, res=res,
+                                 vname=vname, scale=179, metricfuncs=mf,
+                                 dohdr=hdr, dometric=metric)
+    if header is not None:
+        print("\t".join(header))
+        for d in data:
+            print("\t".join([f"{i}" for i in d]))
 
 
 @main.resultcallback()

@@ -17,7 +17,7 @@ import numpy as np
 from raytraverse.lightfield.memarraydict import MemArrayDict
 
 from raytraverse import io, translate
-from raytraverse.lightfield.lightfield import LightField
+from raytraverse.lightfield.lightfield import LightField, interpolate_query
 
 
 class LightFieldKD(LightField):
@@ -144,9 +144,9 @@ class LightFieldKD(LightField):
                 lummap.append((pt, lm.result()))
         return vecs, ltype(lummap)
 
-    def _mk_tree(self, pref='', ltype=MemArrayDict, os0=0):
+    def _mk_tree(self, pref='', ltype=MemArrayDict):
         npts = self.scene.area.npts
-        vs, lums = self._get_vl(npts, pref=pref, ltype=ltype, os0=os0)
+        vs, lums = self._get_vl(npts, pref=pref, ltype=ltype)
         with ProcessPoolExecutor(io.get_nproc()) as exc:
             d_kd, omega = zip(*exc.map(LightFieldKD.mk_vector_ball,
                                        vs.values()))
@@ -156,14 +156,16 @@ class LightFieldKD(LightField):
         c = np.asarray(coefs).reshape(-1, 1)
         return np.einsum('ij,kj->ik', c, self.lum[pi])
 
-    def add_to_img(self, img, mask, pi, i, d, coefs=1, vm=None, radius=3):
-        lum = self.apply_coef(pi, coefs)
-        if len(i.shape) > 1:
-            # gaussian reconstruction filter
-            y = norm(scale=translate.theta2chord(radius*np.pi/180))
-            w = np.broadcast_to(y.pdf(d), (lum.shape[0],) + d.shape)
-            lum = np.average(lum[:, i], weights=w, axis=-1)
+    def add_to_img(self, img, mask, pi, vecs, coefs=1, vm=None, interp=1):
+        if interp > 1:
+            arrout = np.zeros((vecs.shape[0], self.srcn))
+            interpolate_query(arrout, self.lum[pi], self.vec[pi], self.d_kd[pi],
+                              vecs, k=interp)
+            lum = np.einsum('j,kj->k', coefs, arrout)
+            img[mask] = np.squeeze(lum)
         else:
+            i, d = self.query_ray(pi, vecs)
+            lum = self.apply_coef(pi, coefs)
             lum = lum[:, i]
         img[mask] += np.squeeze(lum)
 
@@ -190,8 +192,7 @@ class LightFieldKD(LightField):
 
     def _dview(self, idx, pdirs, mask, res=800, showsample=True):
         img = np.zeros((res*self.scene.view.aspect, res))
-        i, d = self.query_ray(idx, pdirs[mask])
-        self.add_to_img(img, mask, idx, i, d)
+        self.add_to_img(img, mask, idx, pdirs[mask])
         outf = f"{self.outfile(idx)}.hdr"
         if showsample:
             vm = self.scene.view

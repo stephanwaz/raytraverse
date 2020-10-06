@@ -5,16 +5,14 @@
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 # =======================================================================
-import itertools
 import os
 from concurrent.futures import ProcessPoolExecutor
 
 import numpy as np
-from scipy.stats import norm
 
 from clasp.script_tools import pipeline, sglob
 from raytraverse.lightfield.memarraydict import MemArrayDict
-from raytraverse import translate, io
+from raytraverse import io
 from raytraverse.lightfield.lightfieldkd import LightFieldKD
 from raytraverse.lightfield.sunviewfield import SunViewField
 
@@ -47,7 +45,7 @@ class SunField(LightFieldKD):
             rf.append(f'{self.scene.outdir}/{self.prefix}_{i:04d}_vecs.out')
         return rf
 
-    def _mk_tree(self, pref='', ltype=list, os0=0):
+    def _mk_tree(self, pref='', ltype=list):
         d_kds = {}
         vecs = {}
         omegas = {}
@@ -85,17 +83,10 @@ class SunField(LightFieldKD):
         items = np.core.records.fromarrays(list(zip(*self.items())))
         return np.isin(full, items).reshape(shape)
 
-    def add_to_img(self, img, mask, pi, i, d, coefs=1, vm=None, radius=3):
+    def add_to_img(self, img, mask, pi, vecs, coefs=1, vm=None, interp=1):
         if vm is None:
             vm = self.scene.view
-        lum = self.apply_coef(pi, coefs)
-        if len(i.shape) > 1:
-            y = norm(scale=translate.theta2chord(radius*np.pi/180))
-            w = np.broadcast_to(y.pdf(d), (lum.shape[0],) + d.shape)
-            lum = np.average(lum[:, i], weights=w, axis=-1)
-        else:
-            lum = lum[:, i]
-        img[mask] += np.squeeze(lum)
+        super().add_to_img(img, mask, pi, vecs, interp=interp)
         sun = np.concatenate((self.suns.suns[pi[1]], [coefs, ]))
         self.view.add_to_img(img, pi, sun, vm)
 
@@ -110,8 +101,8 @@ class SunField(LightFieldKD):
             files = ' '.join(flist)
             outf = f"{self.scene.outdir}_{self.prefix}_{i:04d}.hdr"
             pcompos = f'pcompos -a -{ssq} -s 5 -b 1 1 1 -la {files}'
-            xscale = min(ssq*res, 2000)
-            pfilt = f'pfilt -1 -e 1 -m .25 -r .6 -x {xscale} -p 1 -'
+            xscale = min(ssq*res*2, 2000)
+            pfilt = f'pfilt -1 -e 1 -x {xscale} -p 1'
             pipeline([pcompos, pfilt], outf, close=True, writemode='wb')
             for fl in flist:
                 os.remove(fl)
