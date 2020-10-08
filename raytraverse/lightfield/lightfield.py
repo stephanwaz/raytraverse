@@ -6,77 +6,7 @@
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 # =======================================================================
 import os
-import pickle
-import concurrent.futures
-from concurrent.futures import ThreadPoolExecutor
-
 import numpy as np
-from raytraverse import translate
-from raytraverse.craytraverse import interpolate_kdquery
-
-
-def _interpolate(outv, d, i, src_lum, src_vec, oob, err=0.00436):
-    idx = i[i < oob]
-    if d[0] <= err:
-        return src_lum[idx[0]]
-    ivecs = translate.norm(src_vec[idx] - outv)
-    indi = np.copy(idx)
-    indji = np.arange(len(idx))
-    indo = [indi[0]]
-    indjo = [indji[0]]
-    for i in range(2):
-        mask = np.einsum("i,ji->j", ivecs[0], ivecs) < np.cos(np.pi/(2+2*i))
-        ivecs = ivecs[mask]
-        if ivecs.shape[0] == 0:
-            break
-        indi = indi[mask]
-        indji = indji[mask]
-        indo.append(indi[0])
-        indjo.append(indji[0])
-    if len(indo) == 1:
-        return src_lum[indo[0]]
-    dt = 1/d[indjo]**2
-    n = np.sum(dt)
-    return np.einsum("j,ji->i", dt/n, src_lum[indo])
-
-
-def interpolate_query(src_lum, src_vec, src_kd, dest_vec, k=8,
-                      err=0.00436, up=0.347296):
-    """query a kd_tree and interpolate corresponding values. used to
-    merge to kd_trees with vector and luminance
-
-    Parameters
-    ----------
-    src_lum: np.array
-        luminance values for src_kd, shape (src_vec[0], srcn)
-    src_vec: np.array
-        vectors of src_kd, shape (src_kd.n, 3)
-    src_kd: scipy.spatial.cKDTree
-    dest_vec: np.array
-        destination vectors to interpolate to, shape (N, 3)
-    k: int
-        initial query size
-    err: float
-        chord length under which value is taken without interpolation
-        default is .25 degrees = translate.theta2chord(.25*pi/180)
-    up: float
-        chord length of maximum search radius for neighbors
-        default is 10 degrees  = translate.theta2chord(20*pi/180)
-
-    Returns
-    -------
-    np.array
-        shape of (dest_vec.shape[0], src_lum.shape[1])
-    """
-    errs, idxs = src_kd.query(dest_vec, k=k, distance_upper_bound=up)
-    if k == 1:
-        return src_lum[idxs]
-    arrout = interpolate_kdquery(dest_vec, errs, idxs, src_vec, src_lum, err=err)
-    # arrout = np.zeros((dest_vec.shape[0], src_lum.shape[1]))
-    # for j, (outv, d, i) in enumerate(zip(dest_vec, errs, idxs)):
-    #     arrout[j] = _interpolate(outv, d, i, src_lum, src_vec, src_kd.n,
-    #                              err=err)
-    return arrout
 
 
 class LightField(object):

@@ -135,13 +135,12 @@ py::array_t<double> interpolate_kdquery(py::array_t<double> &destvec,
   ssize_t row; //track row position in memory for result
   double nx, ny, nz, nm; //normalization
   int indo[3]; //interpolation indices
-  double dt[3]; //interpolation distances
+  double dt[2]; //interpolation distances
+  double bary[3]; //pre-normalized barycentric triangle areas
   double nd; // normalize interpolation distances (to barycentric)
   int c, v2; //interpolation count
   double dot; //first dot product
   double dot2; //second dot product
-  double cutoff = 0.0; //cos 90 degrees (to block out hemisphere)
-  double cutoff2 = sqrt(2)/2; //cos 45 degrees (to block out quadrant)
   double outv; //interpolation result
   // i loops over destination vectors
   // j loops over sources
@@ -181,26 +180,28 @@ py::array_t<double> interpolate_kdquery(py::array_t<double> &destvec,
     }
     c = 0;
     indo[0] = idxs.at(i, 0);
-    dt[0] = 1.0 / pow(errs.at(i, 0), 2);
+    dt[0] = errs.at(i, 0);
     //look for second vector 180 degrees from first, and then third 90 degrees from second
     for (ssize_t k = 1; k < qcnt; k++) {
       dot = ivecs.at(0)*ivecs.at(k*3) + ivecs.at(1)*ivecs.at(k*3+1) + ivecs.at(2)*ivecs.at(k*3+2);
-      if (dot > cutoff) {
+      if (dot > 0.0) {
         continue;
       }
       //the first time we make it here, store vertex 2
       if (c == 0){
         c++;
         indo[1] = idxs.at(i, k);
-        dt[1] = 1.0 / pow(errs.at(i, k), 2);
+        dt[1] = errs.at(i, k);
+        bary[2] = errs.at(i, k) * dt[0] * sqrt(1 - pow(dot, 2)) / 2; // side angle side + sin = sqrt(1-cos^2)
         v2 = k;
       }
       dot2 = ivecs.at(v2*3)*ivecs.at(k*3) + ivecs.at(v2*3+1)*ivecs.at(k*3+1) + ivecs.at(v2*3+2)*ivecs.at(k*3+2);
-      if (dot2 < cutoff2) {
+      if (dot2 < 0.0) {
         //found a suitable third vertex, store vertex 3 and break
         c++;
         indo[2] = idxs.at(i, k);
-        dt[2] = 1.0 / pow(errs.at(i, k), 2);
+        bary[0] = errs.at(i, k) * dt[1] * sqrt(1 - pow(dot2, 2)) / 2; // side angle side + sin = sqrt(1-cos^2)
+        bary[1] = errs.at(i, k) * dt[0] * sqrt(1 - pow(dot, 2)) / 2; // side angle side + sin = sqrt(1-cos^2)
         break;
       }
     }
@@ -210,14 +211,18 @@ py::array_t<double> interpolate_kdquery(py::array_t<double> &destvec,
         pout[row + j] = srclum.at(idxs.at(i, 0), j);
       }
     } else {
-      nd = 0;
-      for (ssize_t k = 0; k <= c; k++) {
-        nd += dt[k];
+      if (c == 1) { // fall bsck to linear interpolation
+        bary[0] = 1/dt[0];
+        bary[1] = 1/dt[1];
+        bary[2] = 0;
       }
+      nd = 0;
+      for (double b : bary)
+        nd += b;
       for (ssize_t j = 0; j < dcols; j++){
         outv = 0;
-        for (ssize_t k = 0; k <= c; k++) {
-          outv += srclum.at(indo[k], j) * dt[k] / nd;
+        for (ssize_t k = 0; k < 3; k++) {
+          outv += srclum.at(indo[k], j) * bary[k] / nd;
         }
         pout[row + j] = outv;
       }

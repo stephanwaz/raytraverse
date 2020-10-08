@@ -107,10 +107,11 @@ class SingleSunSampler(Sampler):
             grid = skyfield.scene.view.uv2xyz(uv)
             idxs, errs = skyfield.query_all_pts(grid, interp)
             strides = np.array(skyfield.lum.index_strides()[:-1])[:, None, None]
-            idxs = np.reshape(idxs + strides, (-1, interp))
+            idxs = np.reshape(np.atleast_3d(idxs) + strides, (-1, interp))
             errs = errs.reshape(-1, interp)
             np.savez(fi, idxs, errs)
-        column = skyfield.lum.full_array()[:, self.sbin]
+        column = skyfield.lum.full_array()
+        column = column[:, self.sbin]
         lum = column[idxs]
         if zero:
             lum = np.where(lum > self.scene.maxspec, 0, lum)

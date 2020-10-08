@@ -28,9 +28,6 @@ class SCBinSampler(Sampler):
 
     def __init__(self, scene, accuracy=1,
                  rcopts='-ab 7 -ad 60000 -as 30000 -lw 1e-7', **kwargs):
-        f = open(f'{scene.outdir}/scbins.cal', 'w')
-        f.write(translate.scbinscal)
-        f.close()
         skydeg = ("void glow skyglow 0 0 4 1 1 1 0 skyglow source sky 0 0 4"
                   " 0 0 1 180\nskyglow source ground  0 0 4 0 0 -1 180")
         mods = "-m skyglow"
@@ -38,16 +35,9 @@ class SCBinSampler(Sampler):
         self.engine.reset()
         srcn = scene.skyres**2 + 1
         engine_args = (f"-V+ {rcopts} -Z+ -e 'side:{scene.skyres}' -f "
-                       f"{scene.outdir}/scbins.cal -b bin -bn {srcn} {mods}")
+                       f"scbins.cal -b bin -bn {srcn} {mods}")
         super().__init__(scene, srcn=srcn, stype='sky',  srcdef=skydeg,
                          accuracy=accuracy, engine_args=engine_args, **kwargs)
-
-    def __del__(self):
-        super().__del__()
-        try:
-            os.remove(f'{self.scene.outdir}/scbins.cal')
-        except (IOError, TypeError):
-            pass
 
     def sample(self, vecf):
         """call rendering engine to sample sky contribution

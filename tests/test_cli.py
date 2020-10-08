@@ -36,10 +36,9 @@ def test_cli(tmpdir, capfd, runner):
         with capfd.disabled():
             cli.main.main(args=["-c", "run.cfg", "demo", "sky", "sunrun"])
     assert exc_info.value.args[0] == 0
-    runner.invoke(cli.main, "-c run.cfg demo integrate --no-metric")
+    pt = runner.invoke(cli.main, "-c run.cfg demo integrate")
     hdr = runner.invoke(hdrcli.img_cr, "'demo_view*.hdr'")
     hdr = np.fromstring(hdr.output, sep=' ').reshape(-1, 5)[:, 1:3]
-    pt = runner.invoke(cli.main, "-c run.cfg demo integrate --no-hdr")
     pt = np.fromstring(pt.output, sep=' ').reshape(-1, 5)[:, 2:4]
     corr = corr_calc(hdr[:, 0], pt[:, 0])
     assert corr[0] > .95

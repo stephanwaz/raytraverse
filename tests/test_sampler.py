@@ -57,9 +57,6 @@ def test_init(tmpdir, scene):
                     [512, 256, ],
                     [1024, 512, ]])
     sampler = SCBinSampler(scene)
-    f = open(f'{sampler.scene.outdir}/scbins.cal')
-    assert f.read() == scbinscal
-    f.close()
     assert np.alltrue(res == sampler.levels)
 
 

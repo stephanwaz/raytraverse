@@ -345,4 +345,4 @@ class Integrator(object):
             unsort = np.argsort(sort)
             d = d.reshape(-1, len(smtx), cols)[unsort].reshape(-1, cols)
             return colhdr, d
-        return None, None
+        return None, []

@@ -52,8 +52,10 @@ class SPRenderer(Renderer):
 
     @classmethod
     def _set_args(cls, args, iot, nproc):
+        print((f"{cls.name} -f{iot} -n {nproc} {cls.arg_prefix}"
+                           f" {args}"))
         return shlex.split(f"{cls.name} -f{iot} -n {nproc} {cls.arg_prefix}"
-                           f" {args} -av 0 0 0")
+                           f" {args}")
 
 
 class SPRtrace(SPRenderer):

@@ -450,13 +450,13 @@ def integrate(ctx, pts=None, skyonly=False, hdr=True,
     itg = Integrator(sk, su, **kwargs)
     skymtx = itg.get_sky_mtx()
     mf = (raytraverse.metric.illum, raytraverse.metric.sqlum)
-    header, data = itg.integrate(pts, *skymtx, interp=interp, res=res,
+    datahd, data = itg.integrate(pts, *skymtx, interp=interp, res=res,
                                  vname=vname, scale=179, metricfuncs=mf,
                                  dohdr=hdr, dometric=metric)
-    if header is not None:
-        print("\t".join(header))
-        for d in data:
-            print("\t".join([f"{i}" for i in d]))
+    if header:
+        print("\t".join(datahd))
+    for d in data:
+        print("\t".join([f"{i}" for i in d]))
 
 
 @main.resultcallback()

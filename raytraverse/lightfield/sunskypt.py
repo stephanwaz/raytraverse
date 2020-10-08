@@ -11,7 +11,6 @@ import numpy as np
 
 from raytraverse import io
 from raytraverse.lightfield.lightfieldkd import LightFieldKD
-from raytraverse.lightfield.lightfield import interpolate_query
 
 
 class SunSkyPt(LightFieldKD):
@@ -66,10 +65,12 @@ class SunSkyPt(LightFieldKD):
             c = np.broadcast_to(coefs, (coefs.size, self.srcn))
         return np.einsum('ij,kj->ik', c, self.lum[pi])
 
-    def add_to_img(self, img, mask, pi, vecs, coefs=1, vm=None, interp=1):
+    def add_to_img(self, img, mask, pi, vecs, coefs=1, vm=None, interp=1,
+                   **kwargs):
         if vm is None:
             vm = self.scene.view
-        super().add_to_img(img, mask, pi, vecs, coefs=coefs, interp=interp)
+        super().add_to_img(img, mask, pi, vecs, coefs=coefs, interp=interp,
+                           **kwargs)
         coefs = np.asarray(coefs)
         if coefs.size == 1:
             # scale to 5 times the sky irradiance (for direct view)
@@ -112,18 +113,14 @@ class SunSkyPt(LightFieldKD):
 
         """
         sk_key = self._ptidx
-        sk_kd = self._skyparent.d_kd[sk_key]
         sk_vec = self._skyparent.vec[sk_key]
         sk_lum = self._skyparent.lum[sk_key]
         su_key = (self._ptidx, sidx)
-        su_kd = self._sunparent.d_kd[su_key]
         su_vec = self._sunparent.vec[su_key]
         su_lum = self._sunparent.lum[su_key]
 
-        # lum_sk = np.zeros((su_vec.shape[0], sk_lum.shape[1]))
-        lum_sk = interpolate_query(sk_lum, sk_vec, sk_kd, su_vec, **kwargs)
-        # lum_su = np.zeros((sk_vec.shape[0], su_lum.shape[1]))
-        lum_su = interpolate_query(su_lum, su_vec, su_kd, sk_vec, **kwargs)
+        lum_sk = self._skyparent.interpolate_query(sk_key, su_vec, **kwargs)
+        lum_su = self._sunparent.interpolate_query(su_key, sk_vec, **kwargs)
         vecs = np.vstack((su_vec, sk_vec))
         lum_sk = np.vstack((lum_sk, sk_lum))
         lum_su = np.vstack((su_lum, lum_su))
