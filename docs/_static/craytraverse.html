@@ -27,6 +27,32 @@
 </dl>
 </dd></dl>
 
+<dl class="py function">
+<dt id="raytraverse.craytraverse.interpolate_kdquery">
+<code class="sig-prename descclassname">raytraverse.craytraverse.</code><code class="sig-name descname">interpolate_kdquery</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">destvec</span><span class="p">:</span> <span class="n">numpy.ndarray<span class="p">[</span>numpy.float64<span class="p">]</span></span></em>, <em class="sig-param"><span class="n">errs</span><span class="p">:</span> <span class="n">numpy.ndarray<span class="p">[</span>numpy.float64<span class="p">]</span></span></em>, <em class="sig-param"><span class="n">idxs</span><span class="p">:</span> <span class="n">numpy.ndarray<span class="p">[</span>numpy.int32<span class="p">]</span></span></em>, <em class="sig-param"><span class="n">srcvec</span><span class="p">:</span> <span class="n">numpy.ndarray<span class="p">[</span>numpy.float64<span class="p">]</span></span></em>, <em class="sig-param"><span class="n">srclum</span><span class="p">:</span> <span class="n">numpy.ndarray<span class="p">[</span>numpy.float64<span class="p">]</span></span></em>, <em class="sig-param"><span class="n">err</span><span class="p">:</span> <span class="n">float</span> <span class="o">=</span> <span class="default_value">0.00436</span></em><span class="sig-paren">)</span> &#x2192; numpy.ndarray<span class="p">[</span>numpy.float64<span class="p">]</span><a class="headerlink" href="#raytraverse.craytraverse.interpolate_kdquery" title="Permalink to this definition">¶</a></dt>
+<dd><p>interpolate luminance values associated with query results
+from scipy.cKDTree.query. Finds closest point and then locates vertices of enclosing triangle from this point.
+returns 0 in cases where the query provides no results, so the distance_upper_bound must be set appropriately.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>dest_vec</strong> (<em>np.array</em>) – destination vectors to interpolate to, shape (N, 3)</p></li>
+<li><p><strong>errs</strong> (<em>np.array</em>) – distances between src and destination (row matches dest_vec, column is sorted ascending), shape (N, # of queries)</p></li>
+<li><p><strong>idxs</strong> (<em>np.array</em>) – query result, index row in src_vec close to dest_vec, shape (N, # of queries)</p></li>
+<li><p><strong>src_vec</strong> (<em>np.array</em>) – vectors of src_kd, shape (N, 3)</p></li>
+<li><p><strong>src_lum</strong> (<em>np.array</em>) – luminance values for src_kd, shape (src_vec.shape[0], srcn)</p></li>
+<li><p><strong>err</strong> (<em>float</em><em>, </em><em>optional</em>) – distance below which closest sample is used directly</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns</dt>
+<dd class="field-even"><p><strong>arrout</strong> – destination luminances shape (N, srcn)</p>
+</dd>
+<dt class="field-odd">Return type</dt>
+<dd class="field-odd"><p>np.array</p>
+</dd>
+</dl>
+</dd></dl>
+
 <div class="section" id="crtrace">
 <h1>cRtrace<a class="headerlink" href="#crtrace" title="Permalink to this headline">¶</a></h1>
 <dl class="py class">

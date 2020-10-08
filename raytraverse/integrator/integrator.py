@@ -270,7 +270,6 @@ class Integrator(object):
             li = suni[0]
             skyvec = np.concatenate((sun[-2:-1], skyv))
             sunview = lf.view.get_ray((pi, li), vm, sun[0:4])
-            print(sunview)
             sunvalue = 1 + (sunview is not None)
         else:
             lf = self.skyfield

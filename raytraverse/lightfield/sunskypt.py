@@ -120,10 +120,10 @@ class SunSkyPt(LightFieldKD):
         su_vec = self._sunparent.vec[su_key]
         su_lum = self._sunparent.lum[su_key]
 
-        lum_sk = np.zeros((su_vec.shape[0], sk_lum.shape[1]))
-        interpolate_query(lum_sk, sk_lum, sk_vec, sk_kd, su_vec, **kwargs)
-        lum_su = np.zeros((sk_vec.shape[0], su_lum.shape[1]))
-        interpolate_query(lum_su, su_lum, su_vec, su_kd, sk_vec, **kwargs)
+        # lum_sk = np.zeros((su_vec.shape[0], sk_lum.shape[1]))
+        lum_sk = interpolate_query(sk_lum, sk_vec, sk_kd, su_vec, **kwargs)
+        # lum_su = np.zeros((sk_vec.shape[0], su_lum.shape[1]))
+        lum_su = interpolate_query(su_lum, su_vec, su_kd, sk_vec, **kwargs)
         vecs = np.vstack((su_vec, sk_vec))
         lum_sk = np.vstack((lum_sk, sk_lum))
         lum_su = np.vstack((su_lum, lum_su))

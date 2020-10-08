@@ -12,42 +12,41 @@ from concurrent.futures import ThreadPoolExecutor
 
 import numpy as np
 from raytraverse import translate
+from raytraverse.craytraverse import interpolate_kdquery
 
 
 def _interpolate(outv, d, i, src_lum, src_vec, oob, err=0.00436):
-    spacing = np.pi/4
     idx = i[i < oob]
     if d[0] <= err:
         return src_lum[idx[0]]
     ivecs = translate.norm(src_vec[idx] - outv)
     indi = np.copy(idx)
-    indo = []
     indji = np.arange(len(idx))
-    indjo = []
-    while ivecs.shape[0] > 0:
+    indo = [indi[0]]
+    indjo = [indji[0]]
+    for i in range(2):
+        mask = np.einsum("i,ji->j", ivecs[0], ivecs) < np.cos(np.pi/(2+2*i))
+        ivecs = ivecs[mask]
+        if ivecs.shape[0] == 0:
+            break
+        indi = indi[mask]
+        indji = indji[mask]
         indo.append(indi[0])
         indjo.append(indji[0])
-        mask = np.einsum("i,ji->j", ivecs[0], ivecs) < np.cos(spacing)
-        indi = indi[mask]
-        ivecs = ivecs[mask]
-        indji = indji[mask]
     if len(indo) == 1:
         return src_lum[indo[0]]
-    n = np.sum(1/d[indjo])
-    dt = (1/d[indjo])/n
-    return np.einsum("j,ji->i", dt, src_lum[indo])
+    dt = 1/d[indjo]**2
+    n = np.sum(dt)
+    return np.einsum("j,ji->i", dt/n, src_lum[indo])
 
 
-def interpolate_query(arrout, src_lum, src_vec, src_kd, dest_vec, k=8,
-                      err=0.00436, up=0.17431):
+def interpolate_query(src_lum, src_vec, src_kd, dest_vec, k=8,
+                      err=0.00436, up=0.347296):
     """query a kd_tree and interpolate corresponding values. used to
     merge to kd_trees with vector and luminance
 
     Parameters
     ----------
-    arrout: np.array
-        all values are overwritten, shape should be
-        (dest_vec.shape[0], src_lum.shape[1])
     src_lum: np.array
         luminance values for src_kd, shape (src_vec[0], srcn)
     src_vec: np.array
@@ -62,20 +61,22 @@ def interpolate_query(arrout, src_lum, src_vec, src_kd, dest_vec, k=8,
         default is .25 degrees = translate.theta2chord(.25*pi/180)
     up: float
         chord length of maximum search radius for neighbors
-        default is 10 degrees  = translate.theta2chord(10*pi/180)
+        default is 10 degrees  = translate.theta2chord(20*pi/180)
 
     Returns
     -------
-    None
-        modifies arrout in place
+    np.array
+        shape of (dest_vec.shape[0], src_lum.shape[1])
     """
     errs, idxs = src_kd.query(dest_vec, k=k, distance_upper_bound=up)
     if k == 1:
-        arrout[:] = src_lum[idxs]
-        return None
-    for j, (outv, d, i) in enumerate(zip(dest_vec, errs, idxs)):
-        arrout[j] = _interpolate(outv, d, i, src_lum, src_vec, src_kd.n,
-                                 err=err)
+        return src_lum[idxs]
+    arrout = interpolate_kdquery(dest_vec, errs, idxs, src_vec, src_lum, err=err)
+    # arrout = np.zeros((dest_vec.shape[0], src_lum.shape[1]))
+    # for j, (outv, d, i) in enumerate(zip(dest_vec, errs, idxs)):
+    #     arrout[j] = _interpolate(outv, d, i, src_lum, src_vec, src_kd.n,
+    #                              err=err)
+    return arrout
 
 
 class LightField(object):

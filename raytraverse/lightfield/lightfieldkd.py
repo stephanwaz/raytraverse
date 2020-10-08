@@ -158,11 +158,10 @@ class LightFieldKD(LightField):
 
     def add_to_img(self, img, mask, pi, vecs, coefs=1, vm=None, interp=1):
         if interp > 1:
-            arrout = np.zeros((vecs.shape[0], self.srcn))
-            interpolate_query(arrout, self.lum[pi], self.vec[pi], self.d_kd[pi],
+            # arrout = np.zeros((vecs.shape[0], self.srcn))
+            arrout = interpolate_query(self.lum[pi], self.vec[pi], self.d_kd[pi],
                               vecs, k=interp)
             lum = np.einsum('j,kj->k', coefs, arrout)
-            img[mask] = np.squeeze(lum)
         else:
             i, d = self.query_ray(pi, vecs)
             lum = self.apply_coef(pi, coefs)
