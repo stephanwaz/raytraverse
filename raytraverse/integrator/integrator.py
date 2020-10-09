@@ -7,17 +7,18 @@
 # =======================================================================
 import os
 import sys
-from concurrent.futures import ProcessPoolExecutor, as_completed
+from concurrent.futures import ProcessPoolExecutor
 from datetime import datetime, timezone
 import subprocess
 
 import numpy as np
 import raytraverse
-from raytraverse import translate, io, skycalc, metricfuncs
+from raytraverse import translate, io, skycalc
 from raytraverse.mapper import ViewMapper
 from raytraverse.scene import SkyInfo
 from raytraverse.crenderer import cRtrace
 from raytraverse.lightfield import SunSkyPt
+from raytraverse.integrator.metricset import MetricSet
 
 
 class Integrator(object):
@@ -298,8 +299,8 @@ class Integrator(object):
         io.array2hdr(img, outf, self.header() + [vstr])
         return outf, 'hdr'
 
-    def metric(self, sunskyfield, skyv, sun, suni, pi, vm, info,
-               mfuncs=(metricfuncs.illum,), **kwargs):
+    def metric(self, sunskyfield, skyv, sun, suni, pi, mset, info,
+               **kwargs):
         """calculate metrics for a single skyv/sun/pt-index combination
 
         Parameters
@@ -315,12 +316,10 @@ class Integrator(object):
             corresponding patch in skyfield
         pi: int
             point index
-        vm: raytraverse.mapper.viewmapper
-            should have a view angle of 180 degrees, the analyis direction
-        mfuncs: tuple
-            tuple of callables with the signature:
-            ``f(vm, rays, omega, lum, **kwargs)``
-            return a float
+        mset: raytraverse.integrator.MetricSet
+            metrics to compute
+        info: list
+            constant column values to include in row output
         kwargs:
             passed to metricfuncs
 
@@ -334,8 +333,8 @@ class Integrator(object):
             as parallel process to seperate from 'hdr' or other outputs)
         """
         lf, li, skyvec, svw, svl = self._get_metric_info(sunskyfield, skyv, sun,
-                                                         suni, pi, vm)
-        idx = lf.query_ball(li, vm.dxyz)[0]
+                                                         suni, pi, mset.vm)
+        idx = lf.query_ball(li, mset.vm.dxyz)[0]
         omega = np.squeeze(lf.omega[li][idx])
         rays = lf.vec[pi][idx]
         lum = np.squeeze(lf.apply_coef(li, skyvec))[idx]
@@ -343,16 +342,15 @@ class Integrator(object):
             rays = np.vstack((rays, svw[0][None, :]))
             lum = np.concatenate((lum, [svw[1]]))
             omega = np.concatenate((omega, [svw[2]]))
-        fmetric = [f(vm, rays, omega, lum, **kwargs)
-                   for f in mfuncs]
+        fmetric = mset.compute(rays, omega, lum)
         data = np.concatenate((info[0], fmetric, [svl, ], info[1]))
         return data, 'metric'
 
     def integrate(self, pts, smtx, grnd=None, suns=None, suni=None,
                   daysteps=None, sunerrs=None, skydata=None, dohdr=True,
                   dometric=True, vname='view', viewangle=180.0, res=400,
-                  interp=1, mfuncs=(metricfuncs.illum,),
-                  metric_return_opts=None, **kwargs):
+                  interp=1, metricset="illum", metric_return_opts=None,
+                  **kwargs):
         """
 
         Parameters
@@ -371,7 +369,9 @@ class Integrator(object):
         viewangle
         res
         interp
-        mfuncs
+        metricset: str, list
+            string or list of strings naming metrics.
+            see raytraverse.integrator.MetricSet.metricdict for valid names
         metric_return_opts: dict
             boolean dictionary of columns to print with metric output. Default:
             {"idx": False, "sensor": False, False, "sky": False}
@@ -405,6 +405,7 @@ class Integrator(object):
                     sunsky = SunSkyPt(self.skyfield, self.sunfield, pi)
                 vm = ViewMapper(viewangle=viewangle, dxyz=vdir, name=vname)
                 vmm = ViewMapper(viewangle=180, dxyz=vdir)
+                mset = MetricSet(vmm, metricset)
                 vp = self.scene.area.idx2pt([pi])[0]
                 vstr = ('VIEW= -vta -vv {0} -vh {0} -vd {1} {2} {3}'
                         ' -vp {4} {5} {6}'.format(viewangle, *vdir, *vp))
@@ -429,8 +430,8 @@ class Integrator(object):
                             if metricreturn[k]:
                                 info[1] += v
                         fu.append(exc.submit(self.metric, sunsky, smtx[sj],
-                                             suns[sj], suni[sj], pi, vmm, info,
-                                             mfuncs, **kwargs))
+                                             suns[sj], suni[sj], pi, mset, info,
+                                             **kwargs))
             outmetrics = []
             for future in fu:
                 out, kind = future.result()
@@ -442,7 +443,7 @@ class Integrator(object):
             headers = dict(
                 idx=["pt-idx", "sky-idx"],
                 sensor=["x", "y", "z", "dx", "dy", "dz"],
-                metric=[f.__name__ for f in mfuncs] + ["sun-value"],
+                metric=mset.header + ["sun-value"],
                 err=["pt-err", "sun-err"],
                 sky=["sun-x", "sun-y", "sun-z", "dir-norm", "diff-horiz"])
             colhdr = []

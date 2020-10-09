@@ -2,8 +2,8 @@
 # -*- coding: utf-8 -*-
 
 """Tests for raytraverse.metric"""
-from raytraverse import metricfuncs, io
 from raytraverse.mapper import ViewMapper
+from raytraverse.integrator import MetricSet, PositionIndex
 import numpy as np
 
 
@@ -41,5 +41,6 @@ def test_get_pos_idx():
     res = 10
     img = vm.pixelrays(res)
     fimg = img.reshape(-1, 3)
-    posidx = metricfuncs.get_pos_idx(vm, fimg).reshape(res, res)
+    posfinder = PositionIndex()
+    posidx = posfinder.positions(vm, fimg).reshape(res, res)
     assert np.allclose(posidx, exp)

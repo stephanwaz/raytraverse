@@ -462,9 +462,9 @@ def integrate(ctx, pts=None, skyonly=False, hdr=True,
     metric_return_opts = {"idx": kwargs['statidx'],
                           "sensor": kwargs['statsensor'],
                           "err": kwargs['staterr'], "sky": kwargs['statsky']}
-    mf = (raytraverse.metricfuncs.illum, raytraverse.metricfuncs.sqlum)
+    mset = "illum lum2"
     datahd, data = itg.integrate(pts, *skymtx, interp=interp, res=res,
-                                 vname=vname, scale=179, mfuncs=mf,
+                                 vname=vname, scale=179, metricset=mset,
                                  dohdr=hdr, dometric=metric,
                                  metric_return_opts=metric_return_opts)
     if header:
