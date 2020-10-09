@@ -9,7 +9,7 @@
 """wavelet and associated probability functions."""
 import numpy as np
 import pywt
-from raytraverse.craytraverse import from_pdf
+from raytraverse.craytraverse import from_pdf as _from_pdf
 
 
 def get_detail(samps, axes):
@@ -41,7 +41,7 @@ def get_detail(samps, axes):
 def from_pdf(pdf, threshold):
     candidates = np.empty(pdf.size, dtype=np.uint32)
     bidx = np.empty(pdf.size, dtype=np.uint32)
-    cs, bs, nsampc = from_pdf(pdf, candidates, bidx, threshold)
+    cs, bs, nsampc = _from_pdf(pdf, candidates, bidx, threshold)
     if nsampc == 0:
         return bidx[:bs]
     # if normalization happens in c-func floating point precision does not
