@@ -32,10 +32,7 @@ Parameters
 ----------
 pdf: np.array
     array of doubles with weights to check against threshold
-candidates: np.array
-    array of integers to write candidate indices to, should be atleast as large as pdf
-bidx: np.array
-    array of integers to write indices above upper bound, should be atleast as large as pdf
+
 threshold: float
     value used to determine the number of indices to return
 lb: float, optional
@@ -45,33 +42,37 @@ ub: float, optional
 
 Returns
 -------
-ccnt: int
-    the number of choices (use to slice end of candidates
-bcnt: int
-    the number of indices above the upper bound, use to slice bidx
+candidates: np.array
+    array of candidate indices
+bidx: np.array
+    array of definitely included indices
 nsampc: int
     the number of draws that should be selected from the candidates
     )pbdoc";
 
-pybind11::tuple from_pdf(py::array_t<double> &pdf,
-                         py::array_t<u_int32_t> candidates,
-                         py::array_t<u_int32_t> bidx,
-                         double threshold, double lb, double ub) {
-  auto parr = pdf.unchecked<1>();
-  auto carr = candidates.mutable_unchecked<1>();
-  auto barr = bidx.mutable_unchecked<1>();
+pybind11::tuple from_pdf(py::array_t<double> &pdf, double threshold, double lb, double ub) {
+
+  // initialize outputs at largest possible size
+  py::array_t<u_int32_t> candidates(pdf.size());
+  py::buffer_info cout = candidates.request();
+  auto *carr = (u_int32_t *) cout.ptr;
+
+  py::array_t<u_int32_t> bidx(pdf.size());
+  py::buffer_info bout = bidx.request();
+  auto *barr = (u_int32_t *) bout.ptr;
+
   u_int32_t ccnt = 0, bcnt = 0, nsampc = 0, cumsum = 0;
 
-  for (size_t idx = 0; idx < parr.shape(0); idx++) {
+  for (size_t idx = 0; idx < pdf.shape(0); idx++) {
     // cliphigh
-    if (parr(idx) < threshold * ub){
+    if (pdf.at(idx) < threshold * ub){
       // clip: set number of samples
-      if (parr(idx) > threshold){
+      if (pdf.at(idx) > threshold){
         nsampc++;
       }
       // cliplow: add to candidates and update probability
-      if (parr(idx) > threshold * lb){
-        carr(ccnt) = cumsum + ccnt;
+      if (pdf.at(idx) > threshold * lb){
+        carr[ccnt] = cumsum + ccnt;
         ccnt++;
       }
         // add to index offset
@@ -80,14 +81,16 @@ pybind11::tuple from_pdf(py::array_t<double> &pdf,
       }
       // definitely draw and add to index offset
     } else {
-      barr(bcnt) = idx;
+      barr[bcnt] = idx;
       bcnt++;
       cumsum++;
     }
   }
-  return py::make_tuple(ccnt, bcnt, nsampc);
+  // trim to used size before returning (frees memory when relinquished to python)
+  candidates.resize({ccnt});
+  bidx.resize({bcnt});
+  return py::make_tuple(candidates, bidx, nsampc);
 }
-
 
 
 const char* interpolate_kdquery_docstring =R"pbdoc(interpolate luminance values associated with query results
@@ -237,8 +240,6 @@ PYBIND11_MODULE(craytraverse, m) {
   m.doc() = docstring;
   m.def("from_pdf", &from_pdf,
         "pdf"_a,
-        "candidates"_a,
-        "bidx"_a,
         "threshold"_a,
         "lb"_a=.5,
         "ub"_a=4.0,
