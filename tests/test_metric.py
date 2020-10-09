@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 
 """Tests for raytraverse.metric"""
-from raytraverse import metric, io
+from raytraverse import metricfuncs, io
 from raytraverse.mapper import ViewMapper
 import numpy as np
 
@@ -41,5 +41,5 @@ def test_get_pos_idx():
     res = 10
     img = vm.pixelrays(res)
     fimg = img.reshape(-1, 3)
-    posidx = metric.get_pos_idx(vm, fimg).reshape(res, res)
+    posidx = metricfuncs.get_pos_idx(vm, fimg).reshape(res, res)
     assert np.allclose(posidx, exp)

@@ -10,14 +10,5 @@
 
 __all__ = ['cRcontrib', 'cRtrace']
 
-try:
-    from raytraverse.crenderer.rcontrib_c import cRcontrib
-except (ModuleNotFoundError, ImportError):
-    from raytraverse.crenderer.pyvirtual import PyVirtualRender as cRcontrib
-
-try:
-    from raytraverse.crenderer.rtrace_c import cRtrace
-except (ModuleNotFoundError, ImportError):
-    from raytraverse.crenderer.pyvirtual import PyVirtualRender as cRtrace
-
-
+from raytraverse.crenderer.rcontrib_c import cRcontrib
+from raytraverse.crenderer.rtrace_c import cRtrace

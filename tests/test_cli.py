@@ -39,6 +39,6 @@ def test_cli(tmpdir, capfd, runner):
     pt = runner.invoke(cli.main, "-c run.cfg demo integrate")
     hdr = runner.invoke(hdrcli.img_cr, "'demo_view*.hdr'")
     hdr = np.fromstring(hdr.output, sep=' ').reshape(-1, 5)[:, 1:3]
-    pt = np.fromstring(pt.output, sep=' ').reshape(-1, 5)[:, 2:4]
+    pt = np.fromstring(pt.output, sep=' ').reshape(-1, 3)[:, 0:2]
     corr = corr_calc(hdr[:, 0], pt[:, 0])
     assert corr[0] > .95

@@ -430,6 +430,16 @@ def sunrun(ctx, plotdview=False, run=True, rmraw=False, overwrite=False,
                    " is ordered by point than sky")
 @click.option('--header/--no-header', default=False,
               help='print column headings on metric output')
+@click.option('--statidx/--no-statidx', default=False,
+              help='print index columns on metric output')
+@click.option('--statsensor/--no-statsensor', default=False,
+              help='print sensor position and direction columns on metric '
+                   'output')
+@click.option('--staterr/--no-staterr', default=False,
+              help='print interpolation error info on metric output')
+@click.option('--statsky/--no-statsky', default=False,
+              help='print sky info (sun x,y,z dirnorm, dirdiff) on metric '
+                   'output')
 @clk.shared_decs(clk.command_decs(raytraverse.__version__, wrap=True))
 def integrate(ctx, pts=None, skyonly=False, hdr=True,
               metric=True, res=800, interp=12, vname='view',
@@ -449,10 +459,14 @@ def integrate(ctx, pts=None, skyonly=False, hdr=True,
     sk = SCBinField(scn)
     itg = Integrator(sk, su, **kwargs)
     skymtx = itg.get_sky_mtx()
-    mf = (raytraverse.metric.illum, raytraverse.metric.sqlum)
+    metric_return_opts = {"idx": kwargs['statidx'],
+                          "sensor": kwargs['statsensor'],
+                          "err": kwargs['staterr'], "sky": kwargs['statsky']}
+    mf = (raytraverse.metricfuncs.illum, raytraverse.metricfuncs.sqlum)
     datahd, data = itg.integrate(pts, *skymtx, interp=interp, res=res,
-                                 vname=vname, scale=179, metricfuncs=mf,
-                                 dohdr=hdr, dometric=metric)
+                                 vname=vname, scale=179, mfuncs=mf,
+                                 dohdr=hdr, dometric=metric,
+                                 metric_return_opts=metric_return_opts)
     if header:
         print("\t".join(datahd))
     for d in data:

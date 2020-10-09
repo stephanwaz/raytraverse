@@ -1,4 +1,6 @@
 raytraverse
 ===========
 
-craytraverse
+.. toctree::
+
+    craytraverse

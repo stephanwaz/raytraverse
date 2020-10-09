@@ -14,7 +14,7 @@
    craytraverse
    draw
    io
-   metric
+   metricfuncs
    plot
    skycalc
    translate

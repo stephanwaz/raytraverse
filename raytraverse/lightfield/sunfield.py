@@ -83,10 +83,12 @@ class SunField(LightFieldKD):
         items = np.core.records.fromarrays(list(zip(*self.items())))
         return np.isin(full, items).reshape(shape)
 
-    def add_to_img(self, img, mask, pi, vecs, coefs=92444.45, vm=None, interp=1):
+    def add_to_img(self, img, mask, pi, vecs, coefs=92444.45, vm=None, interp=1,
+                   **kwargs):
         if vm is None:
             vm = self.scene.view
-        super().add_to_img(img, mask, pi, vecs, coefs=coefs, interp=interp)
+        super().add_to_img(img, mask, pi, vecs, coefs=coefs, interp=interp,
+                           **kwargs)
         sun = np.concatenate((self.suns.suns[pi[1]], [coefs, ]))
         self.view.add_to_img(img, pi, sun, vm)
 

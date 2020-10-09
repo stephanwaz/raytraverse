@@ -13,7 +13,7 @@ import subprocess
 
 import numpy as np
 import raytraverse
-from raytraverse import translate, io, skycalc, metric
+from raytraverse import translate, io, skycalc, metricfuncs
 from raytraverse.mapper import ViewMapper
 from raytraverse.scene import SkyInfo
 from raytraverse.crenderer import cRtrace
@@ -229,42 +229,7 @@ class Integrator(object):
             pass
         return hdr
 
-    def _hdr(self, sunskyfield, skyv, sun, suni, pi, vm, pdirs, mask, vstr,
-             outf, interp=1, res=400):
-        img = np.zeros((res*vm.aspect, res))
-        if suni[0] in sunskyfield.items() and sun[-2] > 0:
-            lf = sunskyfield
-            li = suni[0]
-            skyvec = np.concatenate((sun[-2:-1], skyv))
-        else:
-            lf = self.skyfield
-            li = pi
-            skyvec = np.copy(skyv)
-            skyvec[suni[1]] += sun[-1]
-        lf.add_to_img(img, mask, li, pdirs[mask], coefs=skyvec, vm=vm,
-                      interp=interp)
-        io.array2hdr(img, outf, self.header() + [vstr])
-        return outf, 'hdr'
-
-    def _metric(self, sunskyfield, skyv, sun, suni, pi, vm, info,
-                metricfuncs=(metric.illum,), **kwargs):
-        """
-
-        Parameters
-        ----------
-        sunskyfield: raytraverse.lightfield.sunskypt
-        skyv
-        sun
-        suni
-        pi
-        vm
-        metricfuncs
-        kwargs
-
-        Returns
-        -------
-
-        """
+    def _get_metric_info(self, sunskyfield, skyv, sun, suni, pi, vm):
         if suni[0] in sunskyfield.items() and sun[-2] > 0:
             lf = sunskyfield
             li = suni[0]
@@ -278,19 +243,150 @@ class Integrator(object):
             skyvec[suni[1]] += sun[-1]
             sunview = None
             sunvalue = 0
+        return lf, li, skyvec, sunview, sunvalue
+
+    def hdr(self, sunskyfield, skyv, sun, suni, pi, vm, pdirs, mask, vstr,
+            outf, interp=1):
+        """interpolate and write hdr image for a single skyv/sun/pt-index
+        combination
+
+        Parameters
+        ----------
+        sunskyfield: raytraverse.lightfield.sunskypt
+        skyv: np.array
+            sky patch coefficients, size=self.skyfield.srcn
+            (last value is ground)
+        sun: np.array
+            sun value (dx, dy, dz, true radiance, patch radiance)
+        suni: tuple
+            (sun index, sun bin) index is position in self.suns.suns, bin is
+            corresponding patch in skyfield
+        pi: int
+            point index
+        vm: raytraverse.mapper.viewmapper
+            should have a view angle of 180 degrees, the analyis direction
+        pdirs: np.array
+            pixel ray directions, shape (res, res, 3)
+        mask: tuple
+            pair of integer np.array representing pixel coordinates of images
+            to calculate
+        vstr: str
+            view string for radiance compatible header
+        outf: str
+            destination file path
+        interp: int
+            number of rays to search for in query, interpolation always happens
+            between 3 points, but in order to find a valid mesh triangle more
+            than 3 points is typically necessary. 16 seems to be a safe number
+            set to 1 (default) to turn off interpolation and use nearest ray
+            this will result in voronoi patches in the final image.
+
+        Returns
+        -------
+        outf: str
+            saved output file
+        returntype: str
+            'hdr' indicating format of result (useful when called
+            as parallel process to seperate from 'metric' or other outputs)
+
+        """
+        img = np.zeros(pdirs.shape[:-1])
+        lf, li, skyvec, _, _ = self._get_metric_info(sunskyfield, skyv, sun,
+                                                     suni, pi, vm)
+        lf.add_to_img(img, mask, li, pdirs[mask], coefs=skyvec, vm=vm,
+                      interp=interp)
+        io.array2hdr(img, outf, self.header() + [vstr])
+        return outf, 'hdr'
+
+    def metric(self, sunskyfield, skyv, sun, suni, pi, vm, info,
+               mfuncs=(metricfuncs.illum,), **kwargs):
+        """calculate metrics for a single skyv/sun/pt-index combination
+
+        Parameters
+        ----------
+        sunskyfield: raytraverse.lightfield.sunskypt
+        skyv: np.array
+            sky patch coefficients, size=self.skyfield.srcn
+            (last value is ground)
+        sun: np.array
+            sun value (dx, dy, dz, true radiance, patch radiance)
+        suni: tuple
+            (sun index, sun bin) index is position in self.suns.suns, bin is
+            corresponding patch in skyfield
+        pi: int
+            point index
+        vm: raytraverse.mapper.viewmapper
+            should have a view angle of 180 degrees, the analyis direction
+        mfuncs: tuple
+            tuple of callables with the signature:
+            ``f(vm, rays, omega, lum, **kwargs)``
+            return a float
+        kwargs:
+            passed to metricfuncs
+
+        Returns
+        -------
+        data: np.array
+            results for skyv and pi, shape (len(info[0]) + len(metricfuncs) +
+            1 + len(info[1])
+        returntype: str
+            'metric' indicating format of result (useful when called
+            as parallel process to seperate from 'hdr' or other outputs)
+        """
+        lf, li, skyvec, svw, svl = self._get_metric_info(sunskyfield, skyv, sun,
+                                                         suni, pi, vm)
         idx = lf.query_ball(li, vm.dxyz)[0]
         omega = np.squeeze(lf.omega[li][idx])
         rays = lf.vec[pi][idx]
         lum = np.squeeze(lf.apply_coef(li, skyvec))[idx]
-        fmetric = [f(vm, rays, omega, lum, sunview=sunview, **kwargs)
-                   for f in metricfuncs]
-        data = np.concatenate((info[0], fmetric, [sunvalue,], info[1]))
+        if svw is not None:
+            rays = np.vstack((rays, svw[0][None, :]))
+            lum = np.concatenate((lum, [svw[1]]))
+            omega = np.concatenate((omega, [svw[2]]))
+        fmetric = [f(vm, rays, omega, lum, **kwargs)
+                   for f in mfuncs]
+        data = np.concatenate((info[0], fmetric, [svl, ], info[1]))
         return data, 'metric'
 
     def integrate(self, pts, smtx, grnd=None, suns=None, suni=None,
                   daysteps=None, sunerrs=None, skydata=None, dohdr=True,
                   dometric=True, vname='view', viewangle=180.0, res=400,
-                  interp=1, metricfuncs=(metric.illum,), **kwargs):
+                  interp=1, mfuncs=(metricfuncs.illum,),
+                  metric_return_opts=None, **kwargs):
+        """
+
+        Parameters
+        ----------
+        pts
+        smtx
+        grnd
+        suns
+        suni
+        daysteps
+        sunerrs
+        skydata
+        dohdr
+        dometric
+        vname
+        viewangle
+        res
+        interp
+        mfuncs
+        metric_return_opts: dict
+            boolean dictionary of columns to print with metric output. Default:
+            {"idx": False, "sensor": False, False, "sky": False}
+        kwargs
+
+        Returns
+        -------
+
+        """
+
+        metricreturn = {"idx": False, "sensor": False,
+                        "err": False, "sky": False}
+        if metric_return_opts is not None:
+            metricreturn.update(metric_return_opts)
+        metricreturn["metric"] = True
         perrs, pis = self.scene.area.pt_kd.query(pts[:, 0:3])
         sort = np.argsort(pis)
         s_pis = pis[sort]
@@ -318,28 +414,41 @@ class Integrator(object):
                     if dohdr:
                         outf = (f"{self.scene.outdir}_{vname}_{pj:04d}_{sj:04d}"
                                 ".hdr")
-                        fu.append(exc.submit(self._hdr, sunsky, smtx[sj],
+                        fu.append(exc.submit(self.hdr, sunsky, smtx[sj],
                                              suns[sj], suni[sj], pi, vm, pdirs,
-                                             mask, vstr, outf, interp, res))
+                                             mask, vstr, outf, interp))
                     if dometric:
-                        info = [[pi, sj, *pt, *vdir],
-                                [perr, sunerrs[sj], *skydata[sj]]]
-                        fu.append(exc.submit(self._metric, sunsky, smtx[sj],
+                        info = [[], []]
+                        infos0 = dict(idx=[pi, sj], sensor=[*pt, *vdir])
+                        infos1 = dict(err=[perr, sunerrs[sj]],
+                                      sky=[*skydata[sj]])
+                        for k, v in infos0.items():
+                            if metricreturn[k]:
+                                info[0] += v
+                        for k, v in infos1.items():
+                            if metricreturn[k]:
+                                info[1] += v
+                        fu.append(exc.submit(self.metric, sunsky, smtx[sj],
                                              suns[sj], suni[sj], pi, vmm, info,
-                                             metricfuncs, **kwargs))
+                                             mfuncs, **kwargs))
             outmetrics = []
-            for future in as_completed(fu):
+            for future in fu:
                 out, kind = future.result()
                 if kind == 'hdr':
                     print(out, file=sys.stderr)
                 elif kind == 'metric':
                     outmetrics.append(out)
         if dometric:
-            mthdr = [f.__name__ for f in metricfuncs]
-            errhdr = ["sun-value", "pt-err", "sun-err"]
-            poshdr = ["pt-idx", "sky-idx", "x", "y", "z", "dx", "dy", "dz"]
-            sunhdr = ["sun-x", "sun-y", "sun-z", "dir-norm", "diff-horiz"]
-            colhdr = poshdr + mthdr + errhdr + sunhdr
+            headers = dict(
+                idx=["pt-idx", "sky-idx"],
+                sensor=["x", "y", "z", "dx", "dy", "dz"],
+                metric=[f.__name__ for f in mfuncs] + ["sun-value"],
+                err=["pt-err", "sun-err"],
+                sky=["sun-x", "sun-y", "sun-z", "dir-norm", "diff-horiz"])
+            colhdr = []
+            for k, v in headers.items():
+                if metricreturn[k]:
+                    colhdr += v
             d = np.array(outmetrics)
             cols = d.shape[1]
             unsort = np.argsort(sort)

@@ -1,7 +1,7 @@
-raytraverse.metric
+raytraverse.metricfuncs
 ==========================================================
 
-.. automodule:: raytraverse.metric
+.. automodule:: raytraverse.metricfuncs
     :members:
     :undoc-members:
     :show-inheritance:
