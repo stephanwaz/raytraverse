@@ -3,14 +3,12 @@
   <span class="target" id="module-raytraverse.craytraverse"></span><p>raytraverse helper functions written in c++</p>
 <dl class="py function">
 <dt id="raytraverse.craytraverse.from_pdf">
-<code class="sig-prename descclassname">raytraverse.craytraverse.</code><code class="sig-name descname">from_pdf</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">pdf</span><span class="p">:</span> <span class="n">numpy.ndarray<span class="p">[</span>numpy.float64<span class="p">]</span></span></em>, <em class="sig-param"><span class="n">candidates</span><span class="p">:</span> <span class="n">numpy.ndarray<span class="p">[</span>numpy.uint32<span class="p">]</span></span></em>, <em class="sig-param"><span class="n">bidx</span><span class="p">:</span> <span class="n">numpy.ndarray<span class="p">[</span>numpy.uint32<span class="p">]</span></span></em>, <em class="sig-param"><span class="n">threshold</span><span class="p">:</span> <span class="n">float</span></em>, <em class="sig-param"><span class="n">lb</span><span class="p">:</span> <span class="n">float</span> <span class="o">=</span> <span class="default_value">0.5</span></em>, <em class="sig-param"><span class="n">ub</span><span class="p">:</span> <span class="n">float</span> <span class="o">=</span> <span class="default_value">4.0</span></em><span class="sig-paren">)</span> &#x2192; tuple<a class="headerlink" href="#raytraverse.craytraverse.from_pdf" title="Permalink to this definition">¶</a></dt>
+<code class="sig-prename descclassname">raytraverse.craytraverse.</code><code class="sig-name descname">from_pdf</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">pdf</span><span class="p">:</span> <span class="n">numpy.ndarray<span class="p">[</span>numpy.float64<span class="p">]</span></span></em>, <em class="sig-param"><span class="n">threshold</span><span class="p">:</span> <span class="n">float</span></em>, <em class="sig-param"><span class="n">lb</span><span class="p">:</span> <span class="n">float</span> <span class="o">=</span> <span class="default_value">0.5</span></em>, <em class="sig-param"><span class="n">ub</span><span class="p">:</span> <span class="n">float</span> <span class="o">=</span> <span class="default_value">4.0</span></em><span class="sig-paren">)</span> &#x2192; tuple<a class="headerlink" href="#raytraverse.craytraverse.from_pdf" title="Permalink to this definition">¶</a></dt>
 <dd><p>helper function for draw.from_pdf</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters</dt>
 <dd class="field-odd"><ul class="simple">
 <li><p><strong>pdf</strong> (<em>np.array</em>) – array of doubles with weights to check against threshold</p></li>
-<li><p><strong>candidates</strong> (<em>np.array</em>) – array of integers to write candidate indices to, should be atleast as large as pdf</p></li>
-<li><p><strong>bidx</strong> (<em>np.array</em>) – array of integers to write indices above upper bound, should be atleast as large as pdf</p></li>
 <li><p><strong>threshold</strong> (<em>float</em>) – value used to determine the number of indices to return</p></li>
 <li><p><strong>lb</strong> (<em>float</em><em>, </em><em>optional</em>) – values below threshold * lb will be excluded from candidates (lb must be in (0,1)</p></li>
 <li><p><strong>ub</strong> (<em>float</em><em>, </em><em>optional</em>) – values above threshold * ub will have indices written to bidx</p></li>
@@ -18,8 +16,8 @@
 </dd>
 <dt class="field-even">Returns</dt>
 <dd class="field-even"><p><ul class="simple">
-<li><p><strong>ccnt</strong> (<em>int</em>) – the number of choices (use to slice end of candidates</p></li>
-<li><p><strong>bcnt</strong> (<em>int</em>) – the number of indices above the upper bound, use to slice bidx</p></li>
+<li><p><strong>candidates</strong> (<em>np.array</em>) – array of candidate indices</p></li>
+<li><p><strong>bidx</strong> (<em>np.array</em>) – array of definitely included indices</p></li>
 <li><p><strong>nsampc</strong> (<em>int</em>) – the number of draws that should be selected from the candidates</p></li>
 </ul>
 </p>
