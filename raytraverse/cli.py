@@ -16,7 +16,7 @@ import numpy as np
 from clasp import click
 import clasp.click_ext as clk
 import raytraverse
-from raytraverse.integrator import Integrator
+from raytraverse.integrator import SunSkyIntegrator, MetricSet, Integrator
 from raytraverse.sampler import SCBinSampler, SunSampler
 from raytraverse.scene import Scene, SunSetter, SunSetterLoc, SunSetterPositions
 from raytraverse.lightfield import SCBinField, SunField, SunViewField
@@ -423,11 +423,28 @@ def sunrun(ctx, plotdview=False, run=True, rmraw=False, overwrite=False,
 @click.option('--skyonly/--no-skyonly', default=False,
               help="if True, only integrate on Sky Field, useful for "
                    "diagnostics")
+@click.option('--sunonly/--no-sunonly', default=False,
+              help="if True, only integrate on Sun Field, useful for "
+                   "diagnostics. Note: only runs if --skyonly is False")
 @click.option('--hdr/--no-hdr', default=True,
               help="produce an hdr output for each point and line in wea")
 @click.option('--metric/--no-metric', default=True,
               help="calculate metrics for each point and wea file output"
                    " is ordered by point than sky")
+@click.option('-metricset', default="illum avglum lum2 dgp ugr",
+              callback=clk.split_str,
+              help='which metrics to return items must be in: '
+                   f'{", ".join(MetricSet.allmetrics)}')
+@click.option('-threshold', default=2000.0,
+              help='Threshold factor; if factor is larger than 100, it is used '
+                   'as constant threshold in cd/m2. If factor is less or equal '
+                   'than 100,  this  factor  multiplied  by the average task '
+                   'luminance will be used as  threshold for detecting the '
+                   'glare sources. task luminance is taken from the center'
+                   'of the view and encompasses tradius (see parameter '
+                   '-tradius)')
+@click.option('-tradius', default=30.0,
+              help='task radius in degrees for calculating task luminance')
 @click.option('--header/--no-header', default=False,
               help='print column headings on metric output')
 @click.option('--statidx/--no-statidx', default=False,
@@ -441,33 +458,37 @@ def sunrun(ctx, plotdview=False, run=True, rmraw=False, overwrite=False,
               help='print sky info (sun x,y,z dirnorm, dirdiff) on metric '
                    'output')
 @clk.shared_decs(clk.command_decs(raytraverse.__version__, wrap=True))
-def integrate(ctx, pts=None, skyonly=False, hdr=True,
-              metric=True, res=800, interp=12, vname='view',
-              header=False, **kwargs):
+def integrate(ctx, loc=None, wea=None, skyro=0.0, ground_fac=0.15, pts=None,
+              skyonly=False, sunonly=False, hdr=True, metric=True, res=800, interp=12,
+              vname='view', header=False, metricset="", tradius=30.0, **kwargs):
     """the integrate command combines sky and sun results and evaluates the
     given set of positions and sky conditions"""
     if 'scene' not in ctx.obj:
         clk.invoke_dependency(ctx, scene)
     scn = ctx.obj['scene']
-    if not skyonly:
+    sk = SCBinField(scn)
+    if skyonly:
+        itg = Integrator(sk, wea=wea, loc=loc, skyro=skyro,
+                         ground_fac=ground_fac)
+    else:
         if 'suns' not in ctx.obj:
             clk.invoke_dependency(ctx, suns)
         sns = ctx.obj['suns']
         su = SunField(scn, sns)
-    else:
-        su = None
-    sk = SCBinField(scn)
-    itg = Integrator(sk, su, **kwargs)
-    skymtx = itg.get_sky_mtx()
+        if sunonly:
+            itg = Integrator(su, wea=wea, loc=loc, skyro=skyro,
+                             ground_fac=ground_fac)
+        else:
+            itg = SunSkyIntegrator(sk, su, wea=wea, loc=loc, skyro=skyro,
+                                   ground_fac=ground_fac)
     metric_return_opts = {"idx": kwargs['statidx'],
                           "sensor": kwargs['statsensor'],
                           "err": kwargs['staterr'], "sky": kwargs['statsky']}
-    mset = "illum lum2"
-    datahd, data = itg.integrate(pts, *skymtx, interp=interp, res=res,
-                                 vname=vname, scale=179, metricset=mset,
-                                 dohdr=hdr, dometric=metric,
+    datahd, data = itg.integrate(pts, interp=interp, res=res,
+                                 vname=vname, scale=179, metricset=metricset,
+                                 dohdr=hdr, dometric=metric, tradius=tradius,
                                  metric_return_opts=metric_return_opts)
-    if header:
+    if header and datahd is not None:
         print("\t".join(datahd))
     for d in data:
         print("\t".join([f"{i}" for i in d]))

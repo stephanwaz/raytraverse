@@ -182,9 +182,9 @@ class SunViewField(LightField):
             for p, cl in zip(px, clum):
                 img[tuple(p)] += cl
 
-    def get_ray(self, psi, v, s):
+    def get_ray(self, psi, vm, s):
         sun = np.asarray(s[0:3]).reshape(1, 3)
-        if v.in_view(sun, indices=False)[0] and psi in self.items():
+        if vm.in_view(sun, indices=False)[0] and psi in self.items():
             svlm = self.lum[psi]*s[3]
             svo = self.omega[psi]
             return s[0:3], svlm, svo

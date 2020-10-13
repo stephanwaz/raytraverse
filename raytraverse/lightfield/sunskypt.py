@@ -79,6 +79,16 @@ class SunSkyPt(LightFieldKD):
                               np.asarray(coefs).reshape(-1)[0:1]))
         self.view.add_to_img(img, (self._ptidx, pi), sun, vm)
 
+    def get_applied_rays(self, pi, dxyz, skyvec, sunvec=None):
+        """the analog to add_to_img for metric calculations"""
+        rays, omega, lum = super().get_applied_rays(pi, dxyz, skyvec)
+        svw = self.view.get_ray((self._ptidx, pi), dxyz, sunvec)
+        if svw is not None:
+            rays = np.vstack((rays, svw[0][None, :]))
+            lum = np.concatenate((lum, [svw[1]]))
+            omega = np.concatenate((omega, [svw[2]]))
+        return rays, omega, lum
+
     @property
     def scene(self):
         """scene information

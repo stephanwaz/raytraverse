@@ -92,6 +92,16 @@ class SunField(LightFieldKD):
         sun = np.concatenate((self.suns.suns[pi[1]], [coefs, ]))
         self.view.add_to_img(img, pi, sun, vm)
 
+    def get_applied_rays(self, pi, dxyz, skyvec, sunvec=None):
+        """the analog to add_to_img for metric calculations"""
+        rays, omega, lum = super().get_applied_rays(pi, dxyz, skyvec)
+        svw = self.view.get_ray(pi, dxyz, sunvec)
+        if svw is not None:
+            rays = np.vstack((rays, svw[0][None, :]))
+            lum = np.concatenate((lum, [svw[1]]))
+            omega = np.concatenate((omega, [svw[2]]))
+        return rays, omega, lum
+
     def direct_view(self, res=512, showsample=True, items=None):
         """create a summary image of lightfield for each vpt"""
         super().direct_view(res=res, showsample=showsample, items=items)

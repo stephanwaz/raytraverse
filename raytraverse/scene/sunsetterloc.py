@@ -20,7 +20,7 @@ class SunSetterLoc(SunSetter):
     scene: raytraverse.scene.Scene
         scene class containing geometry, location and analysis plane
     loc: tuple
-        lat, lon, tz (in degrees, west is positive
+        lat, lon, tz (in degrees, west is positive)
     srct: float, optional
         threshold of sky contribution for determining appropriate srcn
     skyro: float, optional

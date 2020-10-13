@@ -15,37 +15,36 @@ import numpy as np
 import raytraverse
 from raytraverse import translate, io, skycalc
 from raytraverse.mapper import ViewMapper
-from raytraverse.scene import SkyInfo
 from raytraverse.crenderer import cRtrace
 from raytraverse.lightfield import SunSkyPt
 from raytraverse.integrator.metricset import MetricSet
 
 
 class Integrator(object):
-    """class to generate outputs from skyfield sunfield and sky conditions
+    """class to generate outputs from lightfield(s) and sky conditions
 
     This class provides an interface to:
 
         1. generate sky data using the perez
-        2. combine lightfield data for sky and sun (handling sparsely populated
-           sun data)
+        2. combine lightfield data
         3. apply sky data to the lightfield queries
-        4. output luminance maps and photometric quantities and visual
-           comfort metrics
+        4. output luminance maps as hdr images, photometric quantities, and
+           visual comfort metrics
+
+    prior to calling integrate, if updating wea, loc or skyro, use the "sky"
+    parameter setter. if only the wea is changing, the skydata setter can be
+    called directly.
 
     Parameters
     ----------
-    skyfield: raytraverse.lightfield.SCBinField
-        class containing sky data
-    sunfield: raytraverse.lightfield.SunField
-        class containing sun data (should share its scene parameter with the
-        given skyfield
+    lightfield: raytraverse.lightfield.LightFieldKD
+        class containing sample data
     wea: str, np.array, optional
         path to epw, wea, or .npy file or np.array, if loc not set attempts to
         extract location data (if needed). The Integrator does not need to be
-        initialized with weather data but for convinience can be. If skydata
-        is not set then the optional parameter of get_sky_matrix() is required
-        or an Exception will be raised.
+        initialized with weather data but for convinience can be. However,
+        self.skydata must be initialized (directly or through self.sky) before
+        calling integrate.
     loc: (float, float, int), optional
         location data given as lat, lon, mer with + west of prime meridian
         overrides location data in wea (but not in sunfield)
@@ -53,111 +52,71 @@ class Integrator(object):
         angle in degrees counter-clockwise to rotate sky
         (to correct model north, equivalent to clockwise rotation of scene)
         does not override rotation in SunField)
+    ground_fac: float, optional
+        ground reflectance
     """
 
-    def __init__(self, skyfield, sunfield=None, wea=None, loc=None, skyro=0.0,
-                 ground_fac=0.15, **kwargs):
+    def __init__(self, lightfield, wea=None, loc=None, skyro=0.0,
+                 ground_fac=0.15):
+        #: raytraverse.lightfield.LightFieldKD
+        self.skyfield = lightfield
         #: raytraverse.scene.Scene
-        self.scene = skyfield.scene
-        try:
-            #: raytraverse.sunsetter.SunSetter
-            self.suns = sunfield.suns
-        except AttributeError:
-            self.suns = None
-        try:
-            #: raytraverse.scene.SkyInfo
-            self.sky = self.suns.sky
-        except AttributeError:
-            if loc is None and wea is not None:
-                try:
-                    loc = skycalc.get_loc_epw(wea)
-                except ValueError:
-                    pass
-            self.sky = SkyInfo(loc, skyro=skyro)
-        #: raytraverse.lightfield.SunField
-        self.sunfield = sunfield
-        #: raytraverse.lightfield.SCBinField
-        self.skyfield = skyfield
+        self.scene = lightfield.scene
         self.ground_fac = ground_fac
+        # in case a child has already set
+        if not hasattr(self, "suns"):
+            try:
+                self.suns = lightfield.suns
+            except AttributeError:
+                self.suns = None
+        if loc is None and wea is not None:
+            try:
+                loc = skycalc.get_loc_epw(wea)
+            except ValueError:
+                pass
+        self.sky = (wea, loc, skyro)
+
+    @property
+    def sky(self):
+        """location and sky rotation information
+
+        :getter: Returns (loc, skyro)
+        :setter: Sets (loc, skyro) and updates skydata"""
+        return self._loc, self._skyro
+
+    @sky.setter
+    def sky(self, skyinfo):
+        """sky setter
+
+        Parameters
+        ----------
+        skyinfo: a tuple of (wea, loc, and skyro):
+            wea: str, np.array
+                This method takes either a file path or np.array. File path can
+                point to a wea, epw, or .npy file. Loaded array must be one of
+                the following:
+                - 4 col: alt, az, dir, diff
+                - 5 col: dx, dy, dz, dir, diff
+                - 5 col: m, d, h, dir, diff'
+            loc: tuple
+                lot, lon, mer (in degrees, west is positive)
+            skyro: float
+                sky rotation (in degrees, ccw)
+        """
+        wea, self._loc, self._skyro = skyinfo
         if wea is not None:
             self.skydata = wea
         else:
-            try:
-                self.skydata = f'{self.scene.outdir}/skydat.txt'
-            except OSError:
-                self._skydata = None
+            self._skydata = None
+            self._sunproxy = None
+            self._serr = None
 
     @property
     def skydata(self):
-        """sky data formatted as dx, dy, dz, dirnorm, diffhoriz
+        """a tuple of sky data required to integrate
 
-        :getter: Returns this scene's skydata
-        :setter: Sets this scene's skydata from file path or
-        :type: np.array
-        """
-        return self._skydata
+        skydata contains:
 
-    @skydata.setter
-    def skydata(self, wea):
-        self._skydata = self.format_skydata(wea)
-        np.savetxt(f'{self.scene.outdir}/skydat.txt', self._skydata)
-
-    def format_skydata(self, dat):
-        """process dat argument as skydata
-
-        Parameters
-        ----------
-        dat: str, np.array
-            This method takes either a file path or np.array. File path can
-            point to a wea, epw, or .npy file. Loaded array must be one of the
-            following:
-            - 4 col: alt, az, dir, diff
-            - 5 col: dx, dy, dz, dir, diff
-            - 5 col: m, d, h, dir, diff'
-
-        Returns
-        -------
-        np.array
-            dx, dy, dz, dir, diff
-        """
-        loc = self.sky.loc
-        if hasattr(dat, 'shape'):
-            skydat = dat
-        else:
-            try:
-                skydat = np.loadtxt(dat)
-            except ValueError:
-                if self.sky.loc is None:
-                    loc = skycalc.get_loc_epw(dat)
-                skydat = skycalc.read_epw(dat)
-        if skydat.shape[1] == 4:
-            xyz = translate.aa2xyz(skydat[:, 0:2])
-            skydat = np.hstack((xyz, skydat[:, 2:]))
-        elif skydat.shape[1] == 5:
-            if np.max(skydat[:, 2]) > 2:
-                if self.sky.loc is None:
-                    raise ValueError("cannot parse wea data without a Location")
-                times = skycalc.row_2_datetime64(skydat[:, 0:3])
-                xyz = skycalc.sunpos_xyz(times, *loc, ro=self.sky.skyro)
-                skydat = np.hstack((xyz, skydat[:, 3:]))
-        else:
-            raise ValueError('input data should be one of the following:'
-                             '\n4 col: alt, az, dir, diff'
-                             '\n5 col: dx, dy, dz, dir, diff'
-                             '\n5 col: m, d, h, dir, diff')
-        return skydat
-
-    def get_sky_mtx(self, skydata=None, ground_fac=None):
-        """generate sky, grnd and sun coefficients from sky data using perez
-
-        Parameters
-        ----------
-        skydata: str, np.array. optional
-            if None, uses object skydata (will raise error if unassigned)
-            see format_skydata() for argument specifics.
-
-        Returns
-        -------
         smtx: np.array
             shape (len(skydata), skyres**2) coefficients for each sky patch
             each row is a timestep, timesteps where a sun exists exclude the
@@ -169,44 +128,83 @@ class Integrator(object):
             shape (len(skydata), 5) sun position (index 0,1,2) and coefficients
             for sun at each timestep assuming the true solid angle of the sun
             (index 3) and the weighted value for the sky patch (index 4).
-        si: np.array
-             shape (len(skydata), 2) index for self.suns.suns pointing to
-             correct proxy source (col 0) and sunbin for patch mapping (col 1)
         daysteps: np.array
             shape (len(skydata),) boolean array masking timesteps when sun is
             below horizon
-        serrs: np.array
-            error (angle in degrees) between sun and proxy source
         skydata: no.array
             sun position and dirnorm diffhoriz
         """
-        if skydata is None:
-            skydata = self.skydata
+        return self._skydata
+
+    def _format_skydata(self, dat):
+        """process dat argument as skydata
+
+        see sky.setter for details on argument
+
+        Returns
+        -------
+        np.array
+            dx, dy, dz, dir, diff
+        """
+        loc = self._loc
+        if hasattr(dat, 'shape'):
+            skydat = dat
         else:
-            skydata = self.format_skydata(skydata)
+            try:
+                skydat = np.loadtxt(dat)
+            except ValueError:
+                if loc is None:
+                    loc = skycalc.get_loc_epw(dat)
+                skydat = skycalc.read_epw(dat)
+        if skydat.shape[1] == 4:
+            xyz = translate.aa2xyz(skydat[:, 0:2])
+            skydat = np.hstack((xyz, skydat[:, 2:]))
+        elif skydat.shape[1] == 5:
+            if np.max(skydat[:, 2]) > 2:
+                if loc is None:
+                    raise ValueError("cannot parse wea data without a Location")
+                times = skycalc.row_2_datetime64(skydat[:, 0:3])
+                xyz = skycalc.sunpos_xyz(times, *loc, ro=self._skyro)
+                skydat = np.hstack((xyz, skydat[:, 3:]))
+        else:
+            raise ValueError('input data should be one of the following:'
+                             '\n4 col: alt, az, dir, diff'
+                             '\n5 col: dx, dy, dz, dir, diff'
+                             '\n5 col: m, d, h, dir, diff')
+        return skydat
+
+    @skydata.setter
+    def skydata(self, wea):
+        """calculate sky matrix data and store in self._skydata"""
+        skydata = self._format_skydata(wea)
         daysteps = skydata[:, 2] > 0
         sxyz = skydata[daysteps, 0:3]
-        if self.suns is not None:
-            si, serrs = self.suns.proxy_src(sxyz, tol=self.suns.sunres)
-            # nosun = np.arange(hassun.size)[np.logical_not(hassun)]
-        else:
-            # nosun = np.arange(sxyz.shape[0])
-            # hassun = 0
-            si = np.zeros(sxyz.shape[0], dtype=int)
-            serrs = si
-        sunuv = translate.xyz2uv(sxyz, flipu=False)
-        sunbins = translate.uv2bin(sunuv, self.scene.skyres)
         dirdif = skydata[daysteps, 3:]
-        if ground_fac is None:
-            ground_fac = self.ground_fac
         smtx, grnd, sun = skycalc.sky_mtx(sxyz, dirdif, self.scene.skyres,
-                                          ground_fac=ground_fac)
+                                          ground_fac=self.ground_fac)
         # ratio between actual solar disc and patch
         omegar = np.square(0.2665 * np.pi * self.scene.skyres / 180) * .5
         plum = sun[:, -1] * omegar
         sun = np.hstack((sun, plum[:, None]))
-        si = np.stack((si, sunbins)).T
-        return smtx, grnd, sun, si, daysteps, serrs, skydata
+        smtx = np.hstack((smtx, grnd[:, None]))
+        self._skydata = (smtx, sun, daysteps, skydata)
+        self.sunproxy = sxyz
+
+    @property
+    def sunproxy(self):
+        return self._sunproxy
+
+    @sunproxy.setter
+    def sunproxy(self, sxyz):
+        sunuv = translate.xyz2uv(sxyz, flipu=False)
+        sunbins = translate.uv2bin(sunuv, self.scene.skyres)
+        try:
+            si, serrs = self.suns.proxy_src(sxyz, tol=self.suns.sunres)
+        except AttributeError:
+            si = [0] * len(sunbins)
+            serrs = sunbins
+        self._serr = serrs
+        self._sunproxy = list(zip(sunbins, si))
 
     def header(self):
         """generate image header string"""
@@ -225,42 +223,37 @@ class Integrator(object):
         hdr.append(
             f"SOFTWARE= RAYTRAVERSE {raytraverse.__version__} lastmod {lm}")
         try:
-            hdr.append("LOCATION= lat: {} lon: {} tz: {}".format(*self.sky.loc))
+            hdr.append("LOCATION= lat: {} lon: {} tz: {}".format(*self._loc))
         except TypeError:
             pass
         return hdr
 
-    def _get_metric_info(self, sunskyfield, skyv, sun, suni, pi, vm):
-        if suni[0] in sunskyfield.items() and sun[-2] > 0:
-            lf = sunskyfield
-            li = suni[0]
-            skyvec = np.concatenate((sun[-2:-1], skyv))
-            sunview = lf.view.get_ray((pi, li), vm, sun[0:4])
-            sunvalue = 1 + (sunview is not None)
-        else:
-            lf = self.skyfield
-            li = pi
-            skyvec = np.copy(skyv)
-            skyvec[suni[1]] += sun[-1]
-            sunview = None
-            sunvalue = 0
-        return lf, li, skyvec, sunview, sunvalue
+    def _prep_data(self, sunskyfield, skyv, sun, sunb, pi):
+        """prepare arguments for hdr/metric computation"""
+        skyvec = np.copy(skyv)
+        skyvec[sunb[0]] += sun[-1]
+        idxtype = type(next(iter(sunskyfield.items())))
+        # sky dependent lightfied (eg. SunField)
+        if idxtype == tuple:
+            pi = (pi, sunb[1])
+        # sun only lightfield (eg. SunField)
+        if self.skyfield.srcn == 1:
+            skyvec = sun[3]
+        return self.skyfield, pi, skyvec
 
-    def hdr(self, sunskyfield, skyv, sun, suni, pi, vm, pdirs, mask, vstr,
+    def hdr(self, sunskyfield, skyv, sun, sunb, pi, vm, pdirs, mask, vstr,
             outf, interp=1):
         """interpolate and write hdr image for a single skyv/sun/pt-index
         combination
 
         Parameters
         ----------
-        sunskyfield: raytraverse.lightfield.sunskypt
         skyv: np.array
             sky patch coefficients, size=self.skyfield.srcn
             (last value is ground)
         sun: np.array
             sun value (dx, dy, dz, true radiance, patch radiance)
-        suni: tuple
-            (sun index, sun bin) index is position in self.suns.suns, bin is
+        sunb: (sun index, sun bin) index is position in self.suns.suns, bin is
             corresponding patch in skyfield
         pi: int
             point index
@@ -275,6 +268,8 @@ class Integrator(object):
             view string for radiance compatible header
         outf: str
             destination file path
+        sunskyfield: raytraverse.lightfield.sunskypt, optional
+            used by child classes
         interp: int
             number of rays to search for in query, interpolation always happens
             between 3 points, but in order to find a valid mesh triangle more
@@ -292,36 +287,42 @@ class Integrator(object):
 
         """
         img = np.zeros(pdirs.shape[:-1])
-        lf, li, skyvec, _, _ = self._get_metric_info(sunskyfield, skyv, sun,
-                                                     suni, pi, vm)
-        lf.add_to_img(img, mask, li, pdirs[mask], coefs=skyvec, vm=vm,
-                      interp=interp)
-        io.array2hdr(img, outf, self.header() + [vstr])
+        lf, li, skyvec = self._prep_data(sunskyfield, skyv, sun, sunb, pi)
+        try:
+            lf.add_to_img(img, mask, li, pdirs[mask], coefs=skyvec, vm=vm,
+                          interp=interp)
+        except KeyError:
+            outf = f"skipped (no entry in LightField): {outf}"
+        else:
+            io.array2hdr(img, outf, self.header() + [vstr])
         return outf, 'hdr'
 
-    def metric(self, sunskyfield, skyv, sun, suni, pi, mset, info,
+    def metric(self, sunskyfield, skyv, sun, sunb, pi, vm, metricset, info,
                **kwargs):
         """calculate metrics for a single skyv/sun/pt-index combination
 
         Parameters
         ----------
-        sunskyfield: raytraverse.lightfield.sunskypt
         skyv: np.array
             sky patch coefficients, size=self.skyfield.srcn
             (last value is ground)
         sun: np.array
             sun value (dx, dy, dz, true radiance, patch radiance)
-        suni: tuple
-            (sun index, sun bin) index is position in self.suns.suns, bin is
+        sunb: (sun index, sun bin) index is position in self.suns.suns, bin is
             corresponding patch in skyfield
         pi: int
             point index
-        mset: raytraverse.integrator.MetricSet
-            metrics to compute
+        vm: raytraverse.mapper.ViewMapper
+            analysis point
+        metricset: str, list
+            string or list of strings naming metrics.
+            see raytraverse.integrator.MetricSet.metricdict for valid names
         info: list
             constant column values to include in row output
+        sunskyfield: raytraverse.lightfield.sunskypt, optional
+            used by child classes
         kwargs:
-            passed to metricfuncs
+            passed to metricset
 
         Returns
         -------
@@ -332,56 +333,112 @@ class Integrator(object):
             'metric' indicating format of result (useful when called
             as parallel process to seperate from 'hdr' or other outputs)
         """
-        lf, li, skyvec, svw, svl = self._get_metric_info(sunskyfield, skyv, sun,
-                                                         suni, pi, mset.vm)
-        idx = lf.query_ball(li, mset.vm.dxyz)[0]
-        omega = np.squeeze(lf.omega[li][idx])
-        rays = lf.vec[pi][idx]
-        lum = np.squeeze(lf.apply_coef(li, skyvec))[idx]
-        if svw is not None:
-            rays = np.vstack((rays, svw[0][None, :]))
-            lum = np.concatenate((lum, [svw[1]]))
-            omega = np.concatenate((omega, [svw[2]]))
-        fmetric = mset.compute(rays, omega, lum)
-        data = np.concatenate((info[0], fmetric, [svl, ], info[1]))
+        lf, li, skyvec = self._prep_data(sunskyfield, skyv, sun, sunb, pi)
+        try:
+            rays, omega, lum = lf.get_applied_rays(li, vm, skyvec, sunvec=sun)
+        except KeyError:
+            print("skipped (no entry in LightField), returning zero line"
+                  f": {info[0] + info[1]}", file=sys.stderr)
+            if metricset is None or len(metricset) == 0:
+                nmets = len(MetricSet.allmetrics)
+            else:
+                nmets = len(metricset)
+            data = np.zeros(len(info[0]) + len(info[1]) + nmets)
+        else:
+            fmetric = MetricSet(vm, rays, omega, lum, metricset, **kwargs)()
+            data = np.concatenate((info[0], fmetric, info[1]))
         return data, 'metric'
 
-    def integrate(self, pts, smtx, grnd=None, suns=None, suni=None,
-                  daysteps=None, sunerrs=None, skydata=None, dohdr=True,
-                  dometric=True, vname='view', viewangle=180.0, res=400,
-                  interp=1, metricset="illum", metric_return_opts=None,
-                  **kwargs):
-        """
+    @staticmethod
+    def _metric_info(metricreturn, pi, sj, sensor, perr, sky, serr):
+        info = [[], []]
+        infos0 = dict(idx=[pi, sj], sensor=sensor)
+        infos1 = dict(err=[perr, serr],
+                      sky=[*sky])
+        for k, v in infos0.items():
+            if metricreturn[k]:
+                info[0] += v
+        for k, v in infos1.items():
+            if metricreturn[k]:
+                info[1] += v
+        return info
+
+    def _loop_smtx_hdr(self, exc, sunsky, pi, pj, vdir, res=400,
+                       viewangle=180.0, vname='view', interp=1):
+        smtx, suns, daysteps, skydata = self.skydata
+        vm = ViewMapper(viewangle=viewangle, dxyz=vdir, name=vname)
+        vp = self.scene.area.idx2pt([pi])[0]
+        vstr = ('VIEW= -vta -vv {0} -vh {0} -vd {1} {2} {3}'
+                ' -vp {4} {5} {6}'.format(viewangle, *vdir, *vp))
+        pdirs = vm.pixelrays(res)
+        mask = vm.in_view(pdirs)
+        fu = []
+        for sj in range(len(smtx)):
+            outf = (f"{self.scene.outdir}_{vname}_{pj:04d}_{sj:04d}"
+                    ".hdr")
+            fu.append(exc.submit(self.hdr, sunsky, smtx[sj],
+                                 suns[sj], self.sunproxy[sj], pi, vm, pdirs,
+                                 mask, vstr, outf, interp))
+        return fu
+
+    def _loop_smtx_met(self, exc, sunsky, pi, vdir, pt, perr, metricreturn,
+                       metricset, **kwargs):
+        smtx, suns, daysteps, skydata = self.skydata
+        vm = ViewMapper(viewangle=180, dxyz=vdir)
+        fu = []
+        for sj in range(len(smtx)):
+            info = self._metric_info(metricreturn, pi, sj, [*pt, *vdir],
+                                     perr, skydata[sj], self._serr[sj])
+            fu.append(exc.submit(self.metric, sunsky, smtx[sj], suns[sj],
+                                 self.sunproxy[sj], pi, vm, metricset, info,
+                                 **kwargs))
+        return fu
+
+    def pt_field(self, pi):
+        return self.skyfield
+
+    def integrate(self, pts, dohdr=True, dometric=True, vname='view',
+                  viewangle=180.0, res=400, interp=1, metricset="illum",
+                  metric_return_opts=None, **kwargs):
+        """iterate through points and sky vectors to efficiently compute
+        both hdr output and metrics, sharing intermediate calculations where
+        possible.
 
         Parameters
         ----------
-        pts
-        smtx
-        grnd
-        suns
-        suni
-        daysteps
-        sunerrs
-        skydata
-        dohdr
-        dometric
-        vname
-        viewangle
-        res
-        interp
-        metricset: str, list
+        pts: np.array
+            shape (N, 6) points (with directions) to compute
+        dohdr: bool, optional
+            if True, output hdr images
+        dometric: bool, optional
+            if True, output metric data
+        vname: str, optional
+            view name for hdr output
+        viewangle: float, optional
+            view angle (in degrees) for hdr output (always an angular fisheye)
+        res: int, optional
+            pixel resolution of output hdr
+        interp: int, optional
+            if greater than one the bandwidth to search for nearby rays. from
+            this set, a triangle including the closest point is formed for a
+            barycentric interpolation.
+        metricset: str, list, optional
             string or list of strings naming metrics.
-            see raytraverse.integrator.MetricSet.metricdict for valid names
-        metric_return_opts: dict
+            see raytraverse.integrator.MetricSet.allmetrics for valid choices
+        metric_return_opts: dict, optional
             boolean dictionary of columns to print with metric output. Default:
             {"idx": False, "sensor": False, False, "sky": False}
-        kwargs
+        kwargs:
+            additional parameters for integrator.MetricSet
 
         Returns
         -------
+        header: list
+            if dometric, a list of column headers, else an empty list
+        data: np.array
+            if dometric, an array of output data, else None
 
         """
-
         metricreturn = {"idx": False, "sensor": False,
                         "err": False, "sky": False}
         if metric_return_opts is not None:
@@ -392,46 +449,21 @@ class Integrator(object):
         s_pis = pis[sort]
         s_perrs = perrs[sort]
         s_pts = pts[sort]
-        if grnd is not None:
-            smtx = np.hstack((smtx, grnd[:, None]))
         with ProcessPoolExecutor(io.get_nproc()) as exc:
             fu = []
             last_pi = None
             sunsky = None
-            for pj, (pi, pt, vdir, perr) in enumerate(zip(s_pis, s_pts[:, 0:3],
-                                                          s_pts[:, 3:6],
-                                                          s_perrs)):
+            loopdat = zip(s_pis, s_pts[:, 0:3], s_pts[:, 3:6], s_perrs)
+            for pj, (pi, pt, vdir, perr) in enumerate(loopdat):
                 if pi != last_pi:
-                    sunsky = SunSkyPt(self.skyfield, self.sunfield, pi)
-                vm = ViewMapper(viewangle=viewangle, dxyz=vdir, name=vname)
-                vmm = ViewMapper(viewangle=180, dxyz=vdir)
-                mset = MetricSet(vmm, metricset)
-                vp = self.scene.area.idx2pt([pi])[0]
-                vstr = ('VIEW= -vta -vv {0} -vh {0} -vd {1} {2} {3}'
-                        ' -vp {4} {5} {6}'.format(viewangle, *vdir, *vp))
-                pdirs = vm.pixelrays(res)
-                mask = vm.in_view(pdirs)
-                for sj in range(len(smtx)):
-                    if dohdr:
-                        outf = (f"{self.scene.outdir}_{vname}_{pj:04d}_{sj:04d}"
-                                ".hdr")
-                        fu.append(exc.submit(self.hdr, sunsky, smtx[sj],
-                                             suns[sj], suni[sj], pi, vm, pdirs,
-                                             mask, vstr, outf, interp))
-                    if dometric:
-                        info = [[], []]
-                        infos0 = dict(idx=[pi, sj], sensor=[*pt, *vdir])
-                        infos1 = dict(err=[perr, sunerrs[sj]],
-                                      sky=[*skydata[sj]])
-                        for k, v in infos0.items():
-                            if metricreturn[k]:
-                                info[0] += v
-                        for k, v in infos1.items():
-                            if metricreturn[k]:
-                                info[1] += v
-                        fu.append(exc.submit(self.metric, sunsky, smtx[sj],
-                                             suns[sj], suni[sj], pi, mset, info,
-                                             **kwargs))
+                    sunsky = self.pt_field(pi)
+                fu = []
+                if dohdr:
+                    fu += self._loop_smtx_hdr(exc, sunsky, pi, pj, vdir, res,
+                                              viewangle, vname, interp)
+                if dometric:
+                    fu += self._loop_smtx_met(exc, sunsky, pi, vdir, pt, perr,
+                                              metricreturn, metricset, **kwargs)
             outmetrics = []
             for future in fu:
                 out, kind = future.result()
@@ -440,10 +472,12 @@ class Integrator(object):
                 elif kind == 'metric':
                     outmetrics.append(out)
         if dometric:
+            if len(metricset) == 0:
+                metricset = MetricSet.allmetrics
             headers = dict(
                 idx=["pt-idx", "sky-idx"],
                 sensor=["x", "y", "z", "dx", "dy", "dz"],
-                metric=mset.header + ["sun-value"],
+                metric=(" ".join(metricset)).split(),
                 err=["pt-err", "sun-err"],
                 sky=["sun-x", "sun-y", "sun-z", "dir-norm", "diff-horiz"])
             colhdr = []
@@ -453,6 +487,6 @@ class Integrator(object):
             d = np.array(outmetrics)
             cols = d.shape[1]
             unsort = np.argsort(sort)
-            d = d.reshape(-1, len(smtx), cols)[unsort].reshape(-1, cols)
+            d = d.reshape((len(pts), -1, cols))[unsort].reshape(-1, cols)
             return colhdr, d
         return None, []

@@ -168,6 +168,14 @@ class LightFieldKD(LightField):
             lum = lum[:, i]
         img[mask] += np.squeeze(lum)
 
+    def get_applied_rays(self, pi, vm, skyvec, sunvec=None):
+        """the analog to add_to_img for metric calculations"""
+        idx = self.query_ball(pi, vm.dxyz)[0]
+        omega = np.squeeze(self.omega[pi][idx])
+        rays = self.vec[pi][idx]
+        lum = np.squeeze(self.apply_coef(pi, skyvec))[idx]
+        return rays, omega, lum
+
     def query_ray(self, pi, vecs, interp=1):
         d, i = self.d_kd[pi].query(vecs, k=interp)
         return i, d
