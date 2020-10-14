@@ -38,7 +38,7 @@ class LightFieldKD(LightField):
                 _voronoi.sort_vertices_of_regions(self._simplices, reg)
 
         d_kd = cKDTree(v)
-        omega = SphericalVoronoi(v).calculate_areas()[:, None]
+        omega = SVoronoi(v).calculate_areas()[:, None]
         return d_kd, omega
 
     @property
@@ -109,7 +109,7 @@ class LightFieldKD(LightField):
         del mar
         return outf, '<f', 'r', offset, ar.shape
 
-    def _get_vl(self, npts, pref='', ltype=MemArrayDict, os0=0, fvrays=False):
+    def _get_vl(self, npts, pref='', ltype=MemArrayDict, os0=0):
         dfile = f'{self.scene.outdir}/{self.prefix}{pref}_vals.out'
         vfile = f'{self.scene.outdir}/{self.prefix}{pref}_vecs.out'
         if not (os.path.isfile(dfile) and os.path.isfile(vfile)):
@@ -118,8 +118,8 @@ class LightFieldKD(LightField):
                                     f" scene {self.scene.outdir}?")
         fvecs = io.bytefile2np(open(vfile, 'rb'), (-1, 4))
         alums = io.bytefile2np(open(dfile, 'rb'), (fvecs.shape[0], self.srcn))
-        if fvrays:
-            blindsquirrel = (np.max(alums, 1) < self.scene.maxspec)
+        if self._fvrays > 0:
+            blindsquirrel = (np.max(alums, 1) < self._fvrays)
             fvecs = fvecs[blindsquirrel]
             alums = alums[blindsquirrel]
         sorting = fvecs[:, 0].argsort()
@@ -161,7 +161,10 @@ class LightFieldKD(LightField):
                    **kwargs):
         if interp > 1:
             arrout = self.interpolate_query(pi, vecs, k=interp, **kwargs)
-            lum = np.einsum('j,kj->k', coefs, arrout)
+            if np.asarray(coefs).size == 1:
+                lum = arrout * coefs
+            else:
+                lum = np.einsum('j,kj->k', coefs, arrout)
         else:
             i, d = self.query_ray(pi, vecs)
             lum = self.apply_coef(pi, coefs)

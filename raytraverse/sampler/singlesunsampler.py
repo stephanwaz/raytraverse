@@ -9,7 +9,7 @@ import os
 
 import numpy as np
 
-from raytraverse import translate, quickplot, draw, renderer
+from raytraverse import translate, draw, renderer
 from raytraverse.lightfield import SCBinField
 from raytraverse.sampler.sampler import Sampler
 
@@ -46,7 +46,7 @@ class SingleSunSampler(Sampler):
         #: float: controls sampling limit in case of limited contribution
         self.slimit = suns.srct * .1
         self.srct = suns.srct
-        anorm = accuracy * scene.skyres * (1 - np.cos(.533*np.pi/360))
+        anorm = accuracy * (1 - np.cos(.533*np.pi/360))
         self.engine = renderer.Rtrace()
         engine_args = f"{rcopts} -oZ"
         srcdef = f'{scene.outdir}/tmp_srcdef.rad'

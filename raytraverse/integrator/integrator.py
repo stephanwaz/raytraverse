@@ -16,7 +16,6 @@ import raytraverse
 from raytraverse import translate, io, skycalc
 from raytraverse.mapper import ViewMapper
 from raytraverse.crenderer import cRtrace
-from raytraverse.lightfield import SunSkyPt
 from raytraverse.integrator.metricset import MetricSet
 
 
@@ -457,7 +456,6 @@ class Integrator(object):
             for pj, (pi, pt, vdir, perr) in enumerate(loopdat):
                 if pi != last_pi:
                     sunsky = self.pt_field(pi)
-                fu = []
                 if dohdr:
                     fu += self._loop_smtx_hdr(exc, sunsky, pi, pj, vdir, res,
                                               viewangle, vname, interp)

@@ -22,7 +22,9 @@ class LightField(object):
         prefix of data files to map
     """
 
-    def __init__(self, scene, rebuild=False, prefix='sky', srcn=1, rmraw=False):
+    def __init__(self, scene, rebuild=False, prefix='sky', srcn=1, rmraw=False,
+                 fvrays=0):
+        self._fvrays = fvrays
         #: bool: force rebuild kd-tree
         self.rebuild = rebuild
         self.srcn = srcn

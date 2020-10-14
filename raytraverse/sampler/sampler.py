@@ -290,7 +290,8 @@ class Sampler(object):
                 self._plot_p(p)
             # draw on pdf
             # threshold is set to accurracy at final
-            threshold = self.accuracy * 4**(self.idx - len(self.levels))
+            threshold = (self.accuracy *
+                         4**(self.idx - len(self.levels)))
             pdraws = draw.from_pdf(p, threshold)
         return pdraws
 

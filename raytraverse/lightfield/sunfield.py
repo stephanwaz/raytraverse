@@ -35,7 +35,8 @@ class SunField(LightFieldKD):
         self.suns = suns
         #: raytraverse.lightfield.SunViewField
         self.view = SunViewField(scene, suns, rebuild=False, rmraw=rmraw)
-        super().__init__(scene, rebuild=rebuild, prefix='sun', rmraw=rmraw)
+        super().__init__(scene, rebuild=rebuild, prefix='sun', rmraw=rmraw,
+                         fvrays=scene.maxspec)
 
     def raw_files(self):
         """get list of files used to build field"""
@@ -58,7 +59,7 @@ class SunField(LightFieldKD):
                 dfile = f'{self.scene.outdir}/{self.prefix}_{i:04d}_vals.out'
                 if os.path.isfile(dfile):
                     vs, lum = self._get_vl(npts, pref=f'_{i:04d}', ltype=ltype,
-                                           os0=offset, fvrays=True)
+                                           os0=offset)
                     lasti = lum[-1][1]
                     offset = lasti[-2] + lasti[-1][0]*lasti[-1][1]*4
                     for j, lm in lum:

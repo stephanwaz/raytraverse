@@ -137,6 +137,7 @@ class SunSkyPt(LightFieldKD):
         lums = np.hstack((lum_su, lum_sk))
 
         kd, omega = LightFieldKD.mk_vector_ball(vecs)
+        print(vecs.shape)
         return vecs, lums, kd, omega
 
     def _mk_tree(self, pref='', ltype=list):

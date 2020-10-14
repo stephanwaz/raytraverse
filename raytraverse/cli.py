@@ -9,6 +9,7 @@
 
 """Console script for raytraverse."""
 import os
+import re
 import sys
 
 import numpy as np
@@ -16,10 +17,10 @@ import numpy as np
 from clasp import click
 import clasp.click_ext as clk
 import raytraverse
-from raytraverse.integrator import SunSkyIntegrator, MetricSet, Integrator
-from raytraverse.sampler import SCBinSampler, SunSampler
+from raytraverse.integrator import SunSkyIntegrator, MetricSet, Integrator, StaticIntegrator
+from raytraverse.sampler import SCBinSampler, SunSampler, SkySampler
 from raytraverse.scene import Scene, SunSetter, SunSetterLoc, SunSetterPositions
-from raytraverse.lightfield import SCBinField, SunField, SunViewField
+from raytraverse.lightfield import SCBinField, SunField, SunViewField, LightFieldKD, StaticField
 
 
 @clk.pretty_name("NPY, TSV, FLOATS,FLOATS")
@@ -380,6 +381,63 @@ def sunrun(ctx, plotdview=False, run=True, rmraw=False, overwrite=False,
 
 
 @main.command()
+@click.argument('skydef')
+@clk.shared_decs(run_opts)
+@click.option('-skyname',
+              help='basename for result files')
+@click.option('-fdres', default=10,
+              help='the final directional sampling resolution, yielding a'
+                   ' grid of potential samples at 2^fdres x 2^fdres per'
+                   ' hemisphere')
+@click.option('-accuracy', default=6.0,
+              help='final sampling level will set # of samples by the number of'
+                   ' samples with variance greater than 1/4 this number, which '
+                   'has units of radiance for bright sky conditions this should'
+                   ' be set to a correspondingly higher value (default is 6.0)')
+@click.option('-rcopts',
+              default='-ab 6 -ad 3000 -as 1500 -st 0 -ss 16 -aa .1',
+              help='rtrace options for sun reflection runs'
+                   ' see the man pages for rtrace, and '
+                   ' rtrace -defaults for more information')
+@click.option('--ambcache/--no-ambcache', default=True,
+              help='whether the rcopts indicate that the calculation will use '
+                   'ambient caching (and thus should write an -af file argument'
+                   ' to the engine)')
+@click.option('--keepamb/--no-keepamb', default=False,
+              help='whether to keep ambient files after run, if kept, a '
+                   'successive call will load these ambient files, so care '
+                   'must be taken to not change any parameters')
+@clk.shared_decs(clk.command_decs(raytraverse.__version__, wrap=True))
+def onesky(ctx, skydef, skyname=None, plotdview=False, run=True, rmraw=False,
+           overwrite=False, rebuild=False, **kwargs):
+    """the onesky command is for running one off sky definitions."""
+    if 'scene' not in ctx.obj:
+        clk.invoke_dependency(ctx, scene)
+    scn = ctx.obj['scene']
+    if skyname is None:
+        skyname = re.split(r"[/.]", skydef)[-2]
+    sampler = SkySampler(scn, skydef, skyname, **kwargs)
+    lumf = f'{scn.outdir}/{skyname}_kd_lum.dat'
+    exists = os.path.isfile(lumf) and os.stat(lumf).st_size > 1000
+    rrun = run and (overwrite or not exists)
+    if rrun:
+        sampler.run()
+    try:
+        su = StaticField(scn, sampler.sources, prefix=skyname,
+                         rebuild=rrun or rebuild, rmraw=rmraw)
+    except FileNotFoundError as ex:
+        print(f'Warning: {ex}', file=sys.stderr)
+    else:
+        if plotdview:
+            items = list(su.items())
+            if len(items) >= 20:
+                items = None
+            su.direct_view(items=items)
+            if su.view is not None:
+                su.view.direct_view()
+
+
+@main.command()
 @click.option('-loc', callback=clk.split_float,
               help='specify the scene location (if not specified in -wea or to'
                    ' override. give as "lat lon mer" where lat is + North, lon'
@@ -414,6 +472,8 @@ def sunrun(ctx, plotdview=False, run=True, rmraw=False, overwrite=False,
                    'not apply to metric calculations')
 @click.option('-vname', default='view',
               help='name to include with hdr outputs')
+@click.option('-static',
+              help='name of static field to integrate (overrides other opts)')
 @click.option('-skyro', default=0.0,
               help='counter clockwise rotation (in degrees) of the sky to'
                    ' rotate true North to project North, so if project North'
@@ -460,14 +520,19 @@ def sunrun(ctx, plotdview=False, run=True, rmraw=False, overwrite=False,
 @clk.shared_decs(clk.command_decs(raytraverse.__version__, wrap=True))
 def integrate(ctx, loc=None, wea=None, skyro=0.0, ground_fac=0.15, pts=None,
               skyonly=False, sunonly=False, hdr=True, metric=True, res=800, interp=12,
-              vname='view', header=False, metricset="", tradius=30.0, **kwargs):
+              vname='view', static=None, header=False, metricset="",
+              tradius=30.0, **kwargs):
     """the integrate command combines sky and sun results and evaluates the
     given set of positions and sky conditions"""
     if 'scene' not in ctx.obj:
         clk.invoke_dependency(ctx, scene)
     scn = ctx.obj['scene']
-    sk = SCBinField(scn)
-    if skyonly:
+
+    if static is not None:
+        sk = StaticField(scn, prefix=static)
+        itg = StaticIntegrator(sk)
+    elif skyonly:
+        sk = SCBinField(scn)
         itg = Integrator(sk, wea=wea, loc=loc, skyro=skyro,
                          ground_fac=ground_fac)
     else:
@@ -479,6 +544,7 @@ def integrate(ctx, loc=None, wea=None, skyro=0.0, ground_fac=0.15, pts=None,
             itg = Integrator(su, wea=wea, loc=loc, skyro=skyro,
                              ground_fac=ground_fac)
         else:
+            sk = SCBinField(scn)
             itg = SunSkyIntegrator(sk, su, wea=wea, loc=loc, skyro=skyro,
                                    ground_fac=ground_fac)
     metric_return_opts = {"idx": kwargs['statidx'],

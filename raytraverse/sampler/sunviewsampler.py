@@ -33,16 +33,15 @@ class SunViewSampler(Sampler):
         self.engine.load_source must be invoked before call.
     """
 
-    def __init__(self, scene, suns, **kwargs):
+    def __init__(self, scene, suns, srcdef=None, stype='sunview', checkviz=True,
+                 **kwargs):
         self.suns = suns
         self.engine = renderer.Rtrace()
-        srcdef = f"{scene.outdir}/suns.rad"
-        if self.engine.Engine == "rtrace":
-            srcdefcomp = srcdef
-        else:
-            srcdefcomp = None
-        super().__init__(scene, stype='sunview', idres=4, fdres=6,
-                         srcdef=srcdefcomp, engine_args='-oZ -ab 0', **kwargs)
+        self._checkviz = checkviz
+        if srcdef is None:
+            srcdef = f"{scene.outdir}/suns.rad"
+        super().__init__(scene, stype=stype, idres=4, fdres=6,
+                         srcdef=None, engine_args='-oZ -ab 0', **kwargs)
         self.engine.load_source(srcdef)
         self.samplemap = self.suns.map
 
@@ -93,7 +92,7 @@ class SunViewSampler(Sampler):
 
     def draw(self):
         """draw first level based on sky visibility"""
-        if self.idx == 0:
+        if self.idx == 0 and self._checkviz:
             p = self.check_viz().ravel()
             pdraws = draw.from_pdf(p, .5)
         else:
@@ -101,7 +100,7 @@ class SunViewSampler(Sampler):
         return pdraws
 
     def run_callback(self):
-        """post sampling, right full resolution (including interpolated values)
+        """post sampling, write full resolution (including interpolated values)
          non zero rays to result file."""
         super().run_callback()
         shape = self.levels[self.idx, -2:]

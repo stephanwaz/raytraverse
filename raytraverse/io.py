@@ -310,6 +310,17 @@ def hdr2array(imgf):
     return bytes2np(p.stdout.read(), shape)[-1::-1, -1::-1]
 
 
+def rgb2rad(rgb):
+    try:
+        return np.einsum('ij,j', rgb, [0.265, 0.670, 0.065])
+    except ValueError:
+        return np.einsum('j,j', rgb, [0.265, 0.670, 0.065])
+
+
+def rgb2lum(rgb):
+    return np.einsum('ij,j', rgb, [47.435, 119.93, 11.635])
+
+
 def rgbe2lum(rgbe):
     """
     convert from Radiance hdr rgbe 4-byte data format to floating point
@@ -328,7 +339,7 @@ def rgbe2lum(rgbe):
     v = np.power(2., rgbe[:, 3] - 128).reshape(-1, 1) / 256
     lum = np.where(rgbe[:, 0:3] == 0, 0, (rgbe[:, 0:3] + 0.5) * v)
     # luminance = 179 * (0.265*R + 0.670*G + 0.065*B)
-    return np.einsum('ij,j', lum, [47.435, 119.93, 11.635])
+    return rgb2lum(rgb)
 
 
 def add_vecs_to_img(vm, img, v, channels=(1, 0, 0), grow=0):

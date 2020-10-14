@@ -56,12 +56,13 @@ class SunViewField(LightField):
         # maybe mathematically impossible?
         cnt[ocnt < -redist] += smdg/np.sum(ocnt < -redist)
 
-    def __init__(self, scene, suns, rebuild=False, rmraw=False):
+    def __init__(self, scene, suns, rebuild=False, rmraw=False,
+                 prefix='sunview'):
         #: raytraverse.sunsetter.SunSetter
         self.suns = suns
         #: raytraverse.sunmapper.SunMapper
         self.sunmap = suns.map
-        super().__init__(scene, rebuild=rebuild, prefix='sunview', rmraw=rmraw)
+        super().__init__(scene, rebuild=rebuild, prefix=prefix, rmraw=rmraw)
 
     def raw_files(self):
         """get list of files used to build field"""
