@@ -28,11 +28,3 @@ ViewMapper
     :show-inheritance:
     :private-members:
 
-SunMapper
-------------------------------
-
-.. autoclass:: raytraverse.mapper.SunMapper
-    :members:
-    :undoc-members:
-    :show-inheritance:
-    :private-members:

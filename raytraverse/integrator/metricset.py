@@ -178,4 +178,4 @@ class MetricSet(object):
     @property
     @functools.lru_cache(1)
     def ugr(self):
-        return 8 * np.log10(0.25 * self.pwsl2 / self.backlum)
+        return np.maximum(0, 8 * np.log10(0.25 * self.pwsl2 / self.backlum))

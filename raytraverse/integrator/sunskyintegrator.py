@@ -32,7 +32,9 @@ class SunSkyIntegrator(Integrator):
             skyvec = np.concatenate((sun[-2:-1], skyv))
             return lf, li, skyvec
         else:
-            return super()._prep_data(sunskyfield, skyv, sun, sunb, pi)
+            print(f"using skyfield {pi} {sunb}")
+            return super()._prep_data(sunskyfield.skyparent, skyv, sun,
+                                      sunb, pi)
 
     def pt_field(self, pi):
         return SunSkyPt(self.skyfield, self.sunfield, pi)

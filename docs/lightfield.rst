@@ -57,6 +57,14 @@ SunViewField
     :show-inheritance:
     :private-members:
 
+StaticField
+---------------------------------
+
+.. autoclass:: raytraverse.lightfield.StaticField
+    :members:
+    :undoc-members:
+    :show-inheritance:
+    :private-members:
 
 MemArrayDict
 ---------------------------------

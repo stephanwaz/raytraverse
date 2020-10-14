@@ -10,6 +10,15 @@ Scene
     :show-inheritance:
     :private-members:
 
+SunSetterBase
+---------------------------
+
+.. autoclass:: raytraverse.scene.SunSetterBase
+    :members:
+    :undoc-members:
+    :show-inheritance:
+    :private-members:
+
 SunSetter
 ---------------------------
 

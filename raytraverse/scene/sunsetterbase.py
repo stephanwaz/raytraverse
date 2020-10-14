@@ -6,6 +6,8 @@
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 # =======================================================================
 import os
+import sys
+
 import numpy as np
 from raytraverse.mapper import ViewMapper
 
@@ -21,11 +23,39 @@ class SunSetterBase(object):
         sun (N, 5) positions, sizes, and intensities
     """
 
-    def __init__(self, scene, suns=None, prefix="static_sources"):
+    def __init__(self, scene, suns=None, prefix="suns", reload=True):
         sunfile = f"{scene.outdir}/{prefix}.rad"
+        try:
+            os.remove(sunfile)
+        except FileNotFoundError:
+            pass
         self.scene = scene
+        self._sun_decl = suns
+        self.suns = sunfile
+        if self.suns.size == 0:
+            print('Warning! no suns set, check parameters and sky detail!',
+                  file=sys.stderr)
+            self.map = None
+        else:
+            self.map = ViewMapper(self.suns, self.srcsize, name=prefix)
+
+    @property
+    def suns(self):
+        """holds sun positions
+
+        :getter: Returns the sun source array
+        :setter: Set the sun source array and write to files
+        :type: np.array
+        """
+        return self._suns
+
+    @suns.setter
+    def suns(self, sunfile):
+        """set the skydetail array and determine sample count and spacing"""
+        suns = self._sun_decl
+        self._sundecl = None
         if suns is not None:
-            self.suns = suns[:, 0:3]
+            self._suns = suns[:, 0:3]
             self.srct = np.min(suns[:, 4])/2
             self.srcsize = np.max(suns[:, 3])
             self._write_suns(sunfile)
@@ -35,12 +65,11 @@ class SunSetterBase(object):
             self.srct = float(header.split("=")[-1])
             sund = f.read().split('source')[1:]
             xyz = np.array([s.split()[4:8] for s in sund]).astype(float)
-            self.suns = xyz[:, 0:3]
+            self._suns = xyz[:, 0:3]
             self.srcsize = np.max(xyz[:, 3])
         else:
             raise ValueError("Cannot Initialize SunSetterBase without existing"
                              f"sun file ({sunfile}) or suns argument")
-        self.map = ViewMapper(self.suns, self.srcsize, name=prefix)
 
     def write_sun(self, i):
         s = self.suns[i]

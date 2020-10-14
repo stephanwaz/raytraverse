@@ -14,7 +14,9 @@ from raytraverse.scene.sunsetter import SunSetter
 
 
 class SunSetterPositions(SunSetter):
-    """select suns to sample based on sky pdf and scene.
+    """select suns to sample based on sky pdf, scene, and sun positions.
+    the wea argument provides a list of sun positions to draw from rather than
+    randomly generating the sun position like SunSetter and SunSetterLoc.
 
     Parameters
     ----------

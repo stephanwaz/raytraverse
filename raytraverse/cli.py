@@ -17,10 +17,10 @@ import numpy as np
 from clasp import click
 import clasp.click_ext as clk
 import raytraverse
-from raytraverse.integrator import SunSkyIntegrator, MetricSet, Integrator, StaticIntegrator
+from raytraverse.integrator import SunSkyIntegrator, MetricSet, Integrator, BaseIntegrator
 from raytraverse.sampler import SCBinSampler, SunSampler, SkySampler
 from raytraverse.scene import Scene, SunSetter, SunSetterLoc, SunSetterPositions
-from raytraverse.lightfield import SCBinField, SunField, SunViewField, LightFieldKD, StaticField
+from raytraverse.lightfield import SCBinField, SunField, SunViewField, StaticField
 
 
 @clk.pretty_name("NPY, TSV, FLOATS,FLOATS")
@@ -530,7 +530,7 @@ def integrate(ctx, loc=None, wea=None, skyro=0.0, ground_fac=0.15, pts=None,
 
     if static is not None:
         sk = StaticField(scn, prefix=static)
-        itg = StaticIntegrator(sk)
+        itg = BaseIntegrator(sk)
     elif skyonly:
         sk = SCBinField(scn)
         itg = Integrator(sk, wea=wea, loc=loc, skyro=skyro,

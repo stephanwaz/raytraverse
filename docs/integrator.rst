@@ -1,6 +1,16 @@
 raytraverse.integrator
 ==========================================================
 
+BaseIntegrator
+---------------------------------
+
+.. autoclass:: raytraverse.integrator.BaseIntegrator
+    :members:
+    :undoc-members:
+    :show-inheritance:
+    :private-members:
+
+
 Integrator
 ---------------------------------
 

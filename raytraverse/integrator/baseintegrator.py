@@ -19,8 +19,8 @@ from raytraverse.crenderer import cRtrace
 from raytraverse.integrator.metricset import MetricSet
 
 
-class StaticIntegrator(object):
-    """class to generate outputs from lightfield(s) and sky conditions
+class BaseIntegrator(object):
+    """base integrator class, can be used on StaticFields
 
     This class provides an interface to:
 
@@ -32,6 +32,8 @@ class StaticIntegrator(object):
     lightfield: raytraverse.lightfield.LightFieldKD
         class containing sample data
     """
+    rowheaders = dict(idx=["pt-idx"], sensor=["x", "y", "z", "dx", "dy", "dz"],
+                      err=["pt-err"])
 
     def __init__(self, lightfield):
         #: raytraverse.lightfield.LightFieldKD
@@ -57,7 +59,8 @@ class StaticIntegrator(object):
             f"SOFTWARE= RAYTRAVERSE {raytraverse.__version__} lastmod {lm}")
         return hdr
 
-    def hdr(self, pi, vm, pdirs, mask, vstr, outf, interp=1):
+    def hdr(self, pi, vm, pdirs, mask, vstr, outf, interp=1, altlf=None,
+            coefs=1):
         """interpolate and write hdr image for a single skyv/sun/pt-index
         combination
 
@@ -82,6 +85,10 @@ class StaticIntegrator(object):
             than 3 points is typically necessary. 16 seems to be a safe number
             set to 1 (default) to turn off interpolation and use nearest ray
             this will result in voronoi patches in the final image.
+        altlf: raytraverse.lightfield.Lightfield
+            substitute lightfield to use instead of self.skyfield
+        skycomps: tuple, optional
+            unused by base class
 
         Returns
         -------
@@ -93,12 +100,21 @@ class StaticIntegrator(object):
 
         """
         img = np.zeros(pdirs.shape[:-1])
-        self.skyfield.add_to_img(img, mask, pi, pdirs[mask], vm=vm,
-                                 interp=interp)
-        io.array2hdr(img, outf, self.header() + [vstr])
+        if altlf is None:
+            lf = self.skyfield
+        else:
+            lf = altlf
+        try:
+            lf.add_to_img(img, mask, pi, pdirs[mask], coefs=coefs, vm=vm,
+                          interp=interp)
+        except KeyError:
+            outf = f"skipped (no entry in LightField): {outf}"
+        else:
+            io.array2hdr(img, outf, self.header() + [vstr])
         return outf, 'hdr'
 
-    def metric(self, pi, vm, metricset, info, **kwargs):
+    def metric(self, pi, vm, metricset, info, altlf=None, coefs=1.0,
+               sunvec=None, **kwargs):
         """calculate metrics for a single skyv/sun/pt-index combination
 
         Parameters
@@ -112,6 +128,8 @@ class StaticIntegrator(object):
             see raytraverse.integrator.MetricSet.metricdict for valid names
         info: list
             constant column values to include in row output
+        altlf: raytraverse.lightfield.Lightfield
+            substitute lightfield to use instead of self.skyfield
         kwargs:
             passed to metricset
 
@@ -124,16 +142,32 @@ class StaticIntegrator(object):
             'metric' indicating format of result (useful when called
             as parallel process to seperate from 'hdr' or other outputs)
         """
-        rays, omega, lum = self.skyfield.get_applied_rays(pi, vm, 1.0)
-        fmetric = MetricSet(vm, rays, omega, lum, metricset, **kwargs)()
-        data = np.concatenate((info[0], fmetric, info[1]))
+        if altlf is None:
+            lf = self.skyfield
+        else:
+            lf = altlf
+        try:
+            rays, omega, lum = lf.get_applied_rays(pi, vm, coefs, sunvec=sunvec)
+        except KeyError:
+            print("skipped (no entry in LightField), returning zero line"
+                  f": {info[0] + info[1]}", file=sys.stderr)
+            if metricset is None or len(metricset) == 0:
+                nmets = len(MetricSet.allmetrics)
+            else:
+                nmets = len(metricset)
+            data = np.zeros(len(info[0]) + len(info[1]) + nmets)
+        else:
+            fmetric = MetricSet(vm, rays, omega, lum, metricset, **kwargs)()
+            data = np.concatenate((info[0], fmetric, info[1]))
         return data, 'metric'
 
     @staticmethod
-    def _metric_info(metricreturn, pi, sensor, perr):
+    def _metric_info(metricreturn, pi, sensor, perr, sky=None):
         info = [[], []]
-        infos0 = dict(idx=[pi], sensor=sensor)
-        infos1 = dict(err=[perr])
+        infos0 = dict(idx=pi, sensor=sensor)
+        infos1 = dict(err=perr)
+        if sky is not None:
+            infos1['sky'] = [*sky]
         for k, v in infos0.items():
             if metricreturn[k]:
                 info[0] += v
@@ -141,6 +175,29 @@ class StaticIntegrator(object):
             if metricreturn[k]:
                 info[1] += v
         return info
+
+    def _all_hdr(self, exc, pi, pj, vdir, res=400, viewangle=180.0,
+                 vname='view', interp=1, altlf=None):
+        vm = ViewMapper(viewangle=viewangle, dxyz=vdir, name=vname)
+        vp = self.scene.area.idx2pt([pi])[0]
+        vstr = ('VIEW= -vta -vv {0} -vh {0} -vd {1} {2} {3}'
+                ' -vp {4} {5} {6}'.format(viewangle, *vdir, *vp))
+        pdirs = vm.pixelrays(res)
+        mask = vm.in_view(pdirs)
+        outf = (f"{self.scene.outdir}_"
+                f"{vname}_{pj:04d}_{altlf.prefix}.hdr")
+        return [exc.submit(self.hdr, pi, vm, pdirs, mask, vstr, outf, interp,
+                           altlf)]
+
+    def _all_metric(self, exc, pi, vdir, pt, perr, metricreturn, metricset,
+                    altlf, **kwargs):
+        vm = ViewMapper(viewangle=180, dxyz=vdir)
+        info = self._metric_info(metricreturn, [pi], [*pt, *vdir], [perr])
+        return [exc.submit(self.metric, pi, vm, metricset, info, altlf,
+                           **kwargs)]
+
+    def pt_field(self, pi):
+        return self.skyfield
 
     def integrate(self, pts, dohdr=True, dometric=True, vname='view',
                   viewangle=180.0, res=400, interp=1, metricset="illum",
@@ -185,7 +242,7 @@ class StaticIntegrator(object):
 
         """
         metricreturn = {"idx": False, "sensor": False,
-                        "err": False}
+                        "err": False, "sky": False}
         if metric_return_opts is not None:
             metricreturn.update(metric_return_opts)
         metricreturn["metric"] = True
@@ -196,25 +253,21 @@ class StaticIntegrator(object):
         s_pts = pts[sort]
         with ProcessPoolExecutor(io.get_nproc()) as exc:
             fu = []
+            last_pi = None
+            ptlf = None
             loopdat = zip(s_pis, s_pts[:, 0:3], s_pts[:, 3:6], s_perrs)
             for pj, (pi, pt, vdir, perr) in enumerate(loopdat):
+                if pi != last_pi:
+                    ptlf = self.pt_field(pi)
+                    last_pi = pi
                 if dohdr:
-                    vm = ViewMapper(viewangle=viewangle, dxyz=vdir, name=vname)
-                    vp = self.scene.area.idx2pt([pi])[0]
-                    vstr = ('VIEW= -vta -vv {0} -vh {0} -vd {1} {2} {3}'
-                            ' -vp {4} {5} {6}'.format(viewangle, *vdir, *vp))
-                    pdirs = vm.pixelrays(res)
-                    mask = vm.in_view(pdirs)
-                    outf = (f"{self.scene.outdir}_"
-                            f"{vname}_{pj:04d}_{self.skyfield.prefix}.hdr")
-                    fu.append(exc.submit(self.hdr, pi, vm, pdirs,
-                                         mask, vstr, outf, interp))
+                    fu += self._all_hdr(exc, pi, pj, vdir, res=res,
+                                        viewangle=viewangle, vname=vname,
+                                        interp=interp, altlf=ptlf)
                 if dometric:
-                    vm = ViewMapper(viewangle=180, dxyz=vdir)
-                    info = self._metric_info(metricreturn, pi, [*pt, *vdir],
-                                             perr)
-                    fu.append(exc.submit(self.metric, pi, vm, metricset, info,
-                                         **kwargs))
+                    fu += self._all_metric(exc, pi, vdir, pt, perr,
+                                           metricreturn, metricset, ptlf,
+                                           **kwargs)
             outmetrics = []
             for future in fu:
                 out, kind = future.result()
@@ -225,13 +278,9 @@ class StaticIntegrator(object):
         if dometric:
             if len(metricset) == 0:
                 metricset = MetricSet.allmetrics
-            headers = dict(
-                idx=["pt-idx"],
-                sensor=["x", "y", "z", "dx", "dy", "dz"],
-                metric=(" ".join(metricset)).split(),
-                err=["pt-err"])
+            self.rowheaders['metric'] = (" ".join(metricset)).split()
             colhdr = []
-            for k, v in headers.items():
+            for k, v in self.rowheaders.items():
                 if metricreturn[k]:
                     colhdr += v
             d = np.array(outmetrics)

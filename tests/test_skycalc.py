@@ -32,25 +32,24 @@ def epw(tmpdir):
 
 
 def test_row_2_datetime64(epw):
+    print(epw.shape)
     times = skycalc.row_2_datetime64(epw[:, 0:3])
     assert times.size == 8760
 
 
-@pytest.mark.slow
 def test_sunpos_utc(epw, tmpdir):
     lat, lon, mer = skycalc.get_loc_epw('geneva.epw')
-    times = skycalc.row_2_datetime64(epw[:, 0:3])
+    times = skycalc.row_2_datetime64(epw[0::27, 0:3])
     dt = skycalc.datetime64_2_datetime(times, mer)
     alt, az = skycalc.sunpos_utc(dt, lat, lon)
     aa = skycalc.sunpos_degrees(times, lat, lon, mer)
-    assert np.allclose(alt.degrees, aa[:,0])
-    assert np.allclose(az.degrees, aa[:,1] + 180)
+    assert np.allclose(alt.degrees, aa[:, 0])
+    assert np.allclose(az.degrees, aa[:, 1] + 180)
 
 
-@pytest.mark.slow
 def test_sunpos_ro(epw, tmpdir):
     lat, lon, mer = skycalc.get_loc_epw('geneva.epw')
-    times = skycalc.row_2_datetime64(epw[:, 0:3])
+    times = skycalc.row_2_datetime64(epw[0::27, 0:3])
     ro = -33
     aa0 = skycalc.sunpos_degrees(times, lat, lon, mer)
     aa1 = skycalc.sunpos_degrees(times, lat, lon, mer, ro=ro)
@@ -149,7 +148,6 @@ def call_generic(commands, n=1):
     return np.fromstring(a, sep=' ').reshape(-1, n)
 
 
-@pytest.mark.slow
 def test_sky_mtx(check):
     sxyz = check[0][:, -3:]
     side = 20

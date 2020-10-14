@@ -47,6 +47,14 @@ class SunSkyPt(LightFieldKD):
                          srcn=sunfield.srcn + skyfield.srcn)
         self._d_kd, self._vec, self._omega, self._lum = self._mk_tree()
 
+    @property
+    def skyparent(self):
+        return self._skyparent
+
+    @property
+    def sunparent(self):
+        return self._sunparent
+
     def raw_files(self):
         return []
 
@@ -126,18 +134,19 @@ class SunSkyPt(LightFieldKD):
         sk_vec = self._skyparent.vec[sk_key]
         sk_lum = self._skyparent.lum[sk_key]
         su_key = (self._ptidx, sidx)
-        su_vec = self._sunparent.vec[su_key]
-        su_lum = self._sunparent.lum[su_key]
-
-        lum_sk = self._skyparent.interpolate_query(sk_key, su_vec, **kwargs)
-        lum_su = self._sunparent.interpolate_query(su_key, sk_vec, **kwargs)
-        vecs = np.vstack((su_vec, sk_vec))
-        lum_sk = np.vstack((lum_sk, sk_lum))
-        lum_su = np.vstack((su_lum, lum_su))
-        lums = np.hstack((lum_su, lum_sk))
-
+        if su_key in self._sunparent.items():
+            su_vec = self._sunparent.vec[su_key]
+            su_lum = self._sunparent.lum[su_key]
+            lum_sk = self._skyparent.interpolate_query(sk_key, su_vec, **kwargs)
+            lum_su = self._sunparent.interpolate_query(su_key, sk_vec, **kwargs)
+            vecs = np.vstack((su_vec, sk_vec))
+            lum_sk = np.vstack((lum_sk, sk_lum))
+            lum_su = np.vstack((su_lum, lum_su))
+            lums = np.hstack((lum_su, lum_sk))
+        else:
+            vecs = sk_vec
+            lums = sk_lum
         kd, omega = LightFieldKD.mk_vector_ball(vecs)
-        print(vecs.shape)
         return vecs, lums, kd, omega
 
     def _mk_tree(self, pref='', ltype=list):

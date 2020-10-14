@@ -14,8 +14,8 @@ from raytraverse.scene import SunSetterBase
 
 
 class StaticField(LightFieldKD):
-    """container for accessing sampled data where every ray has a value for
-    each source
+    """container for accessing sampled data for a single sky condition that
+    may or may not include direct sources
     """
 
     def __init__(self, scene, sources=None, rebuild=False, prefix='static',

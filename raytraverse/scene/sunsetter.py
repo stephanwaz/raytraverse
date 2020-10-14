@@ -15,10 +15,10 @@ import numpy as np
 from scipy.spatial import cKDTree
 
 from raytraverse import translate, plot
-from raytraverse.mapper import SunMapper
+from raytraverse.scene.sunsetterbase import SunSetterBase
 
 
-class SunSetter(object):
+class SunSetter(SunSetterBase):
     """select suns to sample based on sky pdf and scene.
 
     Parameters
@@ -40,26 +40,14 @@ class SunSetter(object):
         #: float: ccw rotation (in degrees) for sky
         self.skyro = skyro
         self.sunres = sunres
-        sunfile = f"{scene.outdir}/suns.rad"
+        self.srcsize = 0.533
         #: bool: reuse existing sun positions (if found)
         if not reload:
-            try:
-                os.remove(sunfile)
-            except FileNotFoundError:
-                pass
             try:
                 os.remove(f'{scene.outdir}/sky_skydetail.npy')
             except FileNotFoundError:
                 pass
-        #: raytraverse.scene.Scene
-        self.scene = scene
-        self.suns = sunfile
-        if self.suns.size == 0:
-            print('Warning! no suns set, check parameters and sky detail!',
-                  file=sys.stderr)
-            self.map = None
-        else:
-            self.map = SunMapper(self.suns)
+        super().__init__(scene, reload=reload)
         self.sun_kd = None
 
     @property
@@ -172,15 +160,6 @@ class SunSetter(object):
         outf = f"{self.scene.outdir}_suns.png"
         plot.save_img(fig, ax, outf)
 
-    def write_sun(self, i):
-        s = self.suns[i]
-        mod = f"solar{i:05d}"
-        name = f"sun{i:05d}"
-        d = f"{s[0]} {s[1]} {s[2]}"
-        dec = f"void light {mod} 0 0 3 1 1 1\n"
-        dec += f"{mod} source {name} 0 0 4 {d} 0.533\n"
-        return dec
-
     def proxy_src(self, tsuns, tol=10.0):
         """check if sun directions have matching source in SunSetter
 
@@ -204,17 +183,3 @@ class SunSetter(object):
         serrs = translate.chord2theta(serrs) * 180 / np.pi
         sis = np.where(serrs < stol, sis, self.suns.shape[0])
         return sis, serrs
-
-    def _write_suns(self, sunfile):
-        """write suns to file
-
-        Parameters
-        ----------
-        sunfile
-        """
-        if self.suns.size > 0:
-            f = open(sunfile, 'w')
-            for i in range(self.suns.shape[0]):
-                dec = self.write_sun(i)
-                print(dec, file=f)
-            f.close()

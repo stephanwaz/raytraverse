@@ -46,3 +46,12 @@ SunViewSampler
     :undoc-members:
     :show-inheritance:
     :private-members:
+
+SkySampler
+--------------------------------
+
+.. autoclass:: raytraverse.sampler.SkySampler
+    :members:
+    :undoc-members:
+    :show-inheritance:
+    :private-members:

@@ -99,30 +99,22 @@ class SingleSunSampler(Sampler):
         if os.path.isfile(fi) and not rebuild:
             f = np.load(fi)
             idxs = f['arr_0']
-            errs = f['arr_1']
         else:
             shp = self.levels[self.specidx-2]
             si = np.stack(np.unravel_index(np.arange(np.product(shp)), shp))
             uv = (si.T + .5)/shp[1]
             grid = skyfield.scene.view.uv2xyz(uv)
-            idxs, errs = skyfield.query_all_pts(grid, interp)
+            idxs, errs = skyfield.query_all_pts(grid)
             strides = np.array(skyfield.lum.index_strides()[:-1])[:, None, None]
-            idxs = np.reshape(np.atleast_3d(idxs) + strides, (-1, interp))
-            errs = errs.reshape(-1, interp)
-            np.savez(fi, idxs, errs)
+            idxs = np.reshape(np.atleast_3d(idxs) + strides, (-1, 1))
+            np.savez(fi, idxs)
         column = skyfield.lum.full_array()
-        column = column[:, self.sbin]
-        lum = column[idxs]
-        if zero:
-            lum = np.where(lum > self.scene.maxspec, 0, lum)
-        if interp > 1:
-            lum = np.average(lum, -1, weights=1/errs).reshape(ishape)
-        else:
-            lum = lum.reshape(ishape)
+        lum = column[idxs, self.sbin].reshape(ishape)
         if filterpts:
             haspeak = np.max(lum, (2, 3)) > self.srct
             lum = lum * haspeak[..., None, None]
-
+        if zero:
+            lum = np.where(lum > self.scene.maxspec, 0, lum)
         return lum
 
     def sample(self, vecf):

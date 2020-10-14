@@ -13,7 +13,7 @@ from raytraverse.scene.sunsetter import SunSetter
 
 
 class SunSetterLoc(SunSetter):
-    """select suns to sample based on sky pdf and scene.
+    """select suns to sample based on sky pdf, scene, and location.
 
     Parameters
     ----------
