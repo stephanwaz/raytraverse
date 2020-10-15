@@ -79,5 +79,3 @@ class LightField(object):
         lfang = len(list(self.omega.keys())) * 4 * np.pi
         lfcnt = np.sum([v.size for v in self.omega.values()])
         return dict(lfcnt=lfcnt, lfang=lfang)
-
-

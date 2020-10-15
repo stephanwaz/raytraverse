@@ -120,15 +120,6 @@ class BaseIntegrator(object):
             substitute lightfield to use instead of self.skyfield
         coefs: np.array
             passed to lightfield.add_to_image
-
-        Returns
-        -------
-        outf: str
-            saved output file
-        returntype: str
-            'hdr' indicating format of result (useful when called
-            as parallel process to seperate from 'metric' or other outputs)
-
         """
         img = np.zeros(pdirs.shape[:-1])
         if altlf is None:
@@ -139,10 +130,10 @@ class BaseIntegrator(object):
             lf.add_to_img(img, mask, pi, pdirs[mask], coefs=coefs, vm=vm,
                           interp=interp)
         except KeyError:
-            outf = f"skipped (no entry in LightField): {outf}"
+            print(f"skipped (no entry in LightField): {outf}", file=sys.stderr)
         else:
             io.array2hdr(img, outf, self.header() + [vstr])
-        return outf, 'hdr'
+            print(outf, file=sys.stderr)
 
     def metric(self, pi, vm, metricset, info, altlf=None, coefs=1.0,
                sunvec=None, **kwargs):
@@ -169,9 +160,6 @@ class BaseIntegrator(object):
         data: np.array
             results for skyv and pi, shape (len(info[0]) + len(metricfuncs) +
             1 + len(info[1])
-        returntype: str
-            'metric' indicating format of result (useful when called
-            as parallel process to seperate from 'hdr' or other outputs)
         """
         if altlf is None:
             lf = self.skyfield
@@ -180,18 +168,14 @@ class BaseIntegrator(object):
         try:
             rays, omega, lum = lf.get_applied_rays(pi, vm, coefs, sunvec=sunvec)
         except KeyError:
-            print("skipped (no entry in LightField), returning zero line"
-                  f": {info[0] + info[1]}", file=sys.stderr)
-            if metricset is None or len(metricset) == 0:
-                nmets = len(MetricSet.defaultmetrics)
-            else:
-                nmets = len(metricset)
-            data = np.zeros(len(info[0]) + len(info[1]) + nmets)
+            print(f"skipped (no entry in LightField): {pi}, returning zeros")
+            data = np.zeros(len(info[0]) + len(info[1]) +
+                            len(self.metricheader))
         else:
             fmetric = MetricSet(vm, rays, omega, lum, metricset, **kwargs,
                                 **lf.size())()
             data = np.concatenate((info[0], fmetric, info[1]))
-        return data, 'metric'
+        return data
 
     def _metric_info(self, pi, sensor, perr, sky=None):
         """prepares information to concatenate with metric results"""
@@ -329,6 +313,7 @@ class BaseIntegrator(object):
 
         """
         self.metricreturn = metric_return_opts
+        self.metricheader = metricset
         perrs, pis = self.scene.area.pt_kd.query(pts[:, 0:3])
         sort = np.argsort(pis)
         s_pis = pis[sort]
@@ -352,13 +337,10 @@ class BaseIntegrator(object):
                                            ptlf, **kwargs)
             outmetrics = []
             for future in fu:
-                out, kind = future.result()
-                if kind == 'hdr':
-                    print(out, file=sys.stderr)
-                elif kind == 'metric':
+                out = future.result()
+                if out is not None:
                     outmetrics.append(out)
         if dometric:
-            self.metricheader = metricset
             d = np.array(outmetrics)
             cols = d.shape[1]
             unsort = np.argsort(sort)
