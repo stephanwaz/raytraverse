@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 3.15)
 set(CMAKE_CXX_STANDARD 14)
 project(raytraverse)
 
-add_compile_definitions(VERSION_INFO="0.2.4")
+add_compile_definitions(VERSION_INFO="1.0.0")
 
 add_subdirectory(src)
 set(CMAKE_VERBOSE_MAKEFILE on)
