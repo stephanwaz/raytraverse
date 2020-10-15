@@ -40,6 +40,37 @@ class BaseIntegrator(object):
         self.skyfield = lightfield
         #: raytraverse.scene.Scene
         self.scene = lightfield.scene
+        self.metricreturn = None
+        self.metricheader = None
+
+    @property
+    def metricreturn(self):
+        """dictionary of booleans controlling metric return output columns
+        and header generation"""
+        return self._metricreturn
+
+    @metricreturn.setter
+    def metricreturn(self, metric_return_opts):
+        self._metricreturn = {"idx": False, "sensor": False,
+                              "err": False, "sky": False}
+        if metric_return_opts is not None:
+            self._metricreturn.update(metric_return_opts)
+        self._metricreturn["metric"] = True
+
+    @property
+    def metricheader(self):
+        """list of column names for returning with metric data"""
+        return self._metricheader
+
+    @metricheader.setter
+    def metricheader(self, metricset):
+        if metricset is None or len(metricset) == 0:
+            metricset = MetricSet.defaultmetrics
+        self.rowheaders['metric'] = (" ".join(metricset)).split()
+        self._metricheader = []
+        for k, v in self.rowheaders.items():
+            if self.metricreturn[k]:
+                self._metricheader += v
 
     def header(self):
         """generate image header string"""
@@ -66,8 +97,8 @@ class BaseIntegrator(object):
 
         Parameters
         ----------
-        pi: int
-            point index
+        pi: int, tuple
+            index value in lightfield
         vm: raytraverse.mapper.viewmapper
             should have a view angle of 180 degrees, the analyis direction
         pdirs: np.array
@@ -87,8 +118,8 @@ class BaseIntegrator(object):
             this will result in voronoi patches in the final image.
         altlf: raytraverse.lightfield.Lightfield
             substitute lightfield to use instead of self.skyfield
-        skycomps: tuple, optional
-            unused by base class
+        coefs: np.array
+            passed to lightfield.add_to_image
 
         Returns
         -------
@@ -119,13 +150,13 @@ class BaseIntegrator(object):
 
         Parameters
         ----------
-        pi: int
-            point index
+        pi: int, tuple
+            index value in lightfield
         vm: raytraverse.mapper.ViewMapper
             analysis point
         metricset: str, list
             string or list of strings naming metrics.
-            see raytraverse.integrator.MetricSet.metricdict for valid names
+            see raytraverse.integrator.MetricSet.allmetrics for valid names
         info: list
             constant column values to include in row output
         altlf: raytraverse.lightfield.Lightfield
@@ -152,32 +183,61 @@ class BaseIntegrator(object):
             print("skipped (no entry in LightField), returning zero line"
                   f": {info[0] + info[1]}", file=sys.stderr)
             if metricset is None or len(metricset) == 0:
-                nmets = len(MetricSet.allmetrics)
+                nmets = len(MetricSet.defaultmetrics)
             else:
                 nmets = len(metricset)
             data = np.zeros(len(info[0]) + len(info[1]) + nmets)
         else:
-            fmetric = MetricSet(vm, rays, omega, lum, metricset, **kwargs)()
+            fmetric = MetricSet(vm, rays, omega, lum, metricset, **kwargs,
+                                **lf.size())()
             data = np.concatenate((info[0], fmetric, info[1]))
         return data, 'metric'
 
-    @staticmethod
-    def _metric_info(metricreturn, pi, sensor, perr, sky=None):
+    def _metric_info(self, pi, sensor, perr, sky=None):
+        """prepares information to concatenate with metric results"""
         info = [[], []]
         infos0 = dict(idx=pi, sensor=sensor)
         infos1 = dict(err=perr)
         if sky is not None:
             infos1['sky'] = [*sky]
         for k, v in infos0.items():
-            if metricreturn[k]:
+            if self.metricreturn[k]:
                 info[0] += v
         for k, v in infos1.items():
-            if metricreturn[k]:
+            if self.metricreturn[k]:
                 info[1] += v
         return info
 
     def _all_hdr(self, exc, pi, pj, vdir, res=400, viewangle=180.0,
                  vname='view', interp=1, altlf=None):
+        """handler for making calls to hdr submitted to a ProcessPoolExecutor
+
+        overrides must match return type, unless integrate is also overriden
+
+        Parameters
+        ----------
+        exc: ProcessPoolExectutor()
+        pi: int
+            point index in lightfiled
+        vdir:
+            (dx, dy, dz) view direction
+        res: int, optional
+            image resolution
+        viewangle: float, optional
+            1-180, opening angle of angular fisheye
+        vname: str, optional
+            incorporated into out file naming
+        interp: int, optional
+            if greater than 1 bandwidth for finding interpolation triangle
+            See Also raytraverse.lightfield.LightFieldKD.interpolate_query()
+        altlf: raytraverse.lightfield.LightFieldKD
+            if none defaults to self.skyfielc
+
+        Returns
+        -------
+        list
+            of ConcurrentFutures.future objects
+        """
         vm = ViewMapper(viewangle=viewangle, dxyz=vdir, name=vname)
         vp = self.scene.area.idx2pt([pi])[0]
         vstr = ('VIEW= -vta -vv {0} -vh {0} -vd {1} {2} {3}'
@@ -189,14 +249,43 @@ class BaseIntegrator(object):
         return [exc.submit(self.hdr, pi, vm, pdirs, mask, vstr, outf, interp,
                            altlf)]
 
-    def _all_metric(self, exc, pi, vdir, pt, perr, metricreturn, metricset,
+    def _all_metric(self, exc, pi, vdir, pt, perr, metricset,
                     altlf, **kwargs):
+        """handler for making calls to metric submitted to a ProcessPoolExecutor
+
+        overrides must match return type, unless integrate is also overriden
+
+        Parameters
+        ----------
+        exc: ProcessPoolExectutor()
+        pi: int
+            point index in lightfiled
+        vdir:
+            (dx, dy, dz) view direction
+        pt:
+            (x, y, z) view point
+        perr: float
+            euclidean distance from queried point to point in lightfield
+        metricset: list
+            keys of metrics to return (see raytraverse.integrator.MetricSet)
+        altlf: raytraverse.lightfield.LightFieldKD
+            if none defaults to self.skyfielc
+        kwargs:
+            passed to self.metric
+
+        Returns
+        -------
+        list
+            of ConcurrentFutures.future objects
+
+        """
         vm = ViewMapper(viewangle=180, dxyz=vdir)
-        info = self._metric_info(metricreturn, [pi], [*pt, *vdir], [perr])
+        info = self._metric_info([pi], [*pt, *vdir], [perr])
         return [exc.submit(self.metric, pi, vm, metricset, info, altlf,
                            **kwargs)]
 
     def pt_field(self, pi):
+        """lightfield to use for a particular point index"""
         return self.skyfield
 
     def integrate(self, pts, dohdr=True, dometric=True, vname='view',
@@ -235,17 +324,11 @@ class BaseIntegrator(object):
 
         Returns
         -------
-        header: list
-            if dometric, a list of column headers, else an empty list
         data: np.array
-            if dometric, an array of output data, else None
+            if dometric, an array of output data, else and empty list
 
         """
-        metricreturn = {"idx": False, "sensor": False,
-                        "err": False, "sky": False}
-        if metric_return_opts is not None:
-            metricreturn.update(metric_return_opts)
-        metricreturn["metric"] = True
+        self.metricreturn = metric_return_opts
         perrs, pis = self.scene.area.pt_kd.query(pts[:, 0:3])
         sort = np.argsort(pis)
         s_pis = pis[sort]
@@ -265,9 +348,8 @@ class BaseIntegrator(object):
                                         viewangle=viewangle, vname=vname,
                                         interp=interp, altlf=ptlf)
                 if dometric:
-                    fu += self._all_metric(exc, pi, vdir, pt, perr,
-                                           metricreturn, metricset, ptlf,
-                                           **kwargs)
+                    fu += self._all_metric(exc, pi, vdir, pt, perr, metricset,
+                                           ptlf, **kwargs)
             outmetrics = []
             for future in fu:
                 out, kind = future.result()
@@ -276,16 +358,10 @@ class BaseIntegrator(object):
                 elif kind == 'metric':
                     outmetrics.append(out)
         if dometric:
-            if len(metricset) == 0:
-                metricset = MetricSet.allmetrics
-            self.rowheaders['metric'] = (" ".join(metricset)).split()
-            colhdr = []
-            for k, v in self.rowheaders.items():
-                if metricreturn[k]:
-                    colhdr += v
+            self.metricheader = metricset
             d = np.array(outmetrics)
             cols = d.shape[1]
             unsort = np.argsort(sort)
             d = d.reshape((len(pts), -1, cols))[unsort].reshape(-1, cols)
-            return colhdr, d
-        return None, []
+            return d
+        return np.array([])

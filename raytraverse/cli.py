@@ -550,12 +550,11 @@ def integrate(ctx, loc=None, wea=None, skyro=0.0, ground_fac=0.15, pts=None,
     metric_return_opts = {"idx": kwargs['statidx'],
                           "sensor": kwargs['statsensor'],
                           "err": kwargs['staterr'], "sky": kwargs['statsky']}
-    datahd, data = itg.integrate(pts, interp=interp, res=res,
-                                 vname=vname, scale=179, metricset=metricset,
-                                 dohdr=hdr, dometric=metric, tradius=tradius,
-                                 metric_return_opts=metric_return_opts)
-    if header and datahd is not None:
-        print("\t".join(datahd))
+    data = itg.integrate(pts, interp=interp, res=res, vname=vname, scale=179,
+                         metricset=metricset, dohdr=hdr, dometric=metric,
+                         tradius=tradius, metric_return_opts=metric_return_opts)
+    if header and data.size > 0:
+        print("\t".join(itg.metricheader))
     for d in data:
         print("\t".join([f"{i}" for i in d]))
 

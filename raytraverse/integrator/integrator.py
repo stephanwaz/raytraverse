@@ -240,8 +240,7 @@ class Integrator(BaseIntegrator):
                                  interp=interp, altlf=lf, coefs=skyvec))
         return fu
 
-    def _all_metric(self, exc, pi, vdir, pt, perr, metricreturn, metricset,
-                    altlf, **kwargs):
+    def _all_metric(self, exc, pi, vdir, pt, perr, metricset, altlf, **kwargs):
         smtx, suns, daysteps, skydata = self.skydata
         vm = ViewMapper(viewangle=180, dxyz=vdir)
         fu = []
@@ -249,7 +248,7 @@ class Integrator(BaseIntegrator):
             lf, li, skyvec = self._prep_data(altlf, smtx[sj], suns[sj],
                                              self.sunproxy[sj], pi)
 
-            info = self._metric_info(metricreturn, [pi, sj], [*pt, *vdir],
+            info = self._metric_info([pi, sj], [*pt, *vdir],
                                      [perr, self._serr[sj]], skydata[sj])
             fu.append(exc.submit(self.metric, li, vm, metricset, info, altlf=lf,
                                  coefs=skyvec, sunvec=suns[sj], **kwargs))
