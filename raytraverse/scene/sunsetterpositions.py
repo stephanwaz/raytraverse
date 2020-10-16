@@ -32,13 +32,14 @@ class SunSetterPositions(SunSetter):
         if True reloads existing sun positions, else always generates new
     """
 
-    def __init__(self, scene, wea, skyro=0.0, **kwargs):
+    def __init__(self, scene, wea, skyro=0.0, skyfilter=True, **kwargs):
         #: raytraverse.scene.Scene
         self.scene = scene
         #: float: ccw rotation (in degrees) for sky
         self.skyro = skyro
         #: raytraverse.scene.SkyInfo
         self.candidates = wea
+        self.skyfilter = skyfilter
         super().__init__(scene, skyro=skyro, **kwargs)
 
     @property
@@ -78,12 +79,13 @@ class SunSetterPositions(SunSetter):
         uvsize = self.sunres
         cbins = translate.uv2bin(translate.xyz2uv(self.candidates[:, 0:3],
                                                   normalize=True, flipu=False),
-                                 self.scene.skyres)
+                                 uvsize)
         cidxs = np.arange(cbins.size)
         sbins = np.arange(uvsize**2)
-        skyb = self.load_sky_facs()
-        if skyb is 1:
-            skyb = np.full(sbins.shape[0], 1)
+        if self.skyfilter:
+            skyb = self.load_sky_facs()
+        else:
+            skyb = np.ones(uvsize*uvsize)
         idxs = []
         for b in sbins:
             if skyb[b] > self.srct:

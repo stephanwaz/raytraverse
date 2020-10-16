@@ -25,10 +25,11 @@ class SunSetterBase(object):
 
     def __init__(self, scene, suns=None, prefix="suns", reload=True):
         sunfile = f"{scene.outdir}/{prefix}.rad"
-        try:
-            os.remove(sunfile)
-        except FileNotFoundError:
-            pass
+        if not reload:
+            try:
+                os.remove(sunfile)
+            except FileNotFoundError:
+                pass
         self.scene = scene
         self._sun_decl = suns
         self.suns = sunfile

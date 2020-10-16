@@ -66,8 +66,8 @@ class SunSetter(SunSetterBase):
         return self._sun_kd
 
     @sun_kd.setter
-    def sun_kd(self, sun_kd):
-        self._sun_kd = sun_kd
+    def sun_kd(self, skd):
+        self._sun_kd = skd
 
     @property
     def suns(self):
@@ -118,7 +118,7 @@ class SunSetter(SunSetterBase):
             except FileNotFoundError:
                 print('Warning! suns initialized without sky detail, first'
                       ' create a SCBinField', file=sys.stderr)
-                return 1
+                return np.ones(self.sunres * self.sunres)
             else:
                 skylums = pickle.load(f)
                 f.close()

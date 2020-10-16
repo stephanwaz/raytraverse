@@ -96,8 +96,8 @@ def main(ctx, out, config, n=None,  **kwargs):
               'analysis area')
 @click.option('-skyres', default=10.0,
               help='sky is subdivided accoring to a shirley-chiu disk to square'
-                   ' mapping, total number of sky bins will equal skyres^2.'
-                   ' solid angle of each patch will be 2*pi/(skyres^2)')
+                   ' mapping, approximate square patch size in degrees. set by:'
+                   ' int(np.floor(90/s)*2) to ensure an even number')
 @click.option('-ptres', default=2.0,
               help='resolution of point subdivision on analysis plane. units'
                    ' match radiance scene file')
@@ -266,6 +266,9 @@ def sky(ctx, plotdview=False, run=True, rmraw=True, overwrite=False,
               help="if False, regenerates sun positions, because positions may"
                    " be randomly selected this will make any sunrun results"
                    " obsolete")
+@click.option('--skyfilter/--no-skyfilter', default=True,
+              help="use sky simulation to threshold possible solar positions"
+                   " (with --usepositions)")
 @click.option('--usepositions/--no-usepositions', default=False,
               help='if True, sun positions will be chosen from the positions'
                    ' listed in wea. if more than one position is a candidate'
@@ -276,7 +279,7 @@ def sky(ctx, plotdview=False, run=True, rmraw=True, overwrite=False,
                    'be achieved.')
 @clk.shared_decs(clk.command_decs(raytraverse.__version__, wrap=True))
 def suns(ctx, loc=None, wea=None, usepositions=False, plotdview=False,
-         **kwargs):
+         skyfilter=True, **kwargs):
     """the suns command provides a number of options for creating sun positions
     used by sunrun see wea and usepositions options for details
 
@@ -297,7 +300,8 @@ def suns(ctx, loc=None, wea=None, usepositions=False, plotdview=False,
         if wea is None:
             raise ValueError('option -wea is required when use positions is '
                              'True')
-        s = SunSetterPositions(ctx.obj['scene'], wea, **kwargs)
+        s = SunSetterPositions(ctx.obj['scene'], wea, skyfilter=skyfilter,
+                               **kwargs)
     elif loc is not None:
         s = SunSetterLoc(ctx.obj['scene'], loc, **kwargs)
     elif wea is not None:
@@ -381,19 +385,15 @@ def sunrun(ctx, plotdview=False, run=True, rmraw=False, overwrite=False,
 
 
 @main.command()
-@click.argument('skydef')
 @clk.shared_decs(run_opts)
+@click.option('-skydef', help='sky scene file (.rad)',
+              type=click.Path(exists=True, dir_okay=False))
 @click.option('-skyname',
               help='basename for result files')
 @click.option('-fdres', default=10,
               help='the final directional sampling resolution, yielding a'
                    ' grid of potential samples at 2^fdres x 2^fdres per'
                    ' hemisphere')
-@click.option('-accuracy', default=6.0,
-              help='final sampling level will set # of samples by the number of'
-                   ' samples with variance greater than 1/4 this number, which '
-                   'has units of radiance for bright sky conditions this should'
-                   ' be set to a correspondingly higher value (default is 6.0)')
 @click.option('-rcopts',
               default='-ab 6 -ad 3000 -as 1500 -st 0 -ss 16 -aa .1',
               help='rtrace options for sun reflection runs'
@@ -408,9 +408,12 @@ def sunrun(ctx, plotdview=False, run=True, rmraw=False, overwrite=False,
                    'successive call will load these ambient files, so care '
                    'must be taken to not change any parameters')
 @clk.shared_decs(clk.command_decs(raytraverse.__version__, wrap=True))
-def onesky(ctx, skydef, skyname=None, plotdview=False, run=True, rmraw=False,
-           overwrite=False, rebuild=False, **kwargs):
+def onesky(ctx, skydef=None, skyname=None, plotdview=False, run=True,
+           rmraw=False, overwrite=False, rebuild=False, **kwargs):
     """the onesky command is for running one off sky definitions."""
+    if skydef is None:
+        print("Error: '-skydef' is required", file=sys.stderr)
+        raise click.Abort
     if 'scene' not in ctx.obj:
         clk.invoke_dependency(ctx, scene)
     scn = ctx.obj['scene']

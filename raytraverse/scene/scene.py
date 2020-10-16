@@ -51,7 +51,7 @@ class Scene(object):
     viewangle: float, optional
         should be 1-180 or 360
     skyres: float, optional
-        approximate square patch size (sets sun resolution too)
+        approximate square patch size in degrees
     maxspec: float, optional
         maximum specular transmission in scene
         (used to clip pdf for sun sampling)

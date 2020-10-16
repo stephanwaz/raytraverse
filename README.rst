@@ -22,6 +22,9 @@ raytraverse (1.0.0)
     :target: https://coveralls.io/github/stephanwaz/raytraverse
     :alt: Coveralls github
 
+.. image:: https://zenodo.org/badge/296295567.svg
+   :target: https://zenodo.org/badge/latestdoi/296295567
+
 raytraverse is a complete workflow for climate based daylight modelling,
 simulation, and evaluation of architectural spaces. Built around a variance
 based adaptive sampling strategy, raytraverse can fully explore the daylight
@@ -44,9 +47,6 @@ or if you have cloned this repository::
     cd path/to/this/file
     pip install .
 
-for a development install (pip install -e may not work correctly)::
-
-    python setup.py develop
 
 note that on first run one of the required modules may download some auxilary
 data which could take a minute, after that first run start-up is much faster.
