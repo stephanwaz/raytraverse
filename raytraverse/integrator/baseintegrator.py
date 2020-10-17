@@ -32,8 +32,8 @@ class BaseIntegrator(object):
     lightfield: raytraverse.lightfield.LightFieldKD
         class containing sample data
     """
-    rowheaders = dict(idx=["pt-idx"], sensor=["x", "y", "z", "dx", "dy", "dz"],
-                      err=["pt-err"])
+    rowheaders0 = dict(idx=["pt-idx"], sensor=["x", "y", "z", "dx", "dy", "dz"])
+    rowheaders1 = dict(err=["pt-err"])
 
     def __init__(self, lightfield):
         #: raytraverse.lightfield.LightFieldKD
@@ -66,9 +66,12 @@ class BaseIntegrator(object):
     def metricheader(self, metricset):
         if metricset is None or len(metricset) == 0:
             metricset = MetricSet.defaultmetrics
-        self.rowheaders['metric'] = (" ".join(metricset)).split()
         self._metricheader = []
-        for k, v in self.rowheaders.items():
+        for k, v in self.rowheaders0.items():
+            if self.metricreturn[k]:
+                self._metricheader += v
+        self._metricheader += (" ".join(metricset)).split()
+        for k, v in self.rowheaders1.items():
             if self.metricreturn[k]:
                 self._metricheader += v
 

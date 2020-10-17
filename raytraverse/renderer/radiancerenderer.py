@@ -6,8 +6,6 @@
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 # =======================================================================
 import shlex
-import sys
-import os
 from raytraverse import io
 from raytraverse.renderer.renderer import Renderer
 

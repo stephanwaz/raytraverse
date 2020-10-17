@@ -26,3 +26,4 @@ else:
         @classmethod
         def load_source(cls, srcname, freesrc=-1):
             cls.instance.load_source(srcname, freesrc)
+

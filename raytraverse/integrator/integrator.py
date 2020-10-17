@@ -47,10 +47,10 @@ class Integrator(BaseIntegrator):
         ground reflectance
     """
 
-    rowheaders = dict(idx=["pt-idx", "sky-idx"],
-                      sensor=["x", "y", "z", "dx", "dy", "dz"],
-                      err=["pt-err", "sun-err"],
-                      sky=["sun-x", "sun-y", "sun-z", "dir-norm", "diff-horiz"])
+    rowheaders0 = dict(idx=["pt-idx", "sky-idx"],
+                       sensor=["x", "y", "z", "dx", "dy", "dz"])
+    rowheaders1 = dict(err=["pt-err", "sun-err"],
+                       sky=["sun-x", "sun-y", "sun-z", "dir-norm", "diff-horiz"])
 
     def __init__(self, lightfield, wea=None, loc=None, skyro=0.0,
                  ground_fac=0.15):

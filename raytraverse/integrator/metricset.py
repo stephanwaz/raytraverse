@@ -55,7 +55,8 @@ class MetricSet(object):
     defaultmetrics = ["illum", "avglum", "lum2", "ugr", "dgp"]
 
     allmetrics = defaultmetrics + ["tasklum", "backlum", "dgp_t1", "dgp_t2",
-                                   "threshold", "pwsl2", "view_area", "density"]
+                                   "threshold", "pwsl2", "view_area", "density",
+                                   "reldensity"]
 
     def __init__(self, vm, vec, omega, lum, metricset=None, scale=179.,
                  threshold=2000., guth=True, tradius=30.0, **kwargs):
@@ -225,10 +226,14 @@ class MetricSet(object):
     @property
     @functools.lru_cache(1)
     def density(self):
+        return self.omega.size / self.view_area
+
+    @property
+    @functools.lru_cache(1)
+    def reldensity(self):
         try:
             avgdensity = self.kwargs['lfcnt']/self.kwargs['lfang']
         except KeyError:
             return 0.0
         else:
-            thisdensity = self.omega.size / self.view_area
-            return thisdensity/avgdensity
+            return self.density/avgdensity
