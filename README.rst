@@ -1,24 +1,24 @@
 ===================
-raytraverse (1.0.0)
+raytraverse (1.0.1)
 ===================
 
 .. image:: https://img.shields.io/pypi/v/raytraverse?style=flat-square
-    :target: https://pypi.org/project/raytraverse/1.0.0
+    :target: https://pypi.org/project/raytraverse/1.0.1
     :alt: PyPI
 
 .. image:: https://img.shields.io/pypi/l/raytraverse?style=flat-square
     :target: https://www.mozilla.org/en-US/MPL/2.0/
     :alt: PyPI - License
 
-.. image:: https://img.shields.io/readthedocs/raytraverse/v1.0.0?style=flat-square
-    :target: https://raytraverse.readthedocs.io/en/v1.0.0/
+.. image:: https://img.shields.io/readthedocs/raytraverse/v1.0.1?style=flat-square
+    :target: https://raytraverse.readthedocs.io/en/v1.0.1/
     :alt: Read the Docs (version)
 
-.. image:: https://img.shields.io/travis/stephanwaz/raytraverse/v1.0.0?style=flat-square
+.. image:: https://img.shields.io/travis/stephanwaz/raytraverse/v1.0.1?style=flat-square
     :target: https://travis-ci.org/github/stephanwaz/raytraverse/builds
     :alt: Travis (.org)
 
-.. image:: https://img.shields.io/coveralls/github/stephanwaz/raytraverse/v1.0.0?style=flat-square
+.. image:: https://img.shields.io/coveralls/github/stephanwaz/raytraverse/v1.0.1?style=flat-square
     :target: https://coveralls.io/github/stephanwaz/raytraverse
     :alt: Coveralls github
 
@@ -32,7 +32,7 @@ conditions throughout a space with efficient use of processing power and
 storage space.
 
 * Free software: Mozilla Public License 2.0 (MPL 2.0)
-* Documentation: https://raytraverse.readthedocs.io/en/v1.0.0/.
+* Documentation: https://raytraverse.readthedocs.io/en/v1.0.1/.
 
 
 Installation
