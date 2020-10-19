@@ -206,7 +206,10 @@ class MetricSet(object):
     @property
     @functools.lru_cache(1)
     def dgp(self):
-        return np.minimum(self.dgp_t1 + self.dgp_t2 + 0.16, 1.0)
+        ll = 1
+        if self.illum < 1000:
+            ll = np.exp(0.024*self.illum - 4)/(1 + np.exp(0.024*self.illum - 4))
+        return np.minimum(ll*(self.dgp_t1 + self.dgp_t2 + 0.16), 1.0)
 
     @property
     @functools.lru_cache(1)
