@@ -35,7 +35,6 @@ set(VERSION_FILE "${CMAKE_CURRENT_SOURCE_DIR}/Version.c")
 create_version_file("${VERSION_FILE}")
 
 # make lists of radiance source files for library creation
-# does not include readobj.c (added later as readobj_mod.c)
 set(rtrad_SOURCES
         addobjnotify.c badarg.c biggerlib.c bmalloc.c bmpfile.c bsdf.c bsdf_m.c
         bsdf_t.c byteswap.c calexpr.c calfunc.c calprnt.c ccolor.c ccyrgb.c
@@ -45,7 +44,7 @@ set(rtrad_SOURCES
         gethomedir.c getlibpath.c getpath.c header.c hilbert.c idmap.c image.c instance.c interp2d.c
         invmat4.c lamps.c linregr.c loadbsdf.c loadvars.c lookup.c mat4.c mesh.c modobject.c multisamp.c
         myhostname.c normcodec.c objset.c octree.c otypes.c paths.c plocate.c portio.c process.c
-        quit.c readfargs.c readmesh.c readoct.c resolu.c rexpr.c savestr.c savqstr.c
+        quit.c readfargs.c readmesh.c readobj.c readoct.c resolu.c rexpr.c savestr.c savqstr.c
         sceneio.c spec_rgb.c tcos.c timegm.c tmap16bit.c tmapcolrs.c tmapluv.c tmaptiff.c tmesh.c
         tonemap.c triangulate.c urand.c urind.c wordfile.c words.c wputs.c xf.c zeroes.c
         )
@@ -95,7 +94,7 @@ list(TRANSFORM RAYCALLS PREPEND Radiance/src/rt/)
 list(TRANSFORM RCCALLFILES PREPEND Radiance/src/rt/)
 list(TRANSFORM RTFILES PREPEND Radiance/src/rt/)
 #add additional modified sources from parent directory
-list(APPEND rtrad_SOURCES csrc/calcompcal.c csrc/readobj_mod.c)
+list(APPEND rtrad_SOURCES csrc/calcompcal.c)
 list(APPEND RADIANCE_RT csrc/func_mod.c)
 
 
