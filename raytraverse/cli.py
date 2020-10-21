@@ -473,6 +473,9 @@ def onesky(ctx, skydef=None, skyname=None, plotdview=False, run=True,
               help='number of nearby rays to use for interpolation of hdr'
                    'output (weighted by a gaussian filter). this does'
                    'not apply to metric calculations')
+@click.option('-blursun', default=1,
+              help='spread sun to mimic camera or human eye, 1 is no blur'
+                   ' a value of 4 will double the apparent radius')
 @click.option('-vname', default='view',
               help='name to include with hdr outputs')
 @click.option('-static',
@@ -524,7 +527,7 @@ def onesky(ctx, skydef=None, skyname=None, plotdview=False, run=True,
 def integrate(ctx, loc=None, wea=None, skyro=0.0, ground_fac=0.15, pts=None,
               skyonly=False, sunonly=False, hdr=True, metric=True, res=800, interp=12,
               vname='view', static=None, header=False, metricset="",
-              tradius=30.0, **kwargs):
+              tradius=30.0, blursun=1, **kwargs):
     """the integrate command combines sky and sun results and evaluates the
     given set of positions and sky conditions"""
     if 'scene' not in ctx.obj:
@@ -542,7 +545,7 @@ def integrate(ctx, loc=None, wea=None, skyro=0.0, ground_fac=0.15, pts=None,
         if 'suns' not in ctx.obj:
             clk.invoke_dependency(ctx, suns)
         sns = ctx.obj['suns']
-        su = SunField(scn, sns)
+        su = SunField(scn, sns, blursun=blursun)
         if sunonly:
             itg = Integrator(su, wea=wea, loc=loc, skyro=skyro,
                              ground_fac=ground_fac)

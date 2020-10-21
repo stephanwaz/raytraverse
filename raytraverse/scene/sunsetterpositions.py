@@ -56,7 +56,7 @@ class SunSetterPositions(SunSetter):
     def candidates(self, wea):
         """load candidate sun positions"""
         try:
-            dat = np.loadtxt(wea)
+            dat = np.atleast_2d(np.loadtxt(wea))
             if dat.shape[1] == 3:
                 dummydir = np.ones((dat.shape[0], 1))
                 self._candidates = np.hstack((translate.norm(dat), dummydir))

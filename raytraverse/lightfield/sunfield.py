@@ -30,11 +30,12 @@ class SunField(LightFieldKD):
         build kd-tree even if one exists
     """
 
-    def __init__(self, scene, suns, rebuild=False, rmraw=False):
+    def __init__(self, scene, suns, rebuild=False, rmraw=False, **kwargs):
         #: raytraverse.sunsetter.SunSetter
         self.suns = suns
         #: raytraverse.lightfield.SunViewField
-        self.view = SunViewField(scene, suns, rebuild=False, rmraw=rmraw)
+        self.view = SunViewField(scene, suns, rebuild=False, rmraw=rmraw,
+                                 **kwargs)
         super().__init__(scene, rebuild=rebuild, prefix='sun', rmraw=rmraw,
                          fvrays=scene.maxspec)
 

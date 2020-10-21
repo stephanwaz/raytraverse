@@ -90,6 +90,7 @@ class SkySampler(Sampler):
                     # 1/(np.square(0.2665 * np.pi / 180) * .5) = 92444
                     # the ratio of suns area to hemisphere
                     self.accuracy = self.accuracy*modi/92444
+                    break
         if len(srcs) > 0:
             srcs = np.stack(srcs)
             self._sources = SunSetterBase(self.scene, srcs,

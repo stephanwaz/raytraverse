@@ -39,7 +39,7 @@ class LightFieldKD(LightField):
 
         d_kd = cKDTree(v)
         omega = SVoronoi(v).calculate_areas()[:, None]
-        return d_kd, omega
+        return d_kd, omega * (np.pi * 4/np.sum(omega))
 
     @property
     def d_kd(self):

@@ -5,6 +5,7 @@
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 # =======================================================================
+import sys
 import numpy as np
 import functools
 
@@ -56,17 +57,17 @@ class MetricSet(object):
 
     allmetrics = defaultmetrics + ["tasklum", "backlum", "dgp_t1", "dgp_t2",
                                    "threshold", "pwsl2", "view_area", "density",
-                                   "reldensity"]
+                                   "reldensity", "lumcenter"]
 
     def __init__(self, vm, vec, omega, lum, metricset=None, scale=179.,
                  threshold=2000., guth=True, tradius=30.0, **kwargs):
-
         if metricset is None or len(metricset) == 0:
-            metricset = MetricSet.default
+            metricset = MetricSet.defaultmetrics
         self.vm = vm
+        self.view_area = vm.area
         self._vec = translate.norm(vec)
         self._lum = lum
-        self._omega = omega
+        self.omega = omega
         self.scale = scale
         self._threshold = threshold
         self.guth = guth
@@ -99,7 +100,51 @@ class MetricSet(object):
     def omega(self):
         return self._omega
 
+    @omega.setter
+    def omega(self, og):
+        """correct omega of rays at edge of view to normalize view size"""
+        self._omega = np.copy(og)
+        # square appoximation of ray area
+        ray_side = np.sqrt(self._omega)
+        excess = np.sum(og) - self.view_area
+        if abs(excess) > .1:
+            print(f"Warning, large discrepancy between sum(omega) and view "
+                  f"area: {excess}", file=sys.stderr)
+        while True:
+            # get ray squares that overlap edge of view
+            onedge = self.radians > (self.vm.viewangle * np.pi / 360 - ray_side)
+            edgetotal = np.sum(og[onedge])
+            adjust = 1 - excess/edgetotal
+            # if this fails increase search radius to ensure enough rays to
+            # absorb the adjustment
+            if adjust < 0:
+                print("Warning, intitial search radius failed for omega "
+                      "adjustment", file=sys.stderr)
+                ray_side *= 1.1
+            else:
+                break
+        self._omega[onedge] = og[onedge] * adjust
+
     # -------------------metric dependencies (return array)--------------------
+
+    @property
+    @functools.lru_cache(1)
+    def ctheta(self):
+        """cos angle between ray and view"""
+        # """cos angle between ray and view
+        #         with linear interpolation across omega"""
+        # radius = np.sqrt(self._omega/np.pi)
+        # return .5*(np.cos(self.radians + radius) +
+        #            np.cos(self.radians - radius))
+        return self.vm.ctheta(self.vec)
+
+    @property
+    @functools.lru_cache(1)
+    def radians(self):
+        """cos angle between ray and view"""
+        # return np.arccos(self.vm.ctheta(self.vec))
+        rad = np.arccos(self.ctheta)
+        return rad
 
     @property
     @functools.lru_cache(1)
@@ -142,12 +187,6 @@ class MetricSet(object):
 
     @property
     @functools.lru_cache(1)
-    def view_area(self):
-        """total solid angle of vectors"""
-        return np.sum(self.omega)
-
-    @property
-    @functools.lru_cache(1)
     def threshold(self):
         """threshold for glaresource/background similar behavior to evalglare
         '-b' paramenter"""
@@ -184,8 +223,8 @@ class MetricSet(object):
     @functools.lru_cache(1)
     def illum(self):
         """illuminance"""
-        return np.einsum('i,i,i->', self.vm.ctheta(self.vec), self.lum,
-                         self.omega)*self.scale
+        return np.einsum('i,i,i->', self.ctheta, self.lum,
+                         self.omega) * self.scale
 
     @property
     @functools.lru_cache(1)
@@ -240,3 +279,8 @@ class MetricSet(object):
             return 0.0
         else:
             return self.density/avgdensity
+
+    @property
+    @functools.lru_cache(1)
+    def lumcenter(self):
+        return np.average(self.radians, weights=self.lum*self.omega) * 180/np.pi

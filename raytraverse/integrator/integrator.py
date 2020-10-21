@@ -149,6 +149,7 @@ class Integrator(BaseIntegrator):
                 if loc is None:
                     loc = skycalc.get_loc_epw(dat)
                 skydat = skycalc.read_epw(dat)
+        skydat = np.atleast_2d(skydat)
         if skydat.shape[1] == 4:
             xyz = translate.aa2xyz(skydat[:, 0:2])
             skydat = np.hstack((xyz, skydat[:, 2:]))

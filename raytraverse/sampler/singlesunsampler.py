@@ -74,9 +74,9 @@ class SingleSunSampler(Sampler):
         self.sbin = translate.uv2bin(translate.xyz2uv(self.sunpos[None, :],
                                                       flipu=False),
                                      self.scene.skyres).astype(int)[0]
-        shape = np.concatenate((self.scene.area.ptshape, self.levels[0]))
-        weights = self.pdf_from_sky(SCBinField(self.scene))
-        self.weights = translate.resample(weights, shape)
+        # shape = np.concatenate((self.scene.area.ptshape, self.levels[0]))
+        # weights = self.pdf_from_sky(SCBinField(self.scene))
+        # self.weights = translate.resample(weights, shape)
 
         # load new source
 
@@ -91,8 +91,8 @@ class SingleSunSampler(Sampler):
                 pass
         super().__del__()
 
-    def pdf_from_sky(self, skyfield, interp=1, rebuild=False, zero=True,
-                     filterpts=True):
+    def pdf_from_sky(self, skyfield, rebuild=False, zero=True,
+                     filterpts=False):
         ishape = np.concatenate((self.scene.area.ptshape,
                                  self.levels[self.specidx-2]))
         fi = f"{self.scene.outdir}/sunpdfidxs.npz"
@@ -111,7 +111,7 @@ class SingleSunSampler(Sampler):
         column = skyfield.lum.full_array()
         lum = column[idxs, self.sbin].reshape(ishape)
         if filterpts:
-            haspeak = np.max(lum, (2, 3)) > self.srct
+            haspeak = np.max(lum, (2, 3)) > self.slimit
             lum = lum * haspeak[..., None, None]
         if zero:
             lum = np.where(lum > self.scene.maxspec, 0, lum)

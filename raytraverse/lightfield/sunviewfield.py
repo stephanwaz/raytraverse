@@ -9,6 +9,7 @@
 import os
 import pickle
 import itertools
+import sys
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
 import numpy as np
@@ -57,11 +58,12 @@ class SunViewField(LightField):
         cnt[ocnt < -redist] += smdg/np.sum(ocnt < -redist)
 
     def __init__(self, scene, suns, rebuild=False, rmraw=False,
-                 prefix='sunview'):
+                 prefix='sunview', blursun=1.0):
         #: raytraverse.sunsetter.SunSetter
         self.suns = suns
         #: raytraverse.sunmapper.SunMapper
         self.sunmap = suns.map
+        self.blursun = blursun
         super().__init__(scene, rebuild=rebuild, prefix=prefix, rmraw=rmraw)
 
     def raw_files(self):
@@ -188,7 +190,7 @@ class SunViewField(LightField):
         if vm.in_view(sun, indices=False)[0] and psi in self.items():
             svlm = self.lum[psi]*s[3]
             svo = self.omega[psi]
-            return s[0:3], svlm, svo
+            return s[0:3], svlm/self.blursun, svo*self.blursun
         else:
             return None
 
