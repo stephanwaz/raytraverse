@@ -133,6 +133,7 @@ def scene(ctx, **kwargs):
     analysis plane subdivision"""
     s = Scene(ctx.obj['out'], **kwargs)
     ctx.obj['scene'] = s
+    ctx.obj['initlf'] = []
     if kwargs['points']:
         for pt in s.pts():
             print('{}\t{}\t{}'.format(*pt))
@@ -217,6 +218,7 @@ def sky(ctx, plotdview=False, run=True, rmraw=True, overwrite=False,
         except IOError:
             pass
     sk = SCBinField(s, rebuild=run or rebuild, rmraw=rmraw)
+    ctx.obj['initlf'].append(sk)
     if plotdview:
         sk.direct_view()
 
@@ -364,6 +366,7 @@ def sunrun(ctx, plotdview=False, run=True, rmraw=False, overwrite=False,
         except FileNotFoundError as ex:
             print(f'Warning: {ex}', file=sys.stderr)
         else:
+            ctx.obj['initlf'].append(sv)
             if plotdview:
                 sv.direct_view()
     if kwargs['reflection']:
@@ -377,6 +380,7 @@ def sunrun(ctx, plotdview=False, run=True, rmraw=False, overwrite=False,
         except FileNotFoundError as ex:
             print(f'Warning: {ex}', file=sys.stderr)
         else:
+            ctx.obj['initlf'].append(su)
             if plotdview:
                 items = list(su.items())
                 if len(items) >= 20:
@@ -431,6 +435,7 @@ def onesky(ctx, skydef=None, skyname=None, plotdview=False, run=True,
     except FileNotFoundError as ex:
         print(f'Warning: {ex}', file=sys.stderr)
     else:
+        ctx.obj['initlf'].append(su)
         if plotdview:
             items = list(su.items())
             if len(items) >= 20:
@@ -593,6 +598,9 @@ def printconfig(ctx, returnvalue, **kwargs):
             print('Has sunview lightfield data:',
                   os.path.isfile(f'{s.outdir}/sunview_kd_data.pickle'),
                   file=sys.stderr)
+            for lf in ctx.obj['initlf']:
+                print(f"lightfield \"{lf.prefix}\" covers {lf.size['lfang']:.02f} "
+                      f"steradians with {lf.size['lfcnt']} rays")
     except KeyError:
         pass
     try:

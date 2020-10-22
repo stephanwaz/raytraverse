@@ -128,7 +128,6 @@ py::array_t<double> interpolate_kdquery(py::array_t<double> &destvec,
   auto dcols = srclum.shape(1);
   auto srows = srclum.shape(0);
   auto qcols = idxs.shape(1);
-
   //intitialize result
   py::array_t<double> arrout({drows, dcols});
   py::buffer_info out = arrout.request();
@@ -197,6 +196,7 @@ py::array_t<double> interpolate_kdquery(py::array_t<double> &destvec,
         dt[1] = errs.at(i, k);
         bary[2] = errs.at(i, k) * dt[0] * sqrt(1 - pow(dot, 2)) / 2; // side angle side + sin = sqrt(1-cos^2)
         v2 = k;
+        continue;
       }
       dot2 = ivecs.at(v2*3)*ivecs.at(k*3) + ivecs.at(v2*3+1)*ivecs.at(k*3+1) + ivecs.at(v2*3+2)*ivecs.at(k*3+2);
       if (dot2 < 0.0) {

@@ -83,14 +83,6 @@ class SingleSunSampler(Sampler):
         self.engine.load_source(srcdef)
         os.remove(srcdef)
 
-    def __del__(self):
-        if not self._keepamb:
-            try:
-                os.remove(f'{self.scene.outdir}/sun_{self.sidx:04d}.amb')
-            except (IOError, TypeError):
-                pass
-        super().__del__()
-
     def pdf_from_sky(self, skyfield, rebuild=False, zero=True,
                      filterpts=False):
         ishape = np.concatenate((self.scene.area.ptshape,
@@ -156,3 +148,11 @@ class SingleSunSampler(Sampler):
         else:
             pdraws = super().draw()
         return pdraws
+
+    def run_callback(self):
+        super().run_callback()
+        if not self._keepamb:
+            try:
+                os.remove(f'{self.scene.outdir}/sun_{self.sidx:04d}.amb')
+            except (IOError, TypeError):
+                pass

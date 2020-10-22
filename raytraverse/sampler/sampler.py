@@ -309,6 +309,13 @@ class Sampler(object):
 
     def run_callback(self):
         outf = f'{self.scene.outdir}/{self.stype}_vecs.out'
+        # output traced rays for performance comparison
+        # outft = f'{self.scene.outdir}/{self.stype}_vecs_trace.out'
+        # f = open(outft, 'wb')
+        # for idxf, vecf in self._vecfiles:
+        #     fsrc = open(vecf, 'rb').read()
+        #     f.write(fsrc)
+        # f.close()
         f = open(outf, 'wb')
         for idxf, vecf in self._vecfiles:
             fsrc = open(vecf, 'rb')

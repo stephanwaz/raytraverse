@@ -74,6 +74,8 @@ class LightField(object):
     def items(self):
         return range(self.scene.area.npts)
 
+
+    @property
     @functools.lru_cache(1)
     def size(self):
         lfang = len(list(self.omega.keys())) * 4 * np.pi

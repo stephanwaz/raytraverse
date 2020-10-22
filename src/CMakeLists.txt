@@ -5,6 +5,14 @@ project(raytraverse)
 
 set(PYBIND11_PYTHON_VERSION 3.6)
 
+find_package(X11)
+if(X11_FOUND)
+    if(APPLE)
+        message(${X11_INCLUDE_DIR})
+        include_directories(${X11_INCLUDE_DIR})
+        endif()
+    endif()
+
 # for mac os
 if("${CMAKE_SYSTEM_NAME}" STREQUAL "Darwin")
     set(MACOSX_DEPLOYMENT_TARGET 10.9)

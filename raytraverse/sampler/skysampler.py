@@ -54,17 +54,9 @@ class SkySampler(Sampler):
             engine_args += f" -af {scene.outdir}/{skyname}.amb"
         super().__init__(scene, stype=skyname, fdres=fdres,
                          engine_args=engine_args,
-                         srcdef=None, **kwargs)
+                         srcdef=srcdef, **kwargs)
         self.engine.load_source(srcdef)
         self.sources = srcdef
-
-    def __del__(self):
-        if not self._keepamb:
-            try:
-                os.remove(f'{self.scene.outdir}/{self.skyname}.amb')
-            except (IOError, TypeError):
-                pass
-        super().__del__()
 
     @property
     def sources(self):
@@ -121,3 +113,8 @@ class SkySampler(Sampler):
                                  stype=f"{self.skyname}_sources",
                                  checkviz=False, plotp=False)
             svs.run()
+        if not self._keepamb:
+            try:
+                os.remove(f'{self.scene.outdir}/{self.skyname}.amb')
+            except (IOError, TypeError):
+                pass
