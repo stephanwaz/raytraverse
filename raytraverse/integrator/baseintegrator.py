@@ -176,7 +176,7 @@ class BaseIntegrator(object):
                             len(self.metricheader))
         else:
             fmetric = MetricSet(vm, rays, omega, lum, metricset, **kwargs,
-                                **lf.size())()
+                                **lf.size)()
             data = np.concatenate((info[0], fmetric, info[1]))
         return data
 
