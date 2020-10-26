@@ -1,8 +1,0 @@
-{This puckered texture is used to provide a bumpy look.
-A1 is the degree of puckeredness puck_dx, puck_dy, puck_dz are the 
-perturbation variables in the x, y and z directions.}
-
-
-puck_dx = A1 * noise3a(Px, Py, Pz);
-puck_dy = A1 * noise3b(Px, Py, Pz);
-puck_dz = A1 * noise3c(Px, Py, Pz);
