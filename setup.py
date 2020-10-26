@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
-# Copyright (c) 2020 Stephen Wasilewski
+# Copyright (c) 2020 Stephen Wasilewski, HSLU and EPFL
 # =======================================================================
 # This Source Code Form is subject to the terms of the Mozilla Public
 # License, v. 2.0. If a copy of the MPL was not distributed with this
@@ -40,7 +40,7 @@ setup_dict = dict(
         'Programming Language :: Python :: 3.7',
         'Programming Language :: Python :: 3.8'
         ],
-    description="variance based adaptive sampling for CBDM",
+    description="adaptive sampling for CBDM",
     python_requires=">=3.6",
     entry_points={
         'console_scripts': [

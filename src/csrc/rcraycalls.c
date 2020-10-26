@@ -1,4 +1,4 @@
-/* Copyright (c) 2020 Stephen Wasilewski
+/* Copyright (c) 2020 Stephen Wasilewski, HSLU and EPFL
  * =======================================================================
  * This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
@@ -118,7 +118,7 @@ ray_done(		/* free ray-tracing data */
 				(long)nobjects);
 		error(WARNING, errmsg);
 	}
-	
+
 	ray_done_pmap();
 }
 
@@ -174,7 +174,7 @@ ray_save(			/* save current parameter settings */
 	}
 	while (i <= AMBLLEN)
 		rp->amblndx[i++] = -1;
-		
+
 	/* PMAP: save photon mapping params */
 	ray_save_pmap(rp);
 }
@@ -250,7 +250,7 @@ ray_restore(			/* restore parameter settings */
 		ambres = rp->ambres;
 		ambacc = rp->ambacc;
 	}
-	
+
 	/* PMAP: restore photon mapping params */
 	ray_restore_pmap(rp);
 }
@@ -296,7 +296,7 @@ ray_defaults(		/* get default parameter values */
 	memset(rp->amblval, '\0', sizeof(rp->amblval));
 	for (i = AMBLLEN+1; i--; )
 		rp->amblndx[i] = -1;
-	
+
 	/* PMAP: restore photon mapping defaults */
 	ray_defaults_pmap(rp);
 }
