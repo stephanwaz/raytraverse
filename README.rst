@@ -73,7 +73,7 @@ to generate local documentation.
 
 Git Stuff
 ---------
-this project is hosted in too places, a private repo (master branch) at:
+this project is hosted in two places, a private repo (master branch) at:
 
 	https://gitlab.enterpriselab.ch/lightfields/raytraverse
 
