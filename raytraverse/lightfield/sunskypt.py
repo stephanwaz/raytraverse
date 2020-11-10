@@ -157,6 +157,7 @@ class SunSkyPt(LightFieldKD):
         vecs = {}
         omegas = {}
         lums = {}
+        self.scene.log(self, "Interpolating kd-trees")
         with ProcessPoolExecutor(io.get_nproc()) as exc:
             futures = []
             for sidx in self.items():

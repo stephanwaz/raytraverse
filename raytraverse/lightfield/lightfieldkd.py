@@ -74,6 +74,7 @@ class LightFieldKD(LightField):
                                     " lightfield")
         if (os.path.isfile(kdfile) and os.path.isfile(lumfile)
                 and not self.rebuild):
+            self.scene.log(self, "Reloading data")
             f = open(kdfile, 'rb')
             self._d_kd = pickle.load(f)
             self._vec = pickle.load(f)
@@ -83,6 +84,7 @@ class LightFieldKD(LightField):
             self._lum = pickle.load(f)
             f.close()
         else:
+            self.scene.log(self, "Building kd-tree")
             f = open(lumdat, 'wb')
             f.close()
             self._d_kd, self._vec, self._omega, self._lum = self._mk_tree()

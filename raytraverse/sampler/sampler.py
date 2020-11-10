@@ -55,6 +55,7 @@ class Sampler(object):
                  bands=1, engine_args="", nproc=None, **kwargs):
         name = type(self).__name__
         self._staticscene = True
+        scene.log(self, "Initializing")
         if name == "Sampler":
             raise NotImplementedError("Sampler base class should not be "
                                       "instantiated directly")
@@ -93,6 +94,7 @@ class Sampler(object):
         self._vecfiles = []
 
     def __del__(self):
+        self.scene.log(self, "Closed")
         if not self._staticscene:
             try:
                 os.remove(self.compiledscene)
@@ -349,13 +351,12 @@ class Sampler(object):
     # @profile
     def run(self):
         """execute sampler"""
-
         allc = 0
         f = open(f'{self.scene.outdir}/{self.stype}_vals.out', 'wb')
         f.close()
-        print('Sampling...', file=sys.stderr)
+        self.scene.log(self, f"Started sampling {self.stype}")
         hdr = ['level', 'shape', 'samples', 'rate', 'filesize (MB)']
-        print('{:>8}  {:>25}  {:<10}  {:<8}  {}'.format(*hdr), file=sys.stderr)
+        self.scene.log(self, '\t'.join(hdr))
         fsize = 0
         for i in range(self.idx, self.levels.shape[0]):
             shape = np.concatenate((self.scene.area.ptshape, self.levels[i]))
@@ -365,25 +366,22 @@ class Sampler(object):
             if draws is None:
                 srate = 0.0
                 row = [f'{i + 1} of {self.levels.shape[0]}', str(shape),
-                       0, f"{srate:.02%}", fsize]
-                print('{:>8}  {:>25}  {:<10}  {:<8}  {:.03f}'.format(*row),
-                      file=sys.stderr)
+                       '0', f"{srate:.02%}", f'{fsize:.03f}']
+                self.scene.log(self, '\t'.join(row))
             else:
                 self.levelsamples[self.idx] = draws.size
                 si, vecs = self.sample_idx(draws)
                 srate = si.shape[1]/np.prod(shape)
                 fsize += 4*self.bands*self.srcn*si.shape[1]/1000000
                 row = [f'{i+1} of {self.levels.shape[0]}', str(shape),
-                       si.shape[1], f"{srate:.02%}", fsize]
-                print('{:>8}  {:>25}  {:<10}  {:<8}  {:.03f}'.format(*row),
-                      file=sys.stderr)
+                       str(si.shape[1]), f"{srate:.02%}", f'{fsize:.03f}']
+                self.scene.log(self, '\t'.join(row))
                 vecf = self.dump_vecs(vecs, si)
                 lum = self.sample(vecf)
                 self.update_pdf(si, lum)
                 a = lum.shape[0]
                 allc += a
-        print("-"*70, file=sys.stderr)
         srate = allc/self.weights.size
-        row = ['total sampling:', allc, f"{srate:.02%}", fsize]
-        print('{:<35}  {:<10}  {:<8}  {:.03f}'.format(*row), file=sys.stderr)
+        row = ['total sampling:', '-', str(allc), f"{srate:.02%}", f'{fsize:.03f}']
+        self.scene.log(self, '\t'.join(row))
         self.run_callback()

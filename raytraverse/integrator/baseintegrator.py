@@ -40,6 +40,7 @@ class BaseIntegrator(object):
         self.skyfield = lightfield
         #: raytraverse.scene.Scene
         self.scene = lightfield.scene
+        self.scene.log(self, "Initializing")
         self.metricreturn = None
         self.metricheader = None
 
@@ -315,6 +316,9 @@ class BaseIntegrator(object):
             if dometric, an array of output data, else and empty list
 
         """
+        output = " and ".join([i for i, j in (("images", dohdr),
+                                              ("metrics", dometric)) if j])
+        self.scene.log(self, f"integrating {output}")
         self.metricreturn = metric_return_opts
         self.metricheader = metricset
         perrs, pis = self.scene.area.pt_kd.query(pts[:, 0:3])

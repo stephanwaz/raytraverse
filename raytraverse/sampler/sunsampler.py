@@ -25,6 +25,7 @@ class SunSampler(object):
     """
 
     def __init__(self, scene, suns, plotp=False, **kwargs):
+        scene.log(self, "Initializing")
         self.scene = scene
         self.suns = suns
         #: raytraverse.sampler.SunViewSampler
@@ -37,16 +38,15 @@ class SunSampler(object):
 
     def run(self, view=True, reflection=True):
         if view and self.suns.suns.size > 0:
-            print("Sampling Sun Visibility", file=sys.stderr)
             self.viewsampler.run()
         if reflection:
             suncnt = self.suns.suns.shape[0]
             aa = translate.xyz2aa(self.suns.suns)
             for sidx in range(suncnt):
-                print(f"Sampling Sun Reflections {sidx+1} of "
-                      f"{suncnt}", file=sys.stderr)
-                print(f'Sun Position: alt={aa[sidx, 0]:.01f},'
-                      f' az={aa[sidx, 1]:.01f}', file=sys.stderr)
+                self.scene.log(self, f"Sampling Sun Reflections {sidx+1} of "
+                               f"{suncnt}")
+                self.scene.log(self, f'Sun Position: alt={aa[sidx, 0]:.01f},'
+                               f' az={aa[sidx, 1]:.01f}')
                 self.reflsampler = SingleSunSampler(self.scene, self.suns, sidx,
                                                     **self.sampleargs)
                 self.reflsampler.run()

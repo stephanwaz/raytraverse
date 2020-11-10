@@ -25,6 +25,7 @@ class SunSetterBase(object):
 
     def __init__(self, scene, suns=None, prefix="suns", reload=True):
         sunfile = f"{scene.outdir}/{prefix}.rad"
+        scene.log(self, f"Initializing")
         if not reload:
             try:
                 os.remove(sunfile)

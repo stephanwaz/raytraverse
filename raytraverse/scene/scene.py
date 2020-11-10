@@ -5,11 +5,10 @@
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 # =======================================================================
-
+from datetime import datetime, timezone
 import os
 import re
 import shutil
-import configparser
 import sys
 
 import numpy as np
@@ -17,7 +16,6 @@ import json
 
 from clasp import script_tools as cst
 from clasp.click_callbacks import parse_file_list
-from scipy.spatial import cKDTree
 
 from raytraverse.mapper import SpaceMapper, ViewMapper, SpaceMapperPt
 
@@ -88,6 +86,9 @@ class Scene(object):
             self.reload = reload
             #: str: path to store scene info and output files
             self.outdir = outdir
+            self._logf = f"{self.outdir}/log.txt"
+            print(f"logging to {self._logf}", file=sys.stderr)
+            self.log(self, "Initializing")
             a = f'{self.outdir}/area.rad'
             if self.reload and os.path.isfile(a):
                 pass
@@ -125,6 +126,12 @@ class Scene(object):
             locvar['scene'] = self.scene
             with open(js, 'w') as jf:
                 json.dump(locvar, jf)
+
+    def __del__(self):
+        try:
+            self.log(self, "Closed")
+        except FileNotFoundError:
+            pass
 
     @property
     def skyres(self):
@@ -177,3 +184,8 @@ class Scene(object):
     def pts(self):
         return self.area.pts()
 
+    def log(self, instance, message):
+        f = open(self._logf, 'a')
+        ts = datetime.now(tz=timezone.utc).strftime("%d-%b-%Y %H:%M:%S")
+        print(f"{ts}\t{type(instance).__name__}\t{message}", file=f)
+        f.close()
