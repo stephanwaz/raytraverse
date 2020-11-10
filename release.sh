@@ -6,6 +6,9 @@ echo make docs
 echo make coverage
 echo make dist
 echo git commit ...
+
+printf "#######################################################\n\n"
+echo if you are giving an explicit version have you run bumpversion?
 printf "#######################################################\n\n"
 echo -n "proceed to release (y/n)? "
 read -r answer
@@ -25,10 +28,25 @@ if [ "$answer" != "${answer#[Yy]}" ] ;then
             git merge release
             git push
             printf "\n#######################################################\n"
-            echo check that remote builds are successful than push tags
+            echo "check that remote builds are successful, then push tags"
+            printf "\n#######################################################\n"
+        elif [[ $# == 1 && $1 == v*.*.* ]]; then
+            git checkout release
+            git merge master
+            git tag -a "$1" -m "tagged for release $1"
+            make dist
+            make coverall
+            twine upload dist/*.tar.gz
+            git push
+            git checkout master
+            git merge release
+            git push
+            printf "\n#######################################################\n"
+            echo "check that remote builds are successful, then push tags"
             printf "\n#######################################################\n"
         else
             echo usage: ./release.sh "[patch/minor/major]"
+            echo usage: ./release.sh "vX.X.X (assumes bumpversion has already been run and vX.X.X matches"
         fi
     else
         echo working directory is not clean!
