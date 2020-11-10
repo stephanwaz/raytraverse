@@ -161,7 +161,7 @@ py::array_t<double> interpolate_kdquery(py::array_t<double> &destvec,
       }
       continue;
     }
-    // if the closes point is within tolerance, just use that
+    // if the closest point is within tolerance, just use that
     if (errs.at(i, 0) < err) {
       for (ssize_t j = 0; j < dcols; j++){
         pout[row + j] = srclum.at(idxs.at(i, 0), j);
@@ -196,7 +196,6 @@ py::array_t<double> interpolate_kdquery(py::array_t<double> &destvec,
         dt[1] = errs.at(i, k);
         bary[2] = errs.at(i, k) * dt[0] * sqrt(1 - pow(dot, 2)) / 2; // side angle side + sin = sqrt(1-cos^2)
         v2 = k;
-        continue;
       }
       dot2 = ivecs.at(v2*3)*ivecs.at(k*3) + ivecs.at(v2*3+1)*ivecs.at(k*3+1) + ivecs.at(v2*3+2)*ivecs.at(k*3+2);
       if (dot2 < 0.0) {
