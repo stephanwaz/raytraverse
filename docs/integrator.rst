@@ -46,3 +46,11 @@ PositionIndex
     :undoc-members:
     :show-inheritance:
     :private-members:
+
+retina
+-------
+
+.. automodule:: raytraverse.integrator.retina
+    :members:
+    :undoc-members:
+    :show-inheritance:
