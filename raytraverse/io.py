@@ -18,6 +18,9 @@ from scipy.ndimage.filters import uniform_filter
 
 import numpy as np
 
+from raytraverse import translate
+from raytraverse.mapper import ViewMapper
+
 
 class CaptureStdOut:
     """redirect output streams at system level (including c printf)
@@ -262,6 +265,18 @@ def array2hdr(ar, imgf, header=None):
     return imgf
 
 
+def uvarray2hdr(uvarray, imgf, header=None):
+    res = uvarray.shape[0]
+    vm = ViewMapper(viewangle=180)
+    pixelxyz = vm.pixelrays(res)
+    uv = vm.xyz2uv(pixelxyz.reshape(-1, 3))
+    mask = vm.in_view(pixelxyz, indices=False)
+    ij = translate.uv2ij(uv[mask], res)
+    img = np.zeros(res*res)
+    img[mask] = uvarray[ij[:, 0], ij[-1:None:-1, 1]]
+    array2hdr(img.reshape(res, res), imgf, header)
+
+
 def carray2hdr(ar, imgf, header=None):
     """write color channel np.array (3, x, y) to hdr image format
 
@@ -337,19 +352,24 @@ def rgbe2lum(rgbe):
     lum: luminance in cd/m^2
     """
     v = np.power(2., rgbe[:, 3] - 128).reshape(-1, 1) / 256
-    lum = np.where(rgbe[:, 0:3] == 0, 0, (rgbe[:, 0:3] + 0.5) * v)
+    rgb = np.where(rgbe[:, 0:3] == 0, 0, (rgbe[:, 0:3] + 0.5) * v)
     # luminance = 179 * (0.265*R + 0.670*G + 0.065*B)
     return rgb2lum(rgb)
 
 
 def add_vecs_to_img(vm, img, v, channels=(1, 0, 0), grow=0):
     res = img.shape[-1]
-    reverse = vm.degrees(v) > 90
-    pa = vm.ivm.ray2pixel(v[reverse], res)
-    pa[:, 0] += res
-    pb = vm.ray2pixel(v[np.logical_not(reverse)], res)
-    xp = np.concatenate((pa[:, 0], pb[:, 0]))
-    yp = np.concatenate((pa[:, 1], pb[:, 1]))
+    if vm.viewangle == 360:
+        reverse = vm.degrees(v) > 90
+        pa = vm.ivm.ray2pixel(v[reverse], res)
+        pa[:, 0] += res
+        pb = vm.ray2pixel(v[np.logical_not(reverse)], res)
+        xp = np.concatenate((pa[:, 0], pb[:, 0]))
+        yp = np.concatenate((pa[:, 1], pb[:, 1]))
+    else:
+        pb = vm.ray2pixel(v, res)
+        xp = pb[:, 0]
+        yp = pb[:, 1]
     r = int(grow*2 + 1)
     if len(img.shape) == 2:
         try:

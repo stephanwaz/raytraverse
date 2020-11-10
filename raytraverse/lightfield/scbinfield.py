@@ -8,7 +8,7 @@
 import numpy as np
 
 from raytraverse.lightfield.lightfieldkd import LightFieldKD
-
+from raytraverse import translate
 
 class SCBinField(LightFieldKD):
     """container for accessing sampled data where every ray has a value for
@@ -28,3 +28,12 @@ class SCBinField(LightFieldKD):
             c = np.broadcast_to(coefs, (coefs.size, self.srcn))
         return np.einsum('ij,kj->ik', c, self.lum[pi])
 
+    def direct_view(self, res=512, showsample=True, showweight=True,
+                    dpts=None, items=None, srcidx=None):
+        """create a summary image of lightfield for each vpt"""
+        if srcidx is not None and type(srcidx) is not int:
+            uv = translate.xyz2uv(np.asarray(srcidx)[None, :], flipu=False)
+            srcidx = translate.uv2bin(uv, self.scene.skyres).astype(int)[0]
+        super().direct_view(res=res, showsample=showsample,
+                            showweight=showweight, dpts=dpts, items=items,
+                            srcidx=srcidx)

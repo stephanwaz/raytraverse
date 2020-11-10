@@ -2,6 +2,12 @@
 History
 =======
 
+1.0.3
+-----
+* new module for calculating position based on retinal features
+* view specifications for directview plotting
+* options for samples/weight visibility on directview plotting
+
 0.2.0 (2020-09-25)
 ------------------
 

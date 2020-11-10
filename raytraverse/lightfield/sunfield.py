@@ -77,6 +77,9 @@ class SunField(LightFieldKD):
     def items(self):
         return self.d_kd.keys()
 
+    def ptitems(self, i):
+        return [j for j in self.items() if j[0] == i]
+
     def keymap(self):
         npts = self.scene.area.npts
         shape = (npts, self.suns.suns.shape[0] + 1)
@@ -104,9 +107,11 @@ class SunField(LightFieldKD):
             omega = np.concatenate((omega, [svw[2]]))
         return rays, omega, lum
 
-    def direct_view(self, res=512, showsample=True, items=None):
+    def direct_view(self, res=512, showsample=True, showweight=True,
+                    dpts=None, items=None, srcidx=None):
         """create a summary image of lightfield for each vpt"""
-        super().direct_view(res=res, showsample=showsample, items=items)
+        super().direct_view(res=res, showsample=showsample,
+                            showweight=showweight, dpts=dpts, items=items)
         if items is not None:
             return None
         for i in super().items():

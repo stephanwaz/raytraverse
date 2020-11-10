@@ -124,6 +124,9 @@ class SunViewField(LightField):
     def items(self):
         return self.vec.keys()
 
+    def ptitems(self, i):
+        return [j for j in self.items() if j[0] == i]
+
     def _grp_by_sun(self, vecs, lums, shape, pti, suni):
         scalefac = ((self.sunmap.viewangle/2*np.pi/180)**2)
         omega0 = scalefac*np.pi/np.prod(shape)

@@ -9,7 +9,7 @@
 """mapper objects"""
 
 __all__ = ['BaseIntegrator', 'Integrator', 'SunSkyIntegrator',
-           'MetricSet', 'PositionIndex']
+           'MetricSet', 'PositionIndex', 'retina']
 
 from raytraverse.integrator.baseintegrator import BaseIntegrator
 from raytraverse.integrator.integrator import Integrator

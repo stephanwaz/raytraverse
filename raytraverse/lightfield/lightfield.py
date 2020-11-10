@@ -74,6 +74,8 @@ class LightField(object):
     def items(self):
         return range(self.scene.area.npts)
 
+    def ptitems(self, i):
+        return [i]
 
     @property
     @functools.lru_cache(1)

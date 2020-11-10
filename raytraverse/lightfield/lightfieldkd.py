@@ -17,6 +17,7 @@ import numpy as np
 from raytraverse.lightfield.memarraydict import MemArrayDict
 
 from raytraverse import io, translate
+from raytraverse.mapper import ViewMapper
 from raytraverse.lightfield.lightfield import LightField
 from raytraverse.craytraverse import interpolate_kdquery
 
@@ -232,27 +233,48 @@ class LightFieldKD(LightField):
                                      self.lum[pi], err=err)
         return arrout
 
-    def _dview(self, idx, pdirs, mask, res=800, showsample=True):
-        img = np.zeros((res*self.scene.view.aspect, res))
-        self.add_to_img(img, mask, idx, pdirs[mask])
+    def _dview(self, vm, idx, pdirs, mask, res=512, showsample=True,
+               showweight=True, srcidx=None):
+        img = np.zeros((res*vm.aspect, res))
+        if showweight:
+            if srcidx is not None:
+                coefs = np.zeros(self.srcn)
+                coefs[srcidx] = 1
+                self.add_to_img(img, mask, idx, pdirs[mask], vm=vm, coefs=coefs)
+            else:
+                self.add_to_img(img, mask, idx, pdirs[mask], vm=vm)
+            channels = (1, 0, 0)
+        else:
+            channels = (1, 1, 1)
         outf = f"{self.outfile(idx)}.hdr"
         if showsample:
-            vm = self.scene.view
             img = np.repeat(img[None, ...], 3, 0)
             vi = self.query_ball(idx, vm.dxyz, vm.viewangle)
             v = self.vec[idx][vi[0]]
-            img = io.add_vecs_to_img(vm, img, v)
+            img = io.add_vecs_to_img(vm, img, v, channels=channels)
             io.carray2hdr(img, outf)
         else:
             io.array2hdr(img, outf)
         return outf
 
-    def direct_view(self, res=512, showsample=True, items=None):
+    def direct_view(self, res=512, showsample=True, showweight=True,
+                    dpts=None, items=None, srcidx=None):
         """create a summary image of lightfield for each vpt"""
-        vm = self.scene.view
-        pdirs = vm.pixelrays(res)
         if items is None:
-            items = self.items()
+            items = list(self.items())
+        if dpts is not None:
+            vm = ViewMapper(dpts[:, 3:6], viewangle=180)
+            perrs, pis = self.scene.area.pt_kd.query(dpts[:, 0:3])
+            items = []
+            vmi = []
+            for j, pi in enumerate(pis):
+                pti = list(self.ptitems(pi))
+                items += pti
+                vmi += [j]*len(pti)
+        else:
+            vm = self.scene.view
+            vmi = [0] * len(items)
+        pdirs = vm.pixelrays(res)
         if vm.aspect == 2:
             mask = vm.in_view(np.concatenate((pdirs[0:res],
                                               -pdirs[res:]), 0))
@@ -260,8 +282,8 @@ class LightFieldKD(LightField):
             mask = vm.in_view(pdirs)
         fu = []
         with ThreadPoolExecutor() as exc:
-            for idx in items:
-                fu.append(exc.submit(self._dview, idx, pdirs, mask, res,
-                                     showsample))
+            for idx, vi in zip(items, vmi):
+                fu.append(exc.submit(self._dview, vm[vi], idx, pdirs, mask, res,
+                                     showsample, showweight, srcidx))
             for f in as_completed(fu):
                 print(f.result(), file=sys.stderr)

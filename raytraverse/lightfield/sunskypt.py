@@ -61,6 +61,9 @@ class SunSkyPt(LightFieldKD):
     def items(self):
         return self._items
 
+    def ptitems(self, i):
+        return [j for j in self.items() if j[0] == i]
+
     def apply_coef(self, pi, coefs):
         coefs = np.asarray(coefs)
         if coefs.size == 1:

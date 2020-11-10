@@ -30,6 +30,8 @@ def np_load(ctx, param, s):
     trys np.load (numpy binary), then np.loadtxt (space seperated txt file)
     then split row by spaces and columns by commas.
     """
+    if s is None:
+        return s
     if os.path.exists(s):
         try:
             ar = np.load(s)
@@ -182,7 +184,18 @@ run_opts = [
  click.option('--overwrite/--no-overwrite', default=False,
               help='execute run even if simulations exist'),
  click.option('--rebuild/--no-rebuild', default=False,
-              help='force rebuild kdtree')
+              help='force rebuild kdtree'),
+ click.option('--showsample/--no-showsample', default=True,
+                 help='show samples on dviews'),
+ click.option('--showweight/--no-showweight', default=True,
+                 help='show weights on dviews'),
+ click.option('-dpts', default=None, callback=np_load,
+              help="if given points to evaluate with --plotdview, this can be "
+                   "a .npy file, a whitespace "
+                   "seperated text file or entered as a string with commas "
+                   "between components of a point and spaces between points. "
+                   "in all cases each point requires 6 numbers x,y,z,dx,dy,dz "
+                   "so the shape of the array will be (N, 6)")
     ]
 
 
@@ -196,10 +209,15 @@ run_opts = [
               help='rtrace options to pass to the rcontrib call'
                    ' see the man pages for rtrace, rcontrib, and '
                    ' rcontrib -defaults for more information')
+@click.option('-dviewpatch',
+              callback=clk.split_float,
+              help="to plot direct view for a single patch,"
+                   "give an x,y,z direction")
 @clk.shared_decs(run_opts)
 @clk.shared_decs(clk.command_decs(raytraverse.__version__, wrap=True))
 def sky(ctx, plotdview=False, run=True, rmraw=True, overwrite=False,
-        rebuild=False, **kwargs):
+        rebuild=False, showsample=True, showweight=True, dpts=None,
+        dviewpatch=None, **kwargs):
     """the sky command intitializes and runs a sky sampler and then readies
     the results for integration by building a SCBinField. sky should be invoked
     before calling suns, as the sky contributions are used to select the
@@ -220,7 +238,8 @@ def sky(ctx, plotdview=False, run=True, rmraw=True, overwrite=False,
     sk = SCBinField(s, rebuild=run or rebuild, rmraw=rmraw)
     ctx.obj['initlf'].append(sk)
     if plotdview:
-        sk.direct_view()
+        sk.direct_view(showsample=showsample, showweight=showweight, dpts=dpts,
+                       srcidx=dviewpatch)
 
 
 @main.command()
@@ -268,6 +287,8 @@ def sky(ctx, plotdview=False, run=True, rmraw=True, overwrite=False,
               help="if False, regenerates sun positions, because positions may"
                    " be randomly selected this will make any sunrun results"
                    " obsolete")
+@click.option('--printsuns/--no-printsuns', default=False,
+              help="print sun positions to stdout")
 @click.option('--skyfilter/--no-skyfilter', default=True,
               help="use sky simulation to threshold possible solar positions"
                    " (with --usepositions)")
@@ -314,6 +335,10 @@ def suns(ctx, loc=None, wea=None, usepositions=False, plotdview=False,
     if plotdview:
         s.direct_view()
     ctx.obj['suns'] = s
+    if kwargs['printsuns']:
+        for pt in s.suns:
+            print('{}\t{}\t{}'.format(*pt))
+
 
 
 @main.command()
@@ -347,7 +372,8 @@ def suns(ctx, loc=None, wea=None, usepositions=False, plotdview=False,
 @clk.shared_decs(run_opts)
 @clk.shared_decs(clk.command_decs(raytraverse.__version__, wrap=True))
 def sunrun(ctx, plotdview=False, run=True, rmraw=False, overwrite=False,
-           rebuild=False, **kwargs):
+           rebuild=False, showsample=True, showweight=True, dpts=None,
+           **kwargs):
     """the sunrun command intitializes and runs a sun sampler and then readies
     the results for integration by building a SunField."""
     if 'suns' not in ctx.obj:
@@ -385,7 +411,8 @@ def sunrun(ctx, plotdview=False, run=True, rmraw=False, overwrite=False,
                 items = list(su.items())
                 if len(items) >= 20:
                     items = None
-                su.direct_view(items=items)
+                su.direct_view(items=items, showsample=showsample,
+                               showweight=showweight, dpts=dpts)
 
 
 @main.command()
@@ -413,7 +440,8 @@ def sunrun(ctx, plotdview=False, run=True, rmraw=False, overwrite=False,
                    'must be taken to not change any parameters')
 @clk.shared_decs(clk.command_decs(raytraverse.__version__, wrap=True))
 def onesky(ctx, skydef=None, skyname=None, plotdview=False, run=True,
-           rmraw=False, overwrite=False, rebuild=False, **kwargs):
+           rmraw=False, overwrite=False, rebuild=False, showsample=True,
+           showweight=True, dpts=None, **kwargs):
     """the onesky command is for running one off sky definitions."""
     if skydef is None:
         print("Error: '-skydef' is required", file=sys.stderr)
@@ -440,7 +468,8 @@ def onesky(ctx, skydef=None, skyname=None, plotdview=False, run=True,
             items = list(su.items())
             if len(items) >= 20:
                 items = None
-            su.direct_view(items=items)
+            su.direct_view(items=items, showsample=showsample,
+                           showweight=showweight, dpts=dpts, res=1024)
             if su.view is not None:
                 su.view.direct_view()
 
