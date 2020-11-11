@@ -18,7 +18,6 @@ from clasp import click
 import clasp.click_ext as clk
 
 import raytraverse
-from raytraverse.integrator.metricset import MetricSet
 # this is so readthedocs can build without installing as these modules depend
 # on c++ extensions that are not present.
 try:
@@ -26,7 +25,8 @@ try:
     from raytraverse.sampler import SCBinSampler, SunSampler, SkySampler
     from raytraverse.scene import Scene, SunSetter, SunSetterLoc, SunSetterPositions
     from raytraverse.lightfield import SCBinField, SunField, SunViewField, StaticField
-except ModuleNotFoundError:
+except ModuleNotFoundError as ex:
+    print(ex, file=sys.stderr)
     pass
 
 
@@ -481,6 +481,11 @@ def onesky(ctx, skydef=None, skyname=None, plotdview=False, run=True,
                 su.view.direct_view()
 
 
+allmetrics = ["illum", "avglum", "lum2", "ugr", "dgp", "tasklum",
+              "backlum", "dgp_t1", "dgp_t2", "threshold", "pwsl2",
+              "view_area", "density", "reldensity", "lumcenter"]
+
+
 @main.command()
 @click.option('-loc', callback=clk.split_float,
               help='specify the scene location (if not specified in -wea or to'
@@ -541,7 +546,7 @@ def onesky(ctx, skydef=None, skyname=None, plotdview=False, run=True,
 @click.option('-metricset', default="illum avglum lum2 dgp ugr",
               callback=clk.split_str,
               help='which metrics to return items must be in: '
-                   f'{", ".join(MetricSet.allmetrics)}')
+                   f'{", ".join(allmetrics)}')
 @click.option('-threshold', default=2000.0,
               help='Threshold factor; if factor is larger than 100, it is used '
                    'as constant threshold in cd/m2. If factor is less or equal '
