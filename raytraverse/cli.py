@@ -18,7 +18,7 @@ from clasp import click
 import clasp.click_ext as clk
 
 import raytraverse
-from raytraverse.integrator import MetricSet
+from raytraverse.integrator.metricset import MetricSet
 # this is so readthedocs can build without installing as these modules depend
 # on c++ extensions that are not present.
 try:
