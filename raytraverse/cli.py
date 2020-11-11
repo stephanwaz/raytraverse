@@ -16,11 +16,18 @@ import numpy as np
 
 from clasp import click
 import clasp.click_ext as clk
+
 import raytraverse
-from raytraverse.integrator import SunSkyIntegrator, MetricSet, Integrator, BaseIntegrator
-from raytraverse.sampler import SCBinSampler, SunSampler, SkySampler
-from raytraverse.scene import Scene, SunSetter, SunSetterLoc, SunSetterPositions
-from raytraverse.lightfield import SCBinField, SunField, SunViewField, StaticField
+from raytraverse.integrator import MetricSet
+# this is so readthedocs can build without installing as these modules depend
+# on c++ extensions that are not present.
+try:
+    from raytraverse.integrator import SunSkyIntegrator, Integrator, BaseIntegrator
+    from raytraverse.sampler import SCBinSampler, SunSampler, SkySampler
+    from raytraverse.scene import Scene, SunSetter, SunSetterLoc, SunSetterPositions
+    from raytraverse.lightfield import SCBinField, SunField, SunViewField, StaticField
+except ModuleNotFoundError:
+    pass
 
 
 @clk.pretty_name("NPY, TSV, FLOATS,FLOATS")

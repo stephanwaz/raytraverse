@@ -1,8 +1,18 @@
 .. include:: ../README.rst
 
+Command Line Interface
+----------------------
+
 .. toctree::
    :maxdepth: 2
-   :hidden:
+
+   cli
+
+API
+---
+
+.. toctree::
+   :maxdepth: 2
 
    scene
    mapper
@@ -17,7 +27,8 @@
    plot
    skycalc
    translate
-   cli
+
+.. include:: ../ACKNOWLEDGEMENTS.rst
 
 .. toctree::
    :maxdepth: 3
@@ -27,3 +38,4 @@
    genindex
    search
    todo
+   git

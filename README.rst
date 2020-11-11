@@ -1,5 +1,5 @@
 ===================
-raytraverse (1.0.3)
+raytraverse (1.0.4)
 ===================
 
 .. image:: https://img.shields.io/pypi/v/raytraverse?style=flat-square
@@ -70,72 +70,3 @@ use the Documentation link included above or::
     make docs
 
 to generate local documentation.
-
-Git Stuff
----------
-this project is hosted in two places, a private repo (master branch) at:
-
-    https://gitlab.enterpriselab.ch/lightfields/raytraverse
-
-and a public repo (release branch) at:
-
-    https://github.com/stephanwaz/raytraverse
-
-the repo also depends on two submodules, to initialize run the following::
-
-    git clone https://github.com/stephanwaz/raytraverse
-    cd raytraverse
-    git submodule init
-    git submodule update --remote
-    git -C src/Radiance config core.sparseCheckout true
-    cp src/sparse-checkout .git/modules/src/Radiance/info/
-    git submodule update --remote --force src/Radiance
-
-after a "git pull" make sure you also run::
-
-    git submodule update
-
-to track with the latest commit used by raytraverse.
-
-Licence
--------
-
-| Copyright (c) 2020 Stephen Wasilewski, HSLU and EPFL
-| This Source Code Form is subject to the terms of the Mozilla Public
-| License, v. 2.0. If a copy of the MPL was not distributed with this
-| file, You can obtain one at http://mozilla.org/MPL/2.0/.
-
-Acknowledgements
-----------------
-
-Thanks to additional project collaborators and advisors Marilyne Andersen, Lars
-Grobe, Roland Schregle, Jan Wienold, and Stephen Wittkopf
-
-This software development was financially supported by the Swiss National
-Science Foundation as part of the ongoing research project “Light fields in
-climate-based daylight modeling for spatio-temporal glare assessment”
-(SNSF_ #179067).
-
-Software Credits
-----------------
-
-    - Raytraverse uses Radiance_
-    - As well as all packages listed in the requirements.txt file,
-      raytraverse relies heavily on the Python packages numpy_, scipy_, and
-      pywavelets_ for key parts of the implementation.
-    - C++ bindings, including exposing core radiance functions as methods to
-      the renderer classes are made with pybind11_
-    - Installation and building from source uses cmake_ and scikit-build_
-    - This package was created with Cookiecutter_ and the
-      `audreyr/cookiecutter-pypackage`_ project template.
-
-.. _Cookiecutter: https://github.com/audreyr/cookiecutter
-.. _`audreyr/cookiecutter-pypackage`: https://github.com/audreyr/cookiecutter-pypackage
-.. _Radiance: https://www.radiance-online.org
-.. _numpy: https://numpy.org/doc/stable/reference/
-.. _scipy: https://docs.scipy.org/doc/scipy/reference/
-.. _pywavelets: https://pywavelets.readthedocs.io/en/latest/
-.. _pybind11: https://pybind11.readthedocs.io/en/stable/index.html
-.. _scikit-build: https://scikit-build.readthedocs.io/en/latest/
-.. _SNSF: http://www.snf.ch/en/Pages/default.aspx
-.. _cmake: https://cmake.org/cmake/help/latest/
