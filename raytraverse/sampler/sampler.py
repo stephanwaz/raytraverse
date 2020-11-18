@@ -236,7 +236,7 @@ class Sampler(object):
         self._vecfiles.append((outif, outf))
         return outf
 
-    def _plot_p(self, p):
+    def _plot_p(self, p, suffix=".hdr"):
         ps = p.reshape(self.weights.shape)
         outshape = (1024, 512)
         res = outshape[-1]
@@ -249,9 +249,9 @@ class Sampler(object):
                 ij = translate.uv2ij(uv, w.shape[-1])
                 ptidx = np.ravel_multi_index((i, j), self.scene.area.ptshape)
                 outw = (f"{self.scene.outdir}_{self.stype}_weights_"
-                        f"{ptidx:04d}_{self.idx+1:02d}.hdr")
+                        f"{ptidx:04d}_{self.idx+1:02d}{suffix}")
                 outp = (f"{self.scene.outdir}_{self.stype}_detail_"
-                        f"{ptidx:04d}_{self.idx+1:02d}.hdr")
+                        f"{ptidx:04d}_{self.idx+1:02d}{suffix}")
                 img = w[ij[:, 0], ij[:, 1]].reshape(outshape)
                 io.array2hdr(np.where(mask, img, 0), outw)
                 img = ps[i, j][ij[:, 0], ij[:, 1]].reshape(outshape)
@@ -269,6 +269,16 @@ class Sampler(object):
                 outf = (f"{self.scene.outdir}_{self.stype}_samples_"
                         f"{ptidx:04d}_{level:02d}.hdr")
                 io.array2hdr(img, outf)
+
+    def _linear(self, x, x1, x2):
+        if len(self.levels) <= 2:
+            return (x1, x2)[x]
+        else:
+            return (x2 - x1)/(len(self.levels) - 2)*(x - 1) + x1
+
+    def threshold(self, idx):
+        """threshold for determining sample count"""
+        return self.accuracy * self._linear(idx, 2**-8, .125)
 
     def draw(self):
         """draw samples based on detail calculated from weights
@@ -290,10 +300,11 @@ class Sampler(object):
             p = draw.get_detail(self.weights, daxes)
             if self.plotp:
                 self._plot_p(p)
+            # a cooling parameter towards deterministic sampling at final level
+            bound = self._linear(self.idx, .5, 0)
             # draw on pdf
-            # threshold is set to accurracy at final
-            threshold = (self.accuracy * 4**(self.idx - len(self.levels)))
-            pdraws = draw.from_pdf(p, threshold)
+            pdraws = draw.from_pdf(p, self.threshold(self.idx),
+                                   lb=1-bound, ub=1+bound)
         return pdraws
 
     def update_pdf(self, si, lum):

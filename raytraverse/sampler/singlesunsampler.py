@@ -44,7 +44,7 @@ class SingleSunSampler(Sampler):
                  rcopts='-ab 6 -ad 3000 -as 1500 -st 0 -ss 16 -aa .1',
                  keepamb=False, ambcache=True, **kwargs):
         #: float: controls sampling limit in case of limited contribution
-        self.slimit = suns.srct * .1
+        self.slimit = suns.srct * .5
         self.srct = suns.srct
         anorm = accuracy * (1 - np.cos(.533*np.pi/360))
         self.engine = renderer.Rtrace()
@@ -71,15 +71,14 @@ class SingleSunSampler(Sampler):
         self.sidx = sidx
         #: np.array: sun position x,y,z
         self.sunpos = suns.suns[sidx]
-        self.sbin = translate.uv2bin(translate.xyz2uv(self.sunpos[None, :],
-                                                      flipu=False),
-                                     self.scene.skyres).astype(int)[0]
-        # shape = np.concatenate((self.scene.area.ptshape, self.levels[0]))
-        # weights = self.pdf_from_sky(SCBinField(self.scene))
-        # self.weights = translate.resample(weights, shape)
+        # add some tolerance for suns near edge of bins:
+        uv = translate.xyz2uv(self.sunpos[None, :], flipu=False)
+        uvi = np.linspace(-.016667, .016667, 3)
+        uvs = np.stack(np.meshgrid(uvi, uvi)).reshape(2, 9).T + uv
+        self.sbin = np.unique(translate.uv2bin(uvs,
+                                               self.scene.skyres)).astype(int)
 
         # load new source
-
         self.engine.load_source(srcdef)
         os.remove(srcdef)
 
@@ -101,7 +100,7 @@ class SingleSunSampler(Sampler):
             idxs = np.reshape(np.atleast_3d(idxs) + strides, (-1, 1))
             np.savez(fi, idxs)
         column = skyfield.lum.full_array()
-        lum = column[idxs, self.sbin].reshape(ishape)
+        lum = np.max(column[idxs, self.sbin], -1).reshape(ishape)
         if filterpts:
             haspeak = np.max(lum, (2, 3)) > self.slimit
             lum = lum * haspeak[..., None, None]
@@ -136,17 +135,21 @@ class SingleSunSampler(Sampler):
         pdraws: np.array
             index array of flattened samples chosen to sample at next level
         """
+        pdraws = super().draw()
         if self.idx == self.specidx:
             skyfield = SCBinField(self.scene)
             shape = np.concatenate((self.scene.area.ptshape,
                                     self.levels[self.idx]))
             weights = self.pdf_from_sky(skyfield)
             p = translate.resample(weights, shape)
+            bound = self._linear(self.idx, .5, .01)
+            s = p.ravel()
+            s[pdraws] = 0
             if self.plotp:
-                self._plot_p(p)
-            pdraws = draw.from_pdf(p.ravel(), self.slimit)
-        else:
-            pdraws = super().draw()
+                self._plot_p(p, suffix="_specidx.hdr")
+            sdraws = draw.from_pdf(s, self.slimit,
+                                   lb=1 - bound, ub=1 + bound)
+            pdraws = np.concatenate((pdraws, sdraws))
         return pdraws
 
     def run_callback(self):

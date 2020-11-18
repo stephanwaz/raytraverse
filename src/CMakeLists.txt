@@ -197,6 +197,9 @@ target_link_libraries(oconv rtrad)
 add_executable(gendaylit Radiance/src/gen/gendaylit.c Radiance/src/gen/sun.c)
 target_link_libraries(gendaylit rtrad ${LIB_M})
 
+add_executable(gendaylitz csrc/gendaylit.c Radiance/src/gen/sun.c)
+target_link_libraries(gendaylit rtrad ${LIB_M})
+
 add_executable(xform Radiance/src/gen/xform.c)
 target_link_libraries(xform rtrad)
 

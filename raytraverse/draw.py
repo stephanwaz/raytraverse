@@ -37,8 +37,8 @@ def get_detail(samps, axes):
     return np.where(np.isfinite(d_det), d_det, m)
 
 
-def from_pdf(pdf, threshold):
-    candidates, bidx, nsampc = c_from_pdf(pdf, threshold)
+def from_pdf(pdf, threshold, lb=.5, ub=4):
+    candidates, bidx, nsampc = c_from_pdf(pdf, threshold, lb=lb, ub=ub)
     if nsampc == 0:
         return bidx
     # if normalization happens in c-func floating point precision does not

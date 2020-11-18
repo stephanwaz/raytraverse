@@ -88,7 +88,7 @@ class Scene(object):
             self.outdir = outdir
             self._logf = f"{self.outdir}/log.txt"
             print(f"logging to {self._logf}", file=sys.stderr)
-            self.log(self, "Initializing")
+            self.log(self, f"Initializing {outdir}")
             a = f'{self.outdir}/area.rad'
             if self.reload and os.path.isfile(a):
                 pass

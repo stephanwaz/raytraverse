@@ -33,7 +33,10 @@ class SCBinField(LightFieldKD):
         """create a summary image of lightfield for each vpt"""
         if srcidx is not None and type(srcidx) is not int:
             uv = translate.xyz2uv(np.asarray(srcidx)[None, :], flipu=False)
-            srcidx = translate.uv2bin(uv, self.scene.skyres).astype(int)[0]
+            uvi = np.linspace(-.016667, .016667, 3)
+            uvs = np.stack(np.meshgrid(uvi, uvi)).reshape(2, 9).T + uv
+            srcidx = np.unique(translate.uv2bin(uvs,
+                                                self.scene.skyres).astype(int))
         super().direct_view(res=res, showsample=showsample,
                             showweight=showweight, dpts=dpts, items=items,
                             srcidx=srcidx)

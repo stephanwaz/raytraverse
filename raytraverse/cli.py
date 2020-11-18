@@ -16,6 +16,7 @@ import numpy as np
 
 from clasp import click
 import clasp.click_ext as clk
+import clasp.script_tools as cst
 
 import raytraverse
 # this is so readthedocs can build without installing as these modules depend
@@ -150,7 +151,7 @@ def scene(ctx, **kwargs):
         print(f'\nScene {s.outdir}:', file=sys.stderr)
         print('='*60 + '\n', file=sys.stderr)
         print('Scene Geometry:', file=sys.stderr)
-        os.system(f'getinfo {s.scene}')
+        print(cst.pipeline([f'getinfo {s.scene}']), file=sys.stderr)
         print('Analysis Area:', file=sys.stderr)
         print('-'*60, file=sys.stderr)
         print(f'extents:\n{s.area.bbox}', file=sys.stderr)
@@ -246,7 +247,7 @@ def sky(ctx, plotdview=False, run=True, rmraw=True, overwrite=False,
     ctx.obj['initlf'].append(sk)
     if plotdview:
         sk.direct_view(showsample=showsample, showweight=showweight, dpts=dpts,
-                       srcidx=dviewpatch)
+                       srcidx=dviewpatch, res=1024)
 
 
 @main.command()
@@ -419,7 +420,7 @@ def sunrun(ctx, plotdview=False, run=True, rmraw=False, overwrite=False,
                 if len(items) >= 20:
                     items = None
                 su.direct_view(items=items, showsample=showsample,
-                               showweight=showweight, dpts=dpts)
+                               showweight=showweight, dpts=dpts, res=1024)
 
 
 @main.command()
@@ -641,7 +642,7 @@ def printconfig(ctx, returnvalue, **kwargs):
                   file=sys.stderr)
             for lf in ctx.obj['initlf']:
                 print(f"lightfield \"{lf.prefix}\" covers {lf.size['lfang']:.02f} "
-                      f"steradians with {lf.size['lfcnt']} rays")
+                      f"steradians with {lf.size['lfcnt']} rays", file=sys.stderr)
     except KeyError:
         pass
     try:
