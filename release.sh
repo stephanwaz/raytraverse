@@ -9,6 +9,7 @@ echo git commit ...
 
 printf "#######################################################\n\n"
 echo if you are giving an explicit version have you run bumpversion?
+echo REMOVE "dev" from version tag (find/replace)
 printf "#######################################################\n\n"
 echo -n "proceed to release (y/n)? "
 read -r answer

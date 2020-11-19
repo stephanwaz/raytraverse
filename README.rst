@@ -1,6 +1,6 @@
-===================
-raytraverse (1.0.4)
-===================
+======================
+raytraverse (1.1.0dev)
+======================
 
 .. image:: https://img.shields.io/pypi/v/raytraverse?style=flat-square
     :target: https://pypi.org/project/raytraverse
