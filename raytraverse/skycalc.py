@@ -503,7 +503,7 @@ def perez(sxyz, dirdif, md=None, ground_fac=0.2):
     tp = np.stack((perez_constants['theta'], perez_constants['phi'])).T
     dz = np.cos(tp[:, 0])
     normvals = perez_lum_raw(tp, dz, sunz, cperez)
-    normc = np.sum(normvals * dz, 1)*2*np.pi/144
+    normc = np.sum(normvals * dz, 1)*2*np.pi/145
     diffnorm = diffusei/normc/179
     # half_sun_angle = 0.2665
     solarrad = directi/(2*np.pi*(1 - np.cos(0.2665*np.pi/180)))/179

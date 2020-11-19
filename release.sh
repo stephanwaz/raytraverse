@@ -28,7 +28,9 @@ if [ "$answer" != "${answer#[Yy]}" ] ;then
             git merge release
             git push
             printf "\n#######################################################\n"
-            echo "check that remote builds are successful, then push tags"
+            printf "check that remote builds are successful, then push tags\n"
+            printf "if you want this version archived, make sure repository is\n"
+            printf "enabled: https://zenodo.org/account/settings/github/\n"
             printf "\n#######################################################\n"
         elif [[ $# == 1 && $1 == v*.*.* ]]; then
             git checkout release
@@ -42,7 +44,9 @@ if [ "$answer" != "${answer#[Yy]}" ] ;then
             git merge release
             git push
             printf "\n#######################################################\n"
-            echo "check that remote builds are successful, then push tags"
+            printf "check that remote builds are successful, then push tags\n"
+            printf "if you want this version archived, make sure repository is\n"
+            printf "enabled: https://zenodo.org/account/settings/github/\n"
             printf "\n#######################################################\n"
         else
             echo usage: ./release.sh "[patch/minor/major]"
