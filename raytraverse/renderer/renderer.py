@@ -44,4 +44,3 @@ class Renderer(object):
         cls.instance = None
         cls.initialized = False
         cls.header = ""
-

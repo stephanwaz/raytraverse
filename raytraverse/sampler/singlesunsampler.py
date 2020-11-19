@@ -9,7 +9,7 @@ import os
 
 import numpy as np
 
-from raytraverse import translate, draw, renderer
+from raytraverse import translate, draw
 from raytraverse.lightfield import SCBinField
 from raytraverse.sampler.sampler import Sampler
 
@@ -40,32 +40,23 @@ class SingleSunSampler(Sampler):
     """
 
     def __init__(self, scene, suns, sidx, speclevel=9,
-                 fdres=10, accuracy=1,
-                 rcopts='-ab 6 -ad 3000 -as 1500 -st 0 -ss 16 -aa .1',
+                 fdres=10, rcopts='-ab 6 -ad 3000 -as 1500 -st 0 -ss 16 -aa .1',
                  keepamb=False, ambcache=True, **kwargs):
         #: float: controls sampling limit in case of limited contribution
         self.slimit = suns.srct * .5
         self.srct = suns.srct
-        anorm = accuracy * (1 - np.cos(.533*np.pi/360))
-        self.engine = renderer.Rtrace()
-        engine_args = f"{rcopts} -oZ"
-        srcdef = f'{scene.outdir}/tmp_srcdef.rad'
-        f = open(srcdef, 'w')
-        f.write(suns.write_sun(sidx))
-        f.close()
-        if self.engine.Engine == "rtrace":
-            srcdefcomp = srcdef
-        else:
-            srcdefcomp = None
         # update ambient file and args before init
         self._keepamb = keepamb and ambcache
         if ambcache:
-            engine_args += f" -af {scene.outdir}/sun_{sidx:04d}.amb"
+            ambfile = f"{scene.outdir}/sun_{sidx:04d}.amb"
+        else:
+            ambfile = None
+        engine_args = scene.formatter.get_standard_args(rcopts, ambfile)
         super().__init__(scene, stype=f"sun_{sidx:04d}", fdres=fdres,
-                         accuracy=anorm, engine_args=engine_args,
-                         srcdef=srcdefcomp, **kwargs)
-
+                         engine_args=engine_args, **kwargs)
         # update parameters post init
+        # normalize accuracy for sun source
+        self.accuracy = self.accuracy * (1 - np.cos(.533*np.pi/360))
         #: int: index of level at which brightness sampling occurs
         self.specidx = speclevel - self.idres
         self.sidx = sidx
@@ -79,6 +70,10 @@ class SingleSunSampler(Sampler):
                                                self.scene.skyres)).astype(int)
 
         # load new source
+        srcdef = f'{scene.outdir}/tmp_srcdef.rad'
+        f = open(srcdef, 'w')
+        f.write(suns.write_sun(sidx))
+        f.close()
         self.engine.load_source(srcdef)
         os.remove(srcdef)
 

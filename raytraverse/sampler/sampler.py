@@ -7,12 +7,10 @@
 # =======================================================================
 import os
 import re
-import sys
 
 import numpy as np
 
-import clasp.script_tools as cst
-from raytraverse import translate, io, draw, quickplot
+from raytraverse import translate, io, draw, renderer
 
 
 class Sampler(object):
@@ -26,6 +24,8 @@ class Sampler(object):
     ----------
     scene: raytraverse.scene.Scene
         scene class containing geometry, location and analysis plane
+    engine: type, optional
+        should inherit from raytraverse.renderer.Renderer
     fdres: int, optional
         final directional resolution given as log2(res)
     srcn: int, optional
@@ -48,23 +48,15 @@ class Sampler(object):
     nproc: int, optional
         number of processors to give to the engine, if None, uses os.cpu_count()
     """
-    engine = None
 
-    def __init__(self, scene, fdres=9, srcn=1, accuracy=1.0, idres=4,
+    def __init__(self, scene, engine=renderer.Rtrace, fdres=9, srcn=1,
+                 accuracy=1.0, idres=4,
                  stype='generic', srcdef=None, plotp=False,
                  bands=1, engine_args="", nproc=None, **kwargs):
+        self.engine = engine()
         name = type(self).__name__
         self._staticscene = True
         scene.log(self, "Initializing")
-        if name == "Sampler":
-            raise NotImplementedError("Sampler base class should not be "
-                                      "instantiated directly")
-        elif not all(hasattr(self.engine, atr) for atr
-                     in ['initialize', 'call']):
-            raise NotImplementedError(f"Subclass {name} of Sampler is ill"
-                                      " defined, an engine attribute must"
-                                      " be set to a valid renderer class"
-                                      " before invoking Sampler.__init__")
         #: int: number of spectral bands / channels returned by renderer
         #: based on given renderopts (user ensures these agree).
         self.bands = bands
@@ -112,14 +104,8 @@ class Sampler(object):
             self._compiledscene = self.scene.scene
         else:
             self._compiledscene = f'{self.scene.outdir}/{self.stype}.oct'
-            if os.path.isfile(src):
-                ocom = f'oconv -f -i {self.scene.scene} {src}'
-                inp = None
-            else:
-                ocom = f'oconv -f -i {self.scene.scene} -'
-                inp = src
-            f = open(self.compiledscene, 'wb')
-            cst.pipeline([ocom], outfile=f, inp=inp, close=True)
+            self.scene.formatter.add_source(self.scene.scene, src,
+                                            self._compiledscene)
 
     @property
     def idx(self):

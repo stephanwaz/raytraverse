@@ -77,9 +77,8 @@ class SunSetterBase(object):
         s = self.suns[i]
         mod = f"solar{i:05d}"
         name = f"sun{i:05d}"
-        d = f"{s[0]} {s[1]} {s[2]}"
-        dec = f"void light {mod} 0 0 3 1 1 1\n"
-        dec += f"{mod} source {name} 0 0 4 {d} {self.srcsize}\n"
+        dec = self.scene.formatter.get_sundef(s, (1, 1, 1), self.srcsize, mod,
+                                              name)
         return dec
 
     def _write_suns(self, sunfile):
@@ -91,7 +90,7 @@ class SunSetterBase(object):
         """
         if self.suns.size > 0:
             f = open(sunfile, 'w')
-            print(f"# srct={self.srct}", file=f)
+            print(f"{self.scene.formatter.comment} srct={self.srct}", file=f)
             for i in range(self.suns.shape[0]):
                 dec = self.write_sun(i)
                 print(dec, file=f)

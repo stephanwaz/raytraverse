@@ -33,15 +33,15 @@ class SunViewSampler(Sampler):
         self.engine.load_source must be invoked before call.
     """
 
-    def __init__(self, scene, suns, srcdef=None, stype='sunview', checkviz=True,
-                 **kwargs):
+    def __init__(self, scene, suns, srcdef=None, stype='sunview',
+                 checkviz=True, **kwargs):
         self.suns = suns
-        self.engine = renderer.Rtrace()
         self._checkviz = checkviz
         if srcdef is None:
             srcdef = f"{scene.outdir}/suns.rad"
+        engine_args = scene.formatter.direct_args
         super().__init__(scene, stype=stype, idres=4, fdres=6,
-                         srcdef=None, engine_args='-oZ -ab 0', **kwargs)
+                         srcdef=None, engine_args=engine_args, **kwargs)
         self.engine.load_source(srcdef)
         self.samplemap = self.suns.map
 

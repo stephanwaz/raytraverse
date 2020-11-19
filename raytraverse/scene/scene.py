@@ -7,18 +7,14 @@
 # =======================================================================
 from datetime import datetime, timezone
 import os
-import re
 import shutil
 import sys
 
 import numpy as np
 import json
 
-from clasp import script_tools as cst
-from clasp.click_callbacks import parse_file_list
-
 from raytraverse.mapper import SpaceMapper, ViewMapper, SpaceMapperPt
-
+from raytraverse.formatter import RadianceFormatter
 
 class Scene(object):
     """container for scene description
@@ -55,12 +51,14 @@ class Scene(object):
         (used to clip pdf for sun sampling)
     frozen: bool, optional
         create a frozen octree
+    formatter: raytraverse.formatter.Formatter, optional
+        intended renderer format
     """
 
     def __init__(self, outdir, scene=None, area=None, reload=True,
                  overwrite=False, ptres=1.0, ptro=0.0, pttol=1.0,
                  viewdir=(0, 1, 0), viewangle=360, skyres=10.0, maxspec=0.3,
-                 frozen=True, **kwargs):
+                 frozen=True, formatter=RadianceFormatter, **kwargs):
         locvar = locals()
         try:
             os.mkdir(outdir)
@@ -78,18 +76,21 @@ class Scene(object):
                 params = json.load(jf)
             os.remove(js)
             print(f'Scene parameters loaded from {js}', file=sys.stderr)
+            params["formatter"] = formatter
             self.__init__(**params)
         else:
             locvar.pop('self')
             locvar.pop('kwargs')
+            locvar.pop('formatter')
             #: bool: try to reload scene files
             self.reload = reload
             #: str: path to store scene info and output files
             self.outdir = outdir
+            self.formatter = formatter()
             self._logf = f"{self.outdir}/log.txt"
             print(f"logging to {self._logf}", file=sys.stderr)
             self.log(self, f"Initializing {outdir}")
-            a = f'{self.outdir}/area.rad'
+            a = f'{self.outdir}/area.txt'
             if self.reload and os.path.isfile(a):
                 pass
             else:
@@ -152,33 +153,12 @@ class Scene(object):
         return self._scene
 
     @scene.setter
-    def scene(self, scene):
+    def scene(self, scene_files):
         o = f'{self.outdir}/scene.oct'
         if self.reload and os.path.isfile(o):
             pass
         else:
-            dims = cst.pipeline([f'getinfo -d {scene}', ])
-            try:
-                m = re.match(scene + r': [\d.-]+ [\d.-]+ [\d.-]+ [\d.-]+',
-                             dims.strip())
-            except TypeError:
-                raise ValueError(f'{scene} does not exist, Scene() must be '
-                                 'invoked with a scene= argument')
-            if not self._frozen and m:
-                o = scene
-            else:
-                if m:
-                    oconv = f'oconv -i {scene}'
-                else:
-                    scene = " ".join(parse_file_list(None, scene))
-                    if self._frozen:
-                        oconv = f'oconv -f {scene}'
-                    else:
-                        oconv = f'oconv {scene}'
-                result, err = cst.pipeline([oconv, ], outfile=o, close=True,
-                                           caperr=True, writemode='wb')
-                if b'fatal' in err:
-                    raise ChildProcessError(err.decode(cst.encoding))
+            o = self.formatter.make_scene(scene_files, o, frozen=self._frozen)
         self._scene = o
 
     def pts(self):
