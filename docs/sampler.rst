@@ -55,3 +55,12 @@ SkySampler
     :undoc-members:
     :show-inheritance:
     :private-members:
+
+ImageSampler
+--------------------------------
+
+.. autoclass:: raytraverse.sampler.ImageSampler
+    :members:
+    :undoc-members:
+    :show-inheritance:
+    :private-members:

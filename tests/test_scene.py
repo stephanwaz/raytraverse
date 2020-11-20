@@ -7,14 +7,8 @@ import shutil
 
 import pytest
 
-from raytraverse.mapper import SpaceMapperPt
 from raytraverse.scene import Scene, SkyInfo
-from raytraverse import quickplot
 import numpy as np
-from clipt import mplt
-
-
-
 
 @pytest.fixture(scope="module")
 def tmpdir(tmp_path_factory):

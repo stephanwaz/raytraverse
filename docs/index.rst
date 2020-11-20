@@ -16,12 +16,14 @@ API
 
    scene
    mapper
+   formatter
    renderer
 
    sampler
    lightfield
    integrator
    craytraverse
+
    draw
    io
    plot

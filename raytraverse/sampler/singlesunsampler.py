@@ -64,11 +64,11 @@ class SingleSunSampler(Sampler):
         self.sunpos = suns.suns[sidx]
         # add some tolerance for suns near edge of bins:
         uv = translate.xyz2uv(self.sunpos[None, :], flipu=False)
-        uvi = np.linspace(-.016667, .016667, 3)
+        tol = .125/self.scene.skyres
+        uvi = np.linspace(-tol, tol, 3)
         uvs = np.stack(np.meshgrid(uvi, uvi)).reshape(2, 9).T + uv
-        self.sbin = np.unique(translate.uv2bin(uvs,
-                                               self.scene.skyres)).astype(int)
-
+        sbin = np.unique(translate.uv2bin(uvs, self.scene.skyres)).astype(int)
+        self.sbin = sbin[sbin <= self.scene.skyres**2]
         # load new source
         srcdef = f'{scene.outdir}/tmp_srcdef.rad'
         f = open(srcdef, 'w')
@@ -103,21 +103,9 @@ class SingleSunSampler(Sampler):
             lum = np.where(lum > self.scene.maxspec, 0, lum)
         return lum
 
-    def sample(self, vecf):
-        """call rendering engine to sample sky contribution
-
-        Parameters
-        ----------
-        vecf: str
-            path of file name with sample vectors
-            shape (N, 6) vectors in binary float format
-
-        Returns
-        -------
-        lum: np.array
-            array of shape (N,) to update weights
-        """
-        return super().sample(vecf).ravel()
+    def sample(self, vecf, vecs):
+        """call rendering engine to sample sky contribution"""
+        return super().sample(vecf, vecs).ravel()
 
     # @profile
     def draw(self):

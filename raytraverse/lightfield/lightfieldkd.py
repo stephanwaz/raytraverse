@@ -236,15 +236,17 @@ class LightFieldKD(LightField):
         return arrout
 
     def _dview(self, vm, idx, pdirs, mask, res=512, showsample=True,
-               showweight=True, srcidx=None):
+               showweight=True, srcidx=None, interp=1):
         img = np.zeros((res*vm.aspect, res))
         if showweight:
             if srcidx is not None:
                 coefs = np.zeros(self.srcn)
                 coefs[srcidx] = 1
-                self.add_to_img(img, mask, idx, pdirs[mask], vm=vm, coefs=coefs)
+                self.add_to_img(img, mask, idx, pdirs[mask], vm=vm,
+                                interp=interp, coefs=coefs)
             else:
-                self.add_to_img(img, mask, idx, pdirs[mask], vm=vm)
+                self.add_to_img(img, mask, idx, pdirs[mask], vm=vm,
+                                interp=interp)
             channels = (1, 0, 0)
         else:
             channels = (1, 1, 1)
@@ -260,7 +262,7 @@ class LightFieldKD(LightField):
         return outf
 
     def direct_view(self, res=512, showsample=True, showweight=True,
-                    dpts=None, items=None, srcidx=None):
+                    dpts=None, items=None, srcidx=None, interp=1):
         """create a summary image of lightfield for each vpt"""
         if items is None:
             items = list(self.items())
@@ -286,6 +288,6 @@ class LightFieldKD(LightField):
         with ThreadPoolExecutor() as exc:
             for idx, vi in zip(items, vmi):
                 fu.append(exc.submit(self._dview, vm[vi], idx, pdirs, mask, res,
-                                     showsample, showweight, srcidx))
+                                     showsample, showweight, srcidx, interp))
             for f in as_completed(fu):
                 print(f.result(), file=sys.stderr)

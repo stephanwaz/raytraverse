@@ -12,9 +12,10 @@ from clasp import script_tools as cst
 from clasp.click_callbacks import parse_file_list
 
 from raytraverse import io
+from raytraverse.formatter.formatter import Formatter
 
 
-class RadianceFormatter(object):
+class RadianceFormatter(Formatter):
     """scene formatter readies scene files for simulation, must be compatible
     with desired renderer.
     """

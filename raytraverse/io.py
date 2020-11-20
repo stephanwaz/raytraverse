@@ -146,40 +146,6 @@ def unset_nproc():
         pass
 
 
-def call_sampler(outf, command, vecs, shape):
-    """make subprocess call to sampler given as command, expects rgb value
-    as return for each vec
-
-    Parameters
-    ----------
-    outf: str
-        path to write out to
-    command: str
-        command line with executable and options
-    vecs: np.array
-        vectors to pass as stdin to command
-    shape: tuple
-        shape of expected output
-
-    Returns
-    -------
-    lums: np.array
-        of length vectors.shape[0]
-
-    """
-    f = open(outf, 'a+b')
-    lum_file_pos = f.tell()
-    p = Popen(shlex.split(command), stdout=f, stdin=PIPE)
-    p.communicate(np2bytes(vecs))
-    lum = bytefile2rad(f, shape, subs='ijk,k->ij', offset=lum_file_pos)
-    return lum
-
-
-def bytefile2rad(f, shape, slc=..., subs='ijk,k->ij', offset=0):
-    memarray = np.memmap(f, dtype='<f', mode='r', shape=shape, offset=offset)
-    return np.einsum(subs, memarray[slc], [0.265, 0.670, 0.065])
-
-
 def np2bytes(ar, dtype='<f'):
     """format ar as bytestring
 

@@ -139,9 +139,11 @@ class ViewMapper(object):
         else:
             return self.pixel2ray(pxy, res, i)
 
-    def ray2pixel(self, xyz, res, i=0):
+    def ray2pixel(self, xyz, res, i=0, integer=True):
         xy = self.xyz2xy(xyz, i)
-        pxy = np.floor((xy/2 + .5) * res).astype(int)
+        pxy = (xy/2 + .5) * res
+        if integer:
+            pxy = np.floor(pxy).astype(int)
         pxy[:, 0] = res - 1 - pxy[:, 0]
         return pxy
 

@@ -16,10 +16,6 @@ from raytraverse import translate, io, draw, renderer
 class Sampler(object):
     """base sampling class
 
-    To implement a proper-subclass an engine attribute must be set to a
-    renderer instance prior to calling Sampler.__init__. Also, the method
-    sample must be overriden to properly set up arguments for the renderer.call
-
     Parameters
     ----------
     scene: raytraverse.scene.Scene
@@ -152,8 +148,21 @@ class Sampler(object):
         """Set this sampler's scene and create sky octree"""
         self._scene = scene
 
-    def sample(self, vecf):
+    def sample(self, vecf, vecs):
         """generic sample function
+
+        Parameters
+        ----------
+        vecf: str
+            path of file name with sample vectors
+            shape (N, 6) vectors in binary float format
+        vecs: np.array
+            sample vectors (subclasses can choose which to use)
+
+        Returns
+        -------
+        lum: np.array
+            array of shape (N,) to update weights
         """
         outf = f'{self.scene.outdir}/{self.stype}_vals.out'
         f = open(outf, 'a+b')
@@ -374,7 +383,7 @@ class Sampler(object):
                        str(si.shape[1]), f"{srate:.02%}", f'{fsize:.03f}']
                 self.scene.log(self, '\t'.join(row))
                 vecf = self.dump_vecs(vecs, si)
-                lum = self.sample(vecf)
+                lum = self.sample(vecf, vecs)
                 self.update_pdf(si, lum)
                 a = lum.shape[0]
                 allc += a

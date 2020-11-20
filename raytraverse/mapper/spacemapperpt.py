@@ -36,6 +36,8 @@ class SpaceMapperPt(SpaceMapper):
             self._pts = np.loadtxt(plane)[:, 0:3]
         except IndexError:
             self._pts = np.loadtxt(plane)[0:3].reshape(1, 3)
+        except TypeError:
+            self._pts = plane.reshape(1, 3)
         self._bbox = np.stack((np.min(self._pts, 0) - self.tolerance,
                                np.max(self._pts, 0) - self.tolerance))
         self._sf = len(self._pts)

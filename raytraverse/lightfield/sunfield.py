@@ -108,9 +108,9 @@ class SunField(LightFieldKD):
         return rays, omega, lum
 
     def direct_view(self, res=512, showsample=True, showweight=True,
-                    dpts=None, items=None, srcidx=None):
+                    dpts=None, items=None, srcidx=None, interp=1):
         """create a summary image of lightfield for each vpt"""
-        super().direct_view(res=res, showsample=showsample,
+        super().direct_view(res=res, showsample=showsample, interp=interp,
                             showweight=showweight, dpts=dpts, items=items)
         if items is not None:
             return None

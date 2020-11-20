@@ -33,19 +33,7 @@ class SCBinSampler(Sampler):
         super().__init__(scene, srcn=srcn, stype='sky',  srcdef=skydeg,
                          engine=engine, engine_args=engine_args, **kwargs)
 
-    def sample(self, vecf):
-        """call rendering engine to sample sky contribution
-
-        Parameters
-        ----------
-        vecf: str
-            path of file name with sample vectors
-            shape (N, 6) vectors in binary float format
-
-        Returns
-        -------
-        lum: np.array
-            array of shape (N,) to update weights
-        """
-        lum = super().sample(vecf)
+    def sample(self, vecf, vecs):
+        """call rendering engine to sample sky contribution"""
+        lum = super().sample(vecf, vecs)
         return np.max(lum[:, :self.srcn-1], 1)

@@ -24,7 +24,7 @@ class LightField(object):
     """
 
     def __init__(self, scene, rebuild=False, prefix='sky', srcn=1, rmraw=False,
-                 fvrays=0):
+                 fvrays=0, calcomega=True):
         scene.log(self, f"Initializing prefix: {prefix}")
         self._fvrays = fvrays
         #: bool: force rebuild kd-tree
@@ -37,6 +37,7 @@ class LightField(object):
         self._omega = None
         self._rmraw = rmraw
         self.scene = scene
+        self.calcomega = calcomega
         self._rawfiles = self.raw_files()
         scene.log(self, f"Initialized prefix: {prefix}")
 

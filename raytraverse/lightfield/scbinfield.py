@@ -29,7 +29,7 @@ class SCBinField(LightFieldKD):
         return np.einsum('ij,kj->ik', c, self.lum[pi])
 
     def direct_view(self, res=512, showsample=True, showweight=True,
-                    dpts=None, items=None, srcidx=None):
+                    interp=1, dpts=None, items=None, srcidx=None):
         """create a summary image of lightfield for each vpt"""
         if srcidx is not None and type(srcidx) is not int:
             uv = translate.xyz2uv(np.asarray(srcidx)[None, :], flipu=False)
@@ -39,4 +39,4 @@ class SCBinField(LightFieldKD):
                                                 self.scene.skyres).astype(int))
         super().direct_view(res=res, showsample=showsample,
                             showweight=showweight, dpts=dpts, items=items,
-                            srcidx=srcidx)
+                            srcidx=srcidx, interp=interp)

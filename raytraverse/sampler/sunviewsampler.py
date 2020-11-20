@@ -71,21 +71,9 @@ class SunViewSampler(Sampler):
                                isviz.shape + (self.weights.shape[-2:]))
         return suns
 
-    def sample(self, vecf):
-        """call rendering engine to sample direct view rays
-
-        Parameters
-        ----------
-        vecf: str
-            path of file name with sample vectors
-            shape (N, 6) vectors in binary float format
-
-        Returns
-        -------
-        lum: np.array
-            array of shape (N,) to update weights
-        """
-        return super().sample(vecf).ravel()
+    def sample(self, vecf, vecs):
+        """call rendering engine to sample direct view rays"""
+        return super().sample(vecf, vecs).ravel()
 
     def _uv2xyz(self, uv, si):
         return self.samplemap.uv2xyz(uv, si[2])

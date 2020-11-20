@@ -6,10 +6,3 @@ raytraverse.plot
     :undoc-members:
     :show-inheritance:
 
-raytraverse.quickplot
-==========================================================
-
-.. automodule:: raytraverse.quickplot
-    :members:
-    :undoc-members:
-    :show-inheritance:

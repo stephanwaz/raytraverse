@@ -63,3 +63,12 @@ SPRcontrib
     :undoc-members:
     :show-inheritance:
     :private-members:
+
+ImageRenderer
+--------------------------------
+
+.. autoclass:: raytraverse.renderer.ImageRenderer
+    :members:
+    :undoc-members:
+    :show-inheritance:
+    :private-members:

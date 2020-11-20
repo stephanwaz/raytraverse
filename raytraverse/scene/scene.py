@@ -13,10 +13,12 @@ import sys
 import numpy as np
 import json
 
-from raytraverse.mapper import SpaceMapper, ViewMapper, SpaceMapperPt
+from raytraverse.scene.basescene import BaseScene
+from raytraverse.mapper import SpaceMapper, SpaceMapperPt
 from raytraverse.formatter import RadianceFormatter
 
-class Scene(object):
+
+class Scene(BaseScene):
     """container for scene description
 
     Parameters
@@ -40,7 +42,7 @@ class Scene(object):
         angle in degrees counter-clockwise to point grid
     pttol: float, optional
         tolerance for point search when using point list for area
-    viewdir: (float, float, float), optional
+    viewdir: tuple, optional
         vector (x,y,z) view direction (orients UV space)
     viewangle: float, optional
         should be 1-180 or 360
@@ -79,19 +81,15 @@ class Scene(object):
             params["formatter"] = formatter
             self.__init__(**params)
         else:
+            super().__init__(outdir, scene=scene, viewdir=viewdir,
+                             viewangle=viewangle, frozen=frozen,
+                             formatter=formatter, reload=reload)
             locvar.pop('self')
             locvar.pop('kwargs')
             locvar.pop('formatter')
-            #: bool: try to reload scene files
-            self.reload = reload
-            #: str: path to store scene info and output files
-            self.outdir = outdir
-            self.formatter = formatter()
-            self._logf = f"{self.outdir}/log.txt"
-            print(f"logging to {self._logf}", file=sys.stderr)
-            self.log(self, f"Initializing {outdir}")
+            locvar.pop('__class__')
             a = f'{self.outdir}/area.txt'
-            if self.reload and os.path.isfile(a):
+            if reload and os.path.isfile(a):
                 pass
             else:
                 try:
@@ -110,12 +108,6 @@ class Scene(object):
                 self.area = SpaceMapperPt(a, ptres, ptro, pttol)
             #: float: maximum specular transmission in scene
             self.maxspec = maxspec
-            self._solarbounds = None
-            self._frozen = frozen
-            self.scene = scene
-            self.reload = False
-            #: raytraverse.viewmapper.ViewMapper: view translation class
-            self.view = ViewMapper(viewdir, viewangle)
             if skyres < .7:
                 print('Warning! minimum sunres is .7 to avoid overlap and',
                       file=sys.stderr)
@@ -123,16 +115,9 @@ class Scene(object):
                       file=sys.stderr)
                 skyres = .7
             self.skyres = skyres
-            self.pt_kd = None
             locvar['scene'] = self.scene
             with open(js, 'w') as jf:
                 json.dump(locvar, jf)
-
-    def __del__(self):
-        try:
-            self.log(self, "Closed")
-        except FileNotFoundError:
-            pass
 
     @property
     def skyres(self):
@@ -142,30 +127,6 @@ class Scene(object):
     def skyres(self, s):
         self._skyres = int(np.floor(90/s)*2)
 
-    @property
-    def scene(self):
-        """render scene files (octree)
-
-        :getter: Returns this samplers's scene file path
-        :setter: Sets this samplers's scene file path and creates run files
-        :type: str
-        """
-        return self._scene
-
-    @scene.setter
-    def scene(self, scene_files):
-        o = f'{self.outdir}/scene.oct'
-        if self.reload and os.path.isfile(o):
-            pass
-        else:
-            o = self.formatter.make_scene(scene_files, o, frozen=self._frozen)
-        self._scene = o
-
     def pts(self):
         return self.area.pts()
 
-    def log(self, instance, message):
-        f = open(self._logf, 'a')
-        ts = datetime.now(tz=timezone.utc).strftime("%d-%b-%Y %H:%M:%S")
-        print(f"{ts}\t{type(instance).__name__}\t{message}", file=f)
-        f.close()
