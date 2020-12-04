@@ -215,7 +215,10 @@ def array2hdr(ar, imgf, header=None):
     -------
 
     """
-    f = open(imgf, 'wb')
+    if imgf is None:
+        f = sys.stdout.buffer
+    else:
+        f = open(imgf, 'wb')
     pval = f'pvalue -r -b -h -H -df -o -y {ar.shape[1]} +x {ar.shape[0]}'
     if header is not None:
         hdr = "' '".join(header)
@@ -256,7 +259,10 @@ def carray2hdr(ar, imgf, header=None):
     -------
 
     """
-    f = open(imgf, 'wb')
+    if imgf is None:
+        f = sys.stdout.buffer
+    else:
+        f = open(imgf, 'wb')
     pval = f'pvalue -r -h -H -df -o -y {ar.shape[-1]} +x {ar.shape[-2]}'
     if header is not None:
         hdr = "' '".join(header)

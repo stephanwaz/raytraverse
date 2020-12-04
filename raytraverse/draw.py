@@ -10,15 +10,17 @@
 import numpy as np
 import pywt
 from raytraverse.craytraverse import from_pdf as c_from_pdf
+from scipy.ndimage import correlate
 
 
 def get_detail(samps, axes):
     """run high pass filter over given axes"""
 
     # filterbank with pad and offset slice centers distribution around variance
-    fb = np.sqrt(2) * np.array([[.5, 1, .5, 0], [-.5, 1, -.5, 0],
-                                  [0, .5, 1, .5], [0, -.5, 1, -.5,]])
+    fb = np.sqrt(2) * np.array([[.5, 1, .5], [-.5, 1, -.5],
+                                  [.5, 1, .5], [-.5, 1, -.5,]])
     wav = pywt.Wavelet('custom4', fb)
+    # wav = "haar"
     # mod adds extra padding to ensure evenness of transformed dimensions
     padding = [(2, 2 + int(np.mod(s, 2))) if i in axes else (0, 0) for i, s in
                enumerate(samps.shape)]
@@ -37,8 +39,43 @@ def get_detail(samps, axes):
     return np.where(np.isfinite(d_det), d_det, m)
 
 
+def get_detail_filter(samps, f1=None, f2=None):
+    d_det = []
+    if f1 is None:
+        # # four corners
+        # f1 = np.array([[1, 0, -1], [0, 0, 0], [-1, 0, 1]])
+        # f2 = np.array([[0, -1, 0], [1, 0, 1], [0, -1, 0]])
+        # # sobel 3,10
+        # f1 = np.array([[3, 10, 3], [0, 0, 0], [-3, -10, -3]])/16
+        # f2 = f1.T
+        # # sobel 47,162
+        # f1 = np.array([[47, 162, 47], [0, 0, 0], [-47, -162, -47]])/261
+        # f2 = f1.T
+        # sobel operator
+        # f1 = np.array([[1, 2, 1], [0, 0, 0], [-1, -2, -1]]) / 4
+        # f2 = f1.T
+        # prewitt operator
+        f1 = np.array([[1, 1, 1], [0, 0, 0], [-1, -1, -1]])/3
+        f2 = f1.T
+    s = samps.reshape(-1, *samps.shape[-2:])
+    for d in s:
+        ds = (np.abs(correlate(d, f1)) + np.abs(correlate(d, f2)))
+        if f1.shape[0] == 2:
+            ds[:-1, :-1] += ds[1:, 1:]
+        # if relative:
+        #     dg = gaussian_filter(ds, 5)
+        #     ds = ds / gaussian_filter(ds, 5)
+        #     ds[dg < .2] = 0
+        d_det.append(ds.ravel())
+    return np.concatenate(d_det)
+
+
 def from_pdf(pdf, threshold, lb=.5, ub=4):
-    candidates, bidx, nsampc = c_from_pdf(pdf, threshold, lb=lb, ub=ub)
+    # bypass random sampling
+    if ub <= 1:
+        return np.argwhere(pdf > threshold).ravel()
+    pdf[pdf > ub*threshold] = ub*threshold
+    candidates, bidx, nsampc = c_from_pdf(pdf, threshold, lb=lb, ub=ub+1)
     if nsampc == 0:
         return bidx
     # if normalization happens in c-func floating point precision does not

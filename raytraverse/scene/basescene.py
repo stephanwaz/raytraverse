@@ -34,15 +34,16 @@ class BaseScene(object):
     scene_ext = "oct"
 
     def __init__(self, outdir, scene=None, viewdir=(0, 1, 0), viewangle=360,
-                 frozen=True, formatter=Formatter, reload=True):
+                 frozen=True, formatter=Formatter, reload=True, log=True):
         self.outdir = outdir
         try:
             os.mkdir(outdir)
         except FileExistsError as e:
             pass
         self._logf = f"{self.outdir}/log.txt"
-        print(f"logging to {self._logf}", file=sys.stderr)
-        self.log(self, f"Initializing {outdir}")
+        self._dolog = log
+        if log:
+            self.log(self, f"Initializing {outdir}")
         self.formatter = formatter
         self._frozen = frozen
         self.reload = reload
@@ -77,7 +78,15 @@ class BaseScene(object):
         self._scene = o
 
     def log(self, instance, message):
-        f = open(self._logf, 'a')
-        ts = datetime.now(tz=timezone.utc).strftime("%d-%b-%Y %H:%M:%S")
-        print(f"{ts}\t{type(instance).__name__}\t{message}", file=f)
-        f.close()
+        if self._dolog:
+            try:
+                f = open(self._logf, 'a')
+            except TypeError:
+                f = sys.stderr
+                needsclose = False
+            else:
+                needsclose = True
+            ts = datetime.now(tz=timezone.utc).strftime("%d-%b-%Y %H:%M:%S")
+            print(f"{ts}\t{type(instance).__name__}\t{message}", file=f)
+            if needsclose:
+                f.close()

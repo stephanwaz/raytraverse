@@ -19,7 +19,7 @@ class SPRenderer(Renderer):
     filter_bad_args = [(r"-Z\S*", ""), (r"-oZ", '-ov')]
 
     @classmethod
-    def initialize(cls, args, scene, nproc=None, iot="ff"):
+    def initialize(cls, args, scene, nproc=None, iot="ff", **kwargs):
         super().initialize(args, scene)
         if nproc is None:
             nproc = os.cpu_count()

@@ -83,6 +83,7 @@ class LightField(object):
     @property
     @functools.lru_cache(1)
     def size(self):
-        lfang = len(list(self.omega.keys())) * 4 * np.pi
+        lfang = (len(list(self.omega.keys())) * 2 * np.pi *
+                 self.scene.view.aspect)
         lfcnt = np.sum([v.size for v in self.omega.values()])
         return dict(lfcnt=lfcnt, lfang=lfang)

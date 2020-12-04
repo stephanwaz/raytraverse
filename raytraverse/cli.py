@@ -482,7 +482,7 @@ def onesky(ctx, skydef=None, skyname=None, plotdview=False, run=True,
                 su.view.direct_view()
 
 
-allmetrics = ["illum", "avglum", "lum2", "ugr", "dgp", "tasklum",
+allmetrics = ["illum", "avglum", "gcr", "ugr", "dgp", "tasklum",
               "backlum", "dgp_t1", "dgp_t2", "threshold", "pwsl2",
               "view_area", "density", "reldensity", "lumcenter"]
 
@@ -544,7 +544,7 @@ allmetrics = ["illum", "avglum", "lum2", "ugr", "dgp", "tasklum",
 @click.option('--metric/--no-metric', default=True,
               help="calculate metrics for each point and wea file output"
                    " is ordered by point than sky")
-@click.option('-metricset', default="illum avglum lum2 dgp ugr",
+@click.option('-metricset', default="illum avglum gcr dgp ugr",
               callback=clk.split_str,
               help='which metrics to return items must be in: '
                    f'{", ".join(allmetrics)}')

@@ -28,7 +28,7 @@ class RadianceRenderer(Renderer):
         cls.instance.initialize(cls.initialized)
 
     @classmethod
-    def initialize(cls, args, scene, nproc=None, iot="ff"):
+    def initialize(cls, args, scene, nproc=None, iot="ff", **kwargs):
         if cls.instance is None:
             cls.instance = cls.Engine.get_instance()
         if args is not None:

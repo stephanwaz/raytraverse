@@ -5,6 +5,8 @@
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 # =======================================================================
+import sys
+
 import numpy as np
 
 from raytraverse.mapper import SpaceMapperPt
@@ -24,7 +26,10 @@ class ImageScene(BaseScene):
     """
     scene_ext = "hdr"
 
-    def __init__(self, outdir, scene=None, reload=True):
-        super().__init__(outdir, scene=scene, viewdir=(0, 1, 0), viewangle=180,
-                         frozen=True, formatter=ImageFormatter, reload=reload)
+    def __init__(self, outdir, scene=None, reload=True, log=False):
+        super().__init__(outdir, scene=scene, viewdir=(0, 1, 0), viewangle=360,
+                         frozen=True, formatter=ImageFormatter, reload=reload,
+                         log=log)
         self.area = SpaceMapperPt(np.array((0, 0, 0)))
+        self._logf = None
+

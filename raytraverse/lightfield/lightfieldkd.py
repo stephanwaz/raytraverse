@@ -10,7 +10,6 @@ import pickle
 import sys
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from concurrent.futures import ProcessPoolExecutor
-from scipy.stats import norm
 from scipy.spatial import cKDTree, SphericalVoronoi, _voronoi
 
 import numpy as np
@@ -27,20 +26,17 @@ class LightFieldKD(LightField):
 
     @staticmethod
     def mk_vector_ball(v):
-
-        class SVoronoi(SphericalVoronoi):
-            """this is a temporary fix for an apperent bug in
-            SphericalVoronoi"""
-            def sort_vertices_of_regions(self):
-                if self._dim != 3:
-                    raise TypeError(
-                        "Only supported for three-dimensional point sets")
-                reg = [r for r in self.regions if len(r) > 0]
-                _voronoi.sort_vertices_of_regions(self._simplices, reg)
-
         d_kd = cKDTree(v)
-        omega = SVoronoi(v).calculate_areas()[:, None]
-        return d_kd, omega * (np.pi * 4/np.sum(omega))
+        try:
+            omega = SphericalVoronoi(v).calculate_areas()[:, None]
+        except ValueError:
+            pairs = d_kd.query_pairs(1e-5, output_type='ndarray')
+            filts = np.logical_not(np.in1d(np.arange(len(v)), pairs[:, 1]))
+            omega_temp = SphericalVoronoi(v[filts]).calculate_areas()
+            omega = np.zeros(v.shape[0])
+            omega[filts] = omega_temp
+            omega = omega[:, None]
+        return d_kd, omega
 
     @property
     def d_kd(self):
@@ -161,8 +157,11 @@ class LightFieldKD(LightField):
         return np.einsum('ij,kj->ik', c, self.lum[pi])
 
     def add_to_img(self, img, mask, pi, vecs, coefs=1, vm=None, interp=1,
-                   **kwargs):
-        if interp > 1:
+                   omega=False, **kwargs):
+        if omega:
+            i, d = self.query_ray(pi, vecs)
+            lum = self.omega[pi][i]
+        elif interp > 1:
             arrout = self.interpolate_query(pi, vecs, k=interp, **kwargs)
             if np.asarray(coefs).size == 1:
                 lum = arrout * coefs
@@ -236,33 +235,39 @@ class LightFieldKD(LightField):
         return arrout
 
     def _dview(self, vm, idx, pdirs, mask, res=512, showsample=True,
-               showweight=True, srcidx=None, interp=1):
+               showweight=True, srcidx=None, interp=1, omega=False):
         img = np.zeros((res*vm.aspect, res))
         if showweight:
             if srcidx is not None:
                 coefs = np.zeros(self.srcn)
                 coefs[srcidx] = 1
                 self.add_to_img(img, mask, idx, pdirs[mask], vm=vm,
-                                interp=interp, coefs=coefs)
+                                interp=interp, coefs=coefs, omega=omega)
             else:
                 self.add_to_img(img, mask, idx, pdirs[mask], vm=vm,
-                                interp=interp)
+                                interp=interp, omega=omega)
             channels = (1, 0, 0)
         else:
             channels = (1, 1, 1)
         outf = f"{self.outfile(idx)}.hdr"
+        try:
+            pt = self.scene.area.pts()[idx]
+        except TypeError:
+            pt = self.scene.area.pts()[idx[0]]
+        vstr = ('VIEW= -vta -vv {0} -vh {0} -vd {1} {2} {3}'
+                ' -vp {4} {5} {6}'.format(vm.viewangle, *vm.dxyz[0], *pt))
         if showsample:
             img = np.repeat(img[None, ...], 3, 0)
             vi = self.query_ball(idx, vm.dxyz, vm.viewangle)
             v = self.vec[idx][vi[0]]
             img = io.add_vecs_to_img(vm, img, v, channels=channels)
-            io.carray2hdr(img, outf)
+            io.carray2hdr(img, outf, [vstr])
         else:
-            io.array2hdr(img, outf)
+            io.array2hdr(img, outf, [vstr])
         return outf
 
     def direct_view(self, res=512, showsample=True, showweight=True,
-                    dpts=None, items=None, srcidx=None, interp=1):
+                    dpts=None, items=None, srcidx=None, interp=1, omega=False):
         """create a summary image of lightfield for each vpt"""
         if items is None:
             items = list(self.items())
@@ -288,6 +293,7 @@ class LightFieldKD(LightField):
         with ThreadPoolExecutor() as exc:
             for idx, vi in zip(items, vmi):
                 fu.append(exc.submit(self._dview, vm[vi], idx, pdirs, mask, res,
-                                     showsample, showweight, srcidx, interp))
+                                     showsample, showweight, srcidx, interp,
+                                     omega))
             for f in as_completed(fu):
                 print(f.result(), file=sys.stderr)

@@ -53,11 +53,11 @@ class MetricSet(object):
     """
 
     #: available metrics (and the default return set)
-    defaultmetrics = ["illum", "avglum", "lum2", "ugr", "dgp"]
+    defaultmetrics = ["illum", "avglum", "gcr", "ugr", "dgp"]
 
     allmetrics = defaultmetrics + ["tasklum", "backlum", "dgp_t1", "dgp_t2",
                                    "threshold", "pwsl2", "view_area", "density",
-                                   "reldensity", "lumcenter"]
+                                   "reldensity", "lumcenter", "avgraylum"]
 
     def __init__(self, vm, vec, omega, lum, metricset=None, scale=179.,
                  threshold=2000., guth=True, tradius=30.0, **kwargs):
@@ -76,7 +76,8 @@ class MetricSet(object):
         self.kwargs = kwargs
         for m in self.metrics:
             if m not in MetricSet.allmetrics:
-                raise AttributeError(f"'{m}' is not defined in MetricSet")
+                raise AttributeError(f"'{m}' is not defined in MetricSet: "
+                                     f"{self.allmetrics}")
 
     def __call__(self):
         """
@@ -235,7 +236,13 @@ class MetricSet(object):
 
     @property
     @functools.lru_cache(1)
-    def lum2(self):
+    def avgraylum(self):
+        """average luminance (not weighted by omega"""
+        return np.average(self.lum) * self.scale
+
+    @property
+    @functools.lru_cache(1)
+    def gcr(self):
         """a unitless measure of relative contrast defined as the average of
         the squared luminances divided by the average luminance squared"""
         a2lum = (np.einsum('i,i,i->', self.lum, self.lum, self.omega) *

@@ -14,26 +14,44 @@ from raytraverse.mapper import ViewMapper
 from raytraverse.renderer.renderer import Renderer
 
 
-class ImageRenderer(Renderer):
+class ImageRenderer(object):
     """interface to treat image data as the source for ray tracing results"""
 
-    vm = ViewMapper(viewangle=180)
-    name = "ImageRenderer"
+    def __init__(self):
+        self.name = "ImageRenderer"
+        self.initialized = False
+        self.instance = None
+        self.Engine = None
+        self.scene = None
+        self.header = ""
+        self.arg_prefix = ''
+        self.vm = ViewMapper(viewangle=360)
+
+    def initialize(self, args, scene, viewmapper=None, method="linear",
+                   **kwargs):
+        if viewmapper is not None:
+            self.vm = viewmapper
+        self.scene = io.hdr2array(scene)
+        res = self.scene.shape[0]
+        of = 1/res
+        x = np.linspace(-1+of, 1-of, res)
+        fv = np.median(np.concatenate((self.scene[0], self.scene[-1],
+                                       self.scene[:,0], self.scene[:,-1])))
+        self.instance = RegularGridInterpolator((x, x),
+                                                self.scene[:, -1::-1].T,
+                                                bounds_error=False,
+                                                method=method,
+                                                fill_value=fv)
+        self.initialized = True
+
+    def call(self, rays, store=True, outf=None):
+        pxy = self.vm.xyz2xy(rays[:, 3:6])
+        return self.instance(pxy)
 
     @classmethod
-    def initialize(cls, args, scene, nproc=None, viewmapper=None, **kwargs):
-        if not cls.initialized:
-            if viewmapper is not None:
-                cls.vm = viewmapper
-            cls.scene = scene
-            cls.scene = io.hdr2array(scene).T
-            x = np.arange(cls.scene.shape[0]) + .5
-            cls.instance = RegularGridInterpolator((x, x), cls.scene,
-                                                   bounds_error=False)
-        cls.initialized = True
+    def reset(cls):
+        pass
 
     @classmethod
-    def call(cls, rays, store=True, outf=None):
-        pxy = cls.vm.ray2pixel(rays[:, 3:6], cls.scene.shape[0], integer=False)
-        return cls.instance(pxy)
-
+    def reset_instance(cls):
+        pass

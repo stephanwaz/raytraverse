@@ -50,7 +50,6 @@ class Sampler(object):
                  stype='generic', srcdef=None, plotp=False,
                  bands=1, engine_args="", nproc=None, **kwargs):
         self.engine = engine()
-        name = type(self).__name__
         self._staticscene = True
         scene.log(self, "Initializing")
         #: int: number of spectral bands / channels returned by renderer
@@ -75,7 +74,7 @@ class Sampler(object):
         self.stype = stype
         self.compiledscene = srcdef
         self.engine.initialize(engine_args, self.compiledscene, nproc=nproc,
-                               iot="ff")
+                               iot="ff", **kwargs)
         self.plotp = plotp
         self.levelsamples = np.ones(self.levels.shape[0])
         # track vector files written for concatenation / cleanup after run
@@ -176,6 +175,16 @@ class Sampler(object):
         """including to allow overriding mapping bevahior of daughter classes"""
         return self.samplemap.uv2xyz(uv)
 
+    def _offset(self, shape):
+        """for modifying jitter behavior of UV direction samples
+
+        Parameters
+        ----------
+        shape: tuple
+            shape of samples to jitter/offset
+        """
+        return np.random.default_rng().random(shape)/self.levels[self.idx][-1]
+
     def sample_idx(self, pdraws):
         """generate samples vectors from flat draw indices
 
@@ -197,8 +206,7 @@ class Sampler(object):
         # convert to UV directions and positions
         uv = si.T[:, -2:]/shape[3]
         pos = self.scene.area.uv2pt((si.T[:, 0:2] + .5)/shape[0:2])
-        uv += (np.random.default_rng().random(uv.shape))/shape[3]
-        # mplt.quick_scatter([uv[:, 0]], [uv[:, 1]], ms=3, lw=0)
+        uv += self._offset(uv.shape)
         if pos.size == 0:
             xyz = pos
         else:
@@ -231,26 +239,39 @@ class Sampler(object):
         self._vecfiles.append((outif, outf))
         return outf
 
-    def _plot_p(self, p, suffix=".hdr"):
+    def _plot_p(self, p, suffix=".hdr", fisheye=True):
         ps = p.reshape(self.weights.shape)
         outshape = (1024, 512)
         res = outshape[-1]
-        pixelxyz = self.samplemap.pixelrays(res)
-        uv = self.samplemap.xyz2uv(pixelxyz.reshape(-1, 3))
-        pdirs = np.concatenate((pixelxyz[0:res], -pixelxyz[res:]), 0)
-        mask = self.samplemap.in_view(pdirs, indices=False).reshape(outshape)
-        for i, ws in enumerate(self.weights):
-            for j, w in enumerate(ws):
-                ij = translate.uv2ij(uv, w.shape[-1])
-                ptidx = np.ravel_multi_index((i, j), self.scene.area.ptshape)
-                outw = (f"{self.scene.outdir}_{self.stype}_weights_"
-                        f"{ptidx:04d}_{self.idx+1:02d}{suffix}")
-                outp = (f"{self.scene.outdir}_{self.stype}_detail_"
-                        f"{ptidx:04d}_{self.idx+1:02d}{suffix}")
-                img = w[ij[:, 0], ij[:, 1]].reshape(outshape)
-                io.array2hdr(np.where(mask, img, 0), outw)
-                img = ps[i, j][ij[:, 0], ij[:, 1]].reshape(outshape)
-                io.array2hdr(np.where(mask, img, 0), outp)
+        if fisheye:
+            pixelxyz = self.samplemap.pixelrays(res)
+            uv = self.samplemap.xyz2uv(pixelxyz.reshape(-1, 3))
+            pdirs = np.concatenate((pixelxyz[0:res], -pixelxyz[res:]), 0)
+            mask = self.samplemap.in_view(pdirs, indices=False).reshape(outshape)
+            for i, ws in enumerate(self.weights):
+                for j, w in enumerate(ws):
+                    ij = translate.uv2ij(uv, w.shape[-1])
+                    ptidx = np.ravel_multi_index((i, j), self.scene.area.ptshape)
+                    outw = (f"{self.scene.outdir}_{self.stype}_weights_"
+                            f"{ptidx:04d}_{self.idx+1:02d}{suffix}")
+                    outp = (f"{self.scene.outdir}_{self.stype}_detail_"
+                            f"{ptidx:04d}_{self.idx+1:02d}{suffix}")
+                    img = w[ij[:, 0], ij[:, 1]].reshape(outshape)
+                    io.array2hdr(np.where(mask, img, 0), outw)
+                    img = ps[i, j][ij[:, 0], ij[:, 1]].reshape(outshape)
+                    io.array2hdr(np.where(mask, img, 0), outp)
+        else:
+            for i, ws in enumerate(self.weights):
+                for j, w in enumerate(ws):
+                    ptidx = np.ravel_multi_index((i, j), self.scene.area.ptshape)
+                    outw = (f"{self.scene.outdir}_{self.stype}_weights_"
+                            f"{ptidx:04d}_{self.idx+1:02d}{suffix}")
+                    outp = (f"{self.scene.outdir}_{self.stype}_detail_"
+                            f"{ptidx:04d}_{self.idx+1:02d}{suffix}")
+                    io.array2hdr(translate.resample(w[-1::-1], outshape,
+                                                    radius=0), outw)
+                    io.array2hdr(translate.resample(ps[i, j][-1::-1], outshape,
+                                                    radius=0), outp)
 
     def _plot_vecs(self, idx, vecs, level=0):
         vm = self.samplemap
@@ -271,9 +292,12 @@ class Sampler(object):
         else:
             return (x2 - x1)/(len(self.levels) - 2)*(x - 1) + x1
 
+    t0 = 2**-8
+    t1 = .125
+
     def threshold(self, idx):
         """threshold for determining sample count"""
-        return self.accuracy * self._linear(idx, 2**-8, .125)
+        return self.accuracy * self._linear(idx, self.t0, self.t1)
 
     def draw(self):
         """draw samples based on detail calculated from weights
