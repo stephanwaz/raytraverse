@@ -310,7 +310,7 @@ done_contrib(void)
 {
   MODCONT	*mp;
   int	i;
-
+//  fprintf(stderr, "done_contrib %d\n", account);
   if (account <= 0 || --account)
     return;			/* not time yet */
 
@@ -433,6 +433,7 @@ quitrc(
 
 void rcontrib_call(char *fname){
   static int	ignore_warning_given = 0;
+  int repeats = 1;
   FVECT		orig, direc;
   double		d;
   FILE *fp;
@@ -445,6 +446,8 @@ void rcontrib_call(char *fname){
     flockfile(fp);
   #endif
   }
+  if (nproc <= 1)
+    repeats = accumulate;
   while (getvecfp(orig, fp) == 0 && getvecfp(direc, fp) == 0) {
     d = normalize(direc);
     if (nchild != -1 && (d == 0.0) & (accumulate == 0)) {
@@ -453,23 +456,28 @@ void rcontrib_call(char *fname){
               "dummy ray(s) ignored during accumulation\n");
       continue;
     }
-    if (lastray+1 < lastray)
-      lastray = lastdone = 0;
-    ++lastray;
-    if (d == 0.0) {				/* zero ==> flush */
-      if ((yres <= 0) | (xres <= 1))
-        waitflush = 1;		/* flush after */
-      if (nchild == -1)
-        account = 1;
-    } else if (imm_irrad) {			/* else compute */
-      eval_irrad(orig, direc);
-    } else {
-      eval_rad(orig, direc, lim_dist ? d : 0.0);
+    for (int repeat = 0; repeat < repeats; repeat++) {
+//      fprintf(stderr, "call %f %f %f %ld\n", direc[0], direc[1], direc[2], waitflush);
+//      fprintf(stderr, "llr %lu %lu %d\n", lastray, lastdone, repeat);
+      if (lastray + 1 < lastray)
+        lastray = lastdone = 0;
+      ++lastray;
+      if (d == 0.0) {        /* zero ==> flush */
+        if ((yres <= 0) | (xres <= 1))
+          waitflush = 1;    /* flush after */
+        if (nchild == -1)
+          account = 1;
+      } else if (imm_irrad) {      /* else compute */
+        eval_irrad(orig, direc);
+      } else {
+        eval_rad(orig, direc, lim_dist ? d : 0.0);
+      }
+      done_contrib();    /* accumulate/output */
+      ++lastdone;
+//      fprintf(stderr, "last done %lu\n", lastdone);
+      if (raysleft && !--raysleft)
+        break;    /* preemptive EOI */
     }
-    done_contrib();		/* accumulate/output */
-    ++lastdone;
-    if (raysleft && !--raysleft)
-      break;		/* preemptive EOI */
   }
 
   if (nchild != -1 && (accumulate <= 0) | (account < accumulate)) {

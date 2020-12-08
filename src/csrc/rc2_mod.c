@@ -320,45 +320,61 @@ put_contrib(const DCOLOR cnt, FILE *fout)
     sf = 1./(double)accumulate;
   switch (outfmt) {
     case 'a':
-      if (accumulate > 1)
-        fprintf(fout, "%.6e\t%.6e\t%.6e\t",
-                sf*cnt[0], sf*cnt[1], sf*cnt[2]);
-      else if (outbright) {
-        RREAL lum = bright(cnt);
-        fprintf(fout, "%.6e\t", lum);
+      if (accumulate > 1) {
+        if (outbright) {
+          RREAL lum = bright(cnt);
+          fprintf(fout, "%.6e\t", lum * sf);
+        } else {
+          fprintf(fout, "%.6e\t%.6e\t%.6e\t", sf * cnt[0], sf * cnt[1], sf * cnt[2]);
+        }
+      } else {
+        if (outbright) {
+          RREAL lum = bright(cnt);
+          fprintf(fout, "%.6e\t", lum);
+        } else {
+          fprintf(fout, "%.6e\t%.6e\t%.6e\t", cnt[0], cnt[1], cnt[2]);
+        }
       }
-      else
-        fprintf(fout, "%.6e\t%.6e\t%.6e\t",
-                cnt[0], cnt[1], cnt[2]);
       break;
     case 'f':
       if (accumulate > 1) {
-        copycolor(fv, cnt);
-        scalecolor(fv, sf);
-        putbinary(fv, sizeof(float), 3, fout);
-      }
-      else if (outbright) {
-        float lum = bright(cnt);
-        putbinary(&lum, sizeof(float), 1, fout);
-      }
-      else {
-        copycolor(fv, cnt);
-        putbinary(fv, sizeof(float), 3, fout);
+        if (outbright) {
+          float lum = bright(cnt) * sf;
+          putbinary(&lum, sizeof(float), 1, fout);
+        } else {
+          copycolor(fv, cnt);
+          scalecolor(fv, sf);
+          putbinary(fv, sizeof(float), 3, fout);
+        }
+      } else {
+        if (outbright) {
+          float lum = bright(cnt);
+          putbinary(&lum, sizeof(float), 1, fout);
+        } else {
+          copycolor(fv, cnt);
+          putbinary(fv, sizeof(float), 3, fout);
+        }
       }
       break;
     case 'd':
       if (accumulate > 1) {
-        DCOLOR	dv;
-        copycolor(dv, cnt);
-        scalecolor(dv, sf);
-        putbinary(dv, sizeof(double), 3, fout);
+        if (outbright) {
+          double lum = bright(cnt) * sf;
+          putbinary(&lum, sizeof(double), 1, fout);
+        } else {
+          DCOLOR	dv;
+          copycolor(dv, cnt);
+          scalecolor(dv, sf);
+          putbinary(dv, sizeof(double), 3, fout);
+        }
+      } else {
+        if (outbright) {
+          double lum = bright(cnt);
+          putbinary(&lum, sizeof(double), 1, fout);
+        } else {
+          putbinary(cnt, sizeof(double), 3, fout);
+        }
       }
-      else if (outbright) {
-        double lum = bright(cnt);
-        putbinary(&lum, sizeof(double), 1, fout);
-      }
-      else
-        putbinary(cnt, sizeof(double), 3, fout);
       break;
     case 'z':
       if (accumulate > 1) {

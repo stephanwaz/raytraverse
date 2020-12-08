@@ -45,6 +45,11 @@ class Sampler(object):
         number of processors to give to the engine, if None, uses os.cpu_count()
     """
 
+    t0 = 2**-8
+    t1 = .0625
+    lb = .25
+    ub = 8
+
     def __init__(self, scene, engine=renderer.Rtrace, fdres=9, srcn=1,
                  accuracy=1.0, idres=4,
                  stype='generic', srcdef=None, plotp=False,
@@ -292,12 +297,25 @@ class Sampler(object):
         else:
             return (x2 - x1)/(len(self.levels) - 2)*(x - 1) + x1
 
-    t0 = 2**-8
-    t1 = .125
-
     def threshold(self, idx):
         """threshold for determining sample count"""
         return self.accuracy * self._linear(idx, self.t0, self.t1)
+
+    detailfunc = 'wavelet'
+
+    filters = {'prewitt': (np.array([[1, 1, 1], [0, 0, 0], [-1, -1, -1]])/3,
+                           np.array([[1, 0, -1], [1, 0, -1], [1, 0, -1]])/3),
+               'sobel': (np.array([[1, 2, 1], [0, 0, 0], [-1, -2, -1]])/4,
+                         np.array([[1, 0, -1], [2, 0, -2], [1, 0, -1]])/3),
+               'sobelswap': (np.array([[1, 2, -1], [0, 0, 0], [1, -2, -1]])/4,
+                             np.array([[1, 0, 1], [-2, 0, 2], [-1, 0, -1]])/4),
+               'cross': (np.array([[1, 0], [0, -1]])/2,
+                         np.array([[0, 1], [-1, 0]])/2),
+               'point': (np.array([[-1, -1, -1], [-1, 8, -1], [-1, -1, -1]])/3,
+                         np.array([[0, 0, 0], [0, 0, 0], [0, 0, 0]])),
+               'wav': (np.array([[-1, 0, 0], [-1, 4, -1], [0, 0, -1]])/3,
+                       np.array([[0, 0, -1], [-1, 4, -1], [-1, 0, 0]])/3),
+               }
 
     def draw(self):
         """draw samples based on detail calculated from weights
@@ -315,15 +333,17 @@ class Sampler(object):
             pdraws = np.arange(np.prod(dres)*np.prod(pres))
         else:
             # direction detail
-            daxes = (len(pres) + len(dres) - 2, len(pres) + len(dres) - 1)
-            p = draw.get_detail(self.weights, daxes)
+            if self.detailfunc == 'wavelet':
+                daxes = (len(pres) + len(dres) - 2, len(pres) + len(dres) - 1)
+                p = draw.get_detail(self.weights, daxes)
+            else:
+                p = draw.get_detail_filter(self.weights,
+                                           *self.filters[self.detailfunc])
             if self.plotp:
-                self._plot_p(p)
-            # a cooling parameter towards deterministic sampling at final level
-            bound = self._linear(self.idx, .5, 0)
+                self._plot_p(p, fisheye=True)
             # draw on pdf
             pdraws = draw.from_pdf(p, self.threshold(self.idx),
-                                   lb=1-bound, ub=1+bound)
+                                   lb=self.lb, ub=self.ub)
         return pdraws
 
     def update_pdf(self, si, lum):

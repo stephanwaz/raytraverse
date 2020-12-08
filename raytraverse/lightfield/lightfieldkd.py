@@ -28,15 +28,22 @@ class LightFieldKD(LightField):
     def mk_vector_ball(v):
         d_kd = cKDTree(v)
         try:
-            omega = SphericalVoronoi(v).calculate_areas()[:, None]
+            omega = SphericalVoronoi(v).calculate_areas()
         except ValueError:
-            pairs = d_kd.query_pairs(1e-5, output_type='ndarray')
-            filts = np.logical_not(np.in1d(np.arange(len(v)), pairs[:, 1]))
-            omega_temp = SphericalVoronoi(v[filts]).calculate_areas()
+            # spherical voronoi raises a vague value error when points are
+            # too close, in this case we cull duplicates before calculating
+            # area, leaving the duplicates with omega=0
+            filts = np.full(len(v), True)
             omega = np.zeros(v.shape[0])
-            omega[filts] = omega_temp
-            omega = omega[:, None]
-        return d_kd, omega
+            tol = 2*np.pi/2**15
+            pairs = d_kd.query_ball_tree(d_kd, tol)
+            flagged = set()
+            for j, p in enumerate(pairs):
+                if j not in flagged and len(p) > 1:
+                    filts[p[1:]] = False
+                    flagged.update(p[1:])
+            omega[filts] = SphericalVoronoi(v[filts]).calculate_areas()
+        return d_kd, omega[:, None]
 
     @property
     def d_kd(self):
