@@ -1,3 +1,5 @@
+#pragma clang diagnostic push
+#pragma ide diagnostic ignored "bugprone-macro-parentheses"
 /* Copyright (c) 2020 Stephen Wasilewski, HSLU and EPFL
  * =======================================================================
  * This Source Code Form is subject to the terms of the Mozilla Public
@@ -84,6 +86,7 @@ int  traincl = -1;			/* include == 1, exclude == 0 */
 
 static int  loadflags = ~IO_FILES;	/* what to load from octree */
 
+int repeat = 1;
 
 void
 eputsrt(				/* put string to stderr */
@@ -123,7 +126,7 @@ rtinit(int  argc, char  *argv[])
 				badarg(argc-i-1,argv+i+1,al)) \
 				goto badopt
 #define	 check_bool(olen,var)		switch (argv[i][olen]) { \
-				case '\0': var = !var; break; \
+				case '\0': (var) = !var; break; \
 				case 'y': case 'Y': case 't': case 'T': \
 				case '+': case '1': var = 1; break; \
 				case 'n': case 'N': case 'f': case 'F': \
@@ -135,6 +138,7 @@ rtinit(int  argc, char  *argv[])
   int  duped1 = -1;
   int  rval;
   int  i;
+  repeat = 1;
   ambdone();
   freeqstr(ambfile);
   ambfile = NULL;
@@ -179,6 +183,10 @@ rtinit(int  argc, char  *argv[])
       continue;
     }
     switch (argv[i][1]) {
+      case 'c':
+        check(2,"i");
+        repeat = atoi(argv[++i]);
+        break;
       case 'n':				/* number of cores */
         check(2,"i");
         nproc = atoi(argv[++i]);
@@ -451,6 +459,7 @@ printdefaults(void)			/* print default values to stdout */
 
   if (imm_irrad)
     printf("-I+\t\t\t\t# immediate irradiance on\n");
+  printf("-c %-2d\t\t\t\t# number of times to repeat calculation for each point (results averaged)\n", repeat);
   printf("-n %-2d\t\t\t\t# number of rendering processes\n", nproc);
   printf("-x %-9d\t\t\t# %s\n", hresolu,
          vresolu && hresolu ? "x resolution" : "flush interval");
@@ -496,3 +505,5 @@ printdefaults(void)			/* print default values to stdout */
 #ifdef __cplusplus
 }
 #endif
+
+#pragma clang diagnostic pop

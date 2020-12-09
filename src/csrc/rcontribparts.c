@@ -103,7 +103,7 @@ static void mcfree(void *p) { epfree((*(MODCONT *)p).binv); free(p); }
 LUTAB	modconttab = LU_SINIT(NULL,mcfree);	/* modifier lookup table */
 
 /************************** INITIALIZATION ROUTINES ***********************/
-
+int feed_repeat = 0;
 char *
 formstr(				/* return format identifier */
         int  f
@@ -325,6 +325,8 @@ done_contrib(void)
 }
 
 
+FVECT vec_0;
+FVECT vec_1;
 
 int
 getvecfp(FVECT vec, FILE *fp)
@@ -333,29 +335,56 @@ getvecfp(FVECT vec, FILE *fp)
   double	vd[3];
   char	buf[32];
   int	i;
-
-  switch (inpfmt) {
-    case 'a':					/* ascii */
-      for (i = 0; i < 3; i++) {
-        if (fgetword(buf, sizeof(buf), fp) == NULL ||
-            !isflt(buf))
+  feed_repeat = feed_repeat % (accumulate * 2);
+  if (feed_repeat < 2) {
+    switch (inpfmt) {
+      case 'a':					/* ascii */
+        for (i = 0; i < 3; i++) {
+          if (fgetword(buf, sizeof(buf), fp) == NULL ||
+              !isflt(buf))
+            return(-1);
+          if (feed_repeat % 2 == 0)
+            vec_0[i] = atof(buf);
+          else
+            vec_1[i] = atof(buf);
+        }
+        break;
+      case 'f':					/* binary float */
+        if (getbinary((char *)vf, sizeof(float), 3, fp) != 3)
           return(-1);
-        vec[i] = atof(buf);
-      }
-      break;
-    case 'f':					/* binary float */
-      if (getbinary((char *)vf, sizeof(float), 3, fp) != 3)
-        return(-1);
-      VCOPY(vec, vf);
-      break;
-    case 'd':					/* binary double */
-      if (getbinary((char *)vd, sizeof(double), 3, fp) != 3)
-        return(-1);
-      VCOPY(vec, vd);
-      break;
-    default:
-      error(CONSISTENCY, "botched input format");
+        if (feed_repeat % 2 == 0)
+          VCOPY(vec_0, vf);
+        else
+          VCOPY(vec_1, vf);
+        break;
+      case 'd':					/* binary double */
+        if (getbinary((char *)vd, sizeof(double), 3, fp) != 3)
+          return(-1);
+        if (feed_repeat % 2 == 0)
+          VCOPY(vec_0, vd);
+        else
+          VCOPY(vec_1, vd);
+        break;
+      default:
+        error(CONSISTENCY, "botched input format");
+    }
   }
+  if (feed_repeat % 2 == 0)
+    VCOPY(vec, vec_0);
+  else
+    VCOPY(vec, vec_1);
+  feed_repeat = feed_repeat + 1;
+//  fprintf(stderr, "here! %d %f %f %f\n", feed_repeat, vec[0], vec[1], vec[2]);
+  return(0);
+}
+
+int
+getvecb(FVECT vec, FILE *fp)
+{
+  double	vd[3];
+  if (getbinary((char *)vd, sizeof(double), 3, fp) != 3)
+    return(-1);
+  VCOPY(vec, vd);
   return(0);
 }
 
@@ -433,7 +462,6 @@ quitrc(
 
 void rcontrib_call(char *fname){
   static int	ignore_warning_given = 0;
-  int repeats = 1;
   FVECT		orig, direc;
   double		d;
   FILE *fp;
@@ -446,19 +474,45 @@ void rcontrib_call(char *fname){
     flockfile(fp);
   #endif
   }
-  if (nproc <= 1)
-    repeats = accumulate;
-  while (getvecfp(orig, fp) == 0 && getvecfp(direc, fp) == 0) {
-    d = normalize(direc);
-    if (nchild != -1 && (d == 0.0) & (accumulate == 0)) {
-      if (!ignore_warning_given++)
-        error(WARNING,
-              "dummy ray(s) ignored during accumulation\n");
-      continue;
+//  if (nproc <= 1)
+//    repeats = accumulate;
+  if (nproc == 1){
+    while (getvecfp(orig, fp) == 0 && getvecfp(direc, fp) == 0) {
+      d = normalize(direc);
+      if (nchild != -1 && (d == 0.0) & (accumulate == 0)) {
+        if (!ignore_warning_given++)
+          error(WARNING,
+                "dummy ray(s) ignored during accumulation\n");
+        continue;
+      }
+      if (lastray + 1 < lastray)
+        lastray = lastdone = 0;
+      ++lastray;
+      if (d == 0.0) {        /* zero ==> flush */
+        if ((yres <= 0) | (xres <= 1))
+          waitflush = 1;    /* flush after */
+        if (nchild == -1)
+          account = 1;
+      } else if (imm_irrad) {      /* else compute */
+        eval_irrad(orig, direc);
+      } else {
+        eval_rad(orig, direc, lim_dist ? d : 0.0);
+      }
+      done_contrib();    /* accumulate/output */
+      ++lastdone;
+//      fprintf(stderr, "last done %lu\n", lastdone);
+      if (raysleft && !--raysleft)
+        break;    /* preemptive EOI */
     }
-    for (int repeat = 0; repeat < repeats; repeat++) {
-//      fprintf(stderr, "call %f %f %f %ld\n", direc[0], direc[1], direc[2], waitflush);
-//      fprintf(stderr, "llr %lu %lu %d\n", lastray, lastdone, repeat);
+  } else {
+    while (getvecb(orig, fp) == 0 && getvecb(direc, fp) == 0) {
+      d = normalize(direc);
+      if (nchild != -1 && (d == 0.0) & (accumulate == 0)) {
+        if (!ignore_warning_given++)
+          error(WARNING,
+                "dummy ray(s) ignored during accumulation\n");
+        continue;
+      }
       if (lastray + 1 < lastray)
         lastray = lastdone = 0;
       ++lastray;
@@ -479,6 +533,7 @@ void rcontrib_call(char *fname){
         break;    /* preemptive EOI */
     }
   }
+
 
   if (nchild != -1 && (accumulate <= 0) | (account < accumulate)) {
     if (account < accumulate) {

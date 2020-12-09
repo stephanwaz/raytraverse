@@ -58,6 +58,7 @@ extern "C" {
 #include  "resolu.h"
 #include  "random.h"
 
+extern int repeat;
 extern int  inform;			/* input format */
 extern int  outform;			/* output format */
 extern char  *outvals;			/* output values */
@@ -211,6 +212,8 @@ rtcompute(			/* compute and print ray value(s) */
   printvals(&thisray);
 }
 
+int printcount = 0;
+COLOR accumulated_color = {0, 0, 0};
 
 static int
 printvals(			/* print requested ray values */
@@ -218,13 +221,20 @@ printvals(			/* print requested ray values */
 )
 {
   oputf_t **tp;
-
+  double sf = 1/(double)repeat;
   if (ray_out[0] == NULL)
     return(0);
-  for (tp = ray_out; *tp != NULL; tp++)
-    (**tp)(r);
-  if (outform == 'a')
-    putchar('\n');
+  printcount = (printcount + 1) % repeat;
+  addcolor(accumulated_color, r->rcol);
+  if (printcount == 0) {
+    scalecolor(accumulated_color, sf);
+    copycolor(r->rcol, accumulated_color);
+    scalecolor(accumulated_color, 0.0);
+    for (tp = ray_out; *tp != NULL; tp++)
+      (**tp)(r);
+    if (outform == 'a')
+      putchar('\n');
+  }
   return(1);
 }
 
@@ -790,7 +800,9 @@ rtrace_call( /* run rtrace process */
       } else
         bogusray();
     } else {				/* compute and print */
-      rtcompute(orig, direc, lim_dist ? d : 0.0);
+      for (int r = 0; r < repeat; r++) {
+        rtcompute(orig, direc, lim_dist ? d : 0.0);
+      }
       if (!--nextflush) {		/* flush if time */
         if (ray_pnprocs > 1 && ray_fifo_flush() < 0)
           error(USER, "child(ren) died");

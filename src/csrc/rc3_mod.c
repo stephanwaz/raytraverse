@@ -49,9 +49,10 @@ parental_loop2(char *fname)
 #endif
   while (getvecfp(orgdir[2*ninq], fp) == 0 && getvecfp(orgdir[2*ninq+1], fp) == 0) {
     const int	zero_ray = orgdir[2*ninq+1][0] == 0.0 &&
-                          (orgdir[2*ninq+1][1] == 0.0) &
+                          (orgdir[2*ninq+1][1] == 0.0) &&
                           (orgdir[2*ninq+1][2] == 0.0);
     ninq += !zero_ray;
+//    fprintf(stderr, "%d\n", ninq);
     /* Zero ray cannot go in input queue */
     if (zero_ray ? ninq : ninq >= qlimit ||
                           lastray/accumulate != (lastray+ninq)/accumulate) {
@@ -82,8 +83,10 @@ parental_loop2(char *fname)
       }
       put_zero_record(++lastray);
     }
-    if (raysleft && !--raysleft)
-      break;				/* preemptive EOI */
+//    fprintf(stderr, "here in parent %d %lu\n", n, raysleft);
+    if (raysleft && !--raysleft) {
+      break;        /* preemptive EOI */
+    }
   }
   while (next_child_nq(1) >= 0)		/* empty results queue */
     ;
