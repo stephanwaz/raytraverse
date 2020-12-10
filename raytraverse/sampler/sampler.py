@@ -295,7 +295,7 @@ class Sampler(object):
         if len(self.levels) <= 2:
             return (x1, x2)[x]
         else:
-            return (x2 - x1)/(len(self.levels) - 2)*(x - 1) + x1
+            return (x2 - x1)/len(self.levels)*x + x1
 
     def threshold(self, idx):
         """threshold for determining sample count"""
@@ -329,21 +329,27 @@ class Sampler(object):
         """
         dres = self.levels[self.idx]
         pres = self.scene.area.ptshape
+        # sample all if weights is not set or all even
         if self.idx == 0 and np.var(self.weights) < 1e-9:
             pdraws = np.arange(np.prod(dres)*np.prod(pres))
+            p = np.ones(self.weights.shape)
         else:
-            # direction detail
-            if self.detailfunc == 'wavelet':
+            # use weights directly on first pass
+            if self.idx == 0:
+                p = self.weights.ravel()
+            # use wavelet transform
+            elif self.detailfunc == 'wavelet':
                 daxes = (len(pres) + len(dres) - 2, len(pres) + len(dres) - 1)
                 p = draw.get_detail(self.weights, daxes)
+            # use filter banks
             else:
                 p = draw.get_detail_filter(self.weights,
                                            *self.filters[self.detailfunc])
-            if self.plotp:
-                self._plot_p(p, fisheye=True)
             # draw on pdf
             pdraws = draw.from_pdf(p, self.threshold(self.idx),
                                    lb=self.lb, ub=self.ub)
+        if self.plotp:
+            self._plot_p(p, fisheye=True)
         return pdraws
 
     def update_pdf(self, si, lum):

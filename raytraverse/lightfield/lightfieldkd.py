@@ -241,8 +241,14 @@ class LightFieldKD(LightField):
                                      self.lum[pi], err=err)
         return arrout
 
-    def _dview(self, vm, idx, pdirs, mask, res=512, showsample=True,
+    def _dview(self, vm, idx, res=512, showsample=True,
                showweight=True, srcidx=None, interp=1, omega=False):
+        pdirs = vm.pixelrays(res)
+        if vm.aspect == 2:
+            mask = vm.in_view(np.concatenate((pdirs[0:res],
+                                              -pdirs[res:]), 0))
+        else:
+            mask = vm.in_view(pdirs)
         img = np.zeros((res*vm.aspect, res))
         if showweight:
             if srcidx is not None:
@@ -258,9 +264,9 @@ class LightFieldKD(LightField):
             channels = (1, 1, 1)
         outf = f"{self.outfile(idx)}.hdr"
         try:
-            pt = self.scene.area.pts()[idx]
-        except TypeError:
             pt = self.scene.area.pts()[idx[0]]
+        except (TypeError, IndexError):
+            pt = self.scene.area.pts()[idx]
         vstr = ('VIEW= -vta -vv {0} -vh {0} -vd {1} {2} {3}'
                 ' -vp {4} {5} {6}'.format(vm.viewangle, *vm.dxyz[0], *pt))
         if showsample:
@@ -290,16 +296,10 @@ class LightFieldKD(LightField):
         else:
             vm = self.scene.view
             vmi = [0] * len(items)
-        pdirs = vm.pixelrays(res)
-        if vm.aspect == 2:
-            mask = vm.in_view(np.concatenate((pdirs[0:res],
-                                              -pdirs[res:]), 0))
-        else:
-            mask = vm.in_view(pdirs)
         fu = []
         with ThreadPoolExecutor() as exc:
             for idx, vi in zip(items, vmi):
-                fu.append(exc.submit(self._dview, vm[vi], idx, pdirs, mask, res,
+                fu.append(exc.submit(self._dview, vm[vi], idx, res,
                                      showsample, showweight, srcidx, interp,
                                      omega))
             for f in as_completed(fu):

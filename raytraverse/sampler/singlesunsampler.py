@@ -62,6 +62,7 @@ class SingleSunSampler(Sampler):
         self.sidx = sidx
         #: np.array: sun position x,y,z
         self.sunpos = suns.suns[sidx]
+
         # add some tolerance for suns near edge of bins:
         uv = translate.xyz2uv(self.sunpos[None, :], flipu=False)
         tol = .125/self.scene.skyres
@@ -69,6 +70,13 @@ class SingleSunSampler(Sampler):
         uvs = np.stack(np.meshgrid(uvi, uvi)).reshape(2, 9).T + uv
         sbin = np.unique(translate.uv2bin(uvs, self.scene.skyres)).astype(int)
         self.sbin = sbin[sbin <= self.scene.skyres**2]
+
+        # explude points with low direct sun patch contribution
+        shape = np.concatenate((self.scene.area.ptshape, self.levels[0]))
+        weights = self.pdf_from_sky(SCBinField(self.scene), filterpts=True)
+        self.weights = translate.resample(weights, shape)
+
+
         # load new source
         srcdef = f'{scene.outdir}/tmp_srcdef.rad'
         f = open(srcdef, 'w')
@@ -97,9 +105,9 @@ class SingleSunSampler(Sampler):
         column = skyfield.lum.full_array()
         lum = np.max(column[idxs, self.sbin], -1).reshape(ishape)
         if filterpts:
-            haspeak = np.max(lum, (2, 3)) > self.slimit
-            lum = lum * haspeak[..., None, None]
-        if zero:
+            haspeak = np.max(lum, (2, 3)) > self.srct
+            lum = np.where(haspeak[..., None, None], 1.0, 0)
+        elif zero:
             lum = np.where(lum > self.scene.maxspec, 0, lum)
         return lum
 
