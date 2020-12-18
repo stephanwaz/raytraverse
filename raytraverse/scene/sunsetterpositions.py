@@ -90,13 +90,17 @@ class SunSetterPositions(SunSetter):
         for b in sbins:
             if skyb[b] > self.srct:
                 try:
-                    # choose sun position, priortizing brighter conditions
-                    # may introduce bias?
+                    # choose sun position, priortizing values closer to center
+                    # of bin
                     p = self.candidates[cbins == b, 3]
                     sp = np.sum(p)
+                    binc = translate.uv2xyz(translate.bin2uv([b], uvsize),
+                                            xsign=1)
+                    bp = np.linalg.norm(self.candidates[cbins == b, 0:3]- binc,
+                                        axis=1)
                     if sp == 0:
                         raise ValueError
-                    a = np.random.choice(cidxs[cbins == b], p=p/sp)
+                    a = np.random.choice(cidxs[cbins == b], p=bp/np.sum(bp))
                 except ValueError:
                     pass
                 else:

@@ -69,7 +69,7 @@ class ImageSampler(Sampler):
             index array of flattened samples chosen to sample at next level
         """
         dres = self.levels[self.idx]
-        pres = self.scene.area.ptshape
+        pres = self.area.ptshape
         if self.idx == 0 and np.var(self.weights) < 1e-9:
             pdraws = np.arange(np.prod(dres)*np.prod(pres))
         else:

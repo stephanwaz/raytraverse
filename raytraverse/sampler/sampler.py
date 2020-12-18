@@ -14,7 +14,7 @@ from raytraverse import translate, io, draw, renderer
 
 
 class Sampler(object):
-    """base sampling class
+    """wavelet based sampling class
 
     Parameters
     ----------
@@ -63,6 +63,7 @@ class Sampler(object):
         self.scene = scene
         #: func: mapper to use for sampling
         self.samplemap = self.scene.view
+        self.area = self.scene.area
         #: int: number of sources return per vector by run
         self.srcn = srcn
         self.accuracy = accuracy
@@ -70,7 +71,7 @@ class Sampler(object):
         self.idres = idres
         self.levels = fdres
         #: np.array: holds weights for self.draw
-        self.weights = np.full(np.concatenate((self.scene.area.ptshape,
+        self.weights = np.full(np.concatenate((self.area.ptshape,
                                                self.levels[0])), 1e-7,
                                dtype=np.float32)
         #: int: index of next level to sample
@@ -205,12 +206,12 @@ class Sampler(object):
         vecs: np.array
             sample vectors
         """
-        shape = np.concatenate((self.scene.area.ptshape, self.levels[self.idx]))
+        shape = np.concatenate((self.area.ptshape, self.levels[self.idx]))
         # index assignment
         si = np.stack(np.unravel_index(pdraws, shape))
         # convert to UV directions and positions
         uv = si.T[:, -2:]/shape[3]
-        pos = self.scene.area.uv2pt((si.T[:, 0:2] + .5)/shape[0:2])
+        pos = self.area.uv2pt((si.T[:, 0:2] + .5)/shape[0:2])
         uv += self._offset(uv.shape)
         if pos.size == 0:
             xyz = pos
@@ -234,7 +235,7 @@ class Sampler(object):
         f.write(io.np2bytes(vecs))
         f.close()
         if si is not None:
-            ptidx = np.ravel_multi_index((si[0], si[1]), self.scene.area.ptshape)
+            ptidx = np.ravel_multi_index((si[0], si[1]), self.area.ptshape)
             outif = f'{self.scene.outdir}/{self.stype}_vecpidx_{self.idx:02d}.out'
             f = open(outif, 'wb')
             f.write(io.np2bytes(ptidx))
@@ -256,7 +257,7 @@ class Sampler(object):
             for i, ws in enumerate(self.weights):
                 for j, w in enumerate(ws):
                     ij = translate.uv2ij(uv, w.shape[-1])
-                    ptidx = np.ravel_multi_index((i, j), self.scene.area.ptshape)
+                    ptidx = np.ravel_multi_index((i, j), self.area.ptshape)
                     outw = (f"{self.scene.outdir}_{self.stype}_weights_"
                             f"{ptidx:04d}_{self.idx+1:02d}{suffix}")
                     outp = (f"{self.scene.outdir}_{self.stype}_detail_"
@@ -268,7 +269,7 @@ class Sampler(object):
         else:
             for i, ws in enumerate(self.weights):
                 for j, w in enumerate(ws):
-                    ptidx = np.ravel_multi_index((i, j), self.scene.area.ptshape)
+                    ptidx = np.ravel_multi_index((i, j), self.area.ptshape)
                     outw = (f"{self.scene.outdir}_{self.stype}_weights_"
                             f"{ptidx:04d}_{self.idx+1:02d}{suffix}")
                     outp = (f"{self.scene.outdir}_{self.stype}_detail_"
@@ -283,7 +284,7 @@ class Sampler(object):
         outshape = (1024, 512)
         for i, ws in enumerate(self.weights):
             for j, w in enumerate(ws):
-                ptidx = np.ravel_multi_index((i, j), self.scene.area.ptshape)
+                ptidx = np.ravel_multi_index((i, j), self.area.ptshape)
                 img = np.zeros(outshape)
                 img = io.add_vecs_to_img(vm, img, vecs[np.equal(idx, ptidx)],
                                          channels=level)
@@ -328,7 +329,7 @@ class Sampler(object):
             index array of flattened samples chosen to sample at next level
         """
         dres = self.levels[self.idx]
-        pres = self.scene.area.ptshape
+        pres = self.area.ptshape
         # sample all if weights is not set or all even
         if self.idx == 0 and np.var(self.weights) < 1e-9:
             pdraws = np.arange(np.prod(dres)*np.prod(pres))
@@ -352,7 +353,7 @@ class Sampler(object):
             self._plot_p(p, fisheye=True)
         return pdraws
 
-    def update_pdf(self, si, lum):
+    def update_weights(self, si, lum):
         """update self.weights (which holds values used to calculate pdf)
 
         Parameters
@@ -364,6 +365,12 @@ class Sampler(object):
 
         """
         self.weights[tuple(si)] = lum
+
+    def levelup_weights(self):
+        """prepare weights for sampling at current level"""
+        shape = np.concatenate((self.area.ptshape, self.levels[self.idx]))
+        self.weights = translate.resample(self.weights, shape)
+        return shape
 
     def run_callback(self):
         outf = f'{self.scene.outdir}/{self.stype}_vecs.out'
@@ -399,7 +406,7 @@ class Sampler(object):
     def get_scheme(self):
         scheme = np.ones((self.levels.shape[0], self.levels.shape[1] + 4))
         scheme[:, 2:-2] = self.levels
-        scheme[:, 0:2] = self.scene.area.ptshape
+        scheme[:, 0:2] = self.area.ptshape
         scheme[:, -2] = self.srcn
         scheme[:, -1] = self.levelsamples
         return scheme.astype(int)
@@ -415,9 +422,8 @@ class Sampler(object):
         self.scene.log(self, '\t'.join(hdr))
         fsize = 0
         for i in range(self.idx, self.levels.shape[0]):
-            shape = np.concatenate((self.scene.area.ptshape, self.levels[i]))
             self.idx = i
-            self.weights = translate.resample(self.weights, shape)
+            shape = self.levelup_weights()
             draws = self.draw()
             if draws is None:
                 srate = 0.0
@@ -434,7 +440,7 @@ class Sampler(object):
                 self.scene.log(self, '\t'.join(row))
                 vecf = self.dump_vecs(vecs, si)
                 lum = self.sample(vecf, vecs)
-                self.update_pdf(si, lum)
+                self.update_weights(si, lum)
                 a = lum.shape[0]
                 allc += a
         srate = allc/self.weights.size

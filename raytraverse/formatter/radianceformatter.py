@@ -23,7 +23,7 @@ class RadianceFormatter(Formatter):
     comment = "#"
 
     #: arguments for direct trace
-    direct_args = "-oZ -ab 0"
+    direct_args = "-oZ -ab 0 -lr 0"
 
     @staticmethod
     def make_scene(scene_files, out, frozen=True):
@@ -74,10 +74,14 @@ class RadianceFormatter(Formatter):
         return skydeg
 
     @staticmethod
-    def get_sundef(vec, color, size=0.5333, mat_name='solar', mat_id='sun'):
+    def get_sundef(vec, color, size=0.5333, mat_name='solar', mat_id='sun',
+                   glow=False):
         """assemble sun definition"""
         d = f"{vec[0]} {vec[1]} {vec[2]}"
-        dec = f"void light {mat_name} 0 0 3 {color[0]} {color[1]} {color[2]}\n"
+        if glow:
+            dec = f"void glow {mat_name} 0 0 4 {color[0]} {color[1]} {color[2]} 0\n"
+        else:
+            dec = f"void light {mat_name} 0 0 3 {color[0]} {color[1]} {color[2]}\n"
         dec += f"{mat_name} source {mat_id} 0 0 4 {d} {size}\n"
         return dec
 

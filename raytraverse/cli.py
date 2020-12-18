@@ -348,7 +348,6 @@ def suns(ctx, loc=None, wea=None, usepositions=False, plotdview=False,
             print('{}\t{}\t{}'.format(*pt))
 
 
-
 @main.command()
 @click.option('-fdres', default=10,
               help='the final directional sampling resolution, yielding a'
@@ -367,6 +366,8 @@ def suns(ctx, loc=None, wea=None, usepositions=False, plotdview=False,
                    ' rtrace -defaults for more information')
 @click.option('--view/--no-view', default=True,
               help="run/build/plot direct sun views")
+@click.option('--sunviewstats/--no-sunviewstats', default=False,
+              help="run/build/plot direct sun views")
 @click.option('--ambcache/--no-ambcache', default=True,
               help='whether the rcopts indicate that the calculation will use '
                    'ambient caching (and thus should write an -af file argument'
@@ -377,11 +378,14 @@ def suns(ctx, loc=None, wea=None, usepositions=False, plotdview=False,
                    'must be taken to not change any parameters')
 @click.option('--reflection/--no-reflection', default=True,
               help="run/build/plot reflected sun components")
+@click.option('--checkviz/--no-checkviz', default=True,
+              help="precheck for visable sun based on sky run for sunview "
+                   "sampler")
 @clk.shared_decs(run_opts)
 @clk.shared_decs(clk.command_decs(raytraverse.__version__, wrap=True))
 def sunrun(ctx, plotdview=False, run=True, rmraw=False, overwrite=False,
            rebuild=False, showsample=True, showweight=True, dpts=None,
-           **kwargs):
+           sunviewstats=False, **kwargs):
     """the sunrun command intitializes and runs a sun sampler and then readies
     the results for integration by building a SunField."""
     if 'suns' not in ctx.obj:
@@ -401,6 +405,14 @@ def sunrun(ctx, plotdview=False, run=True, rmraw=False, overwrite=False,
             print(f'Warning: {ex}', file=sys.stderr)
         else:
             ctx.obj['initlf'].append(sv)
+            if sunviewstats:
+                vs = sv.point_stats()
+                print(f"# Visibility of {sns.suns.shape[0]} suns from "
+                      f"{scn.area.npts} points", file=sys.stderr)
+                print("x y z n-suns min-tvis max-tvis min-vis max-vis",
+                      file=sys.stderr)
+                for v in vs:
+                    print(" ".join([f"{i:.03f}" for i in v]))
             if plotdview:
                 sv.direct_view()
     if kwargs['reflection']:

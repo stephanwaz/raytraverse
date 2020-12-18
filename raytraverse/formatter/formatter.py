@@ -45,7 +45,8 @@ class Formatter(object):
         pass
 
     @staticmethod
-    def get_sundef(vec, color, size=0.5333, mat_name='solar', mat_id='sun'):
+    def get_sundef(vec, color, size=0.5333, mat_name='solar', mat_id='sun',
+                   glow=False):
         """assemble sun definition"""
         pass
 

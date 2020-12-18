@@ -72,7 +72,7 @@ class SingleSunSampler(Sampler):
         self.sbin = sbin[sbin <= self.scene.skyres**2]
 
         # explude points with low direct sun patch contribution
-        shape = np.concatenate((self.scene.area.ptshape, self.levels[0]))
+        shape = np.concatenate((self.area.ptshape, self.levels[0]))
         weights = self.pdf_from_sky(SCBinField(self.scene), filterpts=True)
         self.weights = translate.resample(weights, shape)
 
@@ -87,7 +87,7 @@ class SingleSunSampler(Sampler):
 
     def pdf_from_sky(self, skyfield, rebuild=False, zero=True,
                      filterpts=False):
-        ishape = np.concatenate((self.scene.area.ptshape,
+        ishape = np.concatenate((self.area.ptshape,
                                  self.levels[self.specidx-2]))
         fi = f"{self.scene.outdir}/sunpdfidxs.npz"
         if os.path.isfile(fi) and not rebuild:
@@ -129,7 +129,7 @@ class SingleSunSampler(Sampler):
         pdraws = super().draw()
         if self.idx == self.specidx:
             skyfield = SCBinField(self.scene)
-            shape = np.concatenate((self.scene.area.ptshape,
+            shape = np.concatenate((self.area.ptshape,
                                     self.levels[self.idx]))
             weights = self.pdf_from_sky(skyfield)
             p = translate.resample(weights, shape)

@@ -24,12 +24,13 @@ class SunSampler(object):
         sun class containing sun locations.
     """
 
-    def __init__(self, scene, suns, plotp=False, **kwargs):
+    def __init__(self, scene, suns, plotp=False, checkviz=True, **kwargs):
         scene.log(self, "Initializing")
         self.scene = scene
         self.suns = suns
         #: raytraverse.sampler.SunViewSampler
-        self.viewsampler = SunViewSampler(scene, suns, plotp=False)
+        self.viewsampler = SunViewSampler(scene, suns, checkviz=checkviz,
+                                          plotp=False)
         #: dict: sampling arguments for SingleSunSampler
         self.sampleargs = dict(idres=4, fdres=10, speclevel=9, plotp=plotp)
         #: raytraverse.sampler.SingleSunSampler

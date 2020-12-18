@@ -9,8 +9,8 @@
 import os
 import pickle
 import itertools
-import sys
-from concurrent.futures import ThreadPoolExecutor, as_completed
+from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor
+from concurrent.futures import as_completed
 
 import numpy as np
 
@@ -20,6 +20,10 @@ from raytraverse.lightfield.lightfield import LightField
 
 class SunViewField(LightField):
     """container for sun view data
+
+    indexed according to tuple keys: (point index, sun index)
+    points indexed according to self.scene.pts(),
+    suns indexed according to self.suns.suns
 
     Parameters
     ----------
@@ -197,6 +201,24 @@ class SunViewField(LightField):
         else:
             return None
 
+    def _dview(self, ssq, res, block, i, pt):
+        (lums, fig, ax,
+         norm, lev) = plot.mk_img_setup([0, 1], figsize=[ssq*res, ssq*res],
+                                        ext=(0, ssq))
+        cmap = plot.colormap('viridis', norm)
+        plot.plot_patches(ax, block)
+        for j in range(self.suns.suns.shape[0]):
+            if (i, j) in self.raster.keys():
+                sxy = np.unravel_index(j, (ssq, ssq))
+                sxy = np.array((sxy[1], sxy[0]))
+                lums = cmap.to_rgba(self.lum[(i, j)])
+                xy = (translate.uv2xy(self.raster[(i, j)]) + 1)/2 + sxy
+                ax.plot(xy[:, 0], xy[:, 1], 'o', ms=2, color=lums)
+        ax.set_facecolor((0, 0, 0))
+        outf = f"{self.outfile(i)}.png"
+        plot.save_img(fig, ax, outf, title=pt)
+        return outf
+
     def direct_view(self, res=2):
         """create a summary image of all sun discs from each of vpts"""
         vpts = self.scene.pts()
@@ -208,18 +230,29 @@ class SunViewField(LightField):
             sxy = np.array((sxy[1], sxy[0]))
             block.append(((1, 1, 1), square + sxy))
         for i, pt in enumerate(vpts):
-            (lums, fig, ax,
-             norm, lev) = plot.mk_img_setup([0, 1], figsize=[ssq*res, ssq*res],
-                                            ext=(0, ssq))
-            cmap = plot.colormap('viridis', norm)
-            plot.plot_patches(ax, block)
-            for j in range(self.suns.suns.shape[0]):
-                if (i, j) in self.raster.keys():
-                    sxy = np.unravel_index(j, (ssq, ssq))
-                    sxy = np.array((sxy[1], sxy[0]))
-                    lums = cmap.to_rgba(self.lum[(i, j)])
-                    xy = (translate.uv2xy(self.raster[(i, j)])+1)/2 + sxy
-                    ax.plot(xy[:, 0], xy[:, 1], 'o', ms=2, color=lums)
-            ax.set_facecolor((0, 0, 0))
-            outf = f"{self.outfile(i)}.png"
-            plot.save_img(fig, ax, outf, title=pt)
+            print(self._dview(ssq, res, block, i, pt))
+
+    def pt_stat(self, i):
+        sns = self.suns.suns
+        pstat = np.zeros((sns.shape[0], 2))
+        area = self.suns.map.area
+        for j, s in enumerate(sns):
+            if (i, j) in self.items():
+                pstat[j] = [self.lum[(i, j)], self.omega[(i, j)]/area]
+        return pstat
+
+    def point_stats(self):
+        vpts = self.scene.pts()
+        sns = self.suns.suns
+        stats = np.zeros((vpts.shape[0], 5))
+        for i, pt in enumerate(vpts):
+            pstat = self.pt_stat(i)
+            nz = pstat[:, 0] > 0
+            cnt = np.sum(nz)/sns.shape[0]
+            if cnt > 0:
+                lo = np.percentile(pstat[nz], (0, 100), 0).T.ravel()
+                stats[i] = np.concatenate(([cnt], lo))
+        return np.hstack((vpts, stats))
+
+        # svlm = self.lum[psi]*s[3]
+        # svo = self.omega[psi]

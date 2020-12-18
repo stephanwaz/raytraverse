@@ -73,16 +73,16 @@ class SunSetterBase(object):
             raise ValueError("Cannot Initialize SunSetterBase without existing"
                              f"sun file ({sunfile}) or suns argument")
 
-    def write_sun(self, i):
+    def write_sun(self, i, glow=False):
         s = self.suns[i]
         mod = f"solar{i:05d}"
         name = f"sun{i:05d}"
         dec = self.scene.formatter.get_sundef(s, (1, 1, 1), self.srcsize, mod,
-                                              name)
+                                              name, glow=glow)
         return dec
 
     def _write_suns(self, sunfile):
-        """write suns to file
+        """write all suns to file
 
         Parameters
         ----------
@@ -92,6 +92,6 @@ class SunSetterBase(object):
             f = open(sunfile, 'w')
             print(f"{self.scene.formatter.comment} srct={self.srct}", file=f)
             for i in range(self.suns.shape[0]):
-                dec = self.write_sun(i)
+                dec = self.write_sun(i, glow=True)
                 print(dec, file=f)
             f.close()
