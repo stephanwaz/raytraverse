@@ -213,9 +213,10 @@ def uv2tp(uv):
     return xyz2tp(uv2xyz(uv))
 
 
-def uv2ij(uv, side):
+def uv2ij(uv, side, aspect=2):
     ij = np.mod(np.floor(side*uv), side)
-    ij[:, 0] += (uv[:, 0] >= 1) * side
+    if aspect == 2:
+        ij[:, 0] += (uv[:, 0] >= 1) * side
     return ij.astype(int)
 
 

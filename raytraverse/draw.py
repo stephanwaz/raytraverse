@@ -8,68 +8,30 @@
 
 """wavelet and associated probability functions."""
 import numpy as np
-import pywt
 from raytraverse.craytraverse import from_pdf as c_from_pdf
 from scipy.ndimage import correlate
+from memory_profiler import profile
 
 
-def get_detail(samps, axes):
-    """run high pass filter over given axes"""
-
-    # filterbank with pad and offset slice centers distribution around variance
-    fb = np.sqrt(2) * np.array([[.5, 1, .5], [-.5, 1, -.5],
-                                  [.5, 1, .5], [-.5, 1, -.5,]])
-    wav = pywt.Wavelet('custom4', fb)
-    # wav = "haar"
-    # mod adds extra padding to ensure evenness of transformed dimensions
-    padding = [(2, 2 + int(np.mod(s, 2))) if i in axes else (0, 0) for i, s in
-               enumerate(samps.shape)]
-    snn = slice(None, None, None)
-    slicing = (snn, ) + tuple([slice(1, -3 - int(np.mod(s, 2)), None)
-                               if i in axes else snn for i, s in
-                               enumerate(samps.shape)])
-    psamps = pywt.pad(samps, padding, mode='symmetric')
-    # calculate horiz, vert and diagonal detail
-    d = pywt.swtn(psamps, wav, 1, trim_approx=True, axes=axes)
-    d = np.asarray(tuple(d[1].values()))[slicing]
-    # sum over detail and normalize (useful for non parametric sampling rates)
-    # the detail can be read as delta luminance around that pixel
-    d_det = np.sum(np.abs(d), 0).ravel()
-    m = np.nanmean(d_det)
-    return np.where(np.isfinite(d_det), d_det, m)
-
-
-def get_detail_filter(samps, f1=None, f2=None):
+@profile
+def get_detail_filter(samps, f1=None, f2=None, f3=None):
     d_det = []
     if f1 is None:
-        # # four corners
-        # f1 = np.array([[1, 0, -1], [0, 0, 0], [-1, 0, 1]])
-        # f2 = np.array([[0, -1, 0], [1, 0, 1], [0, -1, 0]])
-        # # sobel 3,10
-        # f1 = np.array([[3, 10, 3], [0, 0, 0], [-3, -10, -3]])/16
-        # f2 = f1.T
-        # # sobel 47,162
-        # f1 = np.array([[47, 162, 47], [0, 0, 0], [-47, -162, -47]])/261
-        # f2 = f1.T
-        # sobel operator
-        # f1 = np.array([[1, 2, 1], [0, 0, 0], [-1, -2, -1]]) / 4
-        # f2 = f1.T
         # prewitt operator
         f1 = np.array([[1, 1, 1], [0, 0, 0], [-1, -1, -1]])/3
         f2 = f1.T
     s = samps.reshape(-1, *samps.shape[-2:])
     for d in s:
-        ds = (np.abs(correlate(d, f1)) + np.abs(correlate(d, f2)))
+        ds = np.abs(correlate(d, f1))
+        for f in (f2, f3):
+            if f is not None:
+                ds += np.abs(correlate(d, f))
         if f1.shape[0] == 2:
             ds[:-1, :-1] += ds[1:, 1:]
-        # if relative:
-        #     dg = gaussian_filter(ds, 5)
-        #     ds = ds / gaussian_filter(ds, 5)
-        #     ds[dg < .2] = 0
         d_det.append(ds.ravel())
     return np.concatenate(d_det)
 
-
+@profile
 def from_pdf(pdf, threshold, lb=.5, ub=4):
     # bypass random sampling
     if ub <= 1:

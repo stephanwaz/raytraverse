@@ -10,7 +10,7 @@ import pickle
 import sys
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from concurrent.futures import ProcessPoolExecutor
-from scipy.spatial import cKDTree, SphericalVoronoi, _voronoi
+from scipy.spatial import cKDTree, SphericalVoronoi, Voronoi
 
 import numpy as np
 from raytraverse.lightfield.memarraydict import MemArrayDict
@@ -19,6 +19,7 @@ from raytraverse import io, translate
 from raytraverse.mapper import ViewMapper
 from raytraverse.lightfield.lightfield import LightField
 from raytraverse.craytraverse import interpolate_kdquery
+from shapely.geometry import Polygon
 
 
 class LightFieldKD(LightField):
@@ -26,11 +27,13 @@ class LightFieldKD(LightField):
 
     @staticmethod
     def mk_vector_ball(v):
+        if v.shape[0] < 100:
+            return None, None
         d_kd = cKDTree(v)
         try:
             omega = SphericalVoronoi(v).calculate_areas()
         except ValueError:
-            # spherical voronoi raises a vague value error when points are
+            # spherical voronoi raises a value error when points are
             # too close, in this case we cull duplicates before calculating
             # area, leaving the duplicates with omega=0
             filts = np.full(len(v), True)
@@ -43,6 +46,28 @@ class LightFieldKD(LightField):
                     filts[p[1:]] = False
                     flagged.update(p[1:])
             omega[filts] = SphericalVoronoi(v[filts]).calculate_areas()
+        return d_kd, omega[:, None]
+
+    @staticmethod
+    def mk_vector_view(v, uv):
+        """in case of 180 view, cannot use spherical voronoi, instead
+        the method estimates area in square coordinates by intersecting
+        2D voronoi with border square."""
+        d_kd = cKDTree(v)
+        # so none of our points have infinite edges.
+        bordered = np.concatenate((uv, np.array([[-10,-10], [-10,10],
+                                                  [10,10], [10,-10]])))
+        vor = Voronoi(bordered)
+        # the border of our 180 degree region
+        mask = Polygon(np.array([[0,0], [0,1], [1,1], [1,0], [0,0]]))
+        omega = []
+        for i in range(len(uv)):
+            region = vor.regions[vor.point_region[i]]
+            p = Polygon(np.concatenate((vor.vertices[region],
+                        [vor.vertices[region][0]]))).intersection(mask)
+            # scaled from unit square -> hemisphere
+            omega.append(p.area*2*np.pi)
+        omega = np.asarray(omega)
         return d_kd, omega[:, None]
 
     @property
@@ -77,7 +102,7 @@ class LightFieldKD(LightField):
                                     " lightfield")
         if (os.path.isfile(kdfile) and os.path.isfile(lumfile)
                 and not self.rebuild):
-            self.scene.log(self, "Reloading data")
+            # self.scene.log(self, "Reloading data")
             f = open(kdfile, 'rb')
             self._d_kd = pickle.load(f)
             self._vec = pickle.load(f)
@@ -154,9 +179,15 @@ class LightFieldKD(LightField):
     def _mk_tree(self, pref='', ltype=MemArrayDict):
         npts = self.scene.area.npts
         vs, lums = self._get_vl(npts, pref=pref, ltype=ltype)
-        with ProcessPoolExecutor(io.get_nproc()) as exc:
-            d_kd, omega = zip(*exc.map(LightFieldKD.mk_vector_ball,
-                                       vs.values()))
+        if self.scene.view.viewangle < 360:
+            uv = [self.scene.view.xyz2uv(v) for v in vs.values()]
+            with ProcessPoolExecutor(io.get_nproc()) as exc:
+                d_kd, omega = zip(*exc.map(LightFieldKD.mk_vector_view,
+                                           vs.values(), uv))
+        else:
+            with ProcessPoolExecutor(io.get_nproc()) as exc:
+                d_kd, omega = zip(*exc.map(LightFieldKD.mk_vector_ball,
+                                           vs.values()))
         return dict(zip(vs.keys(), d_kd)), vs, dict(zip(vs.keys(), omega)), lums
 
     def apply_coef(self, pi, coefs):

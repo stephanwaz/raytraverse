@@ -420,7 +420,7 @@ def sunrun(ctx, plotdview=False, run=True, rmraw=False, overwrite=False,
         exists = os.path.isfile(lumf) and os.stat(lumf).st_size > 1000
         rrun = run and (overwrite or not exists)
         if rrun:
-            sampler.run(view=False, reflection=True)
+            sampler.run(view=False, reflection=True, replace=overwrite)
         try:
             su = SunField(scn, sns, rebuild=rrun or rebuild, rmraw=rmraw)
         except FileNotFoundError as ex:

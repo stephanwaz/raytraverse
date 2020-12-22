@@ -27,7 +27,7 @@ class ImageScene(BaseScene):
     scene_ext = "hdr"
 
     def __init__(self, outdir, scene=None, reload=True, log=False):
-        super().__init__(outdir, scene=scene, viewdir=(0, 1, 0), viewangle=360,
+        super().__init__(outdir, scene=scene, viewdir=(0, 1, 0), viewangle=180,
                          frozen=True, formatter=ImageFormatter, reload=reload,
                          log=log)
         self.area = SpaceMapperPt(np.array((0, 0, 0)))

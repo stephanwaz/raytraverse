@@ -54,6 +54,9 @@ class Sampler(object):
                  accuracy=1.0, idres=4,
                  stype='generic', srcdef=None, plotp=False,
                  bands=1, engine_args="", nproc=None, **kwargs):
+        # if initialized for mapping between weights and samples
+        self.vizkeys = None
+        self.vizmap = None
         self.engine = engine()
         self._staticscene = True
         scene.log(self, "Initializing")
@@ -247,7 +250,7 @@ class Sampler(object):
 
     def _plot_p(self, p, suffix=".hdr", fisheye=True):
         ps = p.reshape(self.weights.shape)
-        outshape = (1024, 512)
+        outshape = (512*self.scene.view.aspect, 512)
         res = outshape[-1]
         if fisheye:
             pixelxyz = self.samplemap.pixelrays(res)
@@ -256,7 +259,8 @@ class Sampler(object):
             mask = self.samplemap.in_view(pdirs, indices=False).reshape(outshape)
             for i, ws in enumerate(self.weights):
                 for j, w in enumerate(ws):
-                    ij = translate.uv2ij(uv, w.shape[-1])
+                    ij = translate.uv2ij(uv, w.shape[-1],
+                                         aspect=self.scene.view.aspect)
                     ptidx = np.ravel_multi_index((i, j), self.area.ptshape)
                     outw = (f"{self.scene.outdir}_{self.stype}_weights_"
                             f"{ptidx:04d}_{self.idx+1:02d}{suffix}")
@@ -302,7 +306,7 @@ class Sampler(object):
         """threshold for determining sample count"""
         return self.accuracy * self._linear(idx, self.t0, self.t1)
 
-    detailfunc = 'wavelet'
+    detailfunc = 'wav3'
 
     filters = {'prewitt': (np.array([[1, 1, 1], [0, 0, 0], [-1, -1, -1]])/3,
                            np.array([[1, 0, -1], [1, 0, -1], [1, 0, -1]])/3),
@@ -316,6 +320,15 @@ class Sampler(object):
                          np.array([[0, 0, 0], [0, 0, 0], [0, 0, 0]])),
                'wav': (np.array([[-1, 0, 0], [-1, 4, -1], [0, 0, -1]])/3,
                        np.array([[0, 0, -1], [-1, 4, -1], [-1, 0, 0]])/3),
+               'wav3': (np.sqrt(2) / 2 * np.array([[0, 0, 0],
+                                                   [-1, 2, -1],
+                                                   [0, 0, 0]]),
+                        np.sqrt(2) / 2 * np.array([[0, -1, 0],
+                                                   [0, 2, 0],
+                                                   [0, -1, 0]]),
+                        np.sqrt(2) / 2 * np.array([[-1, 0, 0],
+                                                   [0, 2, 0],
+                                                   [0, 0, -1]])),
                }
 
     def draw(self):
@@ -338,11 +351,6 @@ class Sampler(object):
             # use weights directly on first pass
             if self.idx == 0:
                 p = self.weights.ravel()
-            # use wavelet transform
-            elif self.detailfunc == 'wavelet':
-                daxes = (len(pres) + len(dres) - 2, len(pres) + len(dres) - 1)
-                p = draw.get_detail(self.weights, daxes)
-            # use filter banks
             else:
                 p = draw.get_detail_filter(self.weights,
                                            *self.filters[self.detailfunc])
@@ -364,11 +372,19 @@ class Sampler(object):
             values to update with
 
         """
+        if self.vizkeys is not None:
+            widx = self.vizmap[tuple(si[0:3])]
+            si = np.vstack((widx, si[3:]))
         self.weights[tuple(si)] = lum
 
     def levelup_weights(self):
         """prepare weights for sampling at current level"""
-        shape = np.concatenate((self.area.ptshape, self.levels[self.idx]))
+        if self.vizkeys is None:
+            shape = np.concatenate((self.area.ptshape,
+                                    self.levels[self.idx]))
+        else:
+            shape = np.concatenate((self.weights.shape[0:1],
+                                    self.levels[self.idx][1:]))
         self.weights = translate.resample(self.weights, shape)
         return shape
 
@@ -402,14 +418,6 @@ class Sampler(object):
             else:
                 f.write(io.np2bytes(vecs))
         f.close()
-
-    def get_scheme(self):
-        scheme = np.ones((self.levels.shape[0], self.levels.shape[1] + 4))
-        scheme[:, 2:-2] = self.levels
-        scheme[:, 0:2] = self.area.ptshape
-        scheme[:, -2] = self.srcn
-        scheme[:, -1] = self.levelsamples
-        return scheme.astype(int)
 
     # @profile
     def run(self):

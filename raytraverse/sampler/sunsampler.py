@@ -5,9 +5,7 @@
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 # =======================================================================
-import sys
-
-import numpy as np
+import os
 
 from raytraverse import translate
 from raytraverse.sampler import SingleSunSampler, SunViewSampler
@@ -37,7 +35,7 @@ class SunSampler(object):
         self.reflsampler = None
         self.sampleargs.update(**kwargs)
 
-    def run(self, view=True, reflection=True):
+    def run(self, view=True, reflection=True, replace=True):
         if view and self.suns.suns.size > 0:
             self.viewsampler.run()
         if reflection:
@@ -48,6 +46,14 @@ class SunSampler(object):
                                f"{suncnt}")
                 self.scene.log(self, f'Sun Position: alt={aa[sidx, 0]:.01f},'
                                f' az={aa[sidx, 1]:.01f}')
-                self.reflsampler = SingleSunSampler(self.scene, self.suns, sidx,
-                                                    **self.sampleargs)
-                self.reflsampler.run()
+                vals = f'{self.scene.outdir}/sun_{sidx:04d}_vals.out'
+                vecs = f'{self.scene.outdir}/sun_{sidx:04d}_vecs.out'
+                if (not replace) and (os.path.isfile(vals)
+                                      and os.path.isfile(vecs)):
+                    self.scene.log(self, f"Output files for Sun Reflections "
+                                         f"{sidx+1} exist, skipping "
+                                         f"(use replace=True to overwrite)")
+                else:
+                    self.reflsampler = SingleSunSampler(self.scene, self.suns,
+                                                        sidx, **self.sampleargs)
+                    self.reflsampler.run()

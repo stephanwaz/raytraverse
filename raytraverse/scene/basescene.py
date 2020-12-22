@@ -52,12 +52,6 @@ class BaseScene(object):
         #: raytraverse.viewmapper.ViewMapper: view translation class
         self.view = ViewMapper(viewdir, viewangle)
 
-    def __del__(self):
-        try:
-            self.log(self, "Closed")
-        except FileNotFoundError:
-            pass
-
     @property
     def scene(self):
         """render scene files (octree)

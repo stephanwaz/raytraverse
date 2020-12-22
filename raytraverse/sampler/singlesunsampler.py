@@ -12,7 +12,7 @@ import numpy as np
 from raytraverse import translate, draw
 from raytraverse.lightfield import SCBinField
 from raytraverse.sampler.sampler import Sampler
-
+from memory_profiler import profile
 
 class SingleSunSampler(Sampler):
     """sample contributions from direct suns.
@@ -73,9 +73,8 @@ class SingleSunSampler(Sampler):
 
         # explude points with low direct sun patch contribution
         shape = np.concatenate((self.area.ptshape, self.levels[0]))
-        weights = self.pdf_from_sky(SCBinField(self.scene), filterpts=True)
+        weights = self.pdf_from_sky(filterpts=True)
         self.weights = translate.resample(weights, shape)
-
 
         # load new source
         srcdef = f'{scene.outdir}/tmp_srcdef.rad'
@@ -85,8 +84,10 @@ class SingleSunSampler(Sampler):
         self.engine.load_source(srcdef)
         os.remove(srcdef)
 
-    def pdf_from_sky(self, skyfield, rebuild=False, zero=True,
+    @profile
+    def pdf_from_sky(self, rebuild=False, zero=True,
                      filterpts=False):
+        skyfield = SCBinField(self.scene, log=False)
         ishape = np.concatenate((self.area.ptshape,
                                  self.levels[self.specidx-2]))
         fi = f"{self.scene.outdir}/sunpdfidxs.npz"
@@ -128,18 +129,15 @@ class SingleSunSampler(Sampler):
         """
         pdraws = super().draw()
         if self.idx == self.specidx:
-            skyfield = SCBinField(self.scene)
             shape = np.concatenate((self.area.ptshape,
                                     self.levels[self.idx]))
-            weights = self.pdf_from_sky(skyfield)
+            weights = self.pdf_from_sky()
             p = translate.resample(weights, shape)
-            bound = self._linear(self.idx, .5, .01)
             s = p.ravel()
             s[pdraws] = 0
             if self.plotp:
                 self._plot_p(p, suffix="_specidx.hdr")
-            sdraws = draw.from_pdf(s, self.slimit,
-                                   lb=1 - bound, ub=1 + bound)
+            sdraws = draw.from_pdf(s, self.slimit, ub=1)
             pdraws = np.concatenate((pdraws, sdraws))
         return pdraws
 

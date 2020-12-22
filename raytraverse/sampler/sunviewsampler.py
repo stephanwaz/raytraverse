@@ -10,7 +10,7 @@ import pickle
 
 import numpy as np
 
-from raytraverse import draw, translate
+from raytraverse import draw, translate, io
 from raytraverse.lightfield import SCBinField
 from raytraverse.sampler import Sampler
 
@@ -147,20 +147,35 @@ class SunViewSampler(Sampler):
         large number of samples bog down random number generator"""
         return 0.5/self.levels[self.idx][-1]
 
+    def dump_vecs(self, vecs, si=None):
+        """save vectors to file
+
+        Parameters
+        ----------
+        vecs: np.array
+            ray directions to write
+        si: np.array, optional
+            sample indices
+        """
+        outf = f'{self.scene.outdir}/{self.stype}_vecs_{self.idx:02d}.out'
+        f = open(outf, 'wb')
+        f.write(io.np2bytes(vecs))
+        f.close()
+        self._vecfiles.append(outf)
+        return outf
+
     def _uv2xyz(self, uv, si):
         return self.samplemap.uv2xyz(uv, si[2])
 
     def draw(self):
-        """draw first level based on sky visibility"""
+        """draw first level based on sky visibility all sampling is
+        deterministic since we are presumbably at a very high resolution to
+        avoid bias"""
         if not self._checkviz:
             return super().draw()
         if self.idx == 0:
             self.check_viz()
             p = self.weights.ravel()
-        # use wavelet transform
-        elif self.detailfunc == 'wavelet':
-            p = draw.get_detail(self.weights, (1, 2))
-        # use filter banks
         else:
             p = draw.get_detail_filter(self.weights,
                                        *self.filters[self.detailfunc])
@@ -168,37 +183,9 @@ class SunViewSampler(Sampler):
         pdraws = draw.from_pdf(p, self.threshold(self.idx), ub=1)
         return pdraws
 
-    def update_weights(self, si, lum):
-        """update self.weights (which holds values used to calculate pdf)
-
-        Parameters
-        ----------
-        si: np.array
-            multidimensional indices to update
-        lum:
-            values to update with
-
-        """
-        if self.vizkeys is not None:
-            widx = self.vizmap[tuple(si[0:3])]
-            si = np.vstack((widx, si[3:]))
-        self.weights[tuple(si)] = lum
-
-    def levelup_weights(self):
-        """prepare weights for sampling at current level"""
-        if self.vizkeys is None:
-            shape = np.concatenate((self.area.ptshape,
-                                    self.levels[self.idx]))
-        else:
-            shape = np.concatenate((self.weights.shape[0:1],
-                                    self.levels[self.idx][1:]))
-        self.weights = translate.resample(self.weights, shape)
-        return shape
-
     def run_callback(self):
         """post sampling, write full resolution (including interpolated values)
          non zero rays to result file."""
-        super().run_callback()
         shape = self.levels[self.idx, -2:]
         size = np.prod(shape)
         si = np.stack(np.unravel_index(np.arange(size), shape)).T
@@ -250,3 +237,4 @@ class SunViewSampler(Sampler):
         pickle.dump(shape, f, protocol=4)
         f.close()
         os.remove(f'{self.scene.outdir}/{self.stype}_vals.out')
+        [os.remove(f) for f in self._vecfiles]

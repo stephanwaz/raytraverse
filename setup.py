@@ -20,7 +20,7 @@ with open('HISTORY.rst') as history_file:
     history = history_file.read()
 
 requirements = ['clasp', 'numpy', 'scipy', 'pywavelets', 'matplotlib',
-                'skyfield', 'clipt', 'pybind11']
+                'skyfield', 'clipt', 'pybind11', 'shapely']
 
 setup_requirements = ["setuptools", "wheel", "scikit-build", "cmake", "ninja"]
 
