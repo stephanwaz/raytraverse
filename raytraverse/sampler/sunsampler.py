@@ -22,38 +22,33 @@ class SunSampler(object):
         sun class containing sun locations.
     """
 
-    def __init__(self, scene, suns, plotp=False, checkviz=True, **kwargs):
+    def __init__(self, scene, suns, plotp=False, **kwargs):
         scene.log(self, "Initializing")
         self.scene = scene
         self.suns = suns
-        #: raytraverse.sampler.SunViewSampler
-        self.viewsampler = SunViewSampler(scene, suns, checkviz=checkviz,
-                                          plotp=False)
         #: dict: sampling arguments for SingleSunSampler
         self.sampleargs = dict(idres=4, fdres=10, speclevel=9, plotp=plotp)
         #: raytraverse.sampler.SingleSunSampler
         self.reflsampler = None
         self.sampleargs.update(**kwargs)
 
-    def run(self, view=True, reflection=True, replace=True):
-        if view and self.suns.suns.size > 0:
-            self.viewsampler.run()
-        if reflection:
-            suncnt = self.suns.suns.shape[0]
-            aa = translate.xyz2aa(self.suns.suns)
-            for sidx in range(suncnt):
-                self.scene.log(self, f"Sampling Sun Reflections {sidx+1} of "
-                               f"{suncnt}")
-                self.scene.log(self, f'Sun Position: alt={aa[sidx, 0]:.01f},'
-                               f' az={aa[sidx, 1]:.01f}')
-                vals = f'{self.scene.outdir}/sun_{sidx:04d}_vals.out'
-                vecs = f'{self.scene.outdir}/sun_{sidx:04d}_vecs.out'
-                if (not replace) and (os.path.isfile(vals)
-                                      and os.path.isfile(vecs)):
-                    self.scene.log(self, f"Output files for Sun Reflections "
-                                         f"{sidx+1} exist, skipping "
-                                         f"(use replace=True to overwrite)")
-                else:
-                    self.reflsampler = SingleSunSampler(self.scene, self.suns,
-                                                        sidx, **self.sampleargs)
-                    self.reflsampler.run()
+    def run(self, replace=True):
+        suncnt = self.suns.suns.shape[0]
+        aa = translate.xyz2aa(self.suns.suns)
+        for sidx in range(suncnt):
+            self.scene.log(self, f"Sampling Sun Reflections {sidx+1} of "
+                           f"{suncnt}")
+            self.scene.log(self, f'Sun Position: alt={aa[sidx, 0]:.01f},'
+                           f' az={aa[sidx, 1]:.01f}')
+            vals = f'{self.scene.outdir}/sun_{sidx:04d}_vals.out'
+            vecs = f'{self.scene.outdir}/sun_{sidx:04d}_vecs.out'
+            built = f'{self.scene.outdir}/sun_{sidx:04d}_kd_lum.dat'
+            if (not replace) and ((os.path.isfile(vals)
+                                  and os.path.isfile(vecs)) or os.path.isfile(built)):
+                self.scene.log(self, f"Output files for Sun Reflections "
+                                     f"{sidx+1} exist, skipping "
+                                     f"(use replace=True to overwrite)")
+            else:
+                self.reflsampler = SingleSunSampler(self.scene, self.suns,
+                                                    sidx, **self.sampleargs)
+                self.reflsampler.run()

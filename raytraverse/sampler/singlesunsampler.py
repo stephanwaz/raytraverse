@@ -84,7 +84,7 @@ class SingleSunSampler(Sampler):
         self.engine.load_source(srcdef)
         os.remove(srcdef)
 
-    @profile
+    # @profile
     def pdf_from_sky(self, rebuild=False, zero=True,
                      filterpts=False):
         skyfield = SCBinField(self.scene, log=False)

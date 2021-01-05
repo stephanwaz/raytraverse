@@ -27,6 +27,7 @@ class SCBinField(LightFieldKD):
             c = coefs.reshape(-1, self.srcn)
         else:
             c = np.broadcast_to(coefs, (coefs.size, self.srcn))
+        print('sky', c.shape)
         return np.einsum('ij,kj->ik', c, self.lum[pi])
 
     def direct_view(self, res=512, showsample=True, showweight=True,

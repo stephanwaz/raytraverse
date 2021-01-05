@@ -34,17 +34,12 @@ class SunSkyPt(LightFieldKD):
     """
 
     def __init__(self, skyfield, sunfield, ptidx, save=False):
-        #: raytraverse.sunsetter.SunSetter
-        self.suns = sunfield.suns
-        #: raytraverse.lightfield.SunViewField
-        self.view = sunfield.view
         self._ptidx = ptidx
         self._sunparent = sunfield
         self._skyparent = skyfield
-        self._items = [i for i in range(self.suns.suns.shape[0])
-                       if (ptidx, i) in sunfield.items()]
+        self._items = [ptidx]
         super().__init__(skyfield.scene, prefix=f'sunsky_{ptidx:04d}',
-                         srcn=sunfield.srcn + skyfield.srcn)
+                         srcn=sunfield.srcn + skyfield.srcn, log=False)
         self._d_kd, self._vec, self._omega, self._lum = self._mk_tree()
 
     @property
@@ -74,31 +69,8 @@ class SunSkyPt(LightFieldKD):
             c = coefs.reshape(-1, self.srcn)
         else:
             c = np.broadcast_to(coefs, (coefs.size, self.srcn))
+        print(c.shape)
         return np.einsum('ij,kj->ik', c, self.lum[pi])
-
-    def add_to_img(self, img, mask, pi, vecs, coefs=1, vm=None, interp=1,
-                   **kwargs):
-        if vm is None:
-            vm = self.scene.view
-        super().add_to_img(img, mask, pi, vecs, coefs=coefs, interp=interp,
-                           **kwargs)
-        coefs = np.asarray(coefs)
-        if coefs.size == 1:
-            # scale to 5 times the sky irradiance (for direct view)
-            coefs = coefs * 5/(np.square(0.2665 * np.pi / 180) * .5)
-        sun = np.concatenate((self.suns.suns[pi],
-                              np.asarray(coefs).reshape(-1)[0:1]))
-        self.view.add_to_img(img, (self._ptidx, pi), sun, vm)
-
-    def get_applied_rays(self, pi, dxyz, skyvec, sunvec=None):
-        """the analog to add_to_img for metric calculations"""
-        rays, omega, lum = super().get_applied_rays(pi, dxyz, skyvec)
-        svw = self.view.get_ray((self._ptidx, pi), dxyz, sunvec)
-        if svw is not None:
-            rays = np.vstack((rays, svw[0][None, :]))
-            lum = np.concatenate((lum, [svw[1]]))
-            omega = np.concatenate((omega, [svw[2]]))
-        return rays, omega, lum
 
     @property
     def scene(self):
@@ -115,7 +87,7 @@ class SunSkyPt(LightFieldKD):
         """Set this field's scene and load samples"""
         self._scene = scene
 
-    def _get_vlo(self, sidx, **kwargs):
+    def _get_vlo(self, **kwargs):
         """
 
         Parameters
@@ -134,21 +106,20 @@ class SunSkyPt(LightFieldKD):
 
         """
         sk_key = self._ptidx
+        sk_kd = self._skyparent.d_kd[sk_key]
         sk_vec = self._skyparent.vec[sk_key]
         sk_lum = self._skyparent.lum[sk_key]
-        su_key = (self._ptidx, sidx)
-        if su_key in self._sunparent.items():
-            su_vec = self._sunparent.vec[su_key]
-            su_lum = self._sunparent.lum[su_key]
-            lum_sk = self._skyparent.interpolate_query(sk_key, su_vec, **kwargs)
-            lum_su = self._sunparent.interpolate_query(su_key, sk_vec, **kwargs)
-            vecs = np.vstack((su_vec, sk_vec))
-            lum_sk = np.vstack((lum_sk, sk_lum))
-            lum_su = np.vstack((su_lum, lum_su))
-            lums = np.hstack((lum_su, lum_sk))
-        else:
-            vecs = sk_vec
-            lums = sk_lum
+        su_kd = self._sunparent.d_kd[sk_key]
+        su_vec = self._sunparent.vec[sk_key]
+        su_lum = self._sunparent.lum[sk_key]
+        lum_sk = LightFieldKD.interpolate_query(sk_kd, sk_lum, sk_vec, su_vec,
+                                                **kwargs)
+        lum_su = LightFieldKD.interpolate_query(su_kd, su_lum, su_vec, sk_vec,
+                                                **kwargs)
+        vecs = np.vstack((su_vec, sk_vec))
+        lum_sk = np.vstack((lum_sk, sk_lum))
+        lum_su = np.vstack((su_lum, lum_su))
+        lums = np.hstack((lum_su, lum_sk))
         kd, omega = LightFieldKD.mk_vector_ball(vecs)
         return vecs, lums, kd, omega
 
@@ -157,12 +128,7 @@ class SunSkyPt(LightFieldKD):
         vecs = {}
         omegas = {}
         lums = {}
-        self.scene.log(self, "Interpolating kd-trees")
-        with ProcessPoolExecutor(io.get_nproc()) as exc:
-            futures = []
-            for sidx in self.items():
-                futures.append((sidx, exc.submit(self._get_vlo, sidx)))
-            for fu in futures:
-                idx = fu[0]
-                vecs[idx], lums[idx], d_kds[idx], omegas[idx] = fu[1].result()
+        # self.scene.log(self, "Interpolating kd-trees")
+        idx = self.items()[0]
+        vecs[idx], lums[idx], d_kds[idx], omegas[idx] = self._get_vlo()
         return d_kds, vecs, omegas, lums

@@ -80,14 +80,6 @@ class SunField(LightFieldKD):
     def ptitems(self, i):
         return [j for j in self.items() if j[0] == i]
 
-    def keymap(self):
-        npts = self.scene.area.npts
-        shape = (npts, self.suns.suns.shape[0] + 1)
-        idxgrid = np.unravel_index(np.arange(shape[1] * npts), shape)
-        full = np.core.records.fromarrays(idxgrid)
-        items = np.core.records.fromarrays(list(zip(*self.items())))
-        return np.isin(full, items).reshape(shape)
-
     def add_to_img(self, img, mask, pi, vecs, coefs=92444.45, vm=None, interp=1,
                    **kwargs):
         if vm is None:

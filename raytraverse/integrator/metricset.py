@@ -53,11 +53,12 @@ class MetricSet(object):
     """
 
     #: available metrics (and the default return set)
-    defaultmetrics = ["illum", "avglum", "gcr", "ugr", "dgp"]
+    defaultmetrics = ["illum", "avglum", "gcr", "ugp", "dgp"]
 
-    allmetrics = defaultmetrics + ["tasklum", "backlum", "dgp_t1", "dgp_t2",
-                                   "threshold", "pwsl2", "view_area", "density",
-                                   "reldensity", "lumcenter", "avgraylum"]
+    allmetrics = defaultmetrics + ["tasklum", "backlum", "dgp_t1", "log_gc",
+                                   "dgp_t2", "ugr", "threshold", "pwsl2",
+                                   "view_area", "density", "reldensity",
+                                   "lumcenter", "avgraylum"]
 
     def __init__(self, vm, vec, omega, lum, metricset=None, scale=179.,
                  threshold=2000., guth=True, tradius=30.0, **kwargs):
@@ -65,9 +66,11 @@ class MetricSet(object):
             metricset = MetricSet.defaultmetrics
         self.vm = vm
         self.view_area = vm.area
-        self._vec = translate.norm(vec)
-        self._lum = lum
-        self.omega = omega
+        v = translate.norm(vec)
+        mask = self.vm.in_view(v)
+        self._vec = v[mask]
+        self._lum = lum[mask]
+        self.omega = omega[mask]
         self.scale = scale
         self._threshold = threshold
         self.guth = guth
@@ -264,13 +267,23 @@ class MetricSet(object):
 
     @property
     @functools.lru_cache(1)
+    def log_gc(self):
+        return np.log10(1 + self.pwsl2/self.illum**1.87)
+
+    @property
+    @functools.lru_cache(1)
     def dgp_t2(self):
-        return 9.18 * 10**-2 * np.log10(1 + self.pwsl2 / self.illum**1.87)
+        return 9.18 * 10**-2 * self.log_gc
 
     @property
     @functools.lru_cache(1)
     def ugr(self):
         return np.maximum(0, 8 * np.log10(0.25 * self.pwsl2 / self.backlum))
+
+    @property
+    @functools.lru_cache(1)
+    def ugp(self):
+        return self.ugr * .0325
 
     @property
     @functools.lru_cache(1)

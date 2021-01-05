@@ -222,7 +222,7 @@ class Integrator(BaseIntegrator):
             skyvec = sun[3]
         return self.skyfield, pi, skyvec
 
-    def _all_hdr(self, exc, pi, pj, vdir, res=400, viewangle=180.0,
+    def _all_hdr(self, pi, pj, vdir, res=400, viewangle=180.0,
                  vname='view', interp=1, altlf=None):
         smtx, suns, daysteps, skydata = self.skydata
         vm = ViewMapper(viewangle=viewangle, dxyz=vdir, name=vname)
@@ -237,11 +237,11 @@ class Integrator(BaseIntegrator):
                     ".hdr")
             lf, li, skyvec = self._prep_data(altlf, smtx[sj], suns[sj],
                                              self.sunproxy[sj], pi)
-            fu.append(exc.submit(self.hdr, li, vm, pdirs, mask, vstr, outf,
-                                 interp=interp, altlf=lf, coefs=skyvec))
+            fu.append(self.hdr(li, vm, pdirs, mask, vstr, outf,
+                               interp=interp, altlf=lf, coefs=skyvec))
         return fu
 
-    def _all_metric(self, exc, pi, vdir, pt, perr, metricset, altlf, **kwargs):
+    def _all_metric(self, pi, vdir, pt, perr, metricset, altlf, **kwargs):
         smtx, suns, daysteps, skydata = self.skydata
         vm = ViewMapper(viewangle=180, dxyz=vdir)
         fu = []
@@ -251,6 +251,7 @@ class Integrator(BaseIntegrator):
 
             info = self._metric_info([pi, sj], [*pt, *vdir],
                                      [perr, self._serr[sj]], skydata[sj])
-            fu.append(exc.submit(self.metric, li, vm, metricset, info, altlf=lf,
-                                 coefs=skyvec, sunvec=suns[sj], **kwargs))
+            fu.append(self.metric(li, vm, metricset, info, altlf=lf,
+                                  coefs=skyvec, sunvec=suns[sj], **kwargs))
+            print("\t".join([f"{i}" for i in fu[-1]]))
         return fu

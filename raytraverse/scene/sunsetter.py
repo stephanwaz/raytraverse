@@ -181,5 +181,5 @@ class SunSetter(SunSetterBase):
         suns = translate.norm(tsuns)
         serrs, sis = self.sun_kd.query(suns)
         serrs = translate.chord2theta(serrs) * 180 / np.pi
-        sis = np.where(serrs < stol, sis, self.suns.shape[0])
+        sis = np.where(serrs < tol, sis, self.suns.shape[0])
         return sis, serrs

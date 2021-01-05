@@ -10,10 +10,8 @@
 import numpy as np
 from raytraverse.craytraverse import from_pdf as c_from_pdf
 from scipy.ndimage import correlate
-from memory_profiler import profile
 
 
-@profile
 def get_detail_filter(samps, f1=None, f2=None, f3=None):
     d_det = []
     if f1 is None:
@@ -31,7 +29,7 @@ def get_detail_filter(samps, f1=None, f2=None, f3=None):
         d_det.append(ds.ravel())
     return np.concatenate(d_det)
 
-@profile
+
 def from_pdf(pdf, threshold, lb=.5, ub=4):
     # bypass random sampling
     if ub <= 1:

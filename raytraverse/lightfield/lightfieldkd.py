@@ -38,7 +38,7 @@ class LightFieldKD(LightField):
             # area, leaving the duplicates with omega=0
             filts = np.full(len(v), True)
             omega = np.zeros(v.shape[0])
-            tol = 2*np.pi/2**15
+            tol = 2*np.pi/2**10
             pairs = d_kd.query_ball_tree(d_kd, tol)
             flagged = set()
             for j, p in enumerate(pairs):
@@ -200,7 +200,10 @@ class LightFieldKD(LightField):
             i, d = self.query_ray(pi, vecs)
             lum = self.omega[pi][i]
         elif interp > 1:
-            arrout = self.interpolate_query(pi, vecs, k=interp, **kwargs)
+            arrout = LightFieldKD.interpolate_query(self.d_kd[pi],
+                                                    self.lum[pi],
+                                                    self.vec[pi],
+                                                    vecs, k=interp, **kwargs)
             if np.asarray(coefs).size == 1:
                 lum = arrout * coefs
             else:
@@ -240,15 +243,20 @@ class LightFieldKD(LightField):
         vs = translate.theta2chord(viewangle/360*np.pi)
         return self.d_kd[pi].query_ball_point(translate.norm(vecs), vs)
 
-    def interpolate_query(self, pi, dest_vec, k=8,
+    @staticmethod
+    def interpolate_query(kd, lum, vec, dest_vec, k=8,
                           err=0.00436, up=0.347296):
         """query a kd_tree and interpolate corresponding values. used to
         merge to kd_trees with vector and luminance
 
         Parameters
         ----------
-        pi:
-            key
+        kd:
+            kd-tree
+        lum:
+            lum array
+        vec:
+            vector array
         dest_vec: np.array
             destination vectors to interpolate to, shape (N, 3)
         k: int
@@ -265,11 +273,12 @@ class LightFieldKD(LightField):
         np.array
             shape of (dest_vec.shape[0], src_lum.shape[1])
         """
-        errs, idxs = self.d_kd[pi].query(dest_vec, k=k, distance_upper_bound=up)
         if k == 1:
-            return self.lum[pi][idxs]
-        arrout = interpolate_kdquery(dest_vec, errs, idxs, self.vec[pi],
-                                     self.lum[pi], err=err)
+            errs, idxs = kd.query(dest_vec)
+            arrout = lum[idxs]
+        else:
+            errs, idxs = kd.query(dest_vec, k=k, distance_upper_bound=up)
+            arrout = interpolate_kdquery(dest_vec, errs, idxs, vec, lum, err=err)
         return arrout
 
     def _dview(self, vm, idx, res=512, showsample=True,

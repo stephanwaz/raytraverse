@@ -196,6 +196,7 @@ py::array_t<double> interpolate_kdquery(py::array_t<double> &destvec,
         dt[1] = errs.at(i, k);
         bary[2] = errs.at(i, k) * dt[0] * sqrt(1 - pow(dot, 2)) / 2; // side angle side + sin = sqrt(1-cos^2)
         v2 = k;
+        continue;
       }
       dot2 = ivecs.at(v2*3)*ivecs.at(k*3) + ivecs.at(v2*3+1)*ivecs.at(k*3+1) + ivecs.at(v2*3+2)*ivecs.at(k*3+2);
       if (dot2 < 0.0) {
@@ -213,7 +214,7 @@ py::array_t<double> interpolate_kdquery(py::array_t<double> &destvec,
         pout[row + j] = srclum.at(idxs.at(i, 0), j);
       }
     } else {
-      if (c == 1) { // fall bsck to linear interpolation
+      if (c == 1) { // fall back to linear interpolation
         bary[0] = 1/dt[0];
         bary[1] = 1/dt[1];
         bary[2] = 0;

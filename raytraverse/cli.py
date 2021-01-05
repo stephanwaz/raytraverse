@@ -22,10 +22,13 @@ import raytraverse
 # this is so readthedocs can build without installing as these modules depend
 # on c++ extensions that are not present.
 try:
-    from raytraverse.integrator import SunSkyIntegrator, Integrator, BaseIntegrator
-    from raytraverse.sampler import SCBinSampler, SunSampler, SkySampler
+    from raytraverse.integrator import SunSkyIntegrator, Integrator, BaseIntegrator, MetricSet
+    from raytraverse.integrator.skydata import SkyData
+    from raytraverse.integrator.metric import Metric
+    from raytraverse.sampler import SCBinSampler, SunSampler, SkySampler, SunViewSampler
     from raytraverse.scene import Scene, SunSetter, SunSetterLoc, SunSetterPositions
-    from raytraverse.lightfield import SCBinField, SunField, SunViewField, StaticField
+    from raytraverse.lightfield import SCBinField, SunField, SunViewField, StaticField, SunSkyPt, LightFieldKD
+    from raytraverse.mapper import ViewMapper
 except ModuleNotFoundError as ex:
     print(ex, file=sys.stderr)
     pass
@@ -130,6 +133,8 @@ def main(ctx, out, config, n=None,  **kwargs):
               help='Warning! if set to True and reload is False all files in'
                    'OUT will be deleted')
 @click.option('--frozen/--no-frozen', default=True,
+              help='create frozen octree from scene files')
+@click.option('--use_json/--no-use_json', default=True,
               help='create frozen octree from scene files')
 @click.option('--info/--no-info', default=False,
               help='print info on scene to stderr')
@@ -385,20 +390,20 @@ def suns(ctx, loc=None, wea=None, usepositions=False, plotdview=False,
 @clk.shared_decs(clk.command_decs(raytraverse.__version__, wrap=True))
 def sunrun(ctx, plotdview=False, run=True, rmraw=False, overwrite=False,
            rebuild=False, showsample=True, showweight=True, dpts=None,
-           sunviewstats=False, **kwargs):
+           sunviewstats=False, checkviz=True, **kwargs):
     """the sunrun command intitializes and runs a sun sampler and then readies
     the results for integration by building a SunField."""
     if 'suns' not in ctx.obj:
         clk.invoke_dependency(ctx, suns)
     scn = ctx.obj['scene']
     sns = ctx.obj['suns']
-    sampler = SunSampler(scn, sns, **kwargs)
     if kwargs['view']:
+        sampler = SunViewSampler(scn, suns, checkviz=checkviz)
         lumf = f'{scn.outdir}/sunview_kd_data.pickle'
         exists = os.path.isfile(lumf) and os.stat(lumf).st_size > 1000
         vrun = run and (overwrite or not exists)
         if vrun:
-            sampler.run(view=True, reflection=False)
+            sampler.run()
         try:
             sv = SunViewField(scn, sns, rebuild=vrun or rebuild, rmraw=rmraw)
         except FileNotFoundError as ex:
@@ -416,23 +421,24 @@ def sunrun(ctx, plotdview=False, run=True, rmraw=False, overwrite=False,
             if plotdview:
                 sv.direct_view()
     if kwargs['reflection']:
+        sampler = SunSampler(scn, sns, **kwargs)
         lumf = f'{scn.outdir}/sun_kd_lum.dat'
         exists = os.path.isfile(lumf) and os.stat(lumf).st_size > 1000
         rrun = run and (overwrite or not exists)
         if rrun:
-            sampler.run(view=False, reflection=True, replace=overwrite)
-        try:
-            su = SunField(scn, sns, rebuild=rrun or rebuild, rmraw=rmraw)
-        except FileNotFoundError as ex:
-            print(f'Warning: {ex}', file=sys.stderr)
-        else:
-            ctx.obj['initlf'].append(su)
-            if plotdview:
-                items = list(su.items())
-                if len(items) >= 20:
-                    items = None
-                su.direct_view(items=items, showsample=showsample,
-                               showweight=showweight, dpts=dpts, res=1024)
+            sampler.run(replace=overwrite)
+        # try:
+        #     su = SunField(scn, sns, rebuild=rrun or rebuild, rmraw=rmraw)
+        # except FileNotFoundError as ex:
+        #     print(f'Warning: {ex}', file=sys.stderr)
+        # else:
+        #     ctx.obj['initlf'].append(su)
+        #     if plotdview:
+        #         items = list(su.items())
+        #         if len(items) >= 20:
+        #             items = None
+        #         su.direct_view(items=items, showsample=showsample,
+        #                        showweight=showweight, dpts=dpts, res=1024)
 
 
 @main.command()
@@ -615,13 +621,177 @@ def integrate(ctx, loc=None, wea=None, skyro=0.0, ground_fac=0.15, pts=None,
     metric_return_opts = {"idx": kwargs['statidx'],
                           "sensor": kwargs['statsensor'],
                           "err": kwargs['staterr'], "sky": kwargs['statsky']}
+    if header and metric:
+        print("\t".join(itg.metricheader))
     data = itg.integrate(pts, interp=interp, res=res, vname=vname, scale=179,
                          metricset=metricset, dohdr=hdr, dometric=metric,
                          tradius=tradius, metric_return_opts=metric_return_opts)
-    if header and data.size > 0:
-        print("\t".join(itg.metricheader))
-    for d in data:
-        print("\t".join([f"{i}" for i in d]))
+    #
+    # for d in data:
+    #     print("\t".join([f"{i}" for i in d]))
+
+
+def cross_interpolate(sk_kd, sk_vec, sk_lum, su_kd, su_vec, su_lum):
+    lum_sk = LightFieldKD.interpolate_query(sk_kd, sk_lum, sk_vec, su_vec, k=1)
+    lum_su = LightFieldKD.interpolate_query(su_kd, su_lum, su_vec, sk_vec, k=1)
+    vecs = np.vstack((su_vec, sk_vec))
+    lum_sk = np.vstack((lum_sk, sk_lum))
+    lum_su = np.vstack((su_lum, lum_su))
+    lums = np.hstack((lum_su, lum_sk))
+    kd, omega = LightFieldKD.mk_vector_ball(vecs)
+    return vecs, lums, np.squeeze(omega)
+
+
+def metric_out(sk_kd, sk_vlo, pt, perr, pi, scn, sns, skydat, dirs, header, metricset, outname, **kwargs):
+    metric_return_opts = {"idx"   : kwargs['statidx'],
+                          "sensor": kwargs['statsensor'],
+                          "err"   : kwargs['staterr'], "sky": kwargs['statsky']
+                          }
+    mcalc = Metric(scene, metricset, metric_return_opts)
+    viewf = SunViewField(scn, sns)
+    spi_o = None
+    hassun = False
+    f = open(f"{scn.outdir}_{outname}_{pi:04d}.out", 'w')
+    if header:
+        print("\t".join(mcalc.metricheader), file=f)
+    j = -1
+    for i, sd in enumerate(skydat.skydata):
+        if skydat.daysteps[i]:
+            j += 1
+            sunbin = skydat.sunproxy[j]
+            spi = (pi, sunbin[1])
+            if spi != spi_o:
+                spi_o = spi
+                pref = f"sun_{sunbin[1]:04d}"
+                hassun = False
+                if os.path.isfile(f"{scn.outdir}/{pref}_kd_lum.dat"):
+                    sf = LightFieldKD(scn, prefix=pref, fvrays=scn.maxspec, log=False)
+                    if pi in sf.d_kd.keys():
+                        if sf.d_kd[pi] is not None:
+                            su_vlo = cross_interpolate(sk_kd, sk_vlo[0],
+                                                       sk_vlo[1], sf.d_kd[pi],
+                                                       sf.vec[pi], sf.lum[pi])
+                            hassun = True
+            if sd[-2] > 0 and hassun:
+                skyvec = np.concatenate((skydat.sun[j][-2:-1], skydat.smtx[j]))
+                use_vlo = su_vlo
+                serr = skydat._serr[j]
+            else:
+                skyvec = np.copy(skydat.smtx[j])
+                skyvec[sunbin[0]] += skydat.sun[j][-1]
+                use_vlo = sk_vlo
+                serr = -90
+            lum = np.einsum('j,kj->k', skyvec, use_vlo[1])
+            rays = use_vlo[0]
+            omega = use_vlo[2]
+            for vd in dirs[:, 0:3]:
+                vm = ViewMapper(vd, 180)
+                info = mcalc._metric_info([pi, i], [*pt, *vd],
+                                          [perr, serr],
+                                          skydat.skydata[j])
+                svw = viewf.get_ray(spi, vm, skydat.sun[j])
+                if svw is not None:
+                    rays = np.vstack((rays, svw[0][None, :]))
+                    lum = np.concatenate((lum, [svw[1]]))
+                    omega = np.concatenate((omega, [svw[2]]))
+                fmetric = MetricSet(vm, rays, omega, lum, metricset)()
+                data = np.nan_to_num(
+                    np.concatenate((info[0], fmetric, info[1])))
+                for d in data:
+                    f.write(f"{d}\t")
+                f.write("\n")
+    f.close()
+
+
+@main.command()
+@click.option('-loc', callback=clk.split_float,
+              help='specify the scene location (if not specified in -wea or to'
+                   ' override. give as "lat lon mer" where lat is + North, lon'
+                   ' is + West and mer is the timezone meridian (full hours are'
+                   ' 15 degree increments)')
+@click.option('-wea',
+              help="path to weather/sun position file. possible formats are:\n"
+                   "\n"
+                   "1. .wea file\n"
+                   "#. .wea file without header (requires -loc)\n"
+                   "#. .epw file\n"
+                   "#. .epw file without header (requires -loc)\n"
+                   "#. 4 column tsv file, each row is altitude, azimuth, direct"
+                   " normal, diff. horizontal of canditate suns (requires "
+                   "--usepositions)\n"
+                   "#. 5 column tsv file, each row is dx, dy, dz, direct "
+                   "normal, diff. horizontal of canditate suns (requires "
+                   "--usepositions)\n\n"
+                   "tsv files are loaded with loadtxt"
+              )
+@click.option('-pts', default='0,0,0', callback=np_load,
+              help="points to evaluate, this can be a .npy file, a whitespace "
+                   "seperated text file or entered as a string with commas "
+                   "between components of a point and spaces between points. "
+                   "in all cases each point requires 3 numbers x,y,z "
+                   "so the shape of the array will be (N, 3)")
+@click.option('-dirs', default='0,-1,0', callback=np_load,
+              help="directions to evaluate, this can be a .npy file, a whitespace "
+                   "seperated text file or entered as a string with commas "
+                   "between components of a point and spaces between points. "
+                   "in all cases each point requires 3 numbers dx,dy,dz "
+                   "so the shape of the array will be (N, 3)")
+@click.option('-skyro', default=0.0,
+              help='counter clockwise rotation (in degrees) of the sky to'
+                   ' rotate true North to project North, so if project North'
+                   ' is 10 degrees East of North, skyro=10')
+@click.option('-outname', default="metric",
+              help='naming for outfiles (combined with point index and scene)')
+@click.option('-ground_fac', default=0.15,
+              help='ground reflectance')
+@click.option('-metricset', default="illum avglum gcr dgp ugr",
+              callback=clk.split_str,
+              help='which metrics to return items must be in: '
+                   f'{", ".join(allmetrics)}')
+@click.option('-threshold', default=2000.0,
+              help='Threshold factor; if factor is larger than 100, it is used '
+                   'as constant threshold in cd/m2. If factor is less or equal '
+                   'than 100,  this  factor  multiplied  by the average task '
+                   'luminance will be used as  threshold for detecting the '
+                   'glare sources. task luminance is taken from the center'
+                   'of the view and encompasses tradius (see parameter '
+                   '-tradius)')
+@click.option('-tradius', default=30.0,
+              help='task radius in degrees for calculating task luminance')
+@click.option('--header/--no-header', default=False,
+              help='print column headings on metric output')
+@click.option('--statidx/--no-statidx', default=False,
+              help='print index columns on metric output')
+@click.option('--statsensor/--no-statsensor', default=False,
+              help='print sensor position and direction columns on metric '
+                   'output')
+@click.option('--staterr/--no-staterr', default=False,
+              help='print interpolation error info on metric output')
+@click.option('--statsky/--no-statsky', default=False,
+              help='print sky info (sun x,y,z dirnorm, dirdiff) on metric '
+                   'output')
+@clk.shared_decs(clk.command_decs(raytraverse.__version__, wrap=True))
+def computemetric(ctx, loc=None, wea=None, skyro=0.0, ground_fac=0.15, pts=None,
+                  dirs=None, header=False, metricset="",
+                  tradius=30.0, outname="metric", **kwargs):
+    """the integrate command combines sky and sun results and evaluates the
+    given set of positions and sky conditions"""
+    if 'scene' not in ctx.obj:
+        clk.invoke_dependency(ctx, scene)
+    scn = ctx.obj['scene']
+    if 'suns' not in ctx.obj:
+        clk.invoke_dependency(ctx, suns)
+    sns = ctx.obj['suns']
+    skydat = SkyData(wea, scn, sns, loc=loc, skyro=skyro, ground_fac=ground_fac)
+    perrs, pis = scn.area.pt_kd.query(pts[:, 0:3])
+    skyf = SCBinField(scn)
+
+    for pt, perr, pi in zip(pts, perrs, pis):
+        sk_kd = skyf.d_kd[pi]
+        sk_vlo = (skyf.vec[pi], skyf.lum[pi], np.squeeze(skyf.omega[pi]))
+        metric_out(sk_kd, sk_vlo, pt, perr, pi, scn, sns, skydat, dirs, header, metricset, outname, **kwargs)
+
+
 
 
 @main.resultcallback()

@@ -19,8 +19,8 @@ from raytraverse.crenderer import cRtrace
 from raytraverse.integrator.metricset import MetricSet
 
 
-class BaseIntegrator(object):
-    """base integrator class, can be used on StaticFields
+class Metric(object):
+    """metric calculator
 
     This class provides an interface to:
 
@@ -29,20 +29,19 @@ class BaseIntegrator(object):
 
     Parameters
     ----------
-    lightfield: raytraverse.lightfield.LightFieldKD
-        class containing sample data
+    scene: raytraverse.scene.Scene
     """
-    rowheaders0 = dict(idx=["pt-idx"], sensor=["x", "y", "z", "dx", "dy", "dz"])
-    rowheaders1 = dict(err=["pt-err"])
+    rowheaders0 = dict(idx=["pt-idx", "sky-idx"],
+                       sensor=["x", "y", "z", "dx", "dy", "dz"])
+    rowheaders1 = dict(err=["pt-err", "sun-err"],
+                       sky=["sun-x", "sun-y", "sun-z", "dir-norm",
+                            "diff-horiz"])
 
-    def __init__(self, lightfield):
-        #: raytraverse.lightfield.LightFieldKD
-        self.skyfield = lightfield
+    def __init__(self, scene, metricset=None, metric_return_opts=None):
         #: raytraverse.scene.Scene
-        self.scene = lightfield.scene
-        self.scene.log(self, "Initializing")
-        self.metricreturn = None
-        self.metricheader = None
+        self.scene = scene
+        self.metricreturn = metric_return_opts
+        self.metricheader = metricset
 
     @property
     def metricreturn(self):
@@ -75,69 +74,6 @@ class BaseIntegrator(object):
         for k, v in self.rowheaders1.items():
             if self.metricreturn[k]:
                 self._metricheader += v
-
-    def header(self):
-        """generate image header string"""
-        octe = f"{self.scene.outdir}/scene.oct"
-        hdr = subprocess.run(f'getinfo {octe}'.split(), capture_output=True,
-                             text=True)
-        hdr = [i.strip() for i in hdr.stdout.split('\n')]
-        hdr = [i for i in hdr if i[0:5] == 'oconv']
-        tf = "%Y:%m:%d %H:%M:%S"
-        hdr.append("CAPDATE= " + datetime.now().strftime(tf))
-        hdr.append("GMT= " + datetime.now(timezone.utc).strftime(tf))
-        hdr.append(f"SOFTWARE= {cRtrace.version}")
-        lastmod = os.path.getmtime(os.path.dirname(raytraverse.__file__))
-        tf = "%a %b %d %H:%M:%S %Z %Y"
-        lm = datetime.fromtimestamp(lastmod, timezone.utc).strftime(tf)
-        hdr.append(
-            f"SOFTWARE= RAYTRAVERSE {raytraverse.__version__} lastmod {lm}")
-        return hdr
-
-    def hdr(self, pi, vm, pdirs, mask, vstr, outf, interp=1, altlf=None,
-            coefs=1):
-        """interpolate and write hdr image for a single skyv/sun/pt-index
-        combination
-
-        Parameters
-        ----------
-        pi: int, tuple
-            index value in lightfield
-        vm: raytraverse.mapper.viewmapper
-            should have a view angle of 180 degrees, the analyis direction
-        pdirs: np.array
-            pixel ray directions, shape (res, res, 3)
-        mask: tuple
-            pair of integer np.array representing pixel coordinates of images
-            to calculate
-        vstr: str
-            view string for radiance compatible header
-        outf: str
-            destination file path
-        interp: int
-            number of rays to search for in query, interpolation always happens
-            between 3 points, but in order to find a valid mesh triangle more
-            than 3 points is typically necessary. 16 seems to be a safe number
-            set to 1 (default) to turn off interpolation and use nearest ray
-            this will result in voronoi patches in the final image.
-        altlf: raytraverse.lightfield.Lightfield
-            substitute lightfield to use instead of self.skyfield
-        coefs: np.array
-            passed to lightfield.add_to_image
-        """
-        img = np.zeros(pdirs.shape[:-1])
-        if altlf is None:
-            lf = self.skyfield
-        else:
-            lf = altlf
-        try:
-            lf.add_to_img(img, mask, pi, pdirs[mask], coefs=coefs, vm=vm,
-                          interp=interp)
-        except KeyError:
-            print(f"skipped (no entry in LightField): {outf}", file=sys.stderr)
-        else:
-            io.array2hdr(img, outf, self.header() + [vstr])
-            print(outf, file=sys.stderr)
 
     def metric(self, pi, vm, metricset, info, altlf=None, coefs=1.0,
                sunvec=None, **kwargs):
@@ -195,45 +131,6 @@ class BaseIntegrator(object):
             if self.metricreturn[k]:
                 info[1] += v
         return info
-
-    def _all_hdr(self, pi, pj, vdir, res=400, viewangle=180.0,
-                 vname='view', interp=1, altlf=None):
-        """handler for making calls to hdr submitted to a ProcessPoolExecutor
-
-        overrides must match return type, unless integrate is also overriden
-
-        Parameters
-        ----------
-        pi: int
-            point index in lightfiled
-        vdir:
-            (dx, dy, dz) view direction
-        res: int, optional
-            image resolution
-        viewangle: float, optional
-            1-180, opening angle of angular fisheye
-        vname: str, optional
-            incorporated into out file naming
-        interp: int, optional
-            if greater than 1 bandwidth for finding interpolation triangle
-            See Also raytraverse.lightfield.LightFieldKD.interpolate_query()
-        altlf: raytraverse.lightfield.LightFieldKD
-            if none defaults to self.skyfielc
-
-        Returns
-        -------
-        list
-            of ConcurrentFutures.future objects
-        """
-        vm = ViewMapper(viewangle=viewangle, dxyz=vdir, name=vname)
-        vp = self.scene.area.idx2pt([pi])[0]
-        vstr = ('VIEW= -vta -vv {0} -vh {0} -vd {1} {2} {3}'
-                ' -vp {4} {5} {6}'.format(viewangle, *vdir, *vp))
-        pdirs = vm.pixelrays(res)
-        mask = vm.in_view(pdirs)
-        outf = (f"{self.scene.outdir}_"
-                f"{vname}_{pj:04d}_{altlf.prefix}.hdr")
-        return [self.hdr(pi, vm, pdirs, mask, vstr, outf, interp, altlf)]
 
     def _all_metric(self, pi, vdir, pt, perr, metricset,
                     altlf, **kwargs):

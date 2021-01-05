@@ -60,7 +60,7 @@ class Scene(BaseScene):
     def __init__(self, outdir, scene=None, area=None, reload=True,
                  overwrite=False, ptres=1.0, ptro=0.0, pttol=1.0,
                  viewdir=(0, 1, 0), viewangle=360, skyres=10.0, maxspec=0.3,
-                 frozen=True, formatter=RadianceFormatter, **kwargs):
+                 frozen=True, formatter=RadianceFormatter, use_json=True, **kwargs):
         locvar = locals()
         try:
             os.mkdir(outdir)
@@ -73,7 +73,7 @@ class Scene(BaseScene):
             else:
                 raise e
         js = f'{outdir}/scene_parameters.json'
-        if os.path.isfile(js):
+        if os.path.isfile(js) and use_json:
             with open(js, 'r') as jf:
                 params = json.load(jf)
             os.remove(js)
@@ -116,8 +116,9 @@ class Scene(BaseScene):
                 skyres = .7
             self.skyres = skyres
             locvar['scene'] = self.scene
-            with open(js, 'w') as jf:
-                json.dump(locvar, jf)
+            if use_json:
+                with open(js, 'w') as jf:
+                    json.dump(locvar, jf)
 
     @property
     def skyres(self):

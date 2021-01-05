@@ -1,0 +1,193 @@
+# -*- coding: utf-8 -*-
+# Copyright (c) 2020 Stephen Wasilewski, HSLU and EPFL
+# =======================================================================
+# This Source Code Form is subject to the terms of the Mozilla Public
+# License, v. 2.0. If a copy of the MPL was not distributed with this
+# file, You can obtain one at http://mozilla.org/MPL/2.0/.
+# =======================================================================
+import numpy as np
+from raytraverse import translate, skycalc
+
+
+class SkyData(object):
+    """class to generate sky conditions
+
+    This class provides an interface to generate sky data using the perez sky
+    model
+
+    Parameters
+    ----------
+    wea: str, np.array
+        path to epw, wea, or .npy file or np.array, if loc not set attempts to
+        extract location data (if needed). The Integrator does not need to be
+        initialized with weather data but for convinience can be. However,
+        self.skydata must be initialized (directly or through self.sky) before
+        calling integrate.
+    scene: raytraverse.scene.Scene
+    suns: raytraverse.scene.SunSetter, optional
+    loc: tuple, optional
+        (float, float, int)
+        location data given as lat, lon, mer with + west of prime meridian
+        overrides location data in wea (but not in sunfield)
+    skyro: float, optional
+        angle in degrees counter-clockwise to rotate sky
+        (to correct model north, equivalent to clockwise rotation of scene)
+        does not override rotation in SunField)
+    ground_fac: float, optional
+        ground reflectance
+    """
+
+    def __init__(self, wea, scene, suns=None, loc=None, skyro=0.0, ground_fac=0.15):
+        self.scene = scene
+        self.suns = suns
+        self.ground_fac = ground_fac
+        if loc is None and wea is not None:
+            try:
+                loc = skycalc.get_loc_epw(wea)
+            except ValueError:
+                pass
+        #: location and sky rotation information
+        self._loc = loc
+        self._skyro = skyro
+        self.skydata = wea
+        self._proxysort = np.argsort(self.sunproxy[:, 1], kind='stable')
+        self._invsort = np.argsort(self.proxysort, kind='stable')
+
+    @property
+    def skyro(self):
+        """sky rotation (in degrees, ccw)"""
+        return self._skyro
+
+    @property
+    def loc(self):
+        """lot, lon, mer (in degrees, west is positive)"""
+        return self._loc
+
+    @property
+    def smtx(self):
+        """shape (np.sum(daysteps), skyres**2 + 1) coefficients for each sky patch
+            each row is a timestep, timesteps where a sun exists exclude the
+            sun coefficient, otherwise the patch enclosing the sun position
+            contains the energy of the sun"""
+        return self._smtx
+
+    @property
+    def sun(self):
+        """shape (np.sum(daysteps), 5) sun position (index 0,1,2) and coefficients
+            for sun at each timestep assuming the true solid angle of the sun
+            (index 3) and the weighted value for the sky patch (index 4)."""
+        return self._sun
+
+    @property
+    def daysteps(self):
+        """shape (len(skydata),) boolean array masking timesteps when sun is
+            below horizon"""
+        return self._daysteps
+
+    @property
+    def skydata(self):
+        """sun position and dirnorm diffhoriz"""
+        return self._skydata
+
+    def _format_skydata(self, dat):
+        """process dat argument as skydata
+
+        see sky.setter for details on argument
+
+        Returns
+        -------
+        np.array
+            dx, dy, dz, dir, diff
+        """
+        loc = self._loc
+        if hasattr(dat, 'shape'):
+            skydat = dat
+        else:
+            try:
+                skydat = np.loadtxt(dat)
+            except ValueError:
+                if loc is None:
+                    loc = skycalc.get_loc_epw(dat)
+                skydat = skycalc.read_epw(dat)
+        skydat = np.atleast_2d(skydat)
+        if skydat.shape[1] == 4:
+            xyz = translate.aa2xyz(skydat[:, 0:2])
+            skydat = np.hstack((xyz, skydat[:, 2:]))
+        elif skydat.shape[1] == 5:
+            if np.max(skydat[:, 2]) > 2:
+                if loc is None:
+                    raise ValueError("cannot parse wea data without a Location")
+                times = skycalc.row_2_datetime64(skydat[:, 0:3])
+                xyz = skycalc.sunpos_xyz(times, *loc, ro=self._skyro)
+                skydat = np.hstack((xyz, skydat[:, 3:]))
+        else:
+            raise ValueError('input data should be one of the following:'
+                             '\n4 col: alt, az, dir, diff'
+                             '\n5 col: dx, dy, dz, dir, diff'
+                             '\n5 col: m, d, h, dir, diff')
+        return skydat
+
+    @skydata.setter
+    def skydata(self, wea):
+        """calculate sky matrix data and store in self._skydata
+
+        Parameters
+        ----------
+        wea: str, np.array
+            This method takes either a file path or np.array. File path can
+            point to a wea, epw, or .npy file. Loaded array must be one of
+            the following:
+            - 4 col: alt, az, dir, diff
+            - 5 col: dx, dy, dz, dir, diff
+            - 5 col: m, d, h, dir, diff
+        """
+        skydata = self._format_skydata(wea)
+        daysteps = skydata[:, 2] + skydata[:, 3] > 0
+        sxyz = skydata[daysteps, 0:3]
+        dirdif = skydata[daysteps, 3:]
+        smtx, grnd, sun = skycalc.sky_mtx(sxyz, dirdif, self.scene.skyres,
+                                          ground_fac=self.ground_fac)
+        # ratio between actual solar disc and patch
+        omegar = np.square(0.2665 * np.pi * self.scene.skyres / 180) * .5
+        plum = sun[:, -1] * omegar
+        sun = np.hstack((sun, plum[:, None]))
+        smtx = np.hstack((smtx, grnd[:, None]))
+        self._smtx = smtx
+        self._sun = sun
+        self._daysteps = daysteps
+        self._skydata = skydata
+        self.sunproxy = sxyz
+
+    @property
+    def sunproxy(self):
+        return self._sunproxy
+
+    @property
+    def proxysort(self):
+        return self._proxysort
+
+    @property
+    def invsort(self):
+        return self._invsort
+
+    @sunproxy.setter
+    def sunproxy(self, sxyz):
+        sunuv = translate.xyz2uv(sxyz, flipu=False)
+        sunbins = translate.uv2bin(sunuv, self.scene.skyres)
+        try:
+            si, serrs = self.suns.proxy_src(sxyz, tol=self.suns.sunres)
+        except AttributeError:
+            si = [0] * len(sunbins)
+            serrs = sunbins
+        self._serr = serrs
+        self._sunproxy = np.stack((sunbins, si)).T
+
+    def header(self):
+        """generate image header string"""
+        try:
+            hdr = "LOCATION= lat: {} lon: {} tz: {} ro: {}".format(*self.loc,
+                                                                   self.skyro)
+        except TypeError:
+            hdr = "LOCATION= None"
+        return hdr
+
