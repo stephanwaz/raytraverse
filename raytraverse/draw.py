@@ -12,7 +12,7 @@ from raytraverse.craytraverse import from_pdf as c_from_pdf
 from scipy.ndimage import correlate
 
 
-def get_detail_filter(samps, f1=None, f2=None, f3=None):
+def get_detail(samps, f1=None, f2=None, f3=None):
     d_det = []
     if f1 is None:
         # prewitt operator

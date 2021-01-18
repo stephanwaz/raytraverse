@@ -25,6 +25,9 @@ class RadianceFormatter(Formatter):
     #: arguments for direct trace
     direct_args = "-oZ -ab 0 -lr 0"
 
+    #: extension for renderer scene file
+    scene_ext = ".oct"
+
     @staticmethod
     def make_scene(scene_files, out, frozen=True):
         """compile scene"""

@@ -14,6 +14,8 @@ __version__ = '1.1.0dev'
 __all__ = ['io', 'skycalc', 'translate', 'draw', 'lightfield',
            'integrator', 'mapper', 'sampler', 'scene', 'renderer']
 
+from raytraverse.sky import skycalc
+
 
 def set_raypath(basefile=__file__, subd="cal"):
     import os

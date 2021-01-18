@@ -6,7 +6,8 @@
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 # =======================================================================
 import numpy as np
-from raytraverse import translate, skycalc
+from raytraverse import translate
+from raytraverse.sky import skycalc
 
 
 class SkyData(object):
@@ -23,8 +24,7 @@ class SkyData(object):
         initialized with weather data but for convinience can be. However,
         self.skydata must be initialized (directly or through self.sky) before
         calling integrate.
-    scene: raytraverse.scene.Scene
-    suns: raytraverse.scene.SunSetter, optional
+    suns: raytraverse.sky.Suns, optional
     loc: tuple, optional
         (float, float, int)
         location data given as lat, lon, mer with + west of prime meridian
@@ -35,10 +35,13 @@ class SkyData(object):
         does not override rotation in SunField)
     ground_fac: float, optional
         ground reflectance
+    skyres: float, optional
+        approximate square patch size in degrees
     """
 
-    def __init__(self, wea, scene, suns=None, loc=None, skyro=0.0, ground_fac=0.15):
-        self.scene = scene
+    def __init__(self, wea, suns=None, loc=None, skyro=0.0, ground_fac=0.15,
+                 skyres=10.0):
+        self.skyres = skyres
         self.suns = suns
         self.ground_fac = ground_fac
         if loc is None and wea is not None:
@@ -54,6 +57,14 @@ class SkyData(object):
         self._invsort = np.argsort(self.proxysort, kind='stable')
 
     @property
+    def skyres(self):
+        return self._skyres
+
+    @skyres.setter
+    def skyres(self, s):
+        self._skyres = int(np.floor(90/s)*2)
+
+    @property
     def skyro(self):
         """sky rotation (in degrees, ccw)"""
         return self._skyro
@@ -65,23 +76,23 @@ class SkyData(object):
 
     @property
     def smtx(self):
-        """shape (np.sum(daysteps), skyres**2 + 1) coefficients for each sky patch
-            each row is a timestep, timesteps where a sun exists exclude the
-            sun coefficient, otherwise the patch enclosing the sun position
-            contains the energy of the sun"""
+        """shape (np.sum(daysteps), skyres**2 + 1) coefficients for each sky
+        patch each row is a timestep, timesteps where a sun exists exclude
+        the sun coefficient, otherwise the patch enclosing the sun position
+        contains the energy of the sun"""
         return self._smtx
 
     @property
     def sun(self):
-        """shape (np.sum(daysteps), 5) sun position (index 0,1,2) and coefficients
-            for sun at each timestep assuming the true solid angle of the sun
-            (index 3) and the weighted value for the sky patch (index 4)."""
+        """shape (np.sum(daysteps), 5) sun position (index 0,1,2) and
+        coefficients for sun at each timestep assuming the true solid angle of
+        the sun (index 3) and the weighted value for the sky patch (index 4)."""
         return self._sun
 
     @property
     def daysteps(self):
         """shape (len(skydata),) boolean array masking timesteps when sun is
-            below horizon"""
+        below horizon"""
         return self._daysteps
 
     @property
@@ -145,10 +156,10 @@ class SkyData(object):
         daysteps = skydata[:, 2] + skydata[:, 3] > 0
         sxyz = skydata[daysteps, 0:3]
         dirdif = skydata[daysteps, 3:]
-        smtx, grnd, sun = skycalc.sky_mtx(sxyz, dirdif, self.scene.skyres,
+        smtx, grnd, sun = skycalc.sky_mtx(sxyz, dirdif, self.skyres,
                                           ground_fac=self.ground_fac)
         # ratio between actual solar disc and patch
-        omegar = np.square(0.2665 * np.pi * self.scene.skyres / 180) * .5
+        omegar = np.square(0.2665 * np.pi * self.skyres / 180) * .5
         plum = sun[:, -1] * omegar
         sun = np.hstack((sun, plum[:, None]))
         smtx = np.hstack((smtx, grnd[:, None]))
@@ -170,12 +181,17 @@ class SkyData(object):
     def invsort(self):
         return self._invsort
 
+    @property
+    def serr(self):
+        return self._serr
+
     @sunproxy.setter
     def sunproxy(self, sxyz):
         sunuv = translate.xyz2uv(sxyz, flipu=False)
-        sunbins = translate.uv2bin(sunuv, self.scene.skyres)
+        sunbins = translate.uv2bin(sunuv, self.skyres)
         try:
-            si, serrs = self.suns.proxy_src(sxyz, tol=self.suns.sunres)
+            si, serrs = self.suns.proxy_src(sxyz,
+                                            tol=180*2**.5/self.suns.sunres)
         except AttributeError:
             si = [0] * len(sunbins)
             serrs = sunbins

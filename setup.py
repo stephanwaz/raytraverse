@@ -27,7 +27,7 @@ setup_requirements = ["setuptools", "wheel", "scikit-build", "cmake", "ninja"]
 test_requirements = ['pytest', 'hdrstats', 'pytest-cov']
 
 data_files = []
-package_data = {"raytraverse": ["*.pl", "*.bsp", "cal/*.cal"]}
+package_data = {"raytraverse": ["*.bsp", "cal/*.cal"]}
 
 setup_dict = dict(
     author="Stephen Wasilewski",
@@ -43,10 +43,7 @@ setup_dict = dict(
     description="adaptive sampling for CBDM",
     python_requires=">=3.6",
     entry_points={
-        'console_scripts': [
-            'raytraverse=raytraverse.cli:main',
-            'genskyvec_sc=raytraverse.gsv:main'
-            ],
+        'console_scripts': ['raytraverse=raytraverse.cli:main'],
         },
     install_requires=requirements,
     license="Mozilla Public License 2.0 (MPL 2.0)",

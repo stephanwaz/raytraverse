@@ -8,12 +8,9 @@
 from raytraverse.renderer.radiancerenderer import RadianceRenderer
 from raytraverse.crenderer import cRcontrib
 
-if cRcontrib.version == "PyVirtual":
-    from raytraverse.renderer.sprenderer import SPRcontrib
-    Rcontrib = SPRcontrib
-else:
-    class Rcontrib(RadianceRenderer):
-        """singleton wrapper for c++ crenderer.cRcontrib singleton class"""
-        Engine = cRcontrib
-        name = 'rcontrib'
-        arg_prefix = "-o !cat"
+
+class Rcontrib(RadianceRenderer):
+    """singleton wrapper for c++ crenderer.cRcontrib singleton class"""
+    Engine = cRcontrib
+    name = 'rcontrib'
+    arg_prefix = "-o !cat"

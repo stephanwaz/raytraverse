@@ -11,7 +11,6 @@ import numpy as np
 
 from raytraverse.mapper import SpaceMapperPt
 from raytraverse.scene.basescene import BaseScene
-from raytraverse.formatter import ImageFormatter
 
 
 class ImageScene(BaseScene):
@@ -24,12 +23,9 @@ class ImageScene(BaseScene):
     scene: str, optional
         image file (hdr format -vta projection)
     """
-    scene_ext = "hdr"
 
     def __init__(self, outdir, scene=None, reload=True, log=False):
-        super().__init__(outdir, scene=scene, viewdir=(0, 1, 0), viewangle=180,
-                         frozen=True, formatter=ImageFormatter, reload=reload,
+        super().__init__(outdir, scene=scene, frozen=True, reload=reload,
                          log=log)
-        self.area = SpaceMapperPt(np.array((0, 0, 0)))
         self._logf = None
 

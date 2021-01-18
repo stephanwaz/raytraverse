@@ -6,7 +6,6 @@
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 # =======================================================================
 import os
-import re
 
 import numpy as np
 
@@ -19,18 +18,18 @@ class Sampler(object):
     Parameters
     ----------
     scene: raytraverse.scene.Scene
-        scene class containing geometry, location and analysis plane
+        scene class containing geometry and formatter compatible with engine
     engine: type, optional
         should inherit from raytraverse.renderer.Renderer
+    idres: int, optional
+        initial direction resolution (as log2(res))
     fdres: int, optional
         final directional resolution given as log2(res)
-    srcn: int, optional
-        number of sources return per vector by run
     accuracy: float, optional
         parameter to set threshold at sampling level relative to final level
         threshold (smaller number will increase sampling, default is 1.0)
-    idres: int, optional
-        initial direction resolution (as log2(res))
+    srcn: int, optional
+        number of sources return per vector by run
     stype: str, optional
         sampler type (prefixes output files)
     srcdef: str, optional
@@ -45,49 +44,40 @@ class Sampler(object):
         number of processors to give to the engine, if None, uses os.cpu_count()
     """
 
+    #: coefficients used to set the sampling thresholds
     t0 = 2**-8
     t1 = .0625
+
+    #: lower and upper bounds for drawing from pdf
     lb = .25
     ub = 8
 
-    def __init__(self, scene, engine=renderer.Rtrace, fdres=9, srcn=1,
-                 accuracy=1.0, idres=4,
-                 stype='generic', srcdef=None, plotp=False,
-                 bands=1, engine_args="", nproc=None, **kwargs):
-        # if initialized for mapping between weights and samples
-        self.vizkeys = None
-        self.vizmap = None
+    def __init__(self, scene, engine=renderer.Rtrace, idres=4, fdres=9,
+                 accuracy=1.0,  srcn=1, stype='generic', srcdef=None, bands=1,
+                 engine_args="", nproc=None, **kwargs):
+        #: raytraverse.renderer.Renderer
         self.engine = engine()
         self._staticscene = True
-        scene.log(self, "Initializing")
         #: int: number of spectral bands / channels returned by renderer
         #: based on given renderopts (user ensures these agree).
         self.bands = bands
+        #: raytraverse.scene.Scene: scene information
         self.scene = scene
-        #: func: mapper to use for sampling
-        self.samplemap = self.scene.view
-        self.area = self.scene.area
         #: int: number of sources return per vector by run
         self.srcn = srcn
+        #: float: accuracy parameter
         self.accuracy = accuracy
         #: int: initial direction resolution (as log2(res))
         self.idres = idres
-        self.levels = fdres
+        self.fdres = fdres
+        self.levels = 2
         #: np.array: holds weights for self.draw
-        self.weights = np.full(np.concatenate((self.area.ptshape,
-                                               self.levels[0])), 1e-7,
-                               dtype=np.float32)
-        #: int: index of next level to sample
-        self.idx = 0
+        self.weights = np.empty(0)
         #: str: sampler type
         self.stype = stype
         self.compiledscene = srcdef
-        self.engine.initialize(engine_args, self.compiledscene, nproc=nproc,
-                               iot="ff", **kwargs)
-        self.plotp = plotp
-        self.levelsamples = np.ones(self.levels.shape[0])
-        # track vector files written for concatenation / cleanup after run
-        self._vecfiles = []
+        self.engine_args = (engine_args, self.compiledscene, nproc, "ff")
+        self.engine.initialize(*self.engine_args)
 
     def __del__(self):
         self.scene.log(self, "Closed")
@@ -112,20 +102,6 @@ class Sampler(object):
                                             self._compiledscene)
 
     @property
-    def idx(self):
-        """sampling level
-
-        :getter: Returns the sampling level
-        :setter: Set the sampling level and associated values (temp, shape)
-        :type: int
-        """
-        return self._idx
-
-    @idx.setter
-    def idx(self, idx):
-        self._idx = idx
-
-    @property
     def levels(self):
         """sampling scheme
 
@@ -136,27 +112,12 @@ class Sampler(object):
         return self._levels
 
     @levels.setter
-    def levels(self, fdres):
+    def levels(self, a):
         """calculate sampling scheme"""
-        self._levels = np.array([(2**i*self.scene.view.aspect, 2**i)
-                                 for i in range(self.idres, fdres+1, 1)])
+        self._levels = np.array([(2**i*a, 2**i)
+                                 for i in range(self.idres, self.fdres+1, 1)])
 
-    @property
-    def scene(self):
-        """scene information
-
-        :getter: Returns this sampler's scene
-        :setter: Set this sampler's scene and create octree with source desc
-        :type: raytraverse.scene.Scene
-        """
-        return self._scene
-
-    @scene.setter
-    def scene(self, scene):
-        """Set this sampler's scene and create sky octree"""
-        self._scene = scene
-
-    def sample(self, vecf, vecs):
+    def sample(self, vecf, vecs, outf=None):
         """generic sample function
 
         Parameters
@@ -166,41 +127,45 @@ class Sampler(object):
             shape (N, 6) vectors in binary float format
         vecs: np.array
             sample vectors (subclasses can choose which to use)
+        outf: str, optional
+            if given, append results to file
 
         Returns
         -------
         lum: np.array
             array of shape (N,) to update weights
         """
-        outf = f'{self.scene.outdir}/{self.stype}_vals.out'
-        f = open(outf, 'a+b')
-        lumb = self.engine.call(vecf, outf=f)
-        f.close()
+        if outf is not None:
+            f = open(outf, 'a+b')
+            lumb = self.engine.call(vecf, outf=f)
+            f.close()
+        else:
+            lumb = self.engine.call(vecf)
         shape = (-1, self.srcn, self.bands)
         lum = io.bytes2np(lumb, shape)
         return np.squeeze(lum, axis=-1)
 
-    def _uv2xyz(self, uv, si):
-        """including to allow overriding mapping bevahior of daughter classes"""
-        return self.samplemap.uv2xyz(uv)
-
-    def _offset(self, shape):
+    def _offset(self, shape, dim):
         """for modifying jitter behavior of UV direction samples
 
         Parameters
         ----------
         shape: tuple
             shape of samples to jitter/offset
+        dim: int
+            number of divisions in square side
         """
-        return np.random.default_rng().random(shape)/self.levels[self.idx][-1]
+        return np.random.default_rng().random(shape)/dim
 
-    def sample_idx(self, pdraws):
+    def sample_to_uv(self, pdraws, shape):
         """generate samples vectors from flat draw indices
 
         Parameters
         ----------
         pdraws: np.array
             flat index positions of samples to generate
+        shape: tuple
+            shape of level samples
 
         Returns
         -------
@@ -209,92 +174,46 @@ class Sampler(object):
         vecs: np.array
             sample vectors
         """
-        shape = np.concatenate((self.area.ptshape, self.levels[self.idx]))
+        if len(pdraws) == 0:
+            return [], []
         # index assignment
         si = np.stack(np.unravel_index(pdraws, shape))
         # convert to UV directions and positions
-        uv = si.T[:, -2:]/shape[3]
-        pos = self.area.uv2pt((si.T[:, 0:2] + .5)/shape[0:2])
-        uv += self._offset(uv.shape)
-        if pos.size == 0:
-            xyz = pos
-        else:
-            xyz = self._uv2xyz(uv, si)
-        vecs = np.hstack((pos, xyz))
-        return si, vecs
+        uv = si.T/shape[1]
+        uv += self._offset(uv.shape, shape[1])
+        return si, uv
 
-    def dump_vecs(self, vecs, si=None):
-        """save vectors to file
-
-        Parameters
-        ----------
-        vecs: np.array
-            ray directions to write
-        si: np.array, optional
-            sample indices
-        """
-        outf = f'{self.scene.outdir}/{self.stype}_vecs_{self.idx:02d}.out'
-        f = open(outf, 'wb')
-        f.write(io.np2bytes(vecs))
-        f.close()
-        if si is not None:
-            ptidx = np.ravel_multi_index((si[0], si[1]), self.area.ptshape)
-            outif = f'{self.scene.outdir}/{self.stype}_vecpidx_{self.idx:02d}.out'
-            f = open(outif, 'wb')
-            f.write(io.np2bytes(ptidx))
-            f.close()
-        else:
-            outif = None
-        self._vecfiles.append((outif, outf))
-        return outf
-
-    def _plot_p(self, p, suffix=".hdr", fisheye=True):
+    def _plot_p(self, p, level, vm, suffix=".hdr", fisheye=True):
         ps = p.reshape(self.weights.shape)
-        outshape = (512*self.scene.view.aspect, 512)
+        outshape = (512*vm.aspect, 512)
         res = outshape[-1]
+        outw = (f"{self.scene.outdir}_{vm.name}_{self.stype}_weights_"
+                f"{level:02d}{suffix}")
+        outp = (f"{self.scene.outdir}_{vm.name}_{self.stype}_detail_"
+                f"{level:02d}{suffix}")
         if fisheye:
-            pixelxyz = self.samplemap.pixelrays(res)
-            uv = self.samplemap.xyz2uv(pixelxyz.reshape(-1, 3))
+            pixelxyz = vm.pixelrays(res)
+            uv = vm.xyz2uv(pixelxyz.reshape(-1, 3))
             pdirs = np.concatenate((pixelxyz[0:res], -pixelxyz[res:]), 0)
-            mask = self.samplemap.in_view(pdirs, indices=False).reshape(outshape)
-            for i, ws in enumerate(self.weights):
-                for j, w in enumerate(ws):
-                    ij = translate.uv2ij(uv, w.shape[-1],
-                                         aspect=self.scene.view.aspect)
-                    ptidx = np.ravel_multi_index((i, j), self.area.ptshape)
-                    outw = (f"{self.scene.outdir}_{self.stype}_weights_"
-                            f"{ptidx:04d}_{self.idx+1:02d}{suffix}")
-                    outp = (f"{self.scene.outdir}_{self.stype}_detail_"
-                            f"{ptidx:04d}_{self.idx+1:02d}{suffix}")
-                    img = w[ij[:, 0], ij[:, 1]].reshape(outshape)
-                    io.array2hdr(np.where(mask, img, 0), outw)
-                    img = ps[i, j][ij[:, 0], ij[:, 1]].reshape(outshape)
-                    io.array2hdr(np.where(mask, img, 0), outp)
+            mask = vm.in_view(pdirs, indices=False).reshape(outshape)
+            ij = translate.uv2ij(uv, self.weights.shape[-1], aspect=vm.aspect)
+            img = self.weights[ij[:, 0], ij[:, 1]].reshape(outshape)
+            io.array2hdr(np.where(mask, img, 0), outw)
+            img = ps[ij[:, 0], ij[:, 1]].reshape(outshape)
+            io.array2hdr(np.where(mask, img, 0), outp)
         else:
-            for i, ws in enumerate(self.weights):
-                for j, w in enumerate(ws):
-                    ptidx = np.ravel_multi_index((i, j), self.area.ptshape)
-                    outw = (f"{self.scene.outdir}_{self.stype}_weights_"
-                            f"{ptidx:04d}_{self.idx+1:02d}{suffix}")
-                    outp = (f"{self.scene.outdir}_{self.stype}_detail_"
-                            f"{ptidx:04d}_{self.idx+1:02d}{suffix}")
-                    io.array2hdr(translate.resample(w[-1::-1], outshape,
-                                                    radius=0), outw)
-                    io.array2hdr(translate.resample(ps[i, j][-1::-1], outshape,
-                                                    radius=0), outp)
+            io.array2hdr(translate.resample(self.weights[-1::-1], outshape,
+                                            radius=0), outw)
+            io.array2hdr(translate.resample(ps[-1::-1], outshape,
+                                            radius=0), outp)
 
-    def _plot_vecs(self, idx, vecs, level=0):
-        vm = self.samplemap
-        outshape = (1024, 512)
-        for i, ws in enumerate(self.weights):
-            for j, w in enumerate(ws):
-                ptidx = np.ravel_multi_index((i, j), self.area.ptshape)
-                img = np.zeros(outshape)
-                img = io.add_vecs_to_img(vm, img, vecs[np.equal(idx, ptidx)],
-                                         channels=level)
-                outf = (f"{self.scene.outdir}_{self.stype}_samples_"
-                        f"{ptidx:04d}_{level:02d}.hdr")
-                io.array2hdr(img, outf)
+    def _plot_vecs(self, vecs, level, vm, suffix=".hdr"):
+        outshape = (512*vm.aspect, 512)
+        outf = (f"{self.scene.outdir}_{vm.name}_{self.stype}_samples_"
+                f"{level:02d}{suffix}")
+        img = np.zeros(outshape)
+        img = io.add_vecs_to_img(vm, img, vecs, channels=level+1)
+        io.array2hdr(img, outf)
 
     def _linear(self, x, x1, x2):
         if len(self.levels) <= 2:
@@ -331,7 +250,7 @@ class Sampler(object):
                                                    [0, 0, -1]])),
                }
 
-    def draw(self):
+    def draw(self, level):
         """draw samples based on detail calculated from weights
         detail is calculated across direction only as it is the most precise
         dimension
@@ -340,26 +259,25 @@ class Sampler(object):
         -------
         pdraws: np.array
             index array of flattened samples chosen to sample at next level
+        p: np.array
+            computed probabilities
         """
-        dres = self.levels[self.idx]
-        pres = self.area.ptshape
+        dres = self.levels[level]
         # sample all if weights is not set or all even
-        if self.idx == 0 and np.var(self.weights) < 1e-9:
-            pdraws = np.arange(np.prod(dres)*np.prod(pres))
+        if level == 0 and np.var(self.weights) < 1e-9:
+            pdraws = np.arange(int(np.prod(dres)))
             p = np.ones(self.weights.shape)
         else:
             # use weights directly on first pass
-            if self.idx == 0:
+            if level == 0:
                 p = self.weights.ravel()
             else:
-                p = draw.get_detail_filter(self.weights,
-                                           *self.filters[self.detailfunc])
+                p = draw.get_detail(self.weights,
+                                    *self.filters[self.detailfunc])
             # draw on pdf
-            pdraws = draw.from_pdf(p, self.threshold(self.idx),
+            pdraws = draw.from_pdf(p, self.threshold(level),
                                    lb=self.lb, ub=self.ub)
-        if self.plotp:
-            self._plot_p(p, fisheye=True)
-        return pdraws
+        return pdraws, p
 
     def update_weights(self, si, lum):
         """update self.weights (which holds values used to calculate pdf)
@@ -372,86 +290,79 @@ class Sampler(object):
             values to update with
 
         """
-        if self.vizkeys is not None:
-            widx = self.vizmap[tuple(si[0:3])]
-            si = np.vstack((widx, si[3:]))
         self.weights[tuple(si)] = lum
 
-    def levelup_weights(self):
-        """prepare weights for sampling at current level"""
-        if self.vizkeys is None:
-            shape = np.concatenate((self.area.ptshape,
-                                    self.levels[self.idx]))
-        else:
-            shape = np.concatenate((self.weights.shape[0:1],
-                                    self.levels[self.idx][1:]))
-        self.weights = translate.resample(self.weights, shape)
-        return shape
-
-    def run_callback(self):
-        outf = f'{self.scene.outdir}/{self.stype}_vecs.out'
-        # output traced rays for performance comparison
-        # outft = f'{self.scene.outdir}/{self.stype}_vecs_trace.out'
-        # f = open(outft, 'wb')
-        # for idxf, vecf in self._vecfiles:
-        #     fsrc = open(vecf, 'rb').read()
-        #     f.write(fsrc)
-        # f.close()
+    def run_callback(self, vecfs, name):
+        outf = f'{self.scene.outdir}/{name}_{self.stype}_vecs.out'
         f = open(outf, 'wb')
-        for idxf, vecf in self._vecfiles:
+        for idxf, vecf in vecfs:
             fsrc = open(vecf, 'rb')
             vecs = io.bytefile2np(fsrc, (-1, 6))
             fsrc.close()
             os.remove(vecf)
-            if idxf is not None:
-                fidx = open(idxf, 'rb')
-                ptidx = io.bytefile2np(fidx, (1, -1))
-                fidx.close()
-                os.remove(idxf)
-                dvecs = vecs[:, 3:]
-                indexed_vecs = np.vstack((ptidx, dvecs.T)).T
-                f.write(io.np2bytes(indexed_vecs))
-                if self.plotp:
-                    level = int(re.split(r"[_.]", idxf)[-2]) + 1
-                    self._plot_vecs(ptidx.ravel(), dvecs, level)
-
-            else:
-                f.write(io.np2bytes(vecs))
+            f.write(io.np2bytes(vecs))
         f.close()
 
-    # @profile
-    def run(self):
-        """execute sampler"""
+    def run(self, point, vm, plotp=False, **kwargs):
+        """
+
+        Parameters
+        ----------
+        point:
+            point to sample
+        vm: raytraverse.mapper.ViewMapper
+            view direction to sample
+        plotp:
+            plot weights, detail and vectors for each level
+
+        Returns
+        -------
+
+        """
+        point = np.array(point).flatten()[0:3]
         allc = 0
-        f = open(f'{self.scene.outdir}/{self.stype}_vals.out', 'wb')
+        outf = f'{self.scene.outdir}/{vm.name}_{self.stype}_vals.out'
+        f = open(outf, 'wb')
         f.close()
-        self.scene.log(self, f"Started sampling {self.stype}")
+        self.scene.log(self, f"Started sampling {vm.name} {self.stype}")
         hdr = ['level', 'shape', 'samples', 'rate', 'filesize (MB)']
         self.scene.log(self, '\t'.join(hdr))
         fsize = 0
-        for i in range(self.idx, self.levels.shape[0]):
-            self.idx = i
-            shape = self.levelup_weights()
-            draws = self.draw()
+        self.levels = vm.aspect
+        # reset weights and engine args
+        self.weights = np.full(self.levels[0], 1e-7, dtype=np.float32)
+        self.engine.initialize(*self.engine_args)
+        vecfs = []
+        for i in range(self.levels.shape[0]):
+            shape = self.levels[i]
+            self.weights = translate.resample(self.weights, shape)
+            draws, p = self.draw(i)
             if draws is None:
                 srate = 0.0
                 row = [f'{i + 1} of {self.levels.shape[0]}', str(shape),
                        '0', f"{srate:.02%}", f'{fsize:.03f}']
                 self.scene.log(self, '\t'.join(row))
             else:
-                self.levelsamples[self.idx] = draws.size
-                si, vecs = self.sample_idx(draws)
+                si, uv = self.sample_to_uv(draws, shape)
+                xyz = vm.uv2xyz(uv)
+                vecs = np.hstack((np.broadcast_to(point, xyz.shape), xyz))
                 srate = si.shape[1]/np.prod(shape)
                 fsize += 4*self.bands*self.srcn*si.shape[1]/1000000
                 row = [f'{i+1} of {self.levels.shape[0]}', str(shape),
                        str(si.shape[1]), f"{srate:.02%}", f'{fsize:.03f}']
                 self.scene.log(self, '\t'.join(row))
-                vecf = self.dump_vecs(vecs, si)
-                lum = self.sample(vecf, vecs)
+                vecf = (f'{self.scene.outdir}/{vm.name}_{self.stype}_vecs_'
+                        f'{i:02d}.out')
+                io.np2bytefile(vecs, vecf)
+                vecfs.append(vecf)
+                if plotp:
+                    self._plot_p(p, i, vm)
+                lum = self.sample(vecf, vecs, outf)
                 self.update_weights(si, lum)
                 a = lum.shape[0]
                 allc += a
         srate = allc/self.weights.size
-        row = ['total sampling:', '-', str(allc), f"{srate:.02%}", f'{fsize:.03f}']
+        row = ['total sampling:', '-', str(allc), f"{srate:.02%}",
+               f'{fsize:.03f}']
         self.scene.log(self, '\t'.join(row))
-        self.run_callback()
+        self.run_callback(vecfs, vm.name)

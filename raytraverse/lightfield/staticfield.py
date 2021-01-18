@@ -10,8 +10,7 @@ import numpy as np
 
 from raytraverse.lightfield.lightfieldkd import LightFieldKD
 from raytraverse.lightfield.sunviewfield import SunViewField
-from raytraverse.scene import SunSetterBase
-
+from raytraverse.sky import Suns
 
 class StaticField(LightFieldKD):
     """container for accessing sampled data for a single sky condition that
@@ -22,8 +21,8 @@ class StaticField(LightFieldKD):
                  rmraw=False, **kwargs):
         if sources is not None:
             self.suns = sources
-        elif os.path.isfile(f"{scene.outdir}/{prefix}_sources.rad"):
-            self.suns = SunSetterBase(scene, prefix=f"{prefix}_sources")
+        elif os.path.isfile(f"{scene.outdir}/{prefix}_sources.dat"):
+            self.suns = Suns(scene.outdir, prefix=f"{prefix}_sources")
         else:
             fvrays = 0
             self.suns = None

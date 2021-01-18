@@ -9,19 +9,20 @@ import os
 
 import numpy as np
 
-from raytraverse import translate, skycalc
-from raytraverse.scene.sunsetter import SunSetter
+from raytraverse import translate
+from raytraverse.sky import skycalc
+from raytraverse.sky.suns import Suns
 
 
-class SunSetterPositions(SunSetter):
-    """select suns to sample based on sky pdf, scene, and sun positions.
+class SunsPos(Suns):
+    """select suns to sample based on sun positions.
     the wea argument provides a list of sun positions to draw from rather than
-    randomly generating the sun position like SunSetter and SunSetterLoc.
+    randomly generating the sun position like Suns and SunsLoc.
 
     Parameters
     ----------
-    scene: raytraverse.scene.Scene
-        scene class containing geometry, location and analysis plane
+    sscene: str,
+        path of scene
     wea: str, np.array, optional
         path to sun position file or wea file, or array of sun positions
     srct: float, optional
@@ -32,14 +33,10 @@ class SunSetterPositions(SunSetter):
         if True reloads existing sun positions, else always generates new
     """
 
-    def __init__(self, scene, wea, skyro=0.0, skyfilter=True, **kwargs):
-        #: raytraverse.scene.Scene
-        self.scene = scene
+    def __init__(self, scene, wea, skyro=0.0, **kwargs):
         #: float: ccw rotation (in degrees) for sky
         self.skyro = skyro
-        #: raytraverse.scene.SkyInfo
         self.candidates = wea
-        self.skyfilter = skyfilter
         super().__init__(scene, skyro=skyro, **kwargs)
 
     @property
@@ -82,28 +79,17 @@ class SunSetterPositions(SunSetter):
                                  uvsize)
         cidxs = np.arange(cbins.size)
         sbins = np.arange(uvsize**2)
-        if self.skyfilter:
-            skyb = self.load_sky_facs()
-        else:
-            skyb = np.ones(uvsize*uvsize)
         idxs = []
         for b in sbins:
-            if skyb[b] > self.srct:
-                try:
-                    # choose sun position, priortizing values closer to center
-                    # of bin
-                    p = self.candidates[cbins == b, 3]
-                    sp = np.sum(p)
-                    binc = translate.uv2xyz(translate.bin2uv([b], uvsize),
-                                            xsign=1)
-                    bp = np.linalg.norm(self.candidates[cbins == b, 0:3]- binc,
-                                        axis=1)
-                    if sp == 0:
-                        raise ValueError
-                    a = np.random.choice(cidxs[cbins == b], p=bp/np.sum(bp))
-                except ValueError:
-                    pass
-                else:
-                    idxs.append(a)
+            # choose sun position, priortizing values closer to center of bin
+            p = self.candidates[cbins == b, 3]
+            # only if there is a sun with a dirnorm > 0
+            if np.sum(p) != 0:
+                binc = translate.uv2xyz(translate.bin2uv([b], uvsize),
+                                        xsign=1)
+                bp = np.linalg.norm(self.candidates[cbins == b, 0:3] - binc,
+                                    axis=1)
+                a = np.random.choice(cidxs[cbins == b], p=bp/np.sum(bp))
+                idxs.append(a)
         return self.candidates[idxs, 0:3]
 

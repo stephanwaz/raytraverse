@@ -21,11 +21,12 @@ class ImageSampler(Sampler):
     ----------
     scene: raytraverse.scene.ImageScene
         scene class containing image file information
+    scalefac: float, optional
+        by default set to the average of non-zero pixels in the image used to
+        establish sampling thresholds similar to contribution based samplers
     """
     t0 = .5
     t1 = 8
-    lb = .25
-    ub = 8
 
     def __init__(self, scene, scalefac=None, **kwargs):
         super().__init__(scene, stype="image", engine=ImageRenderer,  **kwargs)
@@ -44,6 +45,6 @@ class ImageSampler(Sampler):
 
 
 class DeterministicImageSampler(ImageSampler):
-    def _offset(self, shape):
+    def _offset(self, shape, dim):
         """for modifying jitter behavior of UV direction samples"""
-        return 0.5/self.levels[self.idx][-1]
+        return 0.5/dim

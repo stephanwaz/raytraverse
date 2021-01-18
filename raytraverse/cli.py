@@ -23,10 +23,10 @@ import raytraverse
 # on c++ extensions that are not present.
 try:
     from raytraverse.integrator import SunSkyIntegrator, Integrator, BaseIntegrator, MetricSet
-    from raytraverse.integrator.skydata import SkyData
+    from raytraverse.sky import SkyData, SunsPos, Suns, SunsLoc
     from raytraverse.integrator.metric import Metric
-    from raytraverse.sampler import SCBinSampler, SunSampler, SkySampler, SunViewSampler
-    from raytraverse.scene import Scene, SunSetter, SunSetterLoc, SunSetterPositions
+    from raytraverse.sampler import SkySampler, SunSampler, SkySampler, SunViewSampler
+    from raytraverse.scene import Scene
     from raytraverse.lightfield import SCBinField, SunField, SunViewField, StaticField, SunSkyPt, LightFieldKD
     from raytraverse.mapper import ViewMapper
 except ModuleNotFoundError as ex:
@@ -100,6 +100,95 @@ def main(ctx, out, config, n=None,  **kwargs):
     ctx.info_name = 'raytraverse'
     clk.get_config_chained(ctx, config, None, None, None)
     ctx.obj = dict(out=out)
+
+
+@main.command()
+@click.option('-skyro', default=0.0,
+              help='counter clockwise rotation (in degrees) of the sky to'
+                   ' rotate true North to project North, so if project North'
+                   ' is 10 degrees East of North, skyro=10')
+@click.option('-sunres', default=10.0,
+              help='resolution in degrees of the sky patch grid in which to'
+                   ' stratify sun samples. Suns are randomly located within'
+                   ' the grid, so this corresponds to the average distance'
+                   ' between sources. The average error to a randomly selected'
+                   ' sun position will be on average ~0.4 times this value')
+@click.option('-loc', callback=clk.split_float,
+              help='specify the scene location (if not specified in -wea or to'
+                   ' override. give as "lat lon mer" where lat is + North, lon'
+                   ' is + West and mer is the timezone meridian (full hours are'
+                   ' 15 degree increments)')
+@click.option('-wea',
+              help="path to weather/sun position file. possible formats are:\n"
+                   "\n"
+                   "1. .wea file\n"
+                   "#. .wea file without header (require -loc and "
+                   "--no-usepositions)\n"
+                   "#. .epw file\n"
+                   "#. .epw file without header (require -loc and "
+                   "--no-usepositions)\n"
+                   "#. 3 column tsv file, each row is dx, dy, dz of candidate"
+                   " sun position (requires --usepositions)\n"
+                   "#. 4 column tsv file, each row is altitude, azimuth, direct"
+                   " normal, diff. horizontal of canditate suns (requires "
+                   "--usepositions)\n"
+                   "#. 5 column tsv file, each row is dx, dy, dz, direct "
+                   "normal, diff. horizontal of canditate suns (requires "
+                   "--usepositions)\n\n"
+                   "tsv files are loaded with loadtxt")
+@click.option('--plotdview/--no-plotdview', default=False,
+              help="creates a png showing sun positions on an angular fisheye"
+                   " projection of the sky. sky patches are colored by the"
+                   " maximum contributing ray to the scene")
+@click.option('--reload/--no-reload', default=True,
+              help="if False, regenerates sun positions, because positions may"
+                   " be randomly selected this will make any sunrun results"
+                   " obsolete")
+@click.option('--printsuns/--no-printsuns', default=False,
+              help="print sun positions to stdout")
+@click.option('--usepositions/--no-usepositions', default=False,
+              help='if True, sun positions will be chosen from the positions'
+                   ' listed in wea. if more than one position is a candidate'
+                   ' for that particular sky patch (as determined by sunres)'
+                   ' than a random choice will be made. by using one of the'
+                   ' tsv format options for wea, and preselecting sun positions'
+                   ' such that there is 1 per patch a deterministic result can'
+                   'be achieved.')
+@clk.shared_decs(clk.command_decs(raytraverse.__version__, wrap=True))
+def suns(ctx, loc=None, wea=None, usepositions=False, plotdview=False,
+         printsuns=False, **kwargs):
+    """the suns command provides a number of options for creating sun positions
+    used by sunrun see wea and usepositions options for details
+
+    Note:
+
+    the wea and skyro parameters are used to reduce the number of suns in cases
+    where a specific site is known. Only suns within the solar transit (or
+    positions if usepositions is True will be selected. It is important to note
+    that when integrating, if a sun position outside this range is queried than
+    results will not include the more detailed simulations involved in sunrun
+    and will instead place the suns energy within the nearest sky patch. if
+    skyres is small and or the patch is directly visible this will introduce
+    significant bias in most metrics.
+    """
+    if usepositions:
+        if wea is None:
+            raise ValueError('option -wea is required when use positions is '
+                             'True')
+        s = SunsPos(ctx.obj['out'], wea, **kwargs)
+    elif loc is not None:
+        s = SunsLoc(ctx.obj['out'], loc, **kwargs)
+    elif wea is not None:
+        loc = raytraverse.skycalc.get_loc_epw(wea)
+        s = SunsLoc(ctx.obj['out'], loc, **kwargs)
+    else:
+        s = Suns(ctx.obj['out'], **kwargs)
+    if plotdview:
+        s.direct_view()
+    ctx.obj['suns'] = s
+    if printsuns:
+        for pt in s.suns:
+            print('{}\t{}\t{}'.format(*pt))
 
 
 @main.command()
@@ -242,7 +331,7 @@ def sky(ctx, plotdview=False, run=True, rmraw=True, overwrite=False,
     exists = os.path.isfile(lumf) and os.stat(lumf).st_size > 1000
     run = run and (overwrite or not exists)
     if run:
-        sampler = SCBinSampler(s, **kwargs)
+        sampler = SkySampler(s, **kwargs)
         sampler.run()
         try:
             os.remove(f"{s.outdir}/sunpdfidxs.npz")
@@ -253,105 +342,6 @@ def sky(ctx, plotdview=False, run=True, rmraw=True, overwrite=False,
     if plotdview:
         sk.direct_view(showsample=showsample, showweight=showweight, dpts=dpts,
                        srcidx=dviewpatch, res=1024)
-
-
-@main.command()
-@click.option('-srct', default=.01,
-              help='if the contribution of a sky patch (for any view ray) is'
-                   ' above this threshold, a sun will be created in this patch')
-@click.option('-skyro', default=0.0,
-              help='counter clockwise rotation (in degrees) of the sky to'
-                   ' rotate true North to project North, so if project North'
-                   ' is 10 degrees East of North, skyro=10')
-@click.option('-sunres', default=10.0,
-              help='resolution in degrees of the sky patch grid in which to'
-                   ' stratify sun samples. Suns are randomly located within'
-                   ' the grid, so this corresponds to the average distance'
-                   ' between sources. The average error to a randomly selected'
-                   ' sun position will be on average ~0.4 times this value')
-@click.option('-loc', callback=clk.split_float,
-              help='specify the scene location (if not specified in -wea or to'
-                   ' override. give as "lat lon mer" where lat is + North, lon'
-                   ' is + West and mer is the timezone meridian (full hours are'
-                   ' 15 degree increments)')
-@click.option('-wea',
-              help="path to weather/sun position file. possible formats are:\n"
-                   "\n"
-                   "1. .wea file\n"
-                   "#. .wea file without header (require -loc and "
-                   "--no-usepositions)\n"
-                   "#. .epw file\n"
-                   "#. .epw file without header (require -loc and "
-                   "--no-usepositions)\n"
-                   "#. 3 column tsv file, each row is dx, dy, dz of candidate"
-                   " sun position (requires --usepositions)\n"
-                   "#. 4 column tsv file, each row is altitude, azimuth, direct"
-                   " normal, diff. horizontal of canditate suns (requires "
-                   "--usepositions)\n"
-                   "#. 5 column tsv file, each row is dx, dy, dz, direct "
-                   "normal, diff. horizontal of canditate suns (requires "
-                   "--usepositions)\n\n"
-                   "tsv files are loaded with loadtxt")
-@click.option('--plotdview/--no-plotdview', default=False,
-              help="creates a png showing sun positions on an angular fisheye"
-                   " projection of the sky. sky patches are colored by the"
-                   " maximum contributing ray to the scene")
-@click.option('--reload/--no-reload', default=True,
-              help="if False, regenerates sun positions, because positions may"
-                   " be randomly selected this will make any sunrun results"
-                   " obsolete")
-@click.option('--printsuns/--no-printsuns', default=False,
-              help="print sun positions to stdout")
-@click.option('--skyfilter/--no-skyfilter', default=True,
-              help="use sky simulation to threshold possible solar positions"
-                   " (with --usepositions)")
-@click.option('--usepositions/--no-usepositions', default=False,
-              help='if True, sun positions will be chosen from the positions'
-                   ' listed in wea. if more than one position is a candidate'
-                   ' for that particular sky patch (as determined by sunres)'
-                   ' than a random choice will be made. by using one of the'
-                   ' tsv format options for wea, and preselecting sun positions'
-                   ' such that there is 1 per patch a deterministic result can'
-                   'be achieved.')
-@clk.shared_decs(clk.command_decs(raytraverse.__version__, wrap=True))
-def suns(ctx, loc=None, wea=None, usepositions=False, plotdview=False,
-         skyfilter=True, **kwargs):
-    """the suns command provides a number of options for creating sun positions
-    used by sunrun see wea and usepositions options for details
-
-    Note:
-
-    the wea and skyro parameters are used to reduce the number of suns in cases
-    where a specific site is known. Only suns within the solar transit (or
-    positions if usepositions is True will be selected. It is important to note
-    that when integrating, if a sun position outside this range is queried than
-    results will not include the more detailed simulations involved in sunrun
-    and will instead place the suns energy within the nearest sky patch. if
-    skyres is small and or the patch is directly visible this will introduce
-    significant bias in most metrics.
-    """
-    if 'scene' not in ctx.obj:
-        clk.invoke_dependency(ctx, scene)
-    if usepositions:
-        if wea is None:
-            raise ValueError('option -wea is required when use positions is '
-                             'True')
-        s = SunSetterPositions(ctx.obj['scene'], wea, skyfilter=skyfilter,
-                               **kwargs)
-    elif loc is not None:
-        s = SunSetterLoc(ctx.obj['scene'], loc, **kwargs)
-    elif wea is not None:
-        loc = raytraverse.skycalc.get_loc_epw(wea)
-        s = SunSetterLoc(ctx.obj['scene'], loc, **kwargs)
-    else:
-        s = SunSetter(ctx.obj['scene'], **kwargs)
-    if plotdview:
-        s.direct_view()
-    ctx.obj['suns'] = s
-    if kwargs['printsuns']:
-        for pt in s.suns:
-            print('{}\t{}\t{}'.format(*pt))
-
 
 @main.command()
 @click.option('-fdres', default=10,
@@ -610,14 +600,14 @@ def integrate(ctx, loc=None, wea=None, skyro=0.0, ground_fac=0.15, pts=None,
         if 'suns' not in ctx.obj:
             clk.invoke_dependency(ctx, suns)
         sns = ctx.obj['suns']
-        su = SunField(scn, sns, blursun=blursun)
-        if sunonly:
-            itg = Integrator(su, wea=wea, loc=loc, skyro=skyro,
-                             ground_fac=ground_fac)
-        else:
-            sk = SCBinField(scn)
-            itg = SunSkyIntegrator(sk, su, wea=wea, loc=loc, skyro=skyro,
-                                   ground_fac=ground_fac)
+        # su = SunField(scn, sns, blursun=blursun)
+        # if sunonly:
+        #     itg = Integrator(su, wea=wea, loc=loc, skyro=skyro,
+        #                      ground_fac=ground_fac)
+        # else:
+        sk = SCBinField(scn)
+        itg = SunSkyIntegrator(sk, wea=wea, loc=loc, skyro=skyro,
+                               ground_fac=ground_fac)
     metric_return_opts = {"idx": kwargs['statidx'],
                           "sensor": kwargs['statsensor'],
                           "err": kwargs['staterr'], "sky": kwargs['statsky']}
@@ -701,6 +691,8 @@ def metric_out(sk_kd, sk_vlo, pt, perr, pi, scn, sns, skydat, dirs, header, metr
                     f.write(f"{d}\t")
                 f.write("\n")
     f.close()
+
+
 
 
 @main.command()
@@ -790,6 +782,78 @@ def computemetric(ctx, loc=None, wea=None, skyro=0.0, ground_fac=0.15, pts=None,
         sk_kd = skyf.d_kd[pi]
         sk_vlo = (skyf.vec[pi], skyf.lum[pi], np.squeeze(skyf.omega[pi]))
         metric_out(sk_kd, sk_vlo, pt, perr, pi, scn, sns, skydat, dirs, header, metricset, outname, **kwargs)
+
+
+
+@main.command()
+@click.option('-loc', callback=clk.split_float,
+              help='specify the scene location (if not specified in -wea or to'
+                   ' override. give as "lat lon mer" where lat is + North, lon'
+                   ' is + West and mer is the timezone meridian (full hours are'
+                   ' 15 degree increments)')
+@click.option('-wea',
+              help="path to weather/sun position file. possible formats are:\n"
+                   "\n"
+                   "1. .wea file\n"
+                   "#. .wea file without header (requires -loc)\n"
+                   "#. .epw file\n"
+                   "#. .epw file without header (requires -loc)\n"
+                   "#. 4 column tsv file, each row is altitude, azimuth, direct"
+                   " normal, diff. horizontal of canditate suns (requires "
+                   "--usepositions)\n"
+                   "#. 5 column tsv file, each row is dx, dy, dz, direct "
+                   "normal, diff. horizontal of canditate suns (requires "
+                   "--usepositions)\n\n"
+                   "tsv files are loaded with loadtxt"
+              )
+@click.option('-pts', default='0,0,0,0,-1,0', callback=np_load,
+              help="points to evaluate, this can be a .npy file, a whitespace "
+                   "seperated text file or entered as a string with commas "
+                   "between components of a point and spaces between points. "
+                   "in all cases each point requires 6 numbers x,y,z,dx,dy,dz "
+                   "so the shape of the array will be (N, 6)")
+@click.option('-res', default=800,
+              help="the resolution of hdr output in pixels")
+@click.option('-interp', default=12,
+              help='number of nearby rays to use for interpolation of hdr'
+                   'output (weighted by a gaussian filter). this does'
+                   'not apply to metric calculations')
+@click.option('-blursun', default=1,
+              help='spread sun to mimic camera or human eye, 1 is no blur'
+                   ' a value of 4 will double the apparent radius')
+@click.option('-vname', default='view',
+              help='name to include with hdr outputs')
+@click.option('-skyro', default=0.0,
+              help='counter clockwise rotation (in degrees) of the sky to'
+                   ' rotate true North to project North, so if project North'
+                   ' is 10 degrees East of North, skyro=10')
+@click.option('-ground_fac', default=0.15,
+              help='ground reflectance')
+@clk.shared_decs(clk.command_decs(raytraverse.__version__, wrap=True))
+def computehdr(ctx, loc=None, wea=None, skyro=0.0, ground_fac=0.15, pts=None, **kwargs):
+    """the integrate command combines sky and sun results and evaluates the
+    given set of positions and sky conditions"""
+    if 'scene' not in ctx.obj:
+        clk.invoke_dependency(ctx, scene)
+    scn = ctx.obj['scene']
+    if 'suns' not in ctx.obj:
+        clk.invoke_dependency(ctx, suns)
+    sns = ctx.obj['suns']
+    skydat = SkyData(wea, scn, sns, loc=loc, skyro=skyro, ground_fac=ground_fac)
+    perrs, pis = scn.area.pt_kd.query(pts[:, 0:3])
+    skyf = SCBinField(scn)
+    for pt, perr, pi in zip(pts, perrs, pis):
+        for i, sd in enumerate(skydat.skydata):
+            sunbin = skydat.sunproxy[i]
+            spi = (pi, sunbin[1])
+            pref = f"sun_{sunbin[1]:04d}"
+            hassun = False
+            if os.path.isfile(f"{scn.outdir}/{pref}_kd_lum.dat"):
+                sf = LightFieldKD(scn, prefix=pref, fvrays=scn.maxspec, log=False)
+                sk = SunSkyPt(skyf, sf, pi)
+                print("here")
+            else:
+                print("not here")
 
 
 

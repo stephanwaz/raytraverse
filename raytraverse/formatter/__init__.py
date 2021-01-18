@@ -8,8 +8,7 @@
 
 """formatter objects (prepare scene files for rendering"""
 
-__all__ = ['RadianceFormatter', 'Formatter', 'ImageFormatter']
+__all__ = ['RadianceFormatter', 'Formatter']
 
 from raytraverse.formatter.radianceformatter import RadianceFormatter
 from raytraverse.formatter.formatter import Formatter
-from raytraverse.formatter.imageformatter import ImageFormatter

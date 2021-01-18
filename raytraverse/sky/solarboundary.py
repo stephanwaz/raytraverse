@@ -8,10 +8,11 @@
 
 import numpy as np
 
-from raytraverse import translate, skycalc
+from raytraverse import translate
+from raytraverse.sky import skycalc
 
 
-class SkyInfo(object):
+class SolarBoundary(object):
     """sky location data object
 
     Parameters

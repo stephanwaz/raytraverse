@@ -32,6 +32,8 @@ class SunViewSampler(Sampler):
         include suns.rad in base scene initialization. if False,
         self.engine.load_source must be invoked before call.
     """
+    #: deterministic sample draws
+    ub = 1
 
     def __init__(self, scene, suns, srcdef=None, stype='sunview',
                  checkviz=True, **kwargs):
@@ -43,145 +45,15 @@ class SunViewSampler(Sampler):
         super().__init__(scene, stype=stype, idres=4, fdres=6,
                          srcdef=None, engine_args=engine_args, **kwargs)
         self.engine.load_source(srcdef)
-        self.samplemap = self.suns.map
-        self.vizkeys = None
-        self.vizmap = None
-
-    @property
-    def levels(self):
-        """sampling scheme
-
-        :getter: Returns the sampling scheme
-        :setter: Set the sampling scheme from (ptres, fdres, skres)
-        :type: np.array
-        """
-        return self._levels
-
-    @levels.setter
-    def levels(self, fdres):
-        """calculate sampling scheme"""
-        self._levels = np.array([(self.suns.suns.shape[0], 2**i, 2**i)
-                                 for i in range(self.idres, fdres + 1, 1)])
-
-    def check_viz(self):
-        """to avoid massive memory usage, the weights array for sunview
-        needs to be stored sparsely, this method resizes self.weights and
-        stores the keys needed to map back to the dense representation for
-        indexing draw samples"""
-        skyfield = SCBinField(self.scene)
-        # 4 rays from each point closest to each sun direction
-        # shape (suns, 4, sky bins)
-        idx, errs = skyfield.query_all_pts(self.suns.suns, 4)
-
-        # sky bin(s) in direction of suns
-        # shape (suns, 3) -> duplicates index to fill array if less than
-        # 3 sky bins are needed.
-        sbins = []
-        sunuvs = translate.xyz2uv(self.suns.suns, flipu=False)
-        tol = .125/self.scene.skyres
-        uvi = np.linspace(-tol, tol, 3)
-        for uv in sunuvs:
-            uvs = np.stack(np.meshgrid(uvi, uvi)).reshape(2, 9).T + uv
-            sbin = np.unique(translate.uv2bin(uvs,
-                                              self.scene.skyres)).astype(int)
-            sbin = sbin[sbin <= self.scene.skyres**2]
-            if len(sbin) < 3:
-                sbins.append(list(sbin) + [sbin[-1]] * (3 - len(sbin)))
-            else:
-                sbins.append(list(sbin)[0:3])
-        sbins = np.array(sbins)
-
-        # array slices, for each sun (xi) match with corresponding skybin (zi)
-        xi = np.arange(sbins.shape[0], dtype=int)[:, None, None]
-        yi = np.arange(4, dtype=int)[None, :, None]
-        zi = sbins[:, None, :]
-
-        isviz = np.array([np.max(skyfield.lum[i][j][(xi, yi, zi)], (1, 2))
-                          > self.suns.srct/2 for i, j in enumerate(idx)])
-        isviz = isviz.reshape(*self.area.ptshape,  -1)
-        # for collapsing from indices to weights (compression)
-        self.vizmap = (np.cumsum(isviz) - 1).reshape(isviz.shape)
-        # indices of the pt/sun combos to run (decompression)
-        self.vizkeys = np.indices(isviz.shape)[:, isviz].T
-        self.weights = np.ones((self.vizkeys.shape[0],) +
-                               (self.weights.shape[-2:]))
 
     def sample(self, vecf, vecs):
         """call rendering engine to sample direct view rays"""
         return super().sample(vecf, vecs).ravel()
 
-    def sample_idx(self, pdraws):
-        """generate samples vectors from flat draw indices
-
-        Parameters
-        ----------
-        pdraws: np.array
-            flat index positions of samples to generate
-
-        Returns
-        -------
-        si: np.array
-            index array of draws matching samps.shape
-        vecs: np.array
-            sample vectors
-        """
-        shape = np.concatenate((self.area.ptshape, self.levels[self.idx]))
-        # index assignment
-        si = np.stack(np.unravel_index(pdraws, self.weights.shape))
-        # decompress weights
-        if self.vizkeys is not None:
-            si = np.vstack((self.vizkeys[si[0]].T, si[1:]))
-        # convert to UV directions and positions
-        uv = si.T[:, -2:]/shape[3]
-        pos = self.area.uv2pt((si.T[:, 0:2] + .5)/shape[0:2])
-        uv += self._offset(uv.shape)
-        if pos.size == 0:
-            xyz = pos
-        else:
-            xyz = self._uv2xyz(uv, si)
-        vecs = np.hstack((pos, xyz))
-        return si, vecs
-
-    def _offset(self, shape):
+    def _offset(self, shape, dim):
         """no jitter on sun view because of very fine resolution and potentially
         large number of samples bog down random number generator"""
-        return 0.5/self.levels[self.idx][-1]
-
-    def dump_vecs(self, vecs, si=None):
-        """save vectors to file
-
-        Parameters
-        ----------
-        vecs: np.array
-            ray directions to write
-        si: np.array, optional
-            sample indices
-        """
-        outf = f'{self.scene.outdir}/{self.stype}_vecs_{self.idx:02d}.out'
-        f = open(outf, 'wb')
-        f.write(io.np2bytes(vecs))
-        f.close()
-        self._vecfiles.append(outf)
-        return outf
-
-    def _uv2xyz(self, uv, si):
-        return self.samplemap.uv2xyz(uv, si[2])
-
-    def draw(self):
-        """draw first level based on sky visibility all sampling is
-        deterministic since we are presumbably at a very high resolution to
-        avoid bias"""
-        if not self._checkviz:
-            return super().draw()
-        if self.idx == 0:
-            self.check_viz()
-            p = self.weights.ravel()
-        else:
-            p = draw.get_detail_filter(self.weights,
-                                       *self.filters[self.detailfunc])
-        # draw on pdf
-        pdraws = draw.from_pdf(p, self.threshold(self.idx), ub=1)
-        return pdraws
+        return 0.5/dim
 
     def run_callback(self):
         """post sampling, write full resolution (including interpolated values)

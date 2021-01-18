@@ -19,6 +19,9 @@ class Formatter(object):
     #: arguments for direct trace
     direct_args = ""
 
+    #: extension for renderer scene file
+    scene_ext = ""
+
     @staticmethod
     def make_scene(scene_files, out, frozen=True):
         """compile scene"""

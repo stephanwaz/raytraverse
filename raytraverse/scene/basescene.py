@@ -7,9 +7,9 @@
 # =======================================================================
 from datetime import datetime, timezone
 import os
+import shutil
 import sys
 
-from raytraverse.mapper import ViewMapper
 from raytraverse.formatter import Formatter
 
 
@@ -22,35 +22,43 @@ class BaseScene(object):
         path to store scene info and output files
     scene: str, optional (required if not reload)
         space separated list of radiance scene files (no sky) or octree
-    viewdir: tuple, optional
-        vector (x,y,z) view direction (orients UV space)
-    viewangle: float, optional
-        should be 1-180 or 360
     frozen: bool, optional
         create a frozen octree
     formatter: raytraverse.formatter.Formatter, optional
         intended renderer format
+    reload: bool, optional
+        if True attempts to load existing scene files in new instance
+        overrides 'overwrite'
+    overwrite: bool, optional
+        if True and outdir exists, will overwrite, else raises a FileExistsError
+    log: bool, optional
+        log progress events to outdir/log.txt
     """
-    scene_ext = "oct"
 
-    def __init__(self, outdir, scene=None, viewdir=(0, 1, 0), viewangle=360,
-                 frozen=True, formatter=Formatter, reload=True, log=True):
+    def __init__(self, outdir, scene=None, frozen=True, formatter=Formatter,
+                 reload=True, overwrite=False, log=True, **kwargs):
         self.outdir = outdir
+        try:
+            os.mkdir(outdir)
+        except FileExistsError as e:
+            if overwrite:
+                shutil.rmtree(outdir)
+                os.mkdir(outdir)
+            elif reload:
+                pass
+            else:
+                raise e
         try:
             os.mkdir(outdir)
         except FileExistsError as e:
             pass
         self._logf = f"{self.outdir}/log.txt"
         self._dolog = log
-        if log:
-            self.log(self, f"Initializing {outdir}")
         self.formatter = formatter
         self._frozen = frozen
         self.reload = reload
         self.scene = scene
         self.reload = False
-        #: raytraverse.viewmapper.ViewMapper: view translation class
-        self.view = ViewMapper(viewdir, viewangle)
 
     @property
     def scene(self):
@@ -64,22 +72,23 @@ class BaseScene(object):
 
     @scene.setter
     def scene(self, scene_files):
-        o = f'{self.outdir}/scene.{self.scene_ext}'
+        o = f'{self.outdir}/scene{self.formatter.scene_ext}'
         if self.reload and os.path.isfile(o):
             pass
         else:
             o = self.formatter.make_scene(scene_files, o, frozen=self._frozen)
         self._scene = o
 
-    def log(self, instance, message):
+    def log(self, instance, message, err=False):
         if self._dolog:
-            try:
-                f = open(self._logf, 'a')
-            except TypeError:
-                f = sys.stderr
-                needsclose = False
-            else:
-                needsclose = True
+            f = sys.stderr
+            needsclose = False
+            if not err:
+                try:
+                    f = open(self._logf, 'a')
+                    needsclose = True
+                except TypeError:
+                    pass
             ts = datetime.now(tz=timezone.utc).strftime("%d-%b-%Y %H:%M:%S")
             print(f"{ts}\t{type(instance).__name__}\t{message}", file=f)
             if needsclose:

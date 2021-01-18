@@ -7,7 +7,8 @@ import shutil
 
 import pytest
 
-from raytraverse.scene import Scene, SkyInfo
+from raytraverse.scene import Scene
+from raytraverse.sky import SolarBoundary
 import numpy as np
 
 @pytest.fixture(scope="module")
@@ -34,7 +35,7 @@ def test_scene(tmpdir):
 
 def test_solarbounds(tmpdir):
     loc = (46.25, -6.13, -15)
-    scene = SkyInfo(loc)
+    scene = SolarBoundary(loc)
     assert np.all(np.logical_not(scene.in_solarbounds(np.array([[.5,.5], [1.5,1], [.5,0]]))))
 
 

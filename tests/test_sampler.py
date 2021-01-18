@@ -8,7 +8,7 @@ import shutil
 import pytest
 from raytraverse.translate import scbinscal, scxyzcal
 from raytraverse.scene import Scene
-from raytraverse.sampler import SCBinSampler
+from raytraverse.sampler import SkySampler
 from raytraverse import translate
 import numpy as np
 import clasp.script_tools as cst
@@ -21,7 +21,6 @@ import clasp.script_tools as cst
 def tmpdir(tmp_path_factory):
     data = str(tmp_path_factory.mktemp("data"))
     shutil.copytree('tests/test/', data + '/test')
-    shutil.copy('raytraverse/genskyvec.pl', data + '/test')
     cpath = os.getcwd()
     os.chdir(data + '/test')
     yield data + '/test'
@@ -56,12 +55,12 @@ def test_init(tmpdir, scene):
                     [256, 128, ],
                     [512, 256, ],
                     [1024, 512, ]])
-    sampler = SCBinSampler(scene)
+    sampler = SkySampler(scene)
     assert np.alltrue(res == sampler.levels)
 
 
 def test_sky_sample(tmpdir, scene, capfd):
-    sampler = SCBinSampler(scene)
+    sampler = SkySampler(scene)
     vecf = sampler.dump_vecs(np.array([[5, 5, 1.25, 0, -1, 0]]))
     with capfd.disabled():
         lum = sampler.sample(vecf, np.array([[5, 5, 1.25, 0, -1, 0]]))

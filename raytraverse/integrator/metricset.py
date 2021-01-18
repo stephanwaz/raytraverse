@@ -208,6 +208,7 @@ class MetricSet(object):
         return np.sum(np.square(slum)*soga*self.scale**2 /
                       np.square(self.source_pos_idx))
 
+    #: TODO: change/add cie standard for background luminance
     @property
     @functools.lru_cache(1)
     def backlum(self):

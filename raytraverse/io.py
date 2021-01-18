@@ -163,6 +163,23 @@ def np2bytes(ar, dtype='<f'):
     return ar.astype(dt).tobytes()
 
 
+def np2bytefile(ar, outf, dtype='<f'):
+    """save vectors to file
+
+    Parameters
+    ----------
+    ar: np.array
+        array to write
+    outf: str
+        file to write to
+    dtype: str
+        argument to pass to np.dtype()
+    """
+    f = open(outf, 'wb')
+    f.write(np2bytes(ar, dtype=dtype))
+    f.close()
+
+
 def bytes2np(buf, shape, dtype='<f'):
     """read ar from bytestring
 
