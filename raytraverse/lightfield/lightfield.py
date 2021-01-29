@@ -7,7 +7,7 @@
 # =======================================================================
 import functools
 import os
-import numpy as np
+from clasp.script_tools import try_mkdir
 
 
 class LightField(object):
@@ -16,23 +16,23 @@ class LightField(object):
     Parameters
     ----------
     scene: raytraverse.scene.Scene
-        scene class containing geometry, location and analysis plane
+        scene class containing geometry
     rebuild: bool, optional
         build kd-tree even if one exists
-    prefix: str, optional
+    src: str, optional
         prefix of data files to map
     """
 
-    def __init__(self, scene, rebuild=False, prefix='sky', srcn=1, rmraw=False,
-                 fvrays=0, calcomega=True, log=True):
-        if log:
-            scene.log(self, f"Initializing prefix: {prefix}")
+    def __init__(self, scene, rebuild=False, src='sky', position=0, srcn=1,
+                 rmraw=False, fvrays=0.0, calcomega=True):
+        #: float: threshold for filtering direct view rays
         self._fvrays = fvrays
         #: bool: force rebuild kd-tree
         self.rebuild = rebuild
         self.srcn = srcn
         #: str: prefix of data files from sampler (stype)
-        self.prefix = prefix
+        self.src = src
+        self.position = position
         self._vec = None
         self._lum = None
         self._omega = None
@@ -40,8 +40,6 @@ class LightField(object):
         self.scene = scene
         self.calcomega = calcomega
         self._rawfiles = self.raw_files()
-        if log:
-            scene.log(self, f"Initialized prefix: {prefix}")
 
     def __del__(self):
         try:
@@ -72,20 +70,9 @@ class LightField(object):
         """solid angle (1,)"""
         return self._omega
 
-    def outfile(self, idx):
-        istr = "_".join([f"{i:04d}" for i in np.asarray(idx).reshape(-1)])
-        return f"{self.scene.outdir}_{self.prefix}_{istr}"
-
-    def items(self):
-        return range(self.scene.area.npts)
-
-    def ptitems(self, i):
-        return [i]
-
     @property
     @functools.lru_cache(1)
-    def size(self):
-        lfang = (len(list(self.omega.keys())) * 2 * np.pi *
-                 self.scene.view.aspect)
-        lfcnt = np.sum([v.size for v in self.omega.values()])
-        return dict(lfcnt=lfcnt, lfang=lfang)
+    def outfile(self):
+        outdir = f"{self.scene.outdir}/{self.src}"
+        try_mkdir(outdir)
+        return f"{outdir}/{self.position:06d}.rytree"

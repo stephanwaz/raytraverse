@@ -25,7 +25,7 @@ class ImageRenderer(object):
         self.scene = None
         self.header = ""
         self.arg_prefix = ''
-        self.vm = ViewMapper(viewangle=360)
+        self.vm = ViewMapper(viewangle=180)
 
     def initialize(self, args, scene, viewmapper=None, method="linear",
                    **kwargs):

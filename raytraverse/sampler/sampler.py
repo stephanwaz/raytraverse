@@ -10,6 +10,8 @@ import os
 import numpy as np
 
 from raytraverse import translate, io, draw, renderer
+from raytraverse.lightpoint import LightPointKD
+from raytraverse.mapper import ViewMapper
 
 
 class Sampler(object):
@@ -52,7 +54,7 @@ class Sampler(object):
     lb = .25
     ub = 8
 
-    def __init__(self, scene, engine=renderer.Rtrace, idres=4, fdres=9,
+    def __init__(self, scene, engine=renderer.Rtrace, idres=5, fdres=9,
                  accuracy=1.0,  srcn=1, stype='generic', srcdef=None, bands=1,
                  engine_args="", nproc=None, **kwargs):
         #: raytraverse.renderer.Renderer
@@ -76,11 +78,10 @@ class Sampler(object):
         #: str: sampler type
         self.stype = stype
         self.compiledscene = srcdef
-        self.engine_args = (engine_args, self.compiledscene, nproc, "ff")
-        self.engine.initialize(*self.engine_args)
+        self.engine_args = (engine_args, self.compiledscene)
+        self.engine_kwargs = dict(nproc=nproc, iot="ff")
 
     def __del__(self):
-        self.scene.log(self, "Closed")
         if not self._staticscene:
             try:
                 os.remove(self.compiledscene)
@@ -183,13 +184,13 @@ class Sampler(object):
         uv += self._offset(uv.shape, shape[1])
         return si, uv
 
-    def _plot_p(self, p, level, vm, suffix=".hdr", fisheye=True):
+    def _plot_p(self, p, level, vm, name, suffix=".hdr", fisheye=True):
         ps = p.reshape(self.weights.shape)
         outshape = (512*vm.aspect, 512)
         res = outshape[-1]
-        outw = (f"{self.scene.outdir}_{vm.name}_{self.stype}_weights_"
+        outw = (f"{self.scene.outdir}_{name}_{self.stype}_weights_"
                 f"{level:02d}{suffix}")
-        outp = (f"{self.scene.outdir}_{vm.name}_{self.stype}_detail_"
+        outp = (f"{self.scene.outdir}_{name}_{self.stype}_detail_"
                 f"{level:02d}{suffix}")
         if fisheye:
             pixelxyz = vm.pixelrays(res)
@@ -207,9 +208,9 @@ class Sampler(object):
             io.array2hdr(translate.resample(ps[-1::-1], outshape,
                                             radius=0), outp)
 
-    def _plot_vecs(self, vecs, level, vm, suffix=".hdr"):
+    def _plot_vecs(self, vecs, level, vm, name, suffix=".hdr"):
         outshape = (512*vm.aspect, 512)
-        outf = (f"{self.scene.outdir}_{vm.name}_{self.stype}_samples_"
+        outf = (f"{self.scene.outdir}_{name}_{self.stype}_samples_"
                 f"{level:02d}{suffix}")
         img = np.zeros(outshape)
         img = io.add_vecs_to_img(vm, img, vecs, channels=level+1)
@@ -239,15 +240,9 @@ class Sampler(object):
                          np.array([[0, 0, 0], [0, 0, 0], [0, 0, 0]])),
                'wav': (np.array([[-1, 0, 0], [-1, 4, -1], [0, 0, -1]])/3,
                        np.array([[0, 0, -1], [-1, 4, -1], [-1, 0, 0]])/3),
-               'wav3': (np.sqrt(2) / 2 * np.array([[0, 0, 0],
-                                                   [-1, 2, -1],
-                                                   [0, 0, 0]]),
-                        np.sqrt(2) / 2 * np.array([[0, -1, 0],
-                                                   [0, 2, 0],
-                                                   [0, -1, 0]]),
-                        np.sqrt(2) / 2 * np.array([[-1, 0, 0],
-                                                   [0, 2, 0],
-                                                   [0, 0, -1]])),
+               'wav3': (1 / 2 * np.array([[0, 0, 0], [-1, 2, -1], [0, 0, 0]]),
+                        1 / 2 * np.array([[0, -1, 0], [0, 2, 0], [0, -1, 0]]),
+                        1 / 2 * np.array([[-1, 0, 0], [0, 2, 0], [0, 0, -1]])),
                }
 
     def draw(self, level):
@@ -292,24 +287,33 @@ class Sampler(object):
         """
         self.weights[tuple(si)] = lum
 
-    def run_callback(self, vecfs, name):
-        outf = f'{self.scene.outdir}/{name}_{self.stype}_vecs.out'
-        f = open(outf, 'wb')
-        for idxf, vecf in vecfs:
+    def run_callback(self, vecfs, name, point, posidx, vm):
+        """handle class specific cleanup and lightpointKD construction"""
+        outf = f'{self.scene.outdir}/{name}_{self.stype}_vals.out'
+        vecs = []
+        for vecf in vecfs:
             fsrc = open(vecf, 'rb')
-            vecs = io.bytefile2np(fsrc, (-1, 6))
+            vecs.append(io.bytefile2np(fsrc, (-1, 6)))
             fsrc.close()
-            os.remove(vecf)
-            f.write(io.np2bytes(vecs))
-        f.close()
+        vecs = np.concatenate(vecs)
+        lightpoint = LightPointKD(self.scene, vecs, outf, src=self.stype,
+                                  pt=point, write=True, srcn=self.srcn,
+                                  posidx=posidx, vm=vm)
+        [os.remove(vecf) for vecf in vecfs]
+        return lightpoint
 
-    def run(self, point, vm, plotp=False, **kwargs):
+    def _dump_vecs(self, vecs, vecf):
+        io.np2bytefile(vecs, vecf)
+
+    def run(self, point, posidx, vm=None, plotp=False, **kwargs):
         """
 
         Parameters
         ----------
-        point:
+        point: np.array
             point to sample
+        posidx: int
+            position index
         vm: raytraverse.mapper.ViewMapper
             view direction to sample
         plotp:
@@ -319,25 +323,29 @@ class Sampler(object):
         -------
 
         """
-        point = np.array(point).flatten()[0:3]
+        if vm is None:
+            vm = ViewMapper()
+        point = np.asarray(point).flatten()[0:3]
         allc = 0
-        outf = f'{self.scene.outdir}/{vm.name}_{self.stype}_vals.out'
+        name = f"{vm.name}_{posidx:06d}"
+        outf = f'{self.scene.outdir}/{name}_{self.stype}_vals.out'
         f = open(outf, 'wb')
         f.close()
-        self.scene.log(self, f"Started sampling {vm.name} {self.stype}")
+        self.scene.log(self, f"Started sampling {name} {self.stype}")
+        self.scene.log(self, f"Settings: {self.engine_args[0]}")
         hdr = ['level', 'shape', 'samples', 'rate', 'filesize (MB)']
         self.scene.log(self, '\t'.join(hdr))
         fsize = 0
         self.levels = vm.aspect
         # reset weights and engine args
         self.weights = np.full(self.levels[0], 1e-7, dtype=np.float32)
-        self.engine.initialize(*self.engine_args)
+        self.engine.initialize(*self.engine_args, **self.engine_kwargs)
         vecfs = []
         for i in range(self.levels.shape[0]):
             shape = self.levels[i]
             self.weights = translate.resample(self.weights, shape)
             draws, p = self.draw(i)
-            if draws is None:
+            if len(draws) == 0:
                 srate = 0.0
                 row = [f'{i + 1} of {self.levels.shape[0]}', str(shape),
                        '0', f"{srate:.02%}", f'{fsize:.03f}']
@@ -351,12 +359,13 @@ class Sampler(object):
                 row = [f'{i+1} of {self.levels.shape[0]}', str(shape),
                        str(si.shape[1]), f"{srate:.02%}", f'{fsize:.03f}']
                 self.scene.log(self, '\t'.join(row))
-                vecf = (f'{self.scene.outdir}/{vm.name}_{self.stype}_vecs_'
+                vecf = (f'{self.scene.outdir}/{name}_{self.stype}_vecs_'
                         f'{i:02d}.out')
-                io.np2bytefile(vecs, vecf)
+                self._dump_vecs(vecs, vecf)
                 vecfs.append(vecf)
                 if plotp:
-                    self._plot_p(p, i, vm)
+                    self._plot_p(p, i, vm, name)
+                    self._plot_vecs(vecs[:,3:], i, vm, name)
                 lum = self.sample(vecf, vecs, outf)
                 self.update_weights(si, lum)
                 a = lum.shape[0]
@@ -365,4 +374,4 @@ class Sampler(object):
         row = ['total sampling:', '-', str(allc), f"{srate:.02%}",
                f'{fsize:.03f}']
         self.scene.log(self, '\t'.join(row))
-        self.run_callback(vecfs, vm.name)
+        return self.run_callback(vecfs, name, point, posidx, vm)

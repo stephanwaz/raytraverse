@@ -1,0 +1,27 @@
+side: 18;
+eq(x,y)=and(x-y+.001,y-x+.001);
+{ map U/V axis to bin divisions }
+axis(x) : mod(floor(side * x), side);
+nrbins = side * side;
+{ get bin of u,v }
+binl(u, v) : axis(u)*side + axis(v);
+
+{ shirley-chiu disk to square (with spherical term) }
+pi4 : PI/4;
+n = if(Dz, 1, -1);
+r2 = 1 - n*Dz;
+x = Dx/sqrt(2 - r2);
+y = -Dy/sqrt(2 - r2);
+r = sqrt( sq(x) + sq(y));
+ph = atan2(x, y);
+phi = ph + if(-pi4 - ph, 2*PI, 0);
+a = if(pi4 - phi, r, if(3*pi4 - phi, -(phi - PI/2)*r/pi4, if(5*pi4 - phi, -r, (phi - 3*PI/2)*r/pi4)));
+b = if(pi4 - phi, phi*r/pi4, if(3*pi4 - phi, r, if(5*pi4 - phi, -(phi - PI)*r/pi4, -r)));
+
+{ map to (0,2),(0,1) matches raytraverse.translate.xyz2uv}
+U = (if(n, 1, 3) - a*n)/2;
+V = (b + 1)/2;
+
+bin = if(n, binl(V, U), nrbins);
+
+abin = if(eq(bin, A1), 1, 0);

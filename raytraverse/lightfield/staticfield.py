@@ -12,6 +12,7 @@ from raytraverse.lightfield.lightfieldkd import LightFieldKD
 from raytraverse.lightfield.sunviewfield import SunViewField
 from raytraverse.sky import Suns
 
+
 class StaticField(LightFieldKD):
     """container for accessing sampled data for a single sky condition that
     may or may not include direct sources

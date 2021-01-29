@@ -2,16 +2,11 @@
 # -*- coding: utf-8 -*-
 
 """Tests for raytraverse.scene"""
-import os
-import shutil
-
 import pytest
-from raytraverse import translate, io
+from raytraverse import translate
 from raytraverse.mapper import ViewMapper
 import numpy as np
 
-
-# from clipt import mplt
 
 def test_viewmapper():
     vm = ViewMapper(viewangle=90)

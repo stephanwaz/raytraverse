@@ -5,15 +5,13 @@
 import itertools
 import os
 import shutil
-from concurrent.futures.process import ProcessPoolExecutor
 import shlex
 from subprocess import Popen, PIPE
 
 import pytest
-from raytraverse import skycalc, translate, io
+from raytraverse import skycalc, translate
 import clasp.script_tools as cst
 import numpy as np
-from clipt import mplt
 
 
 @pytest.fixture(scope="module")
@@ -152,20 +150,36 @@ def test_sky_mtx(check):
     sxyz = check[0][:, -3:]
     side = 20
     lum, grnd, sun = skycalc.sky_mtx(sxyz, dirdif, side)
+    smtx = np.load("smtx.npy")
     suni = sun[:, -1]
-    print(lum.shape, grnd.shape)
-    gsv = [f'genskyvec_sc -sc -m {side} -h -1 -b -s']*45
-    with ProcessPoolExecutor(io.get_nproc()) as exc:
-        cols = exc.map(call_generic, zip(coms, gsv))
-    smtx = np.hstack(list(cols)).T
-    irerr = (lum - smtx[:, 1:])/smtx[:, 1:]
-    print('Sky Matrix:')
-    print('max avg abs error:', np.max(np.average(np.abs(irerr), -1)))
-    print('max avg error:', np.max(np.average(irerr, -1)))
-    print('max abs error:', np.max(np.abs(irerr)))
-    assert np.allclose(lum, smtx[:, 1:], atol=0.001, rtol=.001)
+    assert np.allclose(lum[0, 0:5], smtx[0, 0:5], atol=0.001, rtol=.001)
     assert np.allclose(suni[check[1] > 0], check[1][check[1] > 0], atol=0.001,
                        rtol=.001)
+
+
+def test_read_epw(epw):
+    aepw = skycalc.read_epw_full("geneva.epw", [1, 2, 3, 14, 15])
+    assert np.allclose(aepw, epw)
+
+
+def test_perez_water(check):
+    lat, lon, mer = skycalc.get_loc_epw('geneva.epw')
+    epw = skycalc.read_epw_full("geneva.epw", [1, 2, 3, 7, 14, 15])
+    times = skycalc.row_2_datetime64(epw[:, 0:3])
+    dirdif2 = epw[:, 4:]
+    tdp = epw[:, 3]
+    dt = skycalc.datetime64_2_datetime(times, mer)
+    sxyz = skycalc.sunpos_xyz(times, lat, lon, mer)
+    # sxyz = check[0][:, -3:]
+    r1, s1 = skycalc.perez(sxyz, dirdif2)
+    r2, s2 = skycalc.perez(sxyz, dirdif2, td=tdp)
+    avg = np.hstack((r1[:,0:2], s1[:, None]))
+    rerr = np.nan_to_num(np.hstack((r1[:,0:2] - r2[:,0:2], (s1 - s2)[:, None]))/avg)
+    np.set_printoptions(4, suppress=True)
+    nonzero = rerr.shape[0] - np.sum(rerr == 0, 0)
+    print(nonzero)
+    assert np.allclose(np.sum(rerr, 0)/nonzero, [0.0038254666099110904, -0.0008038523852732332, -0.017393623250903396], rtol=.01, atol=.01)
+    assert np.allclose(np.sum(np.abs(rerr), 0)/nonzero, [0.009942138587737662, 0.00327390921251605, 0.0396736220708252], rtol=.01, atol=.01)
 
 
 def test_generate_wea(epw):

@@ -8,76 +8,131 @@
 import os
 import pickle
 import sys
+import functools
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from concurrent.futures import ProcessPoolExecutor
-from scipy.spatial import cKDTree, SphericalVoronoi, Voronoi
 
 import numpy as np
-from raytraverse.lightfield.memarraydict import MemArrayDict
+from scipy.spatial import cKDTree, SphericalVoronoi, Voronoi
+from shapely.geometry import Polygon
+from clasp.script_tools import try_mkdir
 
+from raytraverse.lightfield.memarraydict import MemArrayDict
 from raytraverse import io, translate
 from raytraverse.mapper import ViewMapper
-from raytraverse.lightfield.lightfield import LightField
 from raytraverse.craytraverse import interpolate_kdquery
-from shapely.geometry import Polygon
 
 
-class LightFieldKD(LightField):
+class LightFieldKD(object):
     """light field with KDtree structures for spatial query"""
 
-    @staticmethod
-    def mk_vector_ball(v):
-        if v.shape[0] < 100:
-            return None, None
-        d_kd = cKDTree(v)
-        try:
-            omega = SphericalVoronoi(v).calculate_areas()
-        except ValueError:
-            # spherical voronoi raises a value error when points are
-            # too close, in this case we cull duplicates before calculating
-            # area, leaving the duplicates with omega=0
-            filts = np.full(len(v), True)
-            omega = np.zeros(v.shape[0])
-            tol = 2*np.pi/2**10
-            pairs = d_kd.query_ball_tree(d_kd, tol)
-            flagged = set()
-            for j, p in enumerate(pairs):
-                if j not in flagged and len(p) > 1:
-                    filts[p[1:]] = False
-                    flagged.update(p[1:])
-            omega[filts] = SphericalVoronoi(v[filts]).calculate_areas()
-        return d_kd, omega[:, None]
+    def __init__(self, scene, rebuild=False, src='sky', position=0, srcn=1,
+                 rmraw=False, fvrays=0.0, calcomega=True):
+        #: float: threshold for filtering direct view rays
+        self._fvrays = fvrays
+        #: bool: force rebuild kd-tree
+        self.rebuild = rebuild
+        self.srcn = srcn
+        #: str: prefix of data files from sampler (stype)
+        self.src = src
+        self.position = position
+        self._vec = None
+        self._lum = None
+        self._omega = None
+        self._rmraw = rmraw
+        self.scene = scene
+        self.calcomega = calcomega
+        self._rawfiles = self.raw_files()
 
-    @staticmethod
-    def mk_vector_view(v, uv):
-        """in case of 180 view, cannot use spherical voronoi, instead
-        the method estimates area in square coordinates by intersecting
-        2D voronoi with border square."""
-        d_kd = cKDTree(v)
-        # so none of our points have infinite edges.
-        bordered = np.concatenate((uv, np.array([[-10,-10], [-10,10],
-                                                  [10,10], [10,-10]])))
-        vor = Voronoi(bordered)
-        # the border of our 180 degree region
-        mask = Polygon(np.array([[0,0], [0,1], [1,1], [1,0], [0,0]]))
-        omega = []
-        for i in range(len(uv)):
-            region = vor.regions[vor.point_region[i]]
-            p = Polygon(np.concatenate((vor.vertices[region],
-                        [vor.vertices[region][0]]))).intersection(mask)
-            # scaled from unit square -> hemisphere
-            omega.append(p.area*2*np.pi)
-        omega = np.asarray(omega)
-        return d_kd, omega[:, None]
+    def raw_files(self):
+        return []
+
+    @property
+    def vec(self):
+        """direction vector (3,)"""
+        return self._vec
+
+    @property
+    def lum(self):
+        """luminance (srcn,)"""
+        return self._lum
+
+    @property
+    @functools.lru_cache(1)
+    def outfile(self):
+        outdir = f"{self.scene.outdir}/{self.src}"
+        try_mkdir(outdir)
+        return f"{outdir}/{self.position:06d}.rytree"
 
     @property
     def d_kd(self):
-        """list of direction kdtrees
+        """kd tree for spatial query
 
         :getter: Returns kd tree structure
-        :type: list of scipy.spatial.cKDTree
+        :type: scipy.spatial.cKDTree
         """
         return self._d_kd
+
+    @d_kd.setter
+    def d_kd(self, v):
+        self._d_kd = cKDTree(v)
+
+    @property
+    def omega(self):
+        """solid angle
+
+        :getter: Returns array of solid angles
+        :setter: sets soolid angles with viewmapper
+        :type: np.array
+        """
+        return self._omega
+
+    @omega.setter
+    def omega(self, vm):
+        """solid angle"""
+        if self.vec.shape[0] < 100:
+            self._omega = None
+        elif vm.viewangle <= 180:
+            # in case of 180 view, cannot use spherical voronoi, instead
+            # the method estimates area in square coordinates by intersecting
+            # 2D voronoi with border square.
+            # so none of our points have infinite edges.
+            uv = vm.xyz2uv(self.vec)
+            bordered = np.concatenate((uv, np.array([[-10, -10], [-10, 10],
+                                                     [10, 10], [10, -10]])))
+            vor = Voronoi(bordered)
+            # the border of our 180 degree region
+            lb = .5 - vm.viewangle / 360
+            ub = .5 + vm.viewangle / 360
+            mask = Polygon(np.array([[lb, lb], [lb, ub],
+                                     [ub, ub], [ub, lb], [lb, lb]]))
+            omega = []
+            for i in range(len(uv)):
+                region = vor.regions[vor.point_region[i]]
+                p = Polygon(np.concatenate((vor.vertices[region],
+                                            [vor.vertices[region][
+                                                 0]]))).intersection(mask)
+                # scaled from unit square -> hemisphere
+                omega.append(p.area*2*np.pi)
+            self._omega = np.asarray(omega)
+        else:
+            try:
+                self._omega = SphericalVoronoi(self.vec).calculate_areas()
+            except ValueError:
+                # spherical voronoi raises a value error when points are
+                # too close, in this case we cull duplicates before calculating
+                # area, leaving the duplicates with omega=0
+                flt = np.full(len(self.vec), True)
+                self._omega = np.zeros(self.vec.shape[0])
+                tol = 2*np.pi/2**10
+                pairs = self.d_kd.query_ball_tree(self.d_kd, tol)
+                flagged = set()
+                for j, p in enumerate(pairs):
+                    if j not in flagged and len(p) > 1:
+                        flt[p[1:]] = False
+                        flagged.update(p[1:])
+                self._omega[flt] = \
+                    SphericalVoronoi(self.vec[flt]).calculate_areas()
 
     @property
     def scene(self):

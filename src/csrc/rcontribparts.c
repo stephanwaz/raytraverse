@@ -328,6 +328,9 @@ done_contrib(void)
 FVECT vec_0;
 FVECT vec_1;
 
+/*
+ * Modified so that accumulate repeats rays (like vwrays), instead of averaging (classic behaviour)
+ */
 int
 getvecfp(FVECT vec, FILE *fp)
 {

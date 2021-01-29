@@ -4,7 +4,6 @@
 """Tests for raytraverse.scene"""
 import os
 import shutil
-import re
 from matplotlib.testing.compare import compare_images
 import pytest
 import numpy as np

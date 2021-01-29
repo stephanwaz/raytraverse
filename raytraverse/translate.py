@@ -10,57 +10,7 @@
 """functions for translating between coordinate spaces and resolutions"""
 
 import numpy as np
-from scipy.interpolate import RectBivariateSpline
 from scipy.ndimage.filters import gaussian_filter, uniform_filter
-
-scbinscal = ("""
-{ map U/V axis to bin divisions }
-axis(x) : mod(floor(side * x), side);
-nrbins = side * side;
-{ get bin of u,v }
-binl(u, v) : axis(u)*side + axis(v);
-
-{ shirley-chiu disk to square (with spherical term) }
-pi4 : PI/4;
-n = if(Dz, 1, -1);
-r2 = 1 - n*Dz;
-x = Dx/sqrt(2 - r2);
-y = -Dy/sqrt(2 - r2);
-r = sqrt( sq(x) + sq(y));
-ph = atan2(x, y);
-phi = ph + if(-pi4 - ph, 2*PI, 0);
-a = if(pi4 - phi, r, if(3*pi4 - phi, -(phi - PI/2)*r/pi4, if(5*pi4 - phi,"""
-             """ -r, (phi - 3*PI/2)*r/pi4)));
-b = if(pi4 - phi, phi*r/pi4, if(3*pi4 - phi, r, if(5*pi4 - phi, """
-             """-(phi - PI)*r/pi4, -r)));
-
-{ map to (0,2),(0,1) matches raytraverse.translate.xyz2uv}
-U = (if(n, 1, 3) - a*n)/2;
-V = (b + 1)/2;
-
-bin = if(n, binl(V, U), nrbins);
-""")
-
-scxyzcal = """
-x1 = .5;
-x2 = .5;
-
-U = ((bin - mod(bin, side)) / side + x1)/side;
-V = (mod(bin, side) + x2)/side;
-
-n = if(U - 1, -1, 1);
-ur = if(U - 1, U - 1, U);
-a = 2 * ur - 1;
-b = 2 * V - 1;
-conda = sq(a) - sq(b);
-condb = abs(b) - FTINY;
-r = if(conda, a, if(condb, b, 0));
-phi = if(conda, b/(2*a), if(condb, 1 - a/(2*b), 0)) * PI/2;
-sphterm = r * sqrt(2 - sq(r));
-Dx = n * cos(phi)*sphterm;
-Dy = sin(phi)*sphterm;
-Dz = n * (1 - sq(r));
-"""
 
 
 def norm(v):
@@ -73,12 +23,9 @@ def norm1(v):
     return v/np.sqrt(np.sum(np.square(v)))
 
 
-def tpnorm(thetaphi):
-    """normalize angular vector to 0-pi, 0-2pi"""
-    thetaphi[:, 0] = np.mod(thetaphi[:, 0] + np.pi, np.pi)
-    thetaphi[:, 1] = np.mod(thetaphi[:, 1] + 2*np.pi, 2*np.pi)
-    return thetaphi
-
+###############################################
+# Shirley=Chiu Disk to Square Transformations #
+###############################################
 
 def uv2xy(uv):
     """translate from unit square (0,1),(0,1) to disk (x,y)
@@ -160,7 +107,83 @@ def xyz2uv(xyz, normalize=False, axes=(0, 1, 2), flipu=True):
     return uv
 
 
+###########################################
+# Translate to/from shirley chiu sky bins #
+###########################################
+
+scbinscal = ("""
+{ map U/V axis to bin divisions }
+axis(x) : mod(floor(side * x), side);
+nrbins = side * side;
+{ get bin of u,v }
+binl(u, v) : axis(u)*side + axis(v);
+
+{ shirley-chiu disk to square (with spherical term) }
+pi4 : PI/4;
+n = if(Dz, 1, -1);
+r2 = 1 - n*Dz;
+x = Dx/sqrt(2 - r2);
+y = -Dy/sqrt(2 - r2);
+r = sqrt( sq(x) + sq(y));
+ph = atan2(x, y);
+phi = ph + if(-pi4 - ph, 2*PI, 0);
+a = if(pi4 - phi, r, if(3*pi4 - phi, -(phi - PI/2)*r/pi4, if(5*pi4 - phi,"""
+             """ -r, (phi - 3*PI/2)*r/pi4)));
+b = if(pi4 - phi, phi*r/pi4, if(3*pi4 - phi, r, if(5*pi4 - phi, """
+             """-(phi - PI)*r/pi4, -r)));
+
+{ map to (0,2),(0,1) matches raytraverse.translate.xyz2uv}
+U = (if(n, 1, 3) - a*n)/2;
+V = (b + 1)/2;
+
+bin = if(n, binl(V, U), nrbins);
+""")
+
+scxyzcal = """
+x1 = .5;
+x2 = .5;
+
+U = ((bin - mod(bin, side)) / side + x1)/side;
+V = (mod(bin, side) + x2)/side;
+
+n = if(U - 1, -1, 1);
+ur = if(U - 1, U - 1, U);
+a = 2 * ur - 1;
+b = 2 * V - 1;
+conda = sq(a) - sq(b);
+condb = abs(b) - FTINY;
+r = if(conda, a, if(condb, b, 0));
+phi = if(conda, b/(2*a), if(condb, 1 - a/(2*b), 0)) * PI/2;
+sphterm = r * sqrt(2 - sq(r));
+Dx = n * cos(phi)*sphterm;
+Dy = sin(phi)*sphterm;
+Dz = n * (1 - sq(r));
+"""
+
+
+def xyz2skybin(xyz, side, tol=0, normalize=False):
+    uv = xyz2uv(np.atleast_2d(xyz), flipu=False, normalize=normalize)
+    if tol > 0:
+        tol = tol/side
+        uvi = np.linspace(-tol, tol, 3)
+        uvs = np.stack(np.meshgrid(uvi, uvi)).reshape(2, 9).T + uv
+        sbin = np.unique(uv2bin(uvs, side)).astype(int)
+        skybin = sbin[sbin < side**2]
+    else:
+        skybin = uv2bin(uv, side)
+    return skybin
+
+
+def skybin2xyz(bn, side):
+    uv = bin2uv(bn, side)
+    return uv2xyz(uv, xsign=1)
+
+##################################################
+# Translate to/from anglular fisheye projeection #
+##################################################
+
 def xyz2xy(xyz, axes=(0, 1, 2), flip=True):
+    """xyz coordinates to xy mapping of angular fisheye proejection"""
     r = np.arctan2(np.sqrt(np.sum(np.square(xyz[:, axes[0:2]]), -1)),
                    xyz[:, axes[2]])/(np.pi/2)
     phi = np.arctan2(xyz[:, axes[0]], xyz[:, axes[1]])
@@ -172,6 +195,7 @@ def xyz2xy(xyz, axes=(0, 1, 2), flip=True):
 
 
 def pxy2xyz(pxy, viewangle=180.0):
+    """pixel coordinates of angular fisheye to xyz"""
     pxy -= .5
     pxy *= viewangle/180
     d = np.sqrt(np.sum(np.square(pxy), -1))
@@ -180,6 +204,17 @@ def pxy2xyz(pxy, viewangle=180.0):
     pxy *= d[..., None]
     xyz = np.concatenate((pxy, z[..., None]), -1)
     return xyz
+
+
+##########################################
+# Translate to/from anglular coordinates #
+##########################################
+
+def tpnorm(thetaphi):
+    """normalize angular vector to 0-pi, 0-2pi"""
+    thetaphi[:, 0] = np.mod(thetaphi[:, 0] + np.pi, np.pi)
+    thetaphi[:, 1] = np.mod(thetaphi[:, 1] + 2*np.pi, 2*np.pi)
+    return thetaphi
 
 
 def tp2xyz(thetaphi, normalize=True):
@@ -213,6 +248,56 @@ def uv2tp(uv):
     return xyz2tp(uv2xyz(uv))
 
 
+def aa2xyz(aa):
+    """calculate altitude (0-90), azimuth (-180,180) from xyz"""
+    tp = np.pi/2 - aa * np.pi/180
+    tp[:, 1] += np.pi
+    return tp2xyz(tp)
+
+
+def xyz2aa(xyz):
+    """calculate xyz from altitude (0-90), azimuth (-180,180)"""
+    tp = xyz2tp(xyz)
+    tp[:, 1] -= np.pi
+    return (np.pi/2 - tp)/(np.pi/180)
+
+
+def chord2theta(c):
+    """compute angle from chord on unit circle
+
+    Parameters
+    ----------
+    c: float
+        chord or euclidean distance between normalized direction vectors
+
+    Returns
+    -------
+    theta: float
+        angle captured by chord
+    """
+    return 2*np.arcsin(c/2)
+
+
+def theta2chord(theta):
+    """compute chord length on unit sphere from angle
+
+    Parameters
+    ----------
+    theta: float
+        angle
+
+    Returns
+    -------
+    c: float
+        chord or euclidean distance between normalized direction vectors
+    """
+    return 2*np.sin(theta/2)
+
+
+################################################
+# digitize and serialize UV square coordinates #
+################################################
+
 def uv2ij(uv, side, aspect=2):
     ij = np.mod(np.floor(side*uv), side)
     if aspect == 2:
@@ -225,18 +310,15 @@ def uv2bin(uv, side):
     return buv[:, 0]*side + buv[:, 1]
 
 
-def bin2uv(bn, side):
-    u = (bn - np.mod(bn, side))/(side*side)
-    v = np.mod(bn, side)/side
+def bin2uv(bn, side, offset=0.5):
+    u = ((bn - np.mod(bn, side))/side + offset)/side
+    v = (np.mod(bn, side) + offset)/side
     return np.stack((u, v)).T
 
 
-def bin_borders(sb, side):
-    si = np.stack(np.unravel_index(sb, (side, side)))
-    square = np.array([[0, 0], [0, 1], [1, 1], [1, 0]])/side
-    uv = np.repeat(si.T[:, None, :]/side, 4, axis=1) + square[None]
-    return uv
-
+#########################
+# image like resampling #
+#########################
 
 def resample(samps, ts=None, gauss=True, radius=None):
     """simple array resampling. requires whole number multiple scaling.
@@ -282,14 +364,9 @@ def resample(samps, ts=None, gauss=True, radius=None):
     return samps
 
 
-def interpolate2d(a, s):
-    oldcx = np.linspace(0, 1, a.shape[0])
-    newcx = np.linspace(0, 1, s[0])
-    oldcy = np.linspace(0, 1, a.shape[1])
-    newcy = np.linspace(0, 1, s[1])
-    f = RectBivariateSpline(oldcx, oldcy, a, kx=1, ky=1)
-    return f(newcx, newcy)
-
+####################
+# vector rotations #
+####################
 
 def rmtx_elem(theta, axis=2, degrees=True):
     if degrees:
@@ -349,47 +426,3 @@ def rmtx_yp(v):
                      (0, np.cos(p), -np.sin(p)),
                      (0, np.sin(p), np.cos(p))])
     return ymtx, pmtx
-
-
-def chord2theta(c):
-    """compute angle from chord on unit circle
-
-    Parameters
-    ----------
-    c: float
-        chord or euclidean distance between normalized direction vectors
-
-    Returns
-    -------
-    theta: float
-        angle captured by chord
-    """
-    return 2*np.arcsin(c/2)
-
-
-def theta2chord(theta):
-    """compute chord length on unit sphere from angle
-
-    Parameters
-    ----------
-    theta: float
-        angle
-
-    Returns
-    -------
-    c: float
-        chord or euclidean distance between normalized direction vectors
-    """
-    return 2*np.sin(theta/2)
-
-
-def aa2xyz(aa):
-    tp = np.pi/2 - aa * np.pi/180
-    tp[:, 1] += np.pi
-    return tp2xyz(tp)
-
-
-def xyz2aa(xyz):
-    tp = xyz2tp(xyz)
-    tp[:, 1] -= np.pi
-    return (np.pi/2 - tp)/(np.pi/180)

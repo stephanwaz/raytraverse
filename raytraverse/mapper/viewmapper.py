@@ -130,8 +130,11 @@ class ViewMapper(object):
         rxyz = self.world2view(xyz, i)
         return translate.xyz2xy(rxyz)
 
+    def pixels(self, res):
+        return np.stack(np.mgrid[0:res, 0:res], 2) + .5
+
     def pixelrays(self, res, i=0):
-        pxy = np.stack(np.mgrid[0:res, 0:res], 2) + .5
+        pxy = self.pixels(res)
         if self.aspect == 2:
             a = self.pixel2ray(pxy, res, i)
             b = self.ivm.pixel2ray(pxy, res, i)

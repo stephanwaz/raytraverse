@@ -4,10 +4,9 @@
 """Tests for raytraverse.translate"""
 
 import pytest
-from raytraverse import translate
+from raytraverse import translate, io
 from raytraverse.mapper import ViewMapper
 import numpy as np
-from clipt import mplt
 
 import clasp.script_tools as cst
 
@@ -106,7 +105,7 @@ def test_rmtx_world2std():
 def test_bin2uv():
     bins = np.arange(200)
     ij = np.stack(np.unravel_index(bins, (20, 10))).T
-    uv = translate.bin2uv(bins, 10)
+    uv = translate.bin2uv(bins, 10, offset=0)
     ij2 = translate.uv2ij(uv, 10)
     assert np.allclose(ij, ij2)
     bins2 = translate.uv2bin(uv, 10)
@@ -125,3 +124,20 @@ def test_view2xyz():
     xyz = v.pixelrays(res)
     xyz = np.swapaxes(xyz, 0, 1)
     assert np.allclose(xyz, vrays, rtol=.01, atol=.01)
+
+
+def test_skybin():
+    side = 18
+    bns = np.arange(side**2)
+    strbins = "\n".join([str(b) for b in bns])
+    exp = translate.scxyzcal.replace("\n","")
+    rcalc = f"rcalc -f rayinit.cal -e 'bin=$1;side={side}' -e '{exp}' -e '$1=Dx;$2=Dy;$3=Dz'"
+    rcalc = np.fromstring(cst.pipeline([rcalc], inp=strbins), sep=' ').reshape(-1, 3)
+    pyt = translate.skybin2xyz(bns, side)
+    assert np.allclose(pyt, rcalc)
+    exp = translate.scbinscal.replace("\n", "")
+    strxyz = io.np2bytes(pyt)
+    rcalc = f"rcalc -if3 -of -f rayinit.cal -e 'Dx=$1;Dy=$2;Dz=$3;side={side}' -e '{exp}' -e '$1=bin'"
+    rcalc = io.bytes2np(cst.pipeline([rcalc], inp=strxyz), (-1,))
+    pyt = translate.xyz2skybin(pyt, side)
+    assert np.allclose(pyt, rcalc)

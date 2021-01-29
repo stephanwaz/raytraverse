@@ -49,6 +49,57 @@ def read_epw(epw):
     return np.array(data)
 
 
+col_headers = {'year': 0, 'month': 1, 'day': 2, 'hour': 3, 'minute': 4,
+               'note': 5, 't_drybulb': 6, 't_dewpoint': 7, 'rh': 8, 'asp': 9,
+               'ext_hor_rad': 10, 'ext_dir_norm_rad': 11,
+               'hor_infr_rad_int': 12, 'global_hor_rad': 13,
+               'dir_norm_rad': 14, 'dif_hor_rad': 15, 'global_hor_illum': 16,
+               'dir_norm_illum': 17, 'diff_hor_illum': 18, 'zenith_lum': 19,
+               'wind_dir': 20, 'wind_spd': 21, 'sky_cover': 22,
+               'opaque_sky_cover': 23, 'visibility': 24, 'ceil_height': 25,
+               'weather_obs': 26, 'weather_codes': 27, 'precip_water': 28,
+               'aerosol_optical_depth': 29, 'snow_depth': 30,
+               'days_last_snow': 31, 'albedo': 32, 'liquid_precip_depth': 33,
+               'liquid_precip_quant': 34}
+
+
+col_indices = dict(zip(col_headers.values(), col_headers.keys()))
+
+def read_epw_full(epw, columns=None):
+    """
+
+    Parameters
+    ----------
+    epw
+    columns: list, optional
+        integer indices or keys of columns to return
+
+    Returns
+    -------
+    requested columns from epw as np.array shape (8760, N)
+    """
+    f = open(epw, 'r')
+    lines = f.readlines()
+    f.close()
+    hours = [re.split(r'[ \t,]+', i) for i in lines if re.match(r"\d.*", i)]
+    data = np.array(hours).T
+    data[5] = '0'
+    data = data.astype(float)
+    # correct hour offset as instantaneous
+    data[3] -= 0.5
+    if columns is not None:
+        c = []
+        for i in columns:
+            if i in col_headers:
+                c.append(col_headers[i])
+            elif i in col_indices:
+                c.append(i)
+            else:
+                raise ValueError(f"Column {i} is not a valid key: {col_indices}")
+        columns = c
+    return data[columns].T
+
+
 def get_loc_epw(epw, name=False):
     """get location from epw or wea header"""
     try:
@@ -360,20 +411,6 @@ perez_constants = {
                     -0.325, 0.1156, 0.7781, 0.0025, 31.0625, -14.5, -46.1148,
                     55.375, -7.2312, 0.405, 13.35,  0.6234, 1.5, -0.6426,
                     1.8564, 0.5636]).reshape((8, 5, 4)),
-    'abcdf': np.array([[97.24, 107.22, 104.97, 102.39, 100.71, 106.42, 141.88,
-                       152.23, 0],
-                      [-0.46, 1.15, 2.96, 5.59, 5.94, 3.83, 1.90, 0.35, 0],
-                      [12.0, 0.59, -5.53, -13.95, -22.75, -36.15, -53.24,
-                       -45.27, 0],
-                      [-8.91, -3.95, -8.77, -13.90, -23.74, -28.83, -14.03,
-                       -7.98, 0]]).T,
-    'abcdd': np.array([[57.20, 98.99, 109.83, 110.34, 106.36, 107.19, 105.75,
-                       101.18, 0],
-                      [-4.55, -3.46, -4.90, -5.84, -3.97, -1.25, 0.77, 1.58, 0],
-                      [-2.98, -1.21, -1.71, -1.99, -1.75, -1.51, -1.26, -1.10,
-                       0],
-                      [117.12, 12.38, -8.81, -4.56, -6.16, -26.73, -34.44,
-                       -8.29, 0]]).T,
     'theta': np.array([84, 84, 84, 84, 84, 84, 84, 84, 84, 84, 84, 84, 84, 84,
                        84, 84, 84, 84, 84, 84, 84, 84, 84, 84, 84, 84, 84, 84,
                        84, 84, 72, 72, 72, 72, 72, 72, 72, 72, 72, 72, 72, 72,
@@ -449,7 +486,37 @@ def perez_lum(xyz, coefs):
     return (swght * c[..., 0] * rawlum + gwght * c[..., 1]) / (swght + gwght)
 
 
-def perez(sxyz, dirdif, md=None, ground_fac=0.2):
+def scale_efficacy(dirdif, sunz, csunz, skybright, catn, td=10.9735311509):
+    abcdf = np.array([[97.24, 107.22, 104.97, 102.39, 100.71, 106.42, 141.88,
+                       152.23, 0],
+                      [-0.46, 1.15, 2.96, 5.59, 5.94, 3.83, 1.90, 0.35, 0],
+                      [12.0, 0.59, -5.53, -13.95, -22.75, -36.15, -53.24,
+                       -45.27, 0],
+                      [-8.91, -3.95, -8.77, -13.90, -23.74, -28.83, -14.03,
+                       -7.98, 0]]).T
+    abcdd = np.array([[57.20, 98.99, 109.83, 110.34, 106.36, 107.19, 105.75,
+                       101.18, 0],
+                      [-4.55, -3.46, -4.90, -5.84, -3.97, -1.25, 0.77, 1.58, 0],
+                      [-2.98, -1.21, -1.71, -1.99, -1.75, -1.51, -1.26, -1.10,
+                       0],
+                      [117.12, 12.38, -8.81, -4.56, -6.16, -26.73, -34.44,
+                       -8.29, 0]]).T
+    precwater = np.broadcast_to(np.exp(0.07*td - .075), dirdif.shape[0])
+    effimultd = np.stack((np.ones(dirdif.shape[0]), precwater,
+                          np.exp(5.73*sunz - 5), skybright)).T
+    effimultf = np.stack((np.ones(dirdif.shape[0]), precwater,
+                          csunz, np.log(skybright))).T
+    ef = np.sum(abcdf[catn]*effimultf, 1)
+    ed = np.sum(abcdd[catn]*effimultd, 1)
+    directi = dirdif[:, 0]*ed
+    diffusei = dirdif[:, 1]*ef
+    if np.asarray(td).size == 1:
+        print(ef[np.isfinite(ef)])
+        print(ed[np.isfinite(ed)])
+    return directi, diffusei
+
+
+def perez(sxyz, dirdif, md=None, ground_fac=0.2, td=10.9735311509):
     """compute perez coefficients
 
     Notes
@@ -467,7 +534,9 @@ def perez(sxyz, dirdif, md=None, ground_fac=0.2):
     md: np.array, optional
         (N, 2) month day of sky calcs (for more precise eccentricity calc)
     ground_fac: float
-        scaling factor (reflecctance) for ground brightness
+        scaling factor (reflectance) for ground brightness
+    td: np.array, float
+        (N,) dew point temperature in C
 
     Returns
     -------
@@ -477,7 +546,6 @@ def perez(sxyz, dirdif, md=None, ground_fac=0.2):
     n = sxyz.shape[0]
     # match constants from gendaylit.c
     sole = 1367
-    precwater = 2
     dn = 0
     if md is not None:
         dn = perez_constants['mdays'][md[:, 0] - 1] + md[:, 1]
@@ -493,12 +561,8 @@ def perez(sxyz, dirdif, md=None, ground_fac=0.2):
     skyclear = ((dirdif[:, 1] + dirdif[:, 0])/dirdif[:, 1] + sunz3)/(1 + sunz3)
     catn = np.minimum(np.searchsorted(perez_constants['cats'], skyclear,
                                       side='right') - 1, 7)
-    effimultd = np.stack((np.ones(n), np.full(n, precwater),
-                          np.exp(5.73*sunz - 5), skybright)).T
-    effimultf = np.stack((np.ones(n), np.full(n, precwater),
-                          csunz, np.log(skybright))).T
-    directi = dirdif[:, 0]*np.sum(perez_constants['abcdd'][catn]*effimultd, 1)
-    diffusei = dirdif[:, 1]*np.sum(perez_constants['abcdf'][catn]*effimultf, 1)
+    directi, diffusei = scale_efficacy(dirdif, sunz, csunz,
+                                       skybright, catn, td)
     cperez = coeff_lum_perez(sunz, skyclear, skybright, catn)
     tp = np.stack((perez_constants['theta'], perez_constants['phi'])).T
     dz = np.cos(tp[:, 0])
@@ -553,8 +617,8 @@ def sky_mtx(sxyz, dirdif, side, jn=4, ground_fac=0.2):
         (N, 4) - sun direction and radiance
     """
     coefs, solarrad = perez(sxyz, dirdif, ground_fac=ground_fac)
-    uv = translate.bin2uv(np.arange(side*side), side)
-    jitter = translate.bin2uv(np.arange(jn*jn), jn) + .5/jn
+    uv = translate.bin2uv(np.arange(side*side), side, offset=0.0)
+    jitter = translate.bin2uv(np.arange(jn*jn), jn, offset=0.0) + .5/jn
     uvj = uv[:, None, :] + jitter/side
     xyz = translate.uv2xyz(uvj.reshape(-1, 2), xsign=1).reshape(-1, 3)
     lum = perez_lum(xyz, coefs).reshape(coefs.shape[0], -1, jn*jn)

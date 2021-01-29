@@ -19,7 +19,9 @@ class Scene(BaseScene):
     formatter: raytraverse.formatter.RadianceFormatter, optional
         intended renderer format
     """
-    def __init__(self, outdir, formatter=RadianceFormatter, **kwargs):
-        super().__init__(outdir, formatter=formatter, **kwargs)
+    def __init__(self, outdir, scene=None, frozen=True,
+                 formatter=RadianceFormatter, **kwargs):
+        super().__init__(outdir, scene=scene, frozen=frozen, formatter=formatter,
+                         **kwargs)
 
 

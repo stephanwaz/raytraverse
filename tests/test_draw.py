@@ -7,6 +7,7 @@ import pytest
 from raytraverse import draw
 import numpy as np
 from scipy import stats
+from raytraverse.sampler import Sampler
 
 
 # def test_version():
@@ -35,11 +36,11 @@ def test_from_pdf():
 
 
 def test_get_detail():
-    ans = np.array([3, 2.5, 1.5, 0., 0., 0., 0., 0., 2.5, 5, 2., 1.5, 0., 0.,
-                    0., 0., 1.5, 2.,5, 2., 1.5, 0., 0., 0., 0., 1.5, 2., 5, 2.,
-                    1.5, 0., 0., 0., 0., 1.5, 2., 5,  2., 1.5, 0., 0., 0., 0.,
-                    1.5, 2., 5, 2., 1.5, 0., 0., 0., 0., 1.5, 2., 5, 2.5, 0.,
-                    0., 0., 0., 0., 1.5, 2.5, 3])
     ar = np.eye(8)
-    d = draw.get_detail(ar*.5, (0, 1))*2
+    ans = np.eye(8)
+    ans[1:-1, 1:-1] *= 2
+    ans[0:-1, 1:] += ar[1:,1:]
+    ans[1:, 0:-1] += ar[1:, 1:]
+    ans[(0, 1, -2, -1), (1,0, -1, -2)] += .5
+    d = draw.get_detail(ar, *Sampler.filters['wav3']).reshape(8, 8)
     assert np.allclose(ans, d)

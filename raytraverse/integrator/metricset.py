@@ -58,7 +58,8 @@ class MetricSet(object):
     allmetrics = defaultmetrics + ["tasklum", "backlum", "dgp_t1", "log_gc",
                                    "dgp_t2", "ugr", "threshold", "pwsl2",
                                    "view_area", "density", "reldensity",
-                                   "lumcenter", "avgraylum"]
+                                   "lumcenter", "avgraylum", "backlum_true",
+                                   "srcillum"]
 
     def __init__(self, vm, vec, omega, lum, metricset=None, scale=179.,
                  threshold=2000., guth=True, tradius=30.0, **kwargs):
@@ -208,11 +209,25 @@ class MetricSet(object):
         return np.sum(np.square(slum)*soga*self.scale**2 /
                       np.square(self.source_pos_idx))
 
-    #: TODO: change/add cie standard for background luminance
+    @property
+    @functools.lru_cache(1)
+    def srcillum(self):
+        """average background luminance"""
+        svec, soga, slum = self.sources
+        return np.einsum('i,i,i->', self.vm.ctheta(svec), slum,
+                         soga) * self.scale
+
     @property
     @functools.lru_cache(1)
     def backlum(self):
-        """average background luminance"""
+        """average background luminance CIE estimate
+        (official for some metrics)"""
+        return (self.illum - self.srcillum) / np.pi
+
+    @property
+    @functools.lru_cache(1)
+    def backlum_true(self):
+        """average background luminance mathematical"""
         bvec, boga, blum = self.background
         return np.einsum('i,i->', blum, boga)*self.scale/np.sum(boga)
 

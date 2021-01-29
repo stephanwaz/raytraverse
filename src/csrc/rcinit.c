@@ -55,7 +55,7 @@ int	header = 1;			/* output header? */
 int outbright = 0;
 int	force_open = 0;			/* truncate existing output? */
 int	recover = 0;			/* recover previous output? */
-int	accumulate = 1;			/* input rays per output record */
+int	accumulate = 1;			/* RAYTRAVERSE MODIFICATION number of times to repeat ray  */
 int	contrib = 0;			/* computing contributions? */
 
 int	xres = 0;			/* horizontal (scan) size */
@@ -79,7 +79,7 @@ char	RCCONTEXT[] = "RC.";		/* our special evaluation context */
 static void
 rcprintdefaults(void)			/* print default values to stdout */
 {
-  printf("-c %-5d\t\t\t# accumulated rays per record\n", accumulate);
+  printf("-c %-5d\t\t\t# repeat calculation per record\n", accumulate);
   printf("-V%c\t\t\t\t# output %s\n", contrib ? '+' : '-',
          contrib ? "contributions" : "coefficients");
   if (imm_irrad)
@@ -245,7 +245,7 @@ rcontrib_init(int argc, char *argv[])
   header = 1;			/* output header? */
   force_open = 0;			/* truncate existing output? */
   recover = 0;			/* recover previous output? */
-  accumulate = 1;			/* input rays per output record */
+  accumulate = 1;			/* RAYTRAVERSE MODIFICATION number of times to repeat ray  */
   contrib = 0;			/* computing contributions? */
   using_stdout = 0;		/* are we using stdout? */
   imm_irrad = 0;			/* compute immediate irradiance? */
@@ -330,7 +330,7 @@ rcontrib_init(int argc, char *argv[])
         check(2,"s");
         curout = argv[++i];
         break;
-      case 'c':			/* input rays per output */
+      case 'c':			/* RAYTRAVERSE MODIFICATION number of times to repeat ray  */
         check(2,"i");
         accumulate = atoi(argv[++i]);
         break;

@@ -58,7 +58,7 @@ extern "C" {
 #include  "resolu.h"
 #include  "random.h"
 
-extern int repeat;
+extern int repeat;  /* RAYTRAVERSE MODIFICATION number of times to repeat ray */
 extern int  inform;			/* input format */
 extern int  outform;			/* output format */
 extern char  *outvals;			/* output values */

@@ -24,23 +24,23 @@ class SkySampler(Sampler):
         space separated list of radiance scene files (no sky) or octree
     skyres: float, optional
         approximate square patch size in degrees
-    ropts: str, optional
-        arguments for engine
+    engine_args: str, optional
+        rtrace arguments to pass to rcontrib
     """
 
     def __init__(self, scene, engine=renderer.Rcontrib, skyres=10.0,
-                 ropts='-ab 7 -ad 60000 -as 30000 -lw 1e-7', **kwargs):
+                 engine_args='-ab 7 -ad 2 -c 16200 -as 0 -lw .0625', **kwargs):
         skydeg = scene.formatter.get_skydef((1, 1, 1), ground=True,
                                             name='skyglow')
         skyres = int(np.floor(90/skyres)*2)
-        engine_args, srcn = scene.formatter.get_contribution_args(ropts,
+        engine_args, srcn = scene.formatter.get_contribution_args(engine_args,
                                                                   skyres,
                                                                   'skyglow')
         engine().reset()
         super().__init__(scene, engine=engine, srcn=srcn, stype='sky',
                          srcdef=skydeg, engine_args=engine_args, **kwargs)
 
-    def sample(self, vecf, vecs):
+    def sample(self, vecf, vecs, outf=None):
         """call rendering engine to sample sky contribution"""
-        lum = super().sample(vecf, vecs)
-        return np.max(lum[:, :self.srcn-1], 1)
+        lum = super().sample(vecf, vecs, outf)
+        return np.max(lum, 1)
