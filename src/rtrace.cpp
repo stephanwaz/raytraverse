@@ -26,6 +26,7 @@ namespace ray{
     extern "C" {
 #include <ambient.h>
 #include <pmapray.h>
+#include <func.h>
     }
 }
 
@@ -44,6 +45,7 @@ Rtrace& Rtrace::getInstance() {
 
 void Rtrace::resetRadiance() {
   ray::ray_done(1);
+  ray::dcleanup(2);
 }
 
 void Rtrace::initialize(pybind11::object pyargv11) {

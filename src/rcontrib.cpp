@@ -26,6 +26,7 @@ namespace rayrc{
     extern "C" {
 #include <ambient.h>
 #include <pmapray.h>
+#include <func.h>
     }
 }
 
@@ -65,6 +66,7 @@ void Rcontrib::resetRadiance() {
   rayrc::ray_done_pmap();
   rayrc::ray_pdone(1);
   rayrc::rcontrib_clear();
+  rayrc::dcleanup(2);
 }
 
 void Rcontrib::resetInstance() {

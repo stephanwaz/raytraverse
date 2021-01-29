@@ -59,11 +59,11 @@ lint: ## check style with flake8
 test: ## run tests quickly with the default Python
 	py.test
 
-slowtest: ## run tests on every Python version with tox
+slowtest: ## run tests including slow decorator
 	py.test --slow
 
 coverage: ## check code coverage quickly with the default Python
-	pytest --cov=raytraverse --slow
+	pytest --cov=raytraverse tests
 	#pytest --cov=raytraverse --cov-append --slowtest tests/test_skycalc.py tests/test_cli.py
 	coverage html
 	$(BROWSER) htmlcov/index.html

@@ -33,6 +33,10 @@ class ViewMapper(object):
         self.dxyz = dxyz
         self._initmtx = None
         self.area = 2*np.pi*(1 - np.cos(viewangle*np.pi/360))
+        cl = translate.theta2chord(np.pi/2)/(np.pi/2)
+        va = viewangle*np.pi/360/self.aspect
+        clp = translate.theta2chord(va)/va
+        self._chordfactor = cl / clp
         self.name = name
 
     def __getitem__(self, item):
@@ -143,7 +147,7 @@ class ViewMapper(object):
             return self.pixel2ray(pxy, res, i)
 
     def ray2pixel(self, xyz, res, i=0, integer=True):
-        xy = self.xyz2xy(xyz, i)
+        xy = self.xyz2xy(xyz, i) * 180 / (self.viewangle * self._chordfactor)
         pxy = (xy/2 + .5) * res
         if integer:
             pxy = np.floor(pxy).astype(int)
@@ -178,7 +182,8 @@ class ViewMapper(object):
 
     def in_view(self, vec, i=0, indices=True):
         ang = self.radians(vec, i)
-        mask = ang < self.viewangle*np.pi/360/self.aspect
+        mask = ang < (self._chordfactor * self.viewangle * np.pi /
+                      (360 * self.aspect))
         if indices:
             return np.unravel_index(np.arange(ang.size)[mask], vec.shape[:-1])
         else:

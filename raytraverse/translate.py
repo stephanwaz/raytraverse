@@ -32,6 +32,7 @@ def uv2xy(uv):
     http://psgraphics.blogspot.com/2011/01/improved-code-for-concentric
     -map.html.
     """
+    uv = np.atleast_2d(uv)
     np.seterr(all="ignore")
     xy = np.empty((uv.shape[0], 2), np.float)
     u = uv[:, 0]
@@ -54,6 +55,7 @@ def uv2xyz(uv, axes=(0, 1, 2), xsign=-1):
     -map.html.
     """
     np.seterr(all="ignore")
+    uv = np.atleast_2d(uv)
     xyz = np.empty((uv.shape[0], 3), np.float)
     u = uv[:, 0]
     v = uv[:, 1]
@@ -81,6 +83,7 @@ def xyz2uv(xyz, normalize=False, axes=(0, 1, 2), flipu=True):
     Square. Journal of Graphics Tools, vol. 2, no. 3, Jan. 1997, pp. 45-52.
     Taylor and Francis+NEJM, doi:10.1080/10867651.1997.10487479.
     """
+    xyz = np.atleast_2d(xyz)
     if normalize:
         xyz = norm(xyz)
     uv = np.empty((xyz.shape[0], 2), np.float)
@@ -162,7 +165,8 @@ Dz = n * (1 - sq(r));
 
 
 def xyz2skybin(xyz, side, tol=0, normalize=False):
-    uv = xyz2uv(np.atleast_2d(xyz), flipu=False, normalize=normalize)
+    xyz = np.atleast_2d(xyz)
+    uv = xyz2uv(xyz, flipu=False, normalize=normalize)
     if tol > 0:
         tol = tol/side
         uvi = np.linspace(-tol, tol, 3)
@@ -178,12 +182,14 @@ def skybin2xyz(bn, side):
     uv = bin2uv(bn, side)
     return uv2xyz(uv, xsign=1)
 
+
 ##################################################
 # Translate to/from anglular fisheye projeection #
 ##################################################
 
 def xyz2xy(xyz, axes=(0, 1, 2), flip=True):
     """xyz coordinates to xy mapping of angular fisheye proejection"""
+    xyz = np.atleast_2d(xyz)
     r = np.arctan2(np.sqrt(np.sum(np.square(xyz[:, axes[0:2]]), -1)),
                    xyz[:, axes[2]])/(np.pi/2)
     phi = np.arctan2(xyz[:, axes[0]], xyz[:, axes[1]])
@@ -196,8 +202,13 @@ def xyz2xy(xyz, axes=(0, 1, 2), flip=True):
 
 def pxy2xyz(pxy, viewangle=180.0):
     """pixel coordinates of angular fisheye to xyz"""
+    pxy = np.atleast_2d(pxy)
     pxy -= .5
-    pxy *= viewangle/180
+    # cl = theta2chord(np.pi/2)/(np.pi/2)
+    va = viewangle * np.pi / 360
+    clp = theta2chord(va)/va
+    # theta2chord(np.pi/2)/(np.pi/2)
+    pxy *= viewangle/180 * 0.9003163161571061 / clp
     d = np.sqrt(np.sum(np.square(pxy), -1))
     z = np.cos(np.pi*d)
     d = np.where(d <= 0, np.pi, np.sqrt(1 - z*z)/d)
@@ -212,6 +223,7 @@ def pxy2xyz(pxy, viewangle=180.0):
 
 def tpnorm(thetaphi):
     """normalize angular vector to 0-pi, 0-2pi"""
+    thetaphi = np.atleast_2d(thetaphi)
     thetaphi[:, 0] = np.mod(thetaphi[:, 0] + np.pi, np.pi)
     thetaphi[:, 1] = np.mod(thetaphi[:, 1] + 2*np.pi, 2*np.pi)
     return thetaphi
@@ -219,6 +231,7 @@ def tpnorm(thetaphi):
 
 def tp2xyz(thetaphi, normalize=True):
     """calculate x,y,z vector from theta (0-pi) and phi (0-2pi) RHS Z-up"""
+    thetaphi = np.atleast_2d(thetaphi)
     if normalize:
         thetaphi = tpnorm(thetaphi)
     theta = thetaphi[:, 0]
@@ -231,6 +244,7 @@ def tp2xyz(thetaphi, normalize=True):
 
 def xyz2tp(xyz):
     """calculate theta (0-pi), phi from x,y,z RHS Z-up"""
+    xyz = np.atleast_2d(xyz)
     theta = np.arccos(xyz[:, 2])
     phi = np.where(np.isclose(theta, 0.0, atol=1e-10), np.pi,
                    np.where(np.isclose(theta, np.pi, atol=1e-10),
@@ -240,16 +254,19 @@ def xyz2tp(xyz):
 
 def tp2uv(thetaphi):
     """calculate UV from theta (0-pi), phi"""
+    thetaphi = np.atleast_2d(thetaphi)
     return xyz2uv(tp2xyz(thetaphi))
 
 
 def uv2tp(uv):
     """calculate theta (0-pi), phi from UV"""
+    uv = np.atleast_2d(uv)
     return xyz2tp(uv2xyz(uv))
 
 
 def aa2xyz(aa):
     """calculate altitude (0-90), azimuth (-180,180) from xyz"""
+    aa = np.atleast_2d(aa)
     tp = np.pi/2 - aa * np.pi/180
     tp[:, 1] += np.pi
     return tp2xyz(tp)
@@ -257,6 +274,7 @@ def aa2xyz(aa):
 
 def xyz2aa(xyz):
     """calculate xyz from altitude (0-90), azimuth (-180,180)"""
+    xyz = np.atleast_2d(xyz)
     tp = xyz2tp(xyz)
     tp[:, 1] -= np.pi
     return (np.pi/2 - tp)/(np.pi/180)
@@ -299,6 +317,7 @@ def theta2chord(theta):
 ################################################
 
 def uv2ij(uv, side, aspect=2):
+    uv = np.atleast_2d(uv)
     ij = np.mod(np.floor(side*uv), side)
     if aspect == 2:
         ij[:, 0] += (uv[:, 0] >= 1) * side

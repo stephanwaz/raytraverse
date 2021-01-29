@@ -11,8 +11,9 @@ import pickle
 import numpy as np
 
 from raytraverse import draw, translate, io
-from raytraverse.lightfield import SCBinField
+from raytraverse.mapper import ViewMapper
 from raytraverse.sampler import Sampler
+from raytraverse.lightpoint import LightPointKD, SunViewPoint
 
 
 class SunViewSampler(Sampler):
@@ -35,78 +36,61 @@ class SunViewSampler(Sampler):
     #: deterministic sample draws
     ub = 1
 
-    def __init__(self, scene, suns, srcdef=None, stype='sunview',
-                 checkviz=True, **kwargs):
-        self.suns = suns
-        self._checkviz = checkviz
-        if srcdef is None:
-            srcdef = f"{scene.outdir}/suns.rad"
+    def __init__(self, scene, sun, sunbin, **kwargs):
         engine_args = scene.formatter.direct_args
-        super().__init__(scene, stype=stype, idres=4, fdres=6,
-                         srcdef=None, engine_args=engine_args, **kwargs)
+        super().__init__(scene, stype=f"sunview_{sunbin:04d}", idres=4, fdres=6,
+                         engine_args=engine_args, **kwargs)
+        self.sunpos = np.asarray(sun).flatten()[0:3]
+        # load new source
+        srcdef = f'{scene.outdir}/tmp_srcdef_{sunbin}.rad'
+        f = open(srcdef, 'w')
+        f.write(scene.formatter.get_sundef(sun, (1, 1, 1)))
+        f.close()
         self.engine.load_source(srcdef)
+        os.remove(srcdef)
+        self.vecs = None
+        self.lum = []
 
-    def sample(self, vecf, vecs):
+    def sample(self, vecf, vecs, outf=None):
         """call rendering engine to sample direct view rays"""
-        return super().sample(vecf, vecs).ravel()
+        lum = super().sample(vecf, vecs, outf=None).ravel()
+        self.lum = np.concatenate((self.lum, lum))
+        return lum
 
     def _offset(self, shape, dim):
         """no jitter on sun view because of very fine resolution and potentially
         large number of samples bog down random number generator"""
         return 0.5/dim
 
-    def run_callback(self):
+    def run_callback(self, vecfs, name, point, posidx, vm):
         """post sampling, write full resolution (including interpolated values)
          non zero rays to result file."""
-        shape = self.levels[self.idx, -2:]
-        size = np.prod(shape)
-        si = np.stack(np.unravel_index(np.arange(size), shape)).T
-        uv = ((si + .5)/shape)
-
-        def ptv_ptl(v):
-            valid = v > self.suns.srct
-            cnt = np.sum(valid)
-            if cnt > 0:
-                return uv[valid], v[valid]
-            else:
-                return np.arange(0), np.arange(0)
-
-        vecs = []
-        lums = []
-        if self.vizkeys is None:
-            vals = self.weights.reshape(-1, self.weights.shape[2], size)
-            for i in range(vals.shape[0]):
-                ptvs = []
-                ptls = []
-                for j in range(vals.shape[1]):
-                    ptv, ptl = ptv_ptl(vals[i, j])
-                    if ptv.size > 0:
-                        print(i, j, ptv.shape)
-                    ptvs.append(ptv)
-                    ptls.append(ptl)
-                lums.append(ptls)
-                vecs.append(ptvs)
+        [os.remove(f) for f in vecfs]
+        skd = LightPointKD(self.scene, self.vecs, self.lum, vm, point, posidx,
+                           name, calcomega=False, write=False)
+        shp = self.weights.shape
+        si = np.stack(np.unravel_index(np.arange(np.product(shp)), shp))
+        uv = (si.T + .5)/shp[1]
+        grid = vm.uv2xyz(uv)
+        # print(grid.shape)
+        i = skd.query_ray(grid)[0]
+        lumg = skd.lum[i, 0]
+        keep = lumg > 1e-8
+        if keep.size > 0:
+            lightpoint = SunViewPoint(grid[keep], np.average(lumg[keep]))
         else:
-            i = -1
-            for vizpoint in self.vizmap.reshape(-1,*self.vizmap.shape[2:]):
-                ptvs = []
-                ptls = []
-                for k in vizpoint:
-                    if i != k:
-                        i = k
-                        ptv, ptl = ptv_ptl(self.weights[i].ravel())
-                    else:
-                        ptv = np.arange(0)
-                        ptl = np.arange(0)
-                    ptvs.append(ptv)
-                    ptls.append(ptl)
-                lums.append(ptls)
-                vecs.append(ptvs)
-        outf = f'{self.scene.outdir}/{self.stype}_result.pickle'
-        f = open(outf, 'wb')
-        pickle.dump(vecs, f, protocol=4)
-        pickle.dump(lums, f, protocol=4)
-        pickle.dump(shape, f, protocol=4)
-        f.close()
-        os.remove(f'{self.scene.outdir}/{self.stype}_vals.out')
-        [os.remove(f) for f in self._vecfiles]
+            lightpoint = None
+        return lightpoint
+
+    def _dump_vecs(self, vecs, vecf):
+        if self.vecs is None:
+            self.vecs = vecs
+        else:
+            self.vecs = np.concatenate((self.vecs, vecs))
+        super()._dump_vecs(vecs, vecf)
+
+    def run(self, point, posidx, vm=None, plotp=False, **kwargs):
+        self.vecs = None
+        self.lum = []
+        vm = ViewMapper(self.sunpos, 0.533, "sunview")
+        return super().run(point, posidx, vm, plotp, **kwargs)

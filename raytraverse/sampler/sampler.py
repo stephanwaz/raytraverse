@@ -213,7 +213,7 @@ class Sampler(object):
         outf = (f"{self.scene.outdir}_{name}_{self.stype}_samples_"
                 f"{level:02d}{suffix}")
         img = np.zeros(outshape)
-        img = io.add_vecs_to_img(vm, img, vecs, channels=level+1)
+        img = io.add_vecs_to_img(vm, img, vecs, channels=level+1, grow=1)
         io.array2hdr(img, outf)
 
     def _linear(self, x, x1, x2):
@@ -305,7 +305,7 @@ class Sampler(object):
     def _dump_vecs(self, vecs, vecf):
         io.np2bytefile(vecs, vecf)
 
-    def run(self, point, posidx, vm=None, plotp=False, **kwargs):
+    def run(self, point, posidx, vm=None, plotp=False, log=False, **kwargs):
         """
 
         Parameters
@@ -318,11 +318,25 @@ class Sampler(object):
             view direction to sample
         plotp:
             plot weights, detail and vectors for each level
+        log:
+            whether to log level sampling rates
+            can be 'scene', 'err' or None
+            'scene' - logs to Scene log file
+            'err' - logs to stderr
+            anything else - does not log incremental progress
 
         Returns
         -------
 
         """
+        detaillog = True
+        logerr = False
+        if log == 'scene':
+            logerr = False
+        elif log == 'err':
+            logerr = True
+        else:
+            detaillog = False
         if vm is None:
             vm = ViewMapper()
         point = np.asarray(point).flatten()[0:3]
@@ -333,8 +347,9 @@ class Sampler(object):
         f.close()
         self.scene.log(self, f"Started sampling {name} {self.stype}")
         self.scene.log(self, f"Settings: {self.engine_args[0]}")
-        hdr = ['level', 'shape', 'samples', 'rate', 'filesize (MB)']
-        self.scene.log(self, '\t'.join(hdr))
+        if detaillog:
+            hdr = ['level', 'shape', 'samples', 'rate', 'filesize (MB)']
+            self.scene.log(self, '\t'.join(hdr), logerr)
         fsize = 0
         self.levels = vm.aspect
         # reset weights and engine args
@@ -347,25 +362,27 @@ class Sampler(object):
             draws, p = self.draw(i)
             if len(draws) == 0:
                 srate = 0.0
-                row = [f'{i + 1} of {self.levels.shape[0]}', str(shape),
-                       '0', f"{srate:.02%}", f'{fsize:.03f}']
-                self.scene.log(self, '\t'.join(row))
+                if detaillog:
+                    row = [f'{i + 1} of {self.levels.shape[0]}', str(shape),
+                           '0', f"{srate:.02%}", f'{fsize:.03f}']
+                    self.scene.log(self, '\t'.join(row), logerr)
             else:
                 si, uv = self.sample_to_uv(draws, shape)
                 xyz = vm.uv2xyz(uv)
                 vecs = np.hstack((np.broadcast_to(point, xyz.shape), xyz))
                 srate = si.shape[1]/np.prod(shape)
                 fsize += 4*self.bands*self.srcn*si.shape[1]/1000000
-                row = [f'{i+1} of {self.levels.shape[0]}', str(shape),
-                       str(si.shape[1]), f"{srate:.02%}", f'{fsize:.03f}']
-                self.scene.log(self, '\t'.join(row))
+                if detaillog:
+                    row = [f'{i + 1} of {self.levels.shape[0]}', str(shape),
+                           str(si.shape[1]), f"{srate:.02%}", f'{fsize:.03f}']
+                    self.scene.log(self, '\t'.join(row))
                 vecf = (f'{self.scene.outdir}/{name}_{self.stype}_vecs_'
                         f'{i:02d}.out')
                 self._dump_vecs(vecs, vecf)
                 vecfs.append(vecf)
                 if plotp:
                     self._plot_p(p, i, vm, name)
-                    self._plot_vecs(vecs[:,3:], i, vm, name)
+                    self._plot_vecs(vecs[:, 3:], i, vm, name)
                 lum = self.sample(vecf, vecs, outf)
                 self.update_weights(si, lum)
                 a = lum.shape[0]

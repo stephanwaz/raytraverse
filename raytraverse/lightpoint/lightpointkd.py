@@ -23,7 +23,7 @@ class LightPointKD(object):
     """light field with KDtree structures for spatial query"""
 
     def __init__(self, scene, vec=None, lum=None, vm=None, pt=(0, 0, 0),
-                 posidx=0, src='sky', srcn=1, fvrays=0.0, calcomega=True,
+                 posidx=0, src='sky', srcn=1, calcomega=True,
                  write=True):
         if vm is None:
             vm = ViewMapper()
@@ -43,8 +43,7 @@ class LightPointKD(object):
         self.file = f"{outdir}/{self.posidx:06d}.rytpt"
         if vec is not None and lum is not None:
             scene.log(self, f"building {src} at {posidx}")
-            self._d_kd, self._vec, self._lum, clr = self._build(vec, lum, srcn,
-                                                                fvrays)
+            self._d_kd, self._vec, self._lum, clr = self._build(vec, lum, srcn)
             scene.log(self, f"build complete")
             self._omega = None
             if calcomega:
@@ -160,8 +159,8 @@ class LightPointKD(object):
         c = np.asarray(coefs).reshape(-1, self.srcn)
         return np.einsum('ij,kj->ik', c, self.lum)
 
-    def add_to_img(self, img, vecs, mask=None, coefs=1, interp=1,
-                   omega=False, vm=None, **kwargs):
+    def add_to_img(self, img, vecs, mask=None, coefs=1, interp=False,
+                   omega=False, vm=None):
         """add luminance contributions to image array (updates in place)
 
         Parameters
@@ -175,13 +174,12 @@ class LightPointKD(object):
             is not being updated, such as corners of fisheye)
         coefs: int, float, np.array
             source coefficients, shape is (1,) or (srcn,)
-        interp: int
-            number of rays to query for interpolation
+        interp: bool, optional
+            for linear interpolation (falls back to nearest outside of
+            convexhull
         omega: bool
             if true, add value of ray solid angle instead of luminance
         vm: raytraverse.mapper.ViewMapper, optional
-        kwargs: dict
-            passed to self.inteerpolate_query (err, up)
 
         Returns
         -------
@@ -226,7 +224,7 @@ class LightPointKD(object):
     def interpolate_query(self, dest_vec, k=8,
                           err=0.00436, up=0.347296):
         """query a kd_tree and interpolate corresponding values. used to
-        merge to kd_trees with vector and luminance
+        merge two kd_trees with vector and luminance
 
         Parameters
         ----------
@@ -294,7 +292,7 @@ class LightPointKD(object):
         return outf
 
     @staticmethod
-    def _build(vec, lum, srcn, fvrays):
+    def _build(vec, lum, srcn):
         """load samples and build data structure"""
         clear = []
         try:
@@ -313,9 +311,5 @@ class LightPointKD(object):
         else:
             clear.append(lum)
             lum = io.bytefile2np(f, (-1, srcn))
-        if fvrays > 0:
-            blindsquirrel = (np.max(lum, 1) < fvrays)
-            vec = vec[blindsquirrel]
-            lum = lum[blindsquirrel]
         d_kd = cKDTree(vec)
         return d_kd, vec, lum, clear

@@ -1,7 +1,7 @@
 void brightfunc onebin
 2 abin ./scbins.cal
 0
-1 176
+1 174
 
 onebin glow skyglow
 0
@@ -12,8 +12,3 @@ skyglow source sky
 0
 0
 4 0 0 1 180
-
-# skyglow source ground
-# 0
-# 0
-# 4 0 0 -1 180

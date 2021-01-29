@@ -81,6 +81,8 @@ class BaseScene(object):
 
     def log(self, instance, message, err=False):
         if self._dolog:
+            ts = datetime.now(tz=timezone.utc).strftime("%d-%b-%Y %H:%M:%S")
+            message = f"{ts}\t{type(instance).__name__}\t{message}"
             f = sys.stderr
             needsclose = False
             if not err:
@@ -89,7 +91,8 @@ class BaseScene(object):
                     needsclose = True
                 except TypeError:
                     pass
-            ts = datetime.now(tz=timezone.utc).strftime("%d-%b-%Y %H:%M:%S")
-            print(f"{ts}\t{type(instance).__name__}\t{message}", file=f)
+            if not needsclose:
+                message = message.replace("\t", "  ")
+            print(message, file=f)
             if needsclose:
                 f.close()

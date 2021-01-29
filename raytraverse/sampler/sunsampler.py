@@ -10,7 +10,7 @@ import os
 import numpy as np
 
 from raytraverse import translate, draw, io
-from raytraverse.lightpoint import LightPointKD
+from raytraverse.lightpoint import LightPointKD, SunPointKD
 from raytraverse.mapper import ViewMapper
 from raytraverse.sampler.sampler import Sampler
 
@@ -102,7 +102,17 @@ class SunSampler(Sampler):
         return pdraws, pa + s
 
     def run_callback(self, vecfs, name, point, posidx, vm):
-        lightpoint = super().run_callback(vecfs, name, point, posidx, vm)
+        outf = f'{self.scene.outdir}/{name}_{self.stype}_vals.out'
+        vecs = []
+        for vecf in vecfs:
+            fsrc = open(vecf, 'rb')
+            vecs.append(io.bytefile2np(fsrc, (-1, 6)))
+            fsrc.close()
+        vecs = np.concatenate(vecs)
+        lightpoint = SunPointKD(self.scene, vecs, outf, sun=self.sunpos,
+                                src=self.stype, pt=point, write=True,
+                                srcn=self.srcn, posidx=posidx, vm=vm)
+        [os.remove(vecf) for vecf in vecfs]
         if not self._keepamb:
             try:
                 os.remove(self.ambfile)
@@ -129,7 +139,6 @@ class SunSampler(Sampler):
     def run(self, point, posidx, vm=None, plotp=False, **kwargs):
         if vm is None:
             vm = ViewMapper()
-        point = np.asarray(point).flatten()[0:3]
         self._load_specguide(point, posidx, vm)
         if plotp:
             io.array2hdr(self.specguide, "specguide.hdr")
