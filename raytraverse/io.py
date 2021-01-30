@@ -246,6 +246,7 @@ def array2hdr(ar, imgf, header=None):
         p = Popen(pval.split(), stdin=PIPE, stdout=f)
         q = p
     p.stdin.write(np2bytes(ar[-1::-1, -1::-1].T))
+    p.stdin.flush()
     q.communicate()
     f.close()
     return imgf

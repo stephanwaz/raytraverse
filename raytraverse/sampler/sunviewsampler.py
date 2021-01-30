@@ -77,7 +77,9 @@ class SunViewSampler(Sampler):
         lumg = skd.lum[i, 0]
         keep = lumg > 1e-8
         if keep.size > 0:
-            lightpoint = SunViewPoint(grid[keep], np.average(lumg[keep]))
+            lightpoint = SunViewPoint(self.scene, grid[keep],
+                                      np.average(lumg[keep]), point, posidx,
+                                      self.stype, shp[1])
         else:
             lightpoint = None
         return lightpoint

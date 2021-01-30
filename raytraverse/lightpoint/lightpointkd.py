@@ -221,38 +221,6 @@ class LightPointKD(object):
         vs = translate.theta2chord(viewangle/360*np.pi)
         return self.d_kd.query_ball_point(translate.norm(vecs), vs)
 
-    def interpolate_query(self, dest_vec, k=8,
-                          err=0.00436, up=0.347296):
-        """query a kd_tree and interpolate corresponding values. used to
-        merge two kd_trees with vector and luminance
-
-        Parameters
-        ----------
-        dest_vec: np.array
-            destination vectors to interpolate to, shape (N, 3)
-        k: int
-            initial query size
-        err: float
-            chord length under which value is taken without interpolation
-            default is .25 degrees = translate.theta2chord(.25*pi/180)
-        up: float
-            chord length of maximum search radius for neighbors
-            default is 10 degrees  = translate.theta2chord(20*pi/180)
-
-        Returns
-        -------
-        np.array
-            shape of (dest_vec.shape[0], src_lum.shape[1])
-        """
-        if k == 1:
-            errs, idxs = self.d_kd.query(dest_vec)
-            arrout = self.lum[idxs]
-        else:
-            errs, idxs = self.d_kd.query(dest_vec, k=k, distance_upper_bound=up)
-            arrout = interpolate_kdquery(dest_vec, errs, idxs, self.vec,
-                                         self.lum, err=err)
-        return arrout
-
     def direct_view(self, res=512, showsample=False, showweight=True,
                     srcidx=None, interp=False, omega=False, scalefactor=1):
         """create a summary image of lightfield for each vpt"""
