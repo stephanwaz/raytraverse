@@ -1,6 +1,6 @@
+raytraverse-cli
+---------------
 
-Command Line Interface
-----------------------
-
-.. raw:: html
-   :file: _static/cli.html
+.. click:: raytraverse.cli:main
+  :prog: raytraverse
+  :show-nested:

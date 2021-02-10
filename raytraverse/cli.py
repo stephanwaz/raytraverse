@@ -1,256 +1,246 @@
-# # -*- coding: utf-8 -*-
-# # Copyright (c) 2020 Stephen Wasilewski, HSLU and EPFL
-# # =======================================================================
-# # This Source Code Form is subject to the terms of the Mozilla Public
-# # License, v. 2.0. If a copy of the MPL was not distributed with this
-# # file, You can obtain one at http://mozilla.org/MPL/2.0/.
-# # =======================================================================
-#
-#
-# """Console script for raytraverse."""
-# import os
-# import re
-# import sys
-#
-# import numpy as np
-#
-# from clasp import click
-# import clasp.click_ext as clk
-# import clasp.script_tools as cst
-#
-# import raytraverse
-# # this is so readthedocs can build without installing as these modules depend
-# # on c++ extensions that are not present.
-# try:
-#     from raytraverse.integrator import SunSkyIntegrator, Integrator, BaseIntegrator, MetricSet
-#     from raytraverse.sky import SkyData, SunsPos, Suns, SunsLoc
-#     from raytraverse.integrator.metric import Metric
-#     from raytraverse.sampler import SkySampler, SunSampler, SkySampler, SunViewSampler
-#     from raytraverse.scene import Scene
-#     from raytraverse.lightfield import SCBinField, SunField, SunViewField, StaticField, SunSkyPt, LightFieldKD
-#     from raytraverse.mapper import ViewMapper
-# except ModuleNotFoundError as ex:
-#     print(ex, file=sys.stderr)
-#     pass
-#
-#
-# @clk.pretty_name("NPY, TSV, FLOATS,FLOATS")
-# def np_load(ctx, param, s):
-#     """read np array from command line
-#
-#     trys np.load (numpy binary), then np.loadtxt (space seperated txt file)
-#     then split row by spaces and columns by commas.
-#     """
-#     if s is None:
-#         return s
-#     if os.path.exists(s):
-#         try:
-#             ar = np.load(s)
-#         except ValueError:
-#             ar = np.loadtxt(s)
-#         if len(ar.shape) == 1:
-#             ar = ar.reshape(1, -1)
-#         return ar
-#     else:
-#         return np.array([[float(i) for i in j.split(',')] for j in s.split()])
-#
-#
-# @click.group(chain=True, invoke_without_command=True)
-# @click.argument('out')
-# @click.option('--config', '-c', type=click.Path(exists=True),
-#               help="path of config file to load")
-# @click.option('--template/--no-template', is_eager=True,
-#               callback=clk.printconfigs,
-#               help="write default options to std out as config")
-# @click.option('-n', default=None, type=int,
-#               help='sets the environment variable RAYTRAVERSE_PROC_CAP set to'
-#                    '0 to clear (parallel processes will use cpu_limit)')
-# @click.option('--opts', '-opts', is_flag=True,
-#               help="check parsed options")
-# @click.option('--debug', is_flag=True,
-#               help="show traceback on exceptions")
-# @click.version_option(version=raytraverse.__version__)
-# @click.pass_context
-# def main(ctx, out, config, n=None,  **kwargs):
-#     """the raytraverse executable is a command line interface to the raytraverse
-#     python package for running and evaluating climate based daylight models.
-#     sub commands of raytraverse can be chained but should be invoked in the
-#     order given.
-#
-#     the easiest way to manage options and sure that Scene and SunSetter classes
-#     are properly reloaded is to use a configuration file, to make a template::
-#
-#         raytraverse --template > run.cfg
-#
-#     after adjusting the settings, than each command can be invoked in turn and
-#     any dependencies will be loaded with the correct options, a complete run
-#     and evaluation can then be called by::
-#
-#         raytraverse -c run.cfg OUT sky sunrun integrate
-#
-#     as both scene and sun will be invoked automatically as needed.
-#
-#     Arguments:
-#         * ctx: click.Context
-#         * out: path to new or existing directory for raytraverse run
-#         * config: path to config file
-#         * n: max number of processes to spawn
-#     """
-#     raytraverse.io.set_nproc(n)
-#     ctx.info_name = 'raytraverse'
-#     clk.get_config_chained(ctx, config, None, None, None)
-#     ctx.obj = dict(out=out)
-#
-#
-# @main.command()
-# @click.option('-skyro', default=0.0,
-#               help='counter clockwise rotation (in degrees) of the sky to'
-#                    ' rotate true North to project North, so if project North'
-#                    ' is 10 degrees East of North, skyro=10')
-# @click.option('-sunres', default=10.0,
-#               help='resolution in degrees of the sky patch grid in which to'
-#                    ' stratify sun samples. Suns are randomly located within'
-#                    ' the grid, so this corresponds to the average distance'
-#                    ' between sources. The average error to a randomly selected'
-#                    ' sun position will be on average ~0.4 times this value')
-# @click.option('-loc', callback=clk.split_float,
-#               help='specify the scene location (if not specified in -wea or to'
-#                    ' override. give as "lat lon mer" where lat is + North, lon'
-#                    ' is + West and mer is the timezone meridian (full hours are'
-#                    ' 15 degree increments)')
-# @click.option('-wea',
-#               help="path to weather/sun position file. possible formats are:\n"
-#                    "\n"
-#                    "1. .wea file\n"
-#                    "#. .wea file without header (require -loc and "
-#                    "--no-usepositions)\n"
-#                    "#. .epw file\n"
-#                    "#. .epw file without header (require -loc and "
-#                    "--no-usepositions)\n"
-#                    "#. 3 column tsv file, each row is dx, dy, dz of candidate"
-#                    " sun position (requires --usepositions)\n"
-#                    "#. 4 column tsv file, each row is altitude, azimuth, direct"
-#                    " normal, diff. horizontal of canditate suns (requires "
-#                    "--usepositions)\n"
-#                    "#. 5 column tsv file, each row is dx, dy, dz, direct "
-#                    "normal, diff. horizontal of canditate suns (requires "
-#                    "--usepositions)\n\n"
-#                    "tsv files are loaded with loadtxt")
-# @click.option('--plotdview/--no-plotdview', default=False,
-#               help="creates a png showing sun positions on an angular fisheye"
-#                    " projection of the sky. sky patches are colored by the"
-#                    " maximum contributing ray to the scene")
-# @click.option('--reload/--no-reload', default=True,
-#               help="if False, regenerates sun positions, because positions may"
-#                    " be randomly selected this will make any sunrun results"
-#                    " obsolete")
-# @click.option('--printsuns/--no-printsuns', default=False,
-#               help="print sun positions to stdout")
-# @click.option('--usepositions/--no-usepositions', default=False,
-#               help='if True, sun positions will be chosen from the positions'
-#                    ' listed in wea. if more than one position is a candidate'
-#                    ' for that particular sky patch (as determined by sunres)'
-#                    ' than a random choice will be made. by using one of the'
-#                    ' tsv format options for wea, and preselecting sun positions'
-#                    ' such that there is 1 per patch a deterministic result can'
-#                    'be achieved.')
-# @clk.shared_decs(clk.command_decs(raytraverse.__version__, wrap=True))
-# def suns(ctx, loc=None, wea=None, usepositions=False, plotdview=False,
-#          printsuns=False, **kwargs):
-#     """the suns command provides a number of options for creating sun positions
-#     used by sunrun see wea and usepositions options for details
-#
-#     Note:
-#
-#     the wea and skyro parameters are used to reduce the number of suns in cases
-#     where a specific site is known. Only suns within the solar transit (or
-#     positions if usepositions is True will be selected. It is important to note
-#     that when integrating, if a sun position outside this range is queried than
-#     results will not include the more detailed simulations involved in sunrun
-#     and will instead place the suns energy within the nearest sky patch. if
-#     skyres is small and or the patch is directly visible this will introduce
-#     significant bias in most metrics.
-#     """
-#     if usepositions:
-#         if wea is None:
-#             raise ValueError('option -wea is required when use positions is '
-#                              'True')
-#         s = SunsPos(ctx.obj['out'], wea, **kwargs)
-#     elif loc is not None:
-#         s = SunsLoc(ctx.obj['out'], loc, **kwargs)
-#     elif wea is not None:
-#         loc = raytraverse.skycalc.get_loc_epw(wea)
-#         s = SunsLoc(ctx.obj['out'], loc, **kwargs)
-#     else:
-#         s = Suns(ctx.obj['out'], **kwargs)
-#     if plotdview:
-#         s.direct_view()
-#     ctx.obj['suns'] = s
-#     if printsuns:
-#         for pt in s.suns:
-#             print('{}\t{}\t{}'.format(*pt))
-#
-#
-# @main.command()
-# @click.option('-scene', help='space separated list of radiance scene files '
-#               '(no sky) or precompiled octree')
-# @click.option('-area', help='radiance scene file containing planar geometry of '
-#               'analysis area')
-# @click.option('-skyres', default=10.0,
-#               help='sky is subdivided accoring to a shirley-chiu disk to square'
-#                    ' mapping, approximate square patch size in degrees. set by:'
-#                    ' int(np.floor(90/s)*2) to ensure an even number')
-# @click.option('-ptres', default=2.0,
-#               help='resolution of point subdivision on analysis plane. units'
-#                    ' match radiance scene file')
-# @click.option('-maxspec', default=0.3,
-#               help='an important parameter for guiding reflected sun rays.'
-#                    ' contribution values above this threshold are assumed to be'
-#                    ' direct view rays. If possible, (1) this value should be'
-#                    ' less than the tvis of the darkest glass in the scene, and'
-#                    ' (2) greater than the highest expected contribution from a'
-#                    ' specular reflection or scattering interaction. If it is'
-#                    ' not possible to meet both conditions, then ensure that'
-#                    ' condition (2) is met and consider using a substantially'
-#                    ' higher skyres to avoid massive over sampling of direct'
-#                    ' view rays')
-# @click.option('--reload/--no-reload', default=True,
-#               help='if a scene already exists at OUT reload it, note that if'
-#                    'this is False and overwrite is False, the program will'
-#                    'abort')
-# @click.option('--overwrite/--no-overwrite', default=False,
-#               help='Warning! if set to True and reload is False all files in'
-#                    'OUT will be deleted')
-# @click.option('--frozen/--no-frozen', default=True,
-#               help='create frozen octree from scene files')
-# @click.option('--use_json/--no-use_json', default=True,
-#               help='create frozen octree from scene files')
-# @click.option('--info/--no-info', default=False,
-#               help='print info on scene to stderr')
-# @click.option('--points/--no-points', default=False,
-#               help='print point locations to stdout')
-# @clk.shared_decs(clk.command_decs(raytraverse.__version__, wrap=True))
-# def scene(ctx, **kwargs):
-#     """The scene commands creates a Scene object which holds geometric
-#     information about the model including object geometry (and defined
-#     materials), the analysis plane and the desired resolutions for sky and
-#     analysis plane subdivision"""
-#     s = Scene(ctx.obj['out'], **kwargs)
-#     ctx.obj['scene'] = s
-#     ctx.obj['initlf'] = []
-#     if kwargs['points']:
-#         for pt in s.pts():
-#             print('{}\t{}\t{}'.format(*pt))
-#     if kwargs['info']:
-#         print(f'\nScene {s.outdir}:', file=sys.stderr)
-#         print('='*60 + '\n', file=sys.stderr)
-#         print('Scene Geometry:', file=sys.stderr)
-#         print(cst.pipeline([f'getinfo {s.scene}']), file=sys.stderr)
-#         print('Analysis Area:', file=sys.stderr)
-#         print('-'*60, file=sys.stderr)
-#         print(f'extents:\n{s.area.bbox}', file=sys.stderr)
-#         print(f'number of points: {s.area.npts}', file=sys.stderr)
-#         print(f'sky sampling resolution: {s.skyres}', file=sys.stderr)
+# -*- coding: utf-8 -*-
+# Copyright (c) 2020 Stephen Wasilewski, HSLU and EPFL
+# =======================================================================
+# This Source Code Form is subject to the terms of the Mozilla Public
+# License, v. 2.0. If a copy of the MPL was not distributed with this
+# file, You can obtain one at http://mozilla.org/MPL/2.0/.
+# =======================================================================
+
+
+"""Console script for raytraverse."""
+import os
+import re
+import sys
+
+import numpy as np
+
+from clasp import click
+import clasp.click_ext as clk
+import clasp.script_tools as cst
+
+import raytraverse
+
+
+
+@clk.pretty_name("NPY, TSV, FLOATS,FLOATS")
+def np_load(ctx, param, s):
+    """read np array from command line
+
+    trys np.load (numpy binary), then np.loadtxt (space seperated txt file)
+    then split row by spaces and columns by commas.
+    """
+    if s is None:
+        return s
+    if os.path.exists(s):
+        try:
+            ar = np.load(s)
+        except ValueError:
+            ar = np.loadtxt(s)
+        if len(ar.shape) == 1:
+            ar = ar.reshape(1, -1)
+        return ar
+    else:
+        return np.array([[float(i) for i in j.split(',')] for j in s.split()])
+
+
+@click.group(chain=True, invoke_without_command=True)
+@click.argument('out')
+@click.option('--config', '-c', type=click.Path(exists=True),
+              help="path of config file to load")
+@click.option('--template/--no-template', is_eager=True,
+              callback=clk.printconfigs,
+              help="write default options to std out as config")
+@click.option('-n', default=None, type=int,
+              help='sets the environment variable RAYTRAVERSE_PROC_CAP set to'
+                   '0 to clear (parallel processes will use cpu_limit)')
+@click.option('--opts', '-opts', is_flag=True,
+              help="check parsed options")
+@click.option('--debug', is_flag=True,
+              help="show traceback on exceptions")
+@click.version_option(version=raytraverse.__version__)
+@click.pass_context
+def main(ctx, out, config, n=None,  **kwargs):
+    """the raytraverse executable is a command line interface to the raytraverse
+    python package for running and evaluating climate based daylight models.
+    sub commands of raytraverse can be chained but should be invoked in the
+    order given.
+
+    the easiest way to manage options and sure that Scene and SunSetter classes
+    are properly reloaded is to use a configuration file, to make a template::
+
+        raytraverse --template > run.cfg
+
+    after adjusting the settings, than each command can be invoked in turn and
+    any dependencies will be loaded with the correct options, a complete run
+    and evaluation can then be called by::
+
+        raytraverse -c run.cfg OUT sky sunrun integrate
+
+    as both scene and sun will be invoked automatically as needed.
+
+    Arguments:
+        * ctx: click.Context
+        * out: path to new or existing directory for raytraverse run
+        * config: path to config file
+        * n: max number of processes to spawn
+    """
+    raytraverse.io.set_nproc(n)
+    ctx.info_name = 'raytraverse'
+    clk.get_config_chained(ctx, config, None, None, None)
+    ctx.obj = dict(out=out)
+
+
+@main.command()
+@click.option('-skyro', default=0.0,
+              help='counter clockwise rotation (in degrees) of the sky to'
+                   ' rotate true North to project North, so if project North'
+                   ' is 10 degrees East of North, skyro=10')
+@click.option('-sunres', default=10.0,
+              help='resolution in degrees of the sky patch grid in which to'
+                   ' stratify sun samples. Suns are randomly located within'
+                   ' the grid, so this corresponds to the average distance'
+                   ' between sources. The average error to a randomly selected'
+                   ' sun position will be on average ~0.4 times this value')
+@click.option('-loc', callback=clk.split_float,
+              help='specify the scene location (if not specified in -wea or to'
+                   ' override. give as "lat lon mer" where lat is + North, lon'
+                   ' is + West and mer is the timezone meridian (full hours are'
+                   ' 15 degree increments)')
+@click.option('-wea',
+              help="path to weather/sun position file. possible formats are:\n"
+                   "\n"
+                   "1. .wea file\n"
+                   "#. .wea file without header (require -loc and "
+                   "--no-usepositions)\n"
+                   "#. .epw file\n"
+                   "#. .epw file without header (require -loc and "
+                   "--no-usepositions)\n"
+                   "#. 3 column tsv file, each row is dx, dy, dz of candidate"
+                   " sun position (requires --usepositions)\n"
+                   "#. 4 column tsv file, each row is altitude, azimuth, direct"
+                   " normal, diff. horizontal of canditate suns (requires "
+                   "--usepositions)\n"
+                   "#. 5 column tsv file, each row is dx, dy, dz, direct "
+                   "normal, diff. horizontal of canditate suns (requires "
+                   "--usepositions)\n\n"
+                   "tsv files are loaded with loadtxt")
+@click.option('--plotdview/--no-plotdview', default=False,
+              help="creates a png showing sun positions on an angular fisheye"
+                   " projection of the sky. sky patches are colored by the"
+                   " maximum contributing ray to the scene")
+@click.option('--reload/--no-reload', default=True,
+              help="if False, regenerates sun positions, because positions may"
+                   " be randomly selected this will make any sunrun results"
+                   " obsolete")
+@click.option('--printsuns/--no-printsuns', default=False,
+              help="print sun positions to stdout")
+@click.option('--usepositions/--no-usepositions', default=False,
+              help='if True, sun positions will be chosen from the positions'
+                   ' listed in wea. if more than one position is a candidate'
+                   ' for that particular sky patch (as determined by sunres)'
+                   ' than a random choice will be made. by using one of the'
+                   ' tsv format options for wea, and preselecting sun positions'
+                   ' such that there is 1 per patch a deterministic result can'
+                   'be achieved.')
+@clk.shared_decs(clk.command_decs(raytraverse.__version__, wrap=True))
+def suns(ctx, loc=None, wea=None, usepositions=False, plotdview=False,
+         printsuns=False, **kwargs):
+    """the suns command provides a number of options for creating sun positions
+    used by sunrun see wea and usepositions options for details
+
+    Note:
+
+    the wea and skyro parameters are used to reduce the number of suns in cases
+    where a specific site is known. Only suns within the solar transit (or
+    positions if usepositions is True will be selected. It is important to note
+    that when integrating, if a sun position outside this range is queried than
+    results will not include the more detailed simulations involved in sunrun
+    and will instead place the suns energy within the nearest sky patch. if
+    skyres is small and or the patch is directly visible this will introduce
+    significant bias in most metrics.
+    """
+    pass
+    # if usepositions:
+    #     if wea is None:
+    #         raise ValueError('option -wea is required when use positions is '
+    #                          'True')
+    #     s = SunsPos(ctx.obj['out'], wea, **kwargs)
+    # elif loc is not None:
+    #     s = SunsLoc(ctx.obj['out'], loc, **kwargs)
+    # elif wea is not None:
+    #     loc = raytraverse.skycalc.get_loc_epw(wea)
+    #     s = SunsLoc(ctx.obj['out'], loc, **kwargs)
+    # else:
+    #     s = Suns(ctx.obj['out'], **kwargs)
+    # if plotdview:
+    #     s.direct_view()
+    # ctx.obj['suns'] = s
+    # if printsuns:
+    #     for pt in s.suns:
+    #         print('{}\t{}\t{}'.format(*pt))
+
+
+@main.command()
+@click.option('-scene', help='space separated list of radiance scene files '
+              '(no sky) or precompiled octree')
+@click.option('-area', help='radiance scene file containing planar geometry of '
+              'analysis area')
+@click.option('-skyres', default=10.0,
+              help='sky is subdivided accoring to a shirley-chiu disk to square'
+                   ' mapping, approximate square patch size in degrees. set by:'
+                   ' int(np.floor(90/s)*2) to ensure an even number')
+@click.option('-ptres', default=2.0,
+              help='resolution of point subdivision on analysis plane. units'
+                   ' match radiance scene file')
+@click.option('-maxspec', default=0.3,
+              help='an important parameter for guiding reflected sun rays.'
+                   ' contribution values above this threshold are assumed to be'
+                   ' direct view rays. If possible, (1) this value should be'
+                   ' less than the tvis of the darkest glass in the scene, and'
+                   ' (2) greater than the highest expected contribution from a'
+                   ' specular reflection or scattering interaction. If it is'
+                   ' not possible to meet both conditions, then ensure that'
+                   ' condition (2) is met and consider using a substantially'
+                   ' higher skyres to avoid massive over sampling of direct'
+                   ' view rays')
+@click.option('--reload/--no-reload', default=True,
+              help='if a scene already exists at OUT reload it, note that if'
+                   'this is False and overwrite is False, the program will'
+                   'abort')
+@click.option('--overwrite/--no-overwrite', default=False,
+              help='Warning! if set to True and reload is False all files in'
+                   'OUT will be deleted')
+@click.option('--frozen/--no-frozen', default=True,
+              help='create frozen octree from scene files')
+@click.option('--use_json/--no-use_json', default=True,
+              help='create frozen octree from scene files')
+@click.option('--info/--no-info', default=False,
+              help='print info on scene to stderr')
+@click.option('--points/--no-points', default=False,
+              help='print point locations to stdout')
+@clk.shared_decs(clk.command_decs(raytraverse.__version__, wrap=True))
+def scene(ctx, **kwargs):
+    """The scene commands creates a Scene object which holds geometric
+    information about the model including object geometry (and defined
+    materials), the analysis plane and the desired resolutions for sky and
+    analysis plane subdivision"""
+    pass
+    # s = Scene(ctx.obj['out'], **kwargs)
+    # ctx.obj['scene'] = s
+    # ctx.obj['initlf'] = []
+    # if kwargs['points']:
+    #     for pt in s.pts():
+    #         print('{}\t{}\t{}'.format(*pt))
+    # if kwargs['info']:
+    #     print(f'\nScene {s.outdir}:', file=sys.stderr)
+    #     print('='*60 + '\n', file=sys.stderr)
+    #     print('Scene Geometry:', file=sys.stderr)
+    #     print(cst.pipeline([f'getinfo {s.scene}']), file=sys.stderr)
+    #     print('Analysis Area:', file=sys.stderr)
+    #     print('-'*60, file=sys.stderr)
+    #     print(f'extents:\n{s.area.bbox}', file=sys.stderr)
+    #     print(f'number of points: {s.area.npts}', file=sys.stderr)
+    #     print(f'sky sampling resolution: {s.skyres}', file=sys.stderr)
 #
 #
 # run_opts = [
@@ -854,48 +844,48 @@
 #                 print("here")
 #             else:
 #                 print("not here")
-#
-#
-#
-#
-# @main.resultcallback()
-# @click.pass_context
-# def printconfig(ctx, returnvalue, **kwargs):
-#     """callback to print additional info and cleanup any temp files"""
-#     rv = dict([i[0:2] for i in returnvalue])
-#     try:
-#         if 'scene' in rv:
-#             info = rv['scene']['info']
-#         else:
-#             info = (ctx.command.commands['scene'].
-#                     context_settings['default_map']['info'])
-#         if str(info).lower() in ('1', 'yes', 'y', 't', 'true'):
-#             s = ctx.obj['scene']
-#             print('\nCallback Scene Info:', file=sys.stderr)
-#             print('='*60 + '\n', file=sys.stderr)
-#             try:
-#                 suncount = ctx.obj['suns'].suns.shape[0]
-#                 print(f'scene has {suncount} suns', file=sys.stderr)
-#             except KeyError:
-#                 print('sun setter not initialized', file=sys.stderr)
-#             print('\n Lightfield Data:', file=sys.stderr)
-#             print('-'*60, file=sys.stderr)
-#             print('Has sky lightfield data:',
-#                   os.path.isfile(f'{s.outdir}/sky_kd_data.pickle'),
-#                   file=sys.stderr)
-#             print('Has sunview lightfield data:',
-#                   os.path.isfile(f'{s.outdir}/sunview_kd_data.pickle'),
-#                   file=sys.stderr)
-#             for lf in ctx.obj['initlf']:
-#                 print(f"lightfield \"{lf.prefix}\" covers {lf.size['lfang']:.02f} "
-#                       f"steradians with {lf.size['lfcnt']} rays", file=sys.stderr)
-#     except KeyError:
-#         pass
-#     try:
-#         clk.tmp_clean(ctx)
-#     except Exception:
-#         pass
-#
-#
-# if __name__ == '__main__':
-#     main()
+
+
+
+
+@main.resultcallback()
+@click.pass_context
+def printconfig(ctx, returnvalue, **kwargs):
+    """callback to print additional info and cleanup any temp files"""
+    rv = dict([i[0:2] for i in returnvalue])
+    try:
+        if 'scene' in rv:
+            info = rv['scene']['info']
+        else:
+            info = (ctx.command.commands['scene'].
+                    context_settings['default_map']['info'])
+        if str(info).lower() in ('1', 'yes', 'y', 't', 'true'):
+            s = ctx.obj['scene']
+            print('\nCallback Scene Info:', file=sys.stderr)
+            print('='*60 + '\n', file=sys.stderr)
+            try:
+                suncount = ctx.obj['suns'].suns.shape[0]
+                print(f'scene has {suncount} suns', file=sys.stderr)
+            except KeyError:
+                print('sun setter not initialized', file=sys.stderr)
+            print('\n Lightfield Data:', file=sys.stderr)
+            print('-'*60, file=sys.stderr)
+            print('Has sky lightfield data:',
+                  os.path.isfile(f'{s.outdir}/sky_kd_data.pickle'),
+                  file=sys.stderr)
+            print('Has sunview lightfield data:',
+                  os.path.isfile(f'{s.outdir}/sunview_kd_data.pickle'),
+                  file=sys.stderr)
+            for lf in ctx.obj['initlf']:
+                print(f"lightfield \"{lf.prefix}\" covers {lf.size['lfang']:.02f} "
+                      f"steradians with {lf.size['lfcnt']} rays", file=sys.stderr)
+    except KeyError:
+        pass
+    try:
+        clk.tmp_clean(ctx)
+    except Exception:
+        pass
+
+
+if __name__ == '__main__':
+    main()

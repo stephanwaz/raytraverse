@@ -1,9 +1,4 @@
 Sphinx==3.0.4
 sphinx-click
-clipt
-skyfield
-matplotlib
 clasp
-numpy
-scipy
-shapely
+
