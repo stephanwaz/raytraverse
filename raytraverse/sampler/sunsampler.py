@@ -9,10 +9,11 @@ import os
 
 import numpy as np
 
-from raytraverse import translate, draw, io
+from raytraverse import translate, io
 from raytraverse.lightpoint import LightPointKD, SunPointKD
 from raytraverse.mapper import ViewMapper
 from raytraverse.sampler.sampler import Sampler
+from raytraverse.sampler import draw
 
 
 class SunSampler(Sampler):

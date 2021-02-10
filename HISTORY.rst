@@ -2,14 +2,14 @@
 History
 =======
 
-1.0.4
------
+1.0.4 (2020-11-18)
+------------------
 * create and manage log file (attribute of Scene) for run directories
 * possible fix for bug in interpolate_kd resulting in index range errors
 * protect imports in cli.py so documentation can be built without installing
 
-1.0.3
------
+1.0.3 (2020-11-10)
+------------------
 * new module for calculating position based on retinal features
 * view specifications for directview plotting
 * options for samples/weight visibility on directview plotting

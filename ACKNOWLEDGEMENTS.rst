@@ -23,7 +23,7 @@ Software Credits
     - Raytraverse uses Radiance_
     - As well as all packages listed in the requirements.txt file,
       raytraverse relies heavily on the Python packages numpy_, scipy_, and
-      pywavelets_ for key parts of the implementation.
+      for key parts of the implementation.
     - C++ bindings, including exposing core radiance functions as methods to
       the renderer classes are made with pybind11_
     - Installation and building from source uses cmake_ and scikit-build_
@@ -35,7 +35,6 @@ Software Credits
 .. _Radiance: https://www.radiance-online.org
 .. _numpy: https://numpy.org/doc/stable/reference/
 .. _scipy: https://docs.scipy.org/doc/scipy/reference/
-.. _pywavelets: https://pywavelets.readthedocs.io/en/latest/
 .. _pybind11: https://pybind11.readthedocs.io/en/stable/index.html
 .. _scikit-build: https://scikit-build.readthedocs.io/en/latest/
 .. _SNSF: http://www.snf.ch/en/Pages/default.aspx

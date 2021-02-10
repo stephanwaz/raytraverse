@@ -1,13 +1,5 @@
 .. include:: ../README.rst
 
-Command Line Interface
-----------------------
-
-.. toctree::
-   :maxdepth: 2
-
-   cli
-
 API
 ---
 
@@ -18,16 +10,15 @@ API
    mapper
    formatter
    renderer
+   sky
 
    sampler
-   lightfield
-   integrator
+   lightpoint
+   evaluate
    craytraverse
 
-   draw
    io
    plot
-   skycalc
    translate
 
 .. include:: ../ACKNOWLEDGEMENTS.rst

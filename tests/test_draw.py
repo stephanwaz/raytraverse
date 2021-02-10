@@ -4,10 +4,9 @@
 """Tests for raytraverse.draw"""
 
 import pytest
-from raytraverse import draw
+from raytraverse.sampler import draw, Sampler
 import numpy as np
 from scipy import stats
-from raytraverse.sampler import Sampler
 
 
 # def test_version():

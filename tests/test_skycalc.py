@@ -9,7 +9,8 @@ import shlex
 from subprocess import Popen, PIPE
 
 import pytest
-from raytraverse import skycalc, translate
+from raytraverse import translate
+from raytraverse.sky import skycalc
 import clasp.script_tools as cst
 import numpy as np
 
@@ -168,18 +169,17 @@ def test_perez_water(check):
     times = skycalc.row_2_datetime64(epw[:, 0:3])
     dirdif2 = epw[:, 4:]
     tdp = epw[:, 3]
-    dt = skycalc.datetime64_2_datetime(times, mer)
     sxyz = skycalc.sunpos_xyz(times, lat, lon, mer)
     # sxyz = check[0][:, -3:]
     r1, s1 = skycalc.perez(sxyz, dirdif2)
     r2, s2 = skycalc.perez(sxyz, dirdif2, td=tdp)
-    avg = np.hstack((r1[:,0:2], s1[:, None]))
-    rerr = np.nan_to_num(np.hstack((r1[:,0:2] - r2[:,0:2], (s1 - s2)[:, None]))/avg)
+    avg = (np.hstack((r1[:, 0:2], s1[:, None])) +
+           np.hstack((r2[:, 0:2], s2[:, None])))/2
+    rerr = np.nan_to_num(np.hstack((r1[:, 0:2] - r2[:, 0:2], (s1 - s2)[:, None]))/avg)
     np.set_printoptions(4, suppress=True)
     nonzero = rerr.shape[0] - np.sum(rerr == 0, 0)
-    print(nonzero)
-    assert np.allclose(np.sum(rerr, 0)/nonzero, [0.0038254666099110904, -0.0008038523852732332, -0.017393623250903396], rtol=.01, atol=.01)
-    assert np.allclose(np.sum(np.abs(rerr), 0)/nonzero, [0.009942138587737662, 0.00327390921251605, 0.0396736220708252], rtol=.01, atol=.01)
+    assert np.allclose(np.sum(rerr, 0)/nonzero, [0.004, -0.0008, -0.0186], rtol=.01, atol=.01)
+    assert np.allclose(np.sum(np.abs(rerr), 0)/nonzero, [0.01, 0.0033, 0.0315], rtol=.01, atol=.01)
 
 
 def test_generate_wea(epw):

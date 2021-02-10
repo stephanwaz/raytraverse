@@ -6,7 +6,7 @@ import os
 
 import pytest
 from raytraverse import translate, io
-from raytraverse.integrator import retina
+from raytraverse.evaluate import retina
 import numpy as np
 
 

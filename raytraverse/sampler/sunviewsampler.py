@@ -6,11 +6,9 @@
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 # =======================================================================
 import os
-import pickle
 
 import numpy as np
 
-from raytraverse import draw, translate, io
 from raytraverse.mapper import ViewMapper
 from raytraverse.sampler import Sampler
 from raytraverse.lightpoint import LightPointKD, SunViewPoint
@@ -95,4 +93,4 @@ class SunViewSampler(Sampler):
         self.vecs = None
         self.lum = []
         vm = ViewMapper(self.sunpos, 0.533, "sunview")
-        return super().run(point, posidx, vm, plotp, **kwargs)
+        return super().run(point, posidx, vm, plotp, outf=False, **kwargs)

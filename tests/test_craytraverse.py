@@ -5,7 +5,8 @@
 import importlib
 import sys
 
-from raytraverse import renderer, draw
+from raytraverse import renderer
+from raytraverse.sampler import draw
 import numpy as np
 from scipy import stats
 import pytest

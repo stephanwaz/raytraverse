@@ -1,56 +1,55 @@
-raytraverse.integrator
+raytraverse.sky
 ==========================================================
 
-BaseIntegrator
+skycalc
 ---------------------------------
 
-.. autoclass:: raytraverse.integrator.BaseIntegrator
+.. automodule:: raytraverse.sky.skycalc
+    :members:
+    :undoc-members:
+    :show-inheritance:
+
+SkyData
+---------------------------------
+
+.. autoclass:: raytraverse.sky.SkyData
     :members:
     :undoc-members:
     :show-inheritance:
     :private-members:
 
-
-Integrator
+SolarBoundary
 ---------------------------------
 
-.. autoclass:: raytraverse.integrator.Integrator
+.. autoclass:: raytraverse.sky.SolarBoundary
     :members:
     :undoc-members:
     :show-inheritance:
     :private-members:
 
-SunSkyIntegrator
+Suns
 ---------------------------------
 
-.. autoclass:: raytraverse.integrator.SunSkyIntegrator
+.. autoclass:: raytraverse.sky.Suns
     :members:
     :undoc-members:
     :show-inheritance:
     :private-members:
 
-MetricSet
+SunsLoc
 ---------------------------------
 
-.. autoclass:: raytraverse.integrator.MetricSet
+.. autoclass:: raytraverse.sky.SunsLoc
     :members:
     :undoc-members:
     :show-inheritance:
     :private-members:
 
-PositionIndex
+SunsPos
 ---------------------------------
 
-.. autoclass:: raytraverse.integrator.PositionIndex
+.. autoclass:: raytraverse.sky.SunsPos
     :members:
     :undoc-members:
     :show-inheritance:
     :private-members:
-
-retina
--------
-
-.. automodule:: raytraverse.integrator.retina
-    :members:
-    :undoc-members:
-    :show-inheritance:

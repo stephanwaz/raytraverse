@@ -10,7 +10,7 @@ import numpy as np
 import functools
 
 from raytraverse import translate
-from raytraverse.integrator.positionindex import PositionIndex
+from raytraverse.evaluate.positionindex import PositionIndex
 
 
 class MetricSet(object):
@@ -63,8 +63,9 @@ class MetricSet(object):
 
     def __init__(self, vm, vec, omega, lum, metricset=None, scale=179.,
                  threshold=2000., guth=True, tradius=30.0, **kwargs):
-        if metricset is None or len(metricset) == 0:
-            metricset = MetricSet.defaultmetrics
+        if metricset is not None:
+            self.check_metrics(metricset, True)
+            self.defaultmetrics = metricset
         self.vm = vm
         self.view_area = vm.area
         v = translate.norm(vec)
@@ -76,14 +77,9 @@ class MetricSet(object):
         self._threshold = threshold
         self.guth = guth
         self.tradius = tradius
-        self.metrics = metricset
         self.kwargs = kwargs
-        for m in self.metrics:
-            if m not in MetricSet.allmetrics:
-                raise AttributeError(f"'{m}' is not defined in MetricSet: "
-                                     f"{self.allmetrics}")
 
-    def __call__(self):
+    def __call__(self, metrics=None):
         """
         Returns
         -------
@@ -91,7 +87,22 @@ class MetricSet(object):
             list of computed metrics
 
         """
-        return np.array([getattr(self, m) for m in self.metrics])
+        if metrics is None:
+            metrics = self.defaultmetrics
+        else:
+            self.check_metrics(metrics, True)
+        return np.array([getattr(self, m) for m in metrics])
+
+    @staticmethod
+    def check_metrics(metrics, raise_error=False):
+        """returns list of valid metric names from argument
+        if raise_error is True, raises an Atrribute Error"""
+        good = [m for m in metrics if m in MetricSet.allmetrics]
+        if raise_error and len(good) != len(metrics):
+            bad = [m for m in metrics if not m in MetricSet.allmetrics]
+            raise AttributeError(f"'{bad}' are not defined in "
+                                 f"MetricSet: {MetricSet.allmetrics}")
+        return good
 
     @property
     def vec(self):
@@ -319,4 +330,8 @@ class MetricSet(object):
     @property
     @functools.lru_cache(1)
     def lumcenter(self):
-        return np.average(self.radians, weights=self.lum*self.omega) * 180/np.pi
+        try:
+            return np.average(self.radians,
+                              weights=self.lum*self.omega) * 180/np.pi
+        except ZeroDivisionError:
+            return 0.0

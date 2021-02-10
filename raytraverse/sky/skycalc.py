@@ -507,12 +507,11 @@ def scale_efficacy(dirdif, sunz, csunz, skybright, catn, td=10.9735311509):
     effimultf = np.stack((np.ones(dirdif.shape[0]), precwater,
                           csunz, np.log(skybright))).T
     ef = np.sum(abcdf[catn]*effimultf, 1)
-    ed = np.sum(abcdd[catn]*effimultd, 1)
+    # this can go negative due to extrapolation, check if this matches
+    # gendaylit code (which does set these conditions to zero).
+    ed = np.maximum(np.sum(abcdd[catn]*effimultd, 1), 0)
     directi = dirdif[:, 0]*ed
     diffusei = dirdif[:, 1]*ef
-    if np.asarray(td).size == 1:
-        print(ef[np.isfinite(ef)])
-        print(ed[np.isfinite(ed)])
     return directi, diffusei
 
 

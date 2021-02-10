@@ -7,7 +7,7 @@ import os
 import pytest
 from raytraverse import io
 from raytraverse.mapper import ViewMapper
-from raytraverse.integrator import MetricSet, PositionIndex
+from raytraverse.evaluate import MetricSet, PositionIndex
 import numpy as np
 
 

@@ -8,6 +8,7 @@
 # =======================================================================
 
 """functions for reading and writing"""
+from datetime import datetime, timezone
 import shlex
 import os
 import sys
@@ -18,8 +19,10 @@ from scipy.ndimage.filters import uniform_filter
 
 import numpy as np
 
+import raytraverse
 from raytraverse import translate
 from raytraverse.mapper import ViewMapper
+from raytraverse.crenderer import cRtrace
 
 
 class CaptureStdOut:
@@ -219,24 +222,38 @@ def bytefile2np(f, shape, dtype='<f'):
     return bytes2np(f.read(), shape, dtype)
 
 
-def array2hdr(ar, imgf, header=None):
-    """write 2d np.array (x,y) to hdr image format
+def version_header():
+    """generate image header string"""
+    lastmod = os.path.getmtime(os.path.dirname(raytraverse.__file__))
+    lm = datetime.fromtimestamp(lastmod).strftime("%Y-%m-%d")
+    cap = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S %Z")
+    return ["CAPDATE= " + cap,
+            f"SOFTWARE= RAYTRAVERSE {raytraverse.__version__} lastmod {lm} //"
+            f" {cRtrace.version}"]
 
-    Parameters
-    ----------
-    ar: np.array
-    imgf: file path to right
-    header: list of header lines to append to image header
 
-    Returns
-    -------
+def _array2hdr(ar, imgf, header, pval):
+    """write 2d np.array to hdr image format
 
-    """
+        Parameters
+        ----------
+        ar: np.array
+            image array
+        imgf: str
+            file path to right
+        header: list
+            list of header lines to append to image header
+        pval: str
+            pvalue command
+
+        Returns
+        -------
+        imgf
+        """
     if imgf is None:
         f = sys.stdout.buffer
     else:
         f = open(imgf, 'wb')
-    pval = f'pvalue -r -b -h -H -df -o -y {ar.shape[1]} +x {ar.shape[0]}'
     if header is not None:
         hdr = "' '".join(header)
         getinfo = shlex.split(f"getinfo -a '{hdr}'")
@@ -245,11 +262,51 @@ def array2hdr(ar, imgf, header=None):
     else:
         p = Popen(pval.split(), stdin=PIPE, stdout=f)
         q = p
-    p.stdin.write(np2bytes(ar[-1::-1, -1::-1].T))
+    p.stdin.write(np2bytes(ar))
     p.stdin.flush()
     q.communicate()
     f.close()
     return imgf
+
+
+def array2hdr(ar, imgf, header=None):
+    """write 2d np.array (x,y) to hdr image format
+
+    Parameters
+    ----------
+    ar: np.array
+            image array
+    imgf: str
+        file path to right
+    header: list
+        list of header lines to append to image header
+
+    Returns
+    -------
+    imgf
+    """
+    pval = f'pvalue -r -b -h -H -df -o -y {ar.shape[1]} +x {ar.shape[0]}'
+    return _array2hdr(ar[-1::-1, -1::-1].T, imgf, header, pval)
+
+
+def carray2hdr(ar, imgf, header=None):
+    """write color channel np.array (3, x, y) to hdr image format
+
+    Parameters
+    ----------
+    ar: np.array
+            image array
+    imgf: str
+        file path to right
+    header: list
+        list of header lines to append to image header
+
+    Returns
+    -------
+    imgf
+    """
+    pval = f'pvalue -r -h -H -df -o -y {ar.shape[-1]} +x {ar.shape[-2]}'
+    return _array2hdr(ar.T[-1::-1, -1::-1, :], imgf, header, pval)
 
 
 def uvarray2hdr(uvarray, imgf, header=None):
@@ -262,38 +319,6 @@ def uvarray2hdr(uvarray, imgf, header=None):
     img = np.zeros(res*res)
     img[mask] = uvarray[ij[:, 0], ij[-1:None:-1, 1]]
     array2hdr(img.reshape(res, res), imgf, header)
-
-
-def carray2hdr(ar, imgf, header=None):
-    """write color channel np.array (3, x, y) to hdr image format
-
-    Parameters
-    ----------
-    ar: np.array
-    imgf: file path to right
-    header: list of header lines to append to image header
-
-    Returns
-    -------
-
-    """
-    if imgf is None:
-        f = sys.stdout.buffer
-    else:
-        f = open(imgf, 'wb')
-    pval = f'pvalue -r -h -H -df -o -y {ar.shape[-1]} +x {ar.shape[-2]}'
-    if header is not None:
-        hdr = "' '".join(header)
-        getinfo = shlex.split(f"getinfo -a '{hdr}'")
-        p = Popen(pval.split(), stdin=PIPE, stdout=PIPE)
-        q = Popen(getinfo, stdin=p.stdout, stdout=f)
-    else:
-        p = Popen(pval.split(), stdin=PIPE, stdout=f)
-        q = p
-    p.stdin.write(np2bytes(ar.T[-1::-1, -1::-1, :]))
-    q.communicate()
-    f.close()
-    return imgf
 
 
 def hdr2array(imgf):

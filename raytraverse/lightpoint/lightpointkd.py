@@ -16,7 +16,6 @@ from clasp.script_tools import try_mkdir
 
 from raytraverse import io, translate
 from raytraverse.mapper import ViewMapper
-from raytraverse.craytraverse import interpolate_kdquery
 
 
 class LightPointKD(object):
@@ -37,14 +36,11 @@ class LightPointKD(object):
         self.pt = np.asarray(pt).flatten()[0:3]
         #: str: source key
         self.src = src
-        outdir = f"{self.scene.outdir}/{self.src}"
-        try_mkdir(outdir)
         #: str: relative path to disk storage
-        self.file = f"{outdir}/{self.posidx:06d}.rytpt"
+        self.file = f"{self.scene.outdir}/{self.src}/{self.posidx:06d}.rytpt"
         if vec is not None and lum is not None:
             scene.log(self, f"building {src} at {posidx}")
             self._d_kd, self._vec, self._lum, clr = self._build(vec, lum, srcn)
-            scene.log(self, f"build complete")
             self._omega = None
             if calcomega:
                 self.calc_omega(False)
@@ -55,6 +51,7 @@ class LightPointKD(object):
                         os.remove(rf)
                     except IOError:
                         pass
+            scene.log(self, f"build complete")
         elif os.path.isfile(self.file):
             f = open(self.file, 'rb')
             self._d_kd, self._vec, self._omega, self._lum = pickle.load(f)
@@ -66,6 +63,7 @@ class LightPointKD(object):
         self.srcn = self.lum.shape[1]
 
     def dump(self):
+        try_mkdir(f"{self.scene.outdir}/{self.src}")
         f = open(self.file, 'wb')
         pickle.dump((self._d_kd, self._vec, self._omega, self._lum), f,
                     protocol=4)
@@ -103,8 +101,8 @@ class LightPointKD(object):
     def calc_omega(self, write=True):
         """calculate solid angle
 
-        Parameters:
-        -----------
+        Parameters
+        ----------
         write: bool, optional
             update/write kdtree data to file
         """
@@ -138,9 +136,11 @@ class LightPointKD(object):
             try:
                 omega = SphericalVoronoi(self.vec).calculate_areas()
             except ValueError:
-                # spherical voronoi raises a value error when points are
+                # spherical voronoi raises a ValueError when points are
                 # too close, in this case we cull duplicates before calculating
-                # area, leaving the duplicates with omega=0
+                # area, leaving the duplicates with omega=0 it would be more
+                # efficient downstream to filter these points, but that would
+                # require culling the vecs and lum and rebuilding to kdtree
                 flt = np.full(len(self.vec), True)
                 omega = np.zeros(self.vec.shape[0])
                 tol = 2*np.pi/2**10
@@ -156,7 +156,10 @@ class LightPointKD(object):
             self.dump()
 
     def apply_coef(self, coefs):
-        c = np.asarray(coefs).reshape(-1, self.srcn)
+        try:
+            c = np.asarray(coefs).reshape(-1, self.srcn)
+        except ValueError:
+            c = np.broadcast_to(coefs, (1, self.srcn))
         return np.einsum('ij,kj->ik', c, self.lum)
 
     def add_to_img(self, img, vecs, mask=None, coefs=1, interp=False,
@@ -205,8 +208,10 @@ class LightPointKD(object):
             lum = val[:, i]
         img[mask] += np.squeeze(lum)
 
-    def get_applied_rays(self, vm, skyvec):
+    def get_applied_rays(self, skyvec, vm=None):
         """the analog to add_to_img for metric calculations"""
+        if vm is None:
+            vm = self.vm
         idx = self.query_ball(vm.dxyz)[0]
         omega = np.squeeze(self.omega[idx])
         rays = self.vec[idx]

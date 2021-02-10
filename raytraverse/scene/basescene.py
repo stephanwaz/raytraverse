@@ -10,8 +10,6 @@ import os
 import shutil
 import sys
 
-from raytraverse.formatter import Formatter
-
 
 class BaseScene(object):
     """container for scene description
@@ -35,7 +33,7 @@ class BaseScene(object):
         log progress events to outdir/log.txt
     """
 
-    def __init__(self, outdir, scene=None, frozen=True, formatter=Formatter,
+    def __init__(self, outdir, scene=None, frozen=True, formatter=None,
                  reload=True, overwrite=False, log=True, **kwargs):
         self.outdir = outdir
         try:
@@ -48,10 +46,8 @@ class BaseScene(object):
                 pass
             else:
                 raise e
-        try:
-            os.mkdir(outdir)
-        except FileExistsError as e:
-            pass
+        except TypeError:
+            log = False
         self._logf = f"{self.outdir}/log.txt"
         self._dolog = log
         self.formatter = formatter
@@ -72,12 +68,17 @@ class BaseScene(object):
 
     @scene.setter
     def scene(self, scene_files):
-        o = f'{self.outdir}/scene{self.formatter.scene_ext}'
-        if self.reload and os.path.isfile(o):
-            pass
+        try:
+            self._scene = f'{self.outdir}/scene{self.formatter.scene_ext}'
+        except AttributeError:
+            self._scene = None
         else:
-            o = self.formatter.make_scene(scene_files, o, frozen=self._frozen)
-        self._scene = o
+            if self.reload and os.path.isfile(self._scene):
+                pass
+            else:
+                self._scene = self.formatter.make_scene(scene_files,
+                                                        self._scene,
+                                                        frozen=self._frozen)
 
     def log(self, instance, message, err=False):
         if self._dolog:

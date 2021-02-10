@@ -1,30 +1,28 @@
-raytraverse.scene
+raytraverse.evaluate
 ==========================================================
 
-BaseScene
------------------------
+MetricSet
+---------------------------------
 
-.. autoclass:: raytraverse.scene.BaseScene
+.. autoclass:: raytraverse.evaluate.MetricSet
     :members:
     :undoc-members:
     :show-inheritance:
     :private-members:
 
+PositionIndex
+---------------------------------
 
-Scene
------------------------
-
-.. autoclass:: raytraverse.scene.Scene
+.. autoclass:: raytraverse.evaluate.PositionIndex
     :members:
     :undoc-members:
     :show-inheritance:
     :private-members:
 
-ImageScene
------------------------
+retina
+-------
 
-.. autoclass:: raytraverse.scene.ImageScene
+.. automodule:: raytraverse.evaluate.retina
     :members:
     :undoc-members:
     :show-inheritance:
-    :private-members:

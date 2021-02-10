@@ -9,8 +9,7 @@ import pytest
 import numpy as np
 
 from raytraverse import io
-from raytraverse.integrator import MetricSet
-from raytraverse.lightpoint import LightPointKD
+from raytraverse.evaluate import MetricSet
 from raytraverse.scene import ImageScene
 from raytraverse.sampler import DeterministicImageSampler, ImageSampler
 from raytraverse.mapper import ViewMapper
@@ -37,8 +36,8 @@ def test_sample(tmpdir):
     lf2 = sampler2.run((0, 0, 0), 0, vm)
     ref = sampler.engine.scene
     lf.direct_view(ref.shape[0], showsample=False, interp=True)
-    fmetric = MetricSet(vm, *lf.get_applied_rays(vm, 1), ["illum", "density"])()
-    fmetric2 = MetricSet(vm, *lf2.get_applied_rays(vm, 1), ["illum", "density"])()
+    fmetric = MetricSet(vm, *lf.get_applied_rays(1, vm), ["illum", "density"])()
+    fmetric2 = MetricSet(vm, *lf2.get_applied_rays(1, vm), ["illum", "density"])()
     assert np.abs(fmetric[0] - 28200) < 10
     assert np.abs(fmetric[1] - 2920) < 20
     assert np.abs(fmetric[0] - fmetric2[0])/fmetric[0] < .05

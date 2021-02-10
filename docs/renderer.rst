@@ -37,33 +37,6 @@ Rcontrib
     :show-inheritance:
     :private-members:
 
-SPRenderer
----------------------------
-
-.. autoclass:: raytraverse.renderer.SPRenderer
-    :members:
-    :undoc-members:
-    :show-inheritance:
-    :private-members:
-
-SPRtrace
---------------------------------
-
-.. autoclass:: raytraverse.renderer.SPRtrace
-    :members:
-    :undoc-members:
-    :show-inheritance:
-    :private-members:
-
-SPRcontrib
---------------------------------
-
-.. autoclass:: raytraverse.renderer.SPRcontrib
-    :members:
-    :undoc-members:
-    :show-inheritance:
-    :private-members:
-
 ImageRenderer
 --------------------------------
 

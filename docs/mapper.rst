@@ -1,6 +1,15 @@
 raytraverse.mapper
 ==========================================================
 
+ViewMapper
+------------------------------
+
+.. autoclass:: raytraverse.mapper.ViewMapper
+    :members:
+    :undoc-members:
+    :show-inheritance:
+    :private-members:
+
 SpaceMapper
 ------------------------------
 
@@ -18,13 +27,3 @@ SpaceMapperPt
     :undoc-members:
     :show-inheritance:
     :private-members:
-
-ViewMapper
-------------------------------
-
-.. autoclass:: raytraverse.mapper.ViewMapper
-    :members:
-    :undoc-members:
-    :show-inheritance:
-    :private-members:
-

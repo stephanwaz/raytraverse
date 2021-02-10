@@ -18,15 +18,14 @@ class SkyData(object):
 
     Parameters
     ----------
-    wea: str, np.array
+    wea: str np.array
         path to epw, wea, or .npy file or np.array, if loc not set attempts to
         extract location data (if needed). The Integrator does not need to be
         initialized with weather data but for convinience can be. However,
         self.skydata must be initialized (directly or through self.sky) before
         calling integrate.
     suns: raytraverse.sky.Suns, optional
-    loc: tuple, optional
-        (float, float, int)
+    loc: (float, float, int), optional
         location data given as lat, lon, mer with + west of prime meridian
         overrides location data in wea (but not in sunfield)
     skyro: float, optional
@@ -77,9 +76,7 @@ class SkyData(object):
     @property
     def smtx(self):
         """shape (np.sum(daysteps), skyres**2 + 1) coefficients for each sky
-        patch each row is a timestep, timesteps where a sun exists exclude
-        the sun coefficient, otherwise the patch enclosing the sun position
-        contains the energy of the sun"""
+        patch each row is a timestep, coefficients exclude sun"""
         return self._smtx
 
     @property
@@ -99,6 +96,94 @@ class SkyData(object):
     def skydata(self):
         """sun position and dirnorm diffhoriz"""
         return self._skydata
+
+    @property
+    def sunproxy(self):
+        """array of sun proxy data
+        shape (len(daysteps), 2). column 0 is the corresponding sky bin
+        (column of smtx), column 1 is the row of self.suns
+        """
+        return self._sunproxy
+
+    @property
+    def proxysort(self):
+        """sorting indices to arange daystep axis by solar proxy
+        this is useful when combining sky/sun kdtrees without writing to disk
+        to only do the interpolation once for a set of sky conditions."""
+        return self._proxysort
+
+    @property
+    def invsort(self):
+        """reverse sorting indices to restore input daystep order"""
+        return self._invsort
+
+    @property
+    def serr(self):
+        """the error (in degrees) between the actual sun position and the
+        applied sunproxy"""
+        return self._serr
+
+    @skydata.setter
+    def skydata(self, wea):
+        """calculate sky matrix data and store in self._skydata
+
+        Parameters
+        ----------
+        wea: str, np.array
+            This method takes either a file path or np.array. File path can
+            point to a wea, epw, or .npy file. Loaded array must be one of
+            the following:
+            - 4 col: alt, az, dir, diff
+            - 5 col: dx, dy, dz, dir, diff
+            - 5 col: m, d, h, dir, diff
+        """
+        skydata = self._format_skydata(wea)
+        daysteps = skydata[:, 2] + skydata[:, 3] > 0
+        sxyz = skydata[daysteps, 0:3]
+        dirdif = skydata[daysteps, 3:]
+        smtx, grnd, sun = skycalc.sky_mtx(sxyz, dirdif, self.skyres,
+                                          ground_fac=self.ground_fac)
+        # ratio between actual solar disc and patch
+        omegar = np.square(0.2665 * np.pi * self.skyres / 180) * .5
+        plum = sun[:, -1] * omegar
+        sun = np.hstack((sun, plum[:, None]))
+        smtx = np.hstack((smtx, grnd[:, None]))
+        self._smtx = smtx
+        self._sun = sun
+        self._daysteps = daysteps
+        self._skydata = skydata
+        self.sunproxy = sxyz
+
+    @sunproxy.setter
+    def sunproxy(self, sxyz):
+        sunbins = translate.xyz2skybin(sxyz, self.skyres)
+        try:
+            si, serrs = self.suns.proxy_src(sxyz,
+                                            tol=180*2**.5/self.suns.sunres)
+        except AttributeError:
+            si = [0] * len(sunbins)
+            serrs = sunbins
+        self._serr = serrs
+        self._sunproxy = np.stack((sunbins, si)).T
+
+    def smtx_patch_sun(self):
+        """generate smtx with solar energy applied to proxy patch
+        for directly applying to skysampler data (without direct sun components
+        can also be used in a partial mode (with sun view / without sun
+        reflection."""
+        wsun = np.copy(self.smtx)
+        r = range(wsun.shape[0])
+        wsun[range(wsun.shape[0]), self.sunproxy[:, 0]] += self.sun[r, 4]
+        return wsun
+
+    def header(self):
+        """generate image header string"""
+        try:
+            hdr = "LOCATION= lat: {} lon: {} tz: {} ro: {}".format(*self.loc,
+                                                                   self.skyro)
+        except TypeError:
+            hdr = "LOCATION= None"
+        return hdr
 
     def _format_skydata(self, dat):
         """process dat argument as skydata
@@ -137,73 +222,4 @@ class SkyData(object):
                              '\n5 col: dx, dy, dz, dir, diff'
                              '\n5 col: m, d, h, dir, diff')
         return skydat
-
-    @skydata.setter
-    def skydata(self, wea):
-        """calculate sky matrix data and store in self._skydata
-
-        Parameters
-        ----------
-        wea: str, np.array
-            This method takes either a file path or np.array. File path can
-            point to a wea, epw, or .npy file. Loaded array must be one of
-            the following:
-            - 4 col: alt, az, dir, diff
-            - 5 col: dx, dy, dz, dir, diff
-            - 5 col: m, d, h, dir, diff
-        """
-        skydata = self._format_skydata(wea)
-        daysteps = skydata[:, 2] + skydata[:, 3] > 0
-        sxyz = skydata[daysteps, 0:3]
-        dirdif = skydata[daysteps, 3:]
-        smtx, grnd, sun = skycalc.sky_mtx(sxyz, dirdif, self.skyres,
-                                          ground_fac=self.ground_fac)
-        # ratio between actual solar disc and patch
-        omegar = np.square(0.2665 * np.pi * self.skyres / 180) * .5
-        plum = sun[:, -1] * omegar
-        sun = np.hstack((sun, plum[:, None]))
-        smtx = np.hstack((smtx, grnd[:, None]))
-        self._smtx = smtx
-        self._sun = sun
-        self._daysteps = daysteps
-        self._skydata = skydata
-        self.sunproxy = sxyz
-
-    @property
-    def sunproxy(self):
-        return self._sunproxy
-
-    @property
-    def proxysort(self):
-        return self._proxysort
-
-    @property
-    def invsort(self):
-        return self._invsort
-
-    @property
-    def serr(self):
-        return self._serr
-
-    @sunproxy.setter
-    def sunproxy(self, sxyz):
-        sunuv = translate.xyz2uv(sxyz, flipu=False)
-        sunbins = translate.uv2bin(sunuv, self.skyres)
-        try:
-            si, serrs = self.suns.proxy_src(sxyz,
-                                            tol=180*2**.5/self.suns.sunres)
-        except AttributeError:
-            si = [0] * len(sunbins)
-            serrs = sunbins
-        self._serr = serrs
-        self._sunproxy = np.stack((sunbins, si)).T
-
-    def header(self):
-        """generate image header string"""
-        try:
-            hdr = "LOCATION= lat: {} lon: {} tz: {} ro: {}".format(*self.loc,
-                                                                   self.skyro)
-        except TypeError:
-            hdr = "LOCATION= None"
-        return hdr
 

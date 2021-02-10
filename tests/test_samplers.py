@@ -9,7 +9,7 @@ import pytest
 import numpy as np
 
 from raytraverse import io, translate
-from raytraverse.integrator import MetricSet
+from raytraverse.evaluate import MetricSet
 from raytraverse.scene import Scene
 from raytraverse.sampler import SkySampler, SunSampler, SunViewSampler
 from raytraverse.mapper import ViewMapper
@@ -42,7 +42,7 @@ def test_skysample(tmpdir, capsys):
 
         coefs = np.zeros(325)
         coefs[sbin] = 1
-        illumm0 = MetricSet(vm, *lf.get_applied_rays(vm, coefs), ["illum"])()[0]
+        illumm0 = MetricSet(vm, *lf.get_applied_rays(coefs, vm), ["illum"])()[0]
 
         return np.sum(hdr.flatten()*omega*cost)*179, illumm0
 
@@ -59,7 +59,7 @@ def test_skysample(tmpdir, capsys):
     illum, illumm = img_illum(lf, vm, 174)
     assert np.isclose(illum, illumm, atol=.2, rtol=.1)
     assert np.isclose(np.average([illum, illumm]), 0.169, atol=.03, rtol=.2)
-    fmetric = MetricSet(vm, *lf.get_applied_rays(vm, np.ones(325)), ["illum", "density"])()
+    fmetric = MetricSet(vm, *lf.get_applied_rays(np.ones(325), vm), ["illum", "density"])()
     assert np.isclose(fmetric[0], 352.7, atol=1, rtol=.01)
     assert np.isclose(fmetric[1], 2367, atol=30)
 
@@ -73,7 +73,7 @@ def test_sunsample(tmpdir, capsys):
         pxs = vm0.pixels(512).reshape(-1, 2)
         omega = vm0.pixel2omega(pxs, 512)
         cost = vm0.ctheta(vecs)
-        illumm0 = MetricSet(vm, *lf.get_applied_rays(vm, 285.32), ["illum"])()[0]
+        illumm0 = MetricSet(vm, *lf.get_applied_rays(285.32, vm), ["illum"])()[0]
 
         return np.sum(hdr.flatten()*omega*cost)*179, illumm0
 

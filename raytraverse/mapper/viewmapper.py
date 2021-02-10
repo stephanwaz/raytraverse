@@ -188,3 +188,40 @@ class ViewMapper(object):
             return np.unravel_index(np.arange(ang.size)[mask], vec.shape[:-1])
         else:
             return mask
+
+    def init_img(self, res=512, pt=(0, 0, 0)):
+        """Initialize an Image array with vectors and mask
+
+        Parameters
+        ----------
+        res: int, optional
+            image array resolution
+        pt: tuple, optional
+            view point for image header
+
+        Returns
+        -------
+        img: np.array
+            zero array of shape (res*self.aspect, res)
+        vecs: np.array
+            direction vectors corresponding to each pixel (img.size, 3)
+        mask: np.array
+            indices of flattened img that are in view
+        mask2: np.array None
+            if ViewMapper is 360 degree, include mask for opposite view to use::
+
+                add_to_img(img, vecs[mask], mask)
+                add_to_img(img[res:], vecs[res:][mask2], mask2
+        header: str
+
+        """
+        img = np.zeros((res*self.aspect, res))
+        vecs = self.pixelrays(res)
+        mask = self.in_view(vecs[0:res])
+        if self.aspect == 2:
+            mask2 = self.ivm.in_view(vecs[res:])
+        else:
+            mask2 = None
+        header = ('VIEW= -vta -vv {0} -vh {0} -vd {1} {2} {3} -vp {4} {5} '
+                  '{6}'.format(self.viewangle/self.aspect, *self.dxyz[0], *pt))
+        return img, vecs, mask, mask2, header

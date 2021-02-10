@@ -9,7 +9,8 @@ import os
 
 import numpy as np
 
-from raytraverse import translate, io, draw, renderer
+from raytraverse import translate, io, renderer
+from raytraverse.sampler import draw
 from raytraverse.lightpoint import LightPointKD
 from raytraverse.mapper import ViewMapper
 
@@ -305,7 +306,8 @@ class Sampler(object):
     def _dump_vecs(self, vecs, vecf):
         io.np2bytefile(vecs, vecf)
 
-    def run(self, point, posidx, vm=None, plotp=False, log=False, **kwargs):
+    def run(self, point, posidx, vm=None, plotp=False, log=False, outf=True,
+            **kwargs):
         """
 
         Parameters
@@ -324,6 +326,10 @@ class Sampler(object):
             'scene' - logs to Scene log file
             'err' - logs to stderr
             anything else - does not log incremental progress
+        outf: bool, optional
+            some inheriting classes do not need an outfile, but this should
+            not be changed unless the class stores the lum results directly
+            and the run_callback of the class does not expect the file to exist.
 
         Returns
         -------
@@ -342,13 +348,17 @@ class Sampler(object):
         point = np.asarray(point).flatten()[0:3]
         allc = 0
         name = f"{vm.name}_{posidx:06d}"
-        outf = f'{self.scene.outdir}/{name}_{self.stype}_vals.out'
-        f = open(outf, 'wb')
-        f.close()
-        self.scene.log(self, f"Started sampling {name} {self.stype}")
-        self.scene.log(self, f"Settings: {self.engine_args[0]}")
+        if outf:
+            outf = f'{self.scene.outdir}/{name}_{self.stype}_vals.out'
+            f = open(outf, 'wb')
+            f.close()
+        else:
+            outf = None
+        self.scene.log(self, f"Started sampling {name} {self.stype}", logerr)
+        self.scene.log(self, f"Settings: {self.engine_args[0]}", logerr)
         if detaillog:
-            hdr = ['level', 'shape', 'samples', 'rate', 'filesize (MB)']
+            hdr = ['level ', '      shape', 'samples', '   rate',
+                   'filesize (MB)']
             self.scene.log(self, '\t'.join(hdr), logerr)
         fsize = 0
         self.levels = vm.aspect
@@ -360,22 +370,17 @@ class Sampler(object):
             shape = self.levels[i]
             self.weights = translate.resample(self.weights, shape)
             draws, p = self.draw(i)
-            if len(draws) == 0:
-                srate = 0.0
-                if detaillog:
-                    row = [f'{i + 1} of {self.levels.shape[0]}', str(shape),
-                           '0', f"{srate:.02%}", f'{fsize:.03f}']
-                    self.scene.log(self, '\t'.join(row), logerr)
-            else:
+            if len(draws) > 0:
                 si, uv = self.sample_to_uv(draws, shape)
                 xyz = vm.uv2xyz(uv)
                 vecs = np.hstack((np.broadcast_to(point, xyz.shape), xyz))
                 srate = si.shape[1]/np.prod(shape)
                 fsize += 4*self.bands*self.srcn*si.shape[1]/1000000
                 if detaillog:
-                    row = [f'{i + 1} of {self.levels.shape[0]}', str(shape),
-                           str(si.shape[1]), f"{srate:.02%}", f'{fsize:.03f}']
-                    self.scene.log(self, '\t'.join(row))
+                    row = (f"{i + 1} of {self.levels.shape[0]}\t"
+                           f"{str(shape): >11}\t{si.shape[1]: >7}\t"
+                           f"{srate: >7.02%}\t{fsize:.03f}")
+                    self.scene.log(self, row, logerr)
                 vecf = (f'{self.scene.outdir}/{name}_{self.stype}_vecs_'
                         f'{i:02d}.out')
                 self._dump_vecs(vecs, vecf)
@@ -388,7 +393,7 @@ class Sampler(object):
                 a = lum.shape[0]
                 allc += a
         srate = allc/self.weights.size
-        row = ['total sampling:', '-', str(allc), f"{srate:.02%}",
+        row = ['total sampling:', '- ', f"{allc: >7}", f"{srate: >7.02%}",
                f'{fsize:.03f}']
-        self.scene.log(self, '\t'.join(row))
+        self.scene.log(self, '\t'.join(row), logerr)
         return self.run_callback(vecfs, name, point, posidx, vm)

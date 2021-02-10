@@ -19,12 +19,12 @@ with open('README.rst') as readme_file:
 with open('HISTORY.rst') as history_file:
     history = history_file.read()
 
-requirements = ['clasp', 'numpy', 'scipy', 'pywavelets', 'matplotlib',
+requirements = ['clasp', 'numpy', 'scipy', 'matplotlib',
                 'skyfield', 'clipt', 'pybind11', 'shapely']
 
 setup_requirements = ["setuptools", "wheel", "scikit-build", "cmake", "ninja"]
 
-test_requirements = ['pytest', 'hdrstats', 'pytest-cov']
+test_requirements = ['pytest', 'pytest-cov']
 
 data_files = []
 package_data = {"raytraverse": ["*.bsp", "cal/*.cal"]}
