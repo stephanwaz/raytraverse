@@ -24,6 +24,7 @@ from unittest.mock import MagicMock
 
 sys.path.insert(0, os.path.abspath('..'))
 
+
 class Mock(MagicMock):
     @classmethod
     def __getattr__(cls, name):
@@ -31,10 +32,13 @@ class Mock(MagicMock):
 
 
 MOCK_MODULES = ['numpy', 'scipy', 'clipt', 'skyfield', 'matplotlib', 'shapely',
-                'raytraverse.craytraverse', 'raytraverse.crendererr',
-                'scipy.ndimage', 'scipy.ndimage.filters', 'matplotlib.path',
-                'scipy.spatial', 'scipy.interpolate', 'shapely.geometry',
-                'skyfield.api', 'clipt.plot', 'matplotlib.figure', 'matplotlib.colors', 'matplotlib.patches']
+                'raytraverse.craytraverse', 'raytraverse.crenderer',
+                'raytraverse.crenderer.rcontrib_c',
+                'raytraverse.crenderer.rtrace_c', 'scipy.ndimage',
+                'scipy.ndimage.filters', 'matplotlib.path', 'scipy.spatial',
+                'scipy.interpolate', 'shapely.geometry', 'skyfield.api',
+                'clipt.plot', 'matplotlib.figure', 'matplotlib.colors',
+                'matplotlib.patches']
 sys.modules.update((mod_name, Mock()) for mod_name in MOCK_MODULES)
 
 
