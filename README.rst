@@ -15,8 +15,12 @@ raytraverse (1.1.1)
     :alt: Read the Docs (version)
 
 .. image:: https://img.shields.io/travis/stephanwaz/raytraverse?style=flat-square
-    :target: https://travis-ci.org/github/stephanwaz/raytraverse/builds
+    :target: https://travis-ci.com/github/stephanwaz/raytraverse/builds
     :alt: Travis (.org)
+
+.. image:: https://img.shields.io/travis/com/stephanwaz/raytraverse?style=flat-square
+    :target: https://travis-ci.com/github/stephanwaz/raytraverse/builds
+    :alt: Travis (.com)
 
 .. image:: https://img.shields.io/coveralls/github/stephanwaz/raytraverse?style=flat-square
     :target: https://coveralls.io/github/stephanwaz/raytraverse

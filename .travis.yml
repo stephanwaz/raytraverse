@@ -15,20 +15,20 @@ env:
   - TWINE_USERNAME=__token__
 deploy:
   provider: releases
-  api_key:
-    secure: CIeKvPygslPjUrGHK49nVLPEVQfdsU3ayLW2XXstrRbdCpEV43MeWneLXNuSPKc147mNg9GJ421W6UyAJ1Y2REgaSFuH20NUxhv4QD0+3YmJVrOxk3xnhBj8X6ynMNgJP4oQ1PPLC52deyzMEwrFPJmMFJEH+mwTZe5d15twqF5X2FCUaX+m/8NuSQVqHpzTM8tAdRW6couk5aP3/8KD9zEbY90MEGpOvMiU+VXugKQWU5ZqoMM54n3Jx6W1tlVBhXttWOstq4bo+V/2NvDLjwhc/TGwMQ1k5vKX+GZZB833Q5GMMlKUxdFKOBq+6Zu4NNLIunEuLb4fz0Lzyx6JDMy6RAYRBLMeEPVFkGXIykj0LuEF8PKFzlnI1CTwMVHj5Vx75EzLHMSI4B4OBYGMedPNUT3GYMnMpwSA6XvtI+ZgKThvsbSU+ZYH1DQ8jbblRS38zdzfk10x+bEn84hyuf3hbPAAMPLM5FqgebYDKaoHk6r4vBmmvGodtUbt8uCOQ2frlkU7odYKETdaMxWxudoeb3+YWYoaLq7O/1+s0x9oLRzifleyZBKm055bExDPb5JJCPHjT2rjIs7dih7OI55zPpvBSN2ylYLpKeDrrb9MfZgE4owCLOVs3fNqi0eWqPOzDwhCO4LGR7Lxgg7tVP60zc9okyeQMenGPzj8jL0=
-  file_glob: true
-  file: wheelhouse/*.whl
-  on:
-    repo: stephanwaz/raytraverse
-    branch: release
-    tags: true
-  skip_cleanup: true
+    api_key:
+      secure: CIeKvPygslPjUrGHK49nVLPEVQfdsU3ayLW2XXstrRbdCpEV43MeWneLXNuSPKc147mNg9GJ421W6UyAJ1Y2REgaSFuH20NUxhv4QD0+3YmJVrOxk3xnhBj8X6ynMNgJP4oQ1PPLC52deyzMEwrFPJmMFJEH+mwTZe5d15twqF5X2FCUaX+m/8NuSQVqHpzTM8tAdRW6couk5aP3/8KD9zEbY90MEGpOvMiU+VXugKQWU5ZqoMM54n3Jx6W1tlVBhXttWOstq4bo+V/2NvDLjwhc/TGwMQ1k5vKX+GZZB833Q5GMMlKUxdFKOBq+6Zu4NNLIunEuLb4fz0Lzyx6JDMy6RAYRBLMeEPVFkGXIykj0LuEF8PKFzlnI1CTwMVHj5Vx75EzLHMSI4B4OBYGMedPNUT3GYMnMpwSA6XvtI+ZgKThvsbSU+ZYH1DQ8jbblRS38zdzfk10x+bEn84hyuf3hbPAAMPLM5FqgebYDKaoHk6r4vBmmvGodtUbt8uCOQ2frlkU7odYKETdaMxWxudoeb3+YWYoaLq7O/1+s0x9oLRzifleyZBKm055bExDPb5JJCPHjT2rjIs7dih7OI55zPpvBSN2ylYLpKeDrrb9MfZgE4owCLOVs3fNqi0eWqPOzDwhCO4LGR7Lxgg7tVP60zc9okyeQMenGPzj8jL0=
+    file_glob: true
+    file: wheelhouse/*.whl
+    on:
+      repo: stephanwaz/raytraverse
+      branch: release
+      tags: true
+    skip_cleanup: true
 
 after_success:
-  # if the release was tagged, upload them to PyPI
-  - |
-    if [[ $TRAVIS_TAG ]]; then
-      python3 -m pip install twine
-      python3 -m twine upload --skip-existing wheelhouse/*.whl
-    fi
+- |
+  if [[ $TRAVIS_TAG ]]; then
+    python3 -m pip install --upgrade pip
+    python3 -m pip install --upgrade --upgrade-strategy eager twine
+    python3 -m twine upload --skip-existing wheelhouse/*.whl
+  fi
