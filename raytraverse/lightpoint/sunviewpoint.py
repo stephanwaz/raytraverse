@@ -69,7 +69,6 @@ class SunViewPoint(object):
 
     def _smudge(self, px, cnt, omegap, omegasp):
         """hack to ensure equal energy and max luminance)"""
-        total = np.sum(cnt)
         ocnt = cnt - (omegap/omegasp)
         smdg = np.sum(ocnt[ocnt > 0])
         room = -np.sum(ocnt[ocnt < 0])
@@ -103,7 +102,8 @@ class SunViewPoint(object):
                 pomega = vm.pixel2omega(ppix, res)
                 target = self.omega*self.lum*coefs
                 current = np.sum(pomega*luma)
-                clum = np.concatenate((clum, np.full(len(hullpoints), coefs * self.lum)))
+                clum = np.concatenate((clum, np.full(len(hullpoints),
+                                                     coefs * self.lum)))
                 xy = np.concatenate((px, hullpoints))
                 # apply average luminanace over each pixel
                 interp = LinearNDInterpolator(xy, clum, fill_value=0)
@@ -116,8 +116,8 @@ class SunViewPoint(object):
                 px = tuple(zip(*px))
                 img[px] += clum
 
-    def get_applied_rays(self, vm, sunval):
-        if vm.in_view(self.vec, indices=False)[0]:
+    def get_applied_rays(self, sunval, vm=None):
+        if vm is None or vm.in_view(self.vec, indices=False)[0]:
             svlm = self.lum * sunval/self.blursun
             svo = self.omega * self.blursun
             return self.vec, svo, svlm
@@ -135,4 +135,3 @@ class SunViewPoint(object):
                 ' -vp {4} {5} {6}'.format(vm.viewangle, *vm.dxyz[0], *self.pt))
         io.array2hdr(img, outf, [vstr])
         return outf
-

@@ -21,7 +21,7 @@ class Scene(BaseScene):
     """
     def __init__(self, outdir, scene=None, frozen=True,
                  formatter=RadianceFormatter, **kwargs):
-        super().__init__(outdir, scene=scene, frozen=frozen, formatter=formatter,
-                         **kwargs)
+        super().__init__(outdir, scene=scene, frozen=frozen,
+                         formatter=formatter, **kwargs)
 
 

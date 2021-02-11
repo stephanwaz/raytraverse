@@ -56,6 +56,7 @@ class SunSampler(Sampler):
             self.ambfile = f"{scene.outdir}/sun_{sunbin:04d}.amb"
         else:
             self.ambfile = None
+            engine_args += " -aa 0"
         engine_args = scene.formatter.get_standard_args(engine_args,
                                                         self.ambfile)
         super().__init__(scene, stype=f"sun_{sunbin:04d}", fdres=fdres,

@@ -218,8 +218,8 @@ class LightPointKD(object):
         lum = np.squeeze(self.apply_coef(skyvec))[idx]
         return rays, omega, lum
 
-    def query_ray(self, vecs, interp=1):
-        d, i = self.d_kd.query(vecs, k=interp)
+    def query_ray(self, vecs):
+        d, i = self.d_kd.query(vecs)
         return i, d
 
     def query_ball(self, vecs, viewangle=180):

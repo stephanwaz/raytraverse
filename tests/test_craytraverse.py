@@ -33,10 +33,10 @@ def test_from_pdf():
 
 def test_empty_reset():
     rt = renderer.Rtrace()
-    rt.reset()
-    rt.reset()
-    rt.reset_instance()
-    rt = renderer.Rcontrib()
+    rc = renderer.Rcontrib()
+    rc.reset()
+    rc.reset()
+    rc.reset_instance()
     rt.reset()
     rt.reset()
     rt.reset_instance()
@@ -104,42 +104,4 @@ def test_rtrace_call(capfd):
     assert np.allclose(check2, test3, atol=.03)
     # print(r.header)
     r.reset_instance()
-
-
-
-
-
-if __name__ == "__main__":
-    # test_rcontrib_call()
-    rc = renderer.Rcontrib()
-    # rt = renderer.Rtrace()
-    # print(rt.instance)
-    test_rtrace_call(None)
-    rt = renderer.Rtrace()
-    print(rt.header)
-    rt.reset()
-    test_rtrace_call(None)
-    rt.reset_instance()
-    test_rtrace_call(None)
-    rt = renderer.Rtrace()
-    rt.reset_instance()
-    # print(rt.instance)
-    print('rt done')
-
-    # print(rc.instance)
-    print('rc 1')
-    test_rcontrib_call(None)
-    print(rc.header)
-    rc.reset()
-    # print(rc.instance)
-    print('rc 2')
-    test_rcontrib_call(None)
-    # rc.reset_instance()
-    print('rc 3')
-    test_rcontrib_call(None)
-    rc = renderer.Rcontrib()
-    # print(rc.instance)
-    print('rc 4')
-    test_rcontrib_call(None)
-    test_rtrace_call(None)
 

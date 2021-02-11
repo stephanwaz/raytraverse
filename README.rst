@@ -36,7 +36,7 @@ conditions throughout a space with efficient use of processing power and
 storage space.
 
 * Free software: Mozilla Public License 2.0 (MPL 2.0)
-* Documentation: https://raytraverse.readthedocs.io/en/stable/.
+* Documentation: https://raytraverse.readthedocs.io/en/latest/.
 
 
 Installation

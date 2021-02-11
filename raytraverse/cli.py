@@ -19,7 +19,7 @@ import clasp.click_ext as clk
 import clasp.script_tools as cst
 
 import raytraverse
-
+from raytraverse.scene import Scene
 
 
 @clk.pretty_name("NPY, TSV, FLOATS,FLOATS")
@@ -183,26 +183,6 @@ def suns(ctx, loc=None, wea=None, usepositions=False, plotdview=False,
 @main.command()
 @click.option('-scene', help='space separated list of radiance scene files '
               '(no sky) or precompiled octree')
-@click.option('-area', help='radiance scene file containing planar geometry of '
-              'analysis area')
-@click.option('-skyres', default=10.0,
-              help='sky is subdivided accoring to a shirley-chiu disk to square'
-                   ' mapping, approximate square patch size in degrees. set by:'
-                   ' int(np.floor(90/s)*2) to ensure an even number')
-@click.option('-ptres', default=2.0,
-              help='resolution of point subdivision on analysis plane. units'
-                   ' match radiance scene file')
-@click.option('-maxspec', default=0.3,
-              help='an important parameter for guiding reflected sun rays.'
-                   ' contribution values above this threshold are assumed to be'
-                   ' direct view rays. If possible, (1) this value should be'
-                   ' less than the tvis of the darkest glass in the scene, and'
-                   ' (2) greater than the highest expected contribution from a'
-                   ' specular reflection or scattering interaction. If it is'
-                   ' not possible to meet both conditions, then ensure that'
-                   ' condition (2) is met and consider using a substantially'
-                   ' higher skyres to avoid massive over sampling of direct'
-                   ' view rays')
 @click.option('--reload/--no-reload', default=True,
               help='if a scene already exists at OUT reload it, note that if'
                    'this is False and overwrite is False, the program will'
@@ -212,35 +192,18 @@ def suns(ctx, loc=None, wea=None, usepositions=False, plotdview=False,
                    'OUT will be deleted')
 @click.option('--frozen/--no-frozen', default=True,
               help='create frozen octree from scene files')
-@click.option('--use_json/--no-use_json', default=True,
-              help='create frozen octree from scene files')
-@click.option('--info/--no-info', default=False,
-              help='print info on scene to stderr')
-@click.option('--points/--no-points', default=False,
-              help='print point locations to stdout')
+@click.option('--log/--no-log', default=True,
+              help='log progress to <out>/log.txt')
 @clk.shared_decs(clk.command_decs(raytraverse.__version__, wrap=True))
-def scene(ctx, **kwargs):
+def scene(ctx, opts=False, debug=False, **kwargs):
     """The scene commands creates a Scene object which holds geometric
     information about the model including object geometry (and defined
     materials), the analysis plane and the desired resolutions for sky and
     analysis plane subdivision"""
-    pass
-    # s = Scene(ctx.obj['out'], **kwargs)
-    # ctx.obj['scene'] = s
-    # ctx.obj['initlf'] = []
-    # if kwargs['points']:
-    #     for pt in s.pts():
-    #         print('{}\t{}\t{}'.format(*pt))
-    # if kwargs['info']:
-    #     print(f'\nScene {s.outdir}:', file=sys.stderr)
-    #     print('='*60 + '\n', file=sys.stderr)
-    #     print('Scene Geometry:', file=sys.stderr)
-    #     print(cst.pipeline([f'getinfo {s.scene}']), file=sys.stderr)
-    #     print('Analysis Area:', file=sys.stderr)
-    #     print('-'*60, file=sys.stderr)
-    #     print(f'extents:\n{s.area.bbox}', file=sys.stderr)
-    #     print(f'number of points: {s.area.npts}', file=sys.stderr)
-    #     print(f'sky sampling resolution: {s.skyres}', file=sys.stderr)
+    print(kwargs)
+    s = Scene(ctx.obj['out'], **kwargs)
+    ctx.obj['scene'] = s
+    ctx.obj['initlf'] = []
 #
 #
 # run_opts = [

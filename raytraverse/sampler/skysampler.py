@@ -36,7 +36,6 @@ class SkySampler(Sampler):
         engine_args, srcn = scene.formatter.get_contribution_args(engine_args,
                                                                   skyres,
                                                                   'skyglow')
-        engine().reset()
         super().__init__(scene, engine=engine, srcn=srcn, stype='sky',
                          srcdef=skydeg, engine_args=engine_args, **kwargs)
 

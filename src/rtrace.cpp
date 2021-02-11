@@ -44,6 +44,7 @@ Rtrace& Rtrace::getInstance() {
 }
 
 void Rtrace::resetRadiance() {
+  ray::ambsync();
   ray::ray_done(1);
   ray::dcleanup(2);
 }

@@ -34,7 +34,7 @@ class BaseScene(object):
     """
 
     def __init__(self, outdir, scene=None, frozen=True, formatter=None,
-                 reload=True, overwrite=False, log=True, **kwargs):
+                 reload=True, overwrite=False, log=True):
         self.outdir = outdir
         try:
             os.mkdir(outdir)

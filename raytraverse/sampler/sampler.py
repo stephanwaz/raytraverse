@@ -59,6 +59,7 @@ class Sampler(object):
                  accuracy=1.0,  srcn=1, stype='generic', srcdef=None, bands=1,
                  engine_args="", nproc=None, **kwargs):
         #: raytraverse.renderer.Renderer
+        engine().reset_instance()
         self.engine = engine()
         self._staticscene = True
         #: int: number of spectral bands / channels returned by renderer
@@ -81,6 +82,7 @@ class Sampler(object):
         self.compiledscene = srcdef
         self.engine_args = (engine_args, self.compiledscene)
         self.engine_kwargs = dict(nproc=nproc, iot="ff")
+        self.engine.initialize(*self.engine_args, **self.engine_kwargs)
 
     def __del__(self):
         if not self._staticscene:
@@ -362,9 +364,8 @@ class Sampler(object):
             self.scene.log(self, '\t'.join(hdr), logerr)
         fsize = 0
         self.levels = vm.aspect
-        # reset weights and engine args
+        # reset weights
         self.weights = np.full(self.levels[0], 1e-7, dtype=np.float32)
-        self.engine.initialize(*self.engine_args, **self.engine_kwargs)
         vecfs = []
         for i in range(self.levels.shape[0]):
             shape = self.levels[i]
