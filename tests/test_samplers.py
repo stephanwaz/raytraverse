@@ -4,12 +4,14 @@
 """Tests for raytraverse.scene"""
 import os
 import shutil
+import sys
 
 import pytest
 import numpy as np
 
 from raytraverse import io, translate
 from raytraverse.evaluate import MetricSet
+from raytraverse.renderer import Rtrace, Rcontrib
 from raytraverse.scene import Scene
 from raytraverse.sampler import SkySampler, SunSampler, SunViewSampler
 from raytraverse.mapper import ViewMapper
@@ -47,7 +49,8 @@ def test_skysample(tmpdir, capsys):
         return np.sum(hdr.flatten()*omega*cost)*179, illumm0
 
     scene = Scene('skysample', "box.rad", frozen=False)
-    sampler = SkySampler(scene, engine_args='-ab 1 -ad 10000 -c 1 -lw 1e-5')
+    rcontrib = Rcontrib('-ab 1 -ad 10000 -c 1 -lw 1e-5', scene.scene)
+    sampler = SkySampler(scene, rcontrib, fdres=7)
     vm = ViewMapper((0, 1, 0), viewangle=180)
     with capsys.disabled():
         lf = sampler.run((1.5, 1.5, 1.5), 0, vm)
@@ -61,7 +64,9 @@ def test_skysample(tmpdir, capsys):
     assert np.isclose(np.average([illum, illumm]), 0.169, atol=.03, rtol=.2)
     fmetric = MetricSet(vm, *lf.get_applied_rays(np.ones(325), vm), ["illum", "density"])()
     assert np.isclose(fmetric[0], 352.7, atol=1, rtol=.01)
-    assert np.isclose(fmetric[1], 2367, atol=30)
+    assert np.isclose(fmetric[1], 612, atol=30)
+    Rcontrib.reset()
+    Rcontrib._pyinstance = None
 
 
 def test_sunsample(tmpdir, capsys):
@@ -79,7 +84,8 @@ def test_sunsample(tmpdir, capsys):
 
     scene = Scene('skysample', "box.rad", frozen=False)
     sun = translate.skybin2xyz([174], 18)[0]
-    sampler = SunSampler(scene, sun, 174, engine_args='-ab 0')
+    rtrace = Rtrace(scene=scene.scene, direct=True)
+    sampler = SunSampler(scene, rtrace, sun, 174)
     vm = ViewMapper((0, 1, 0), viewangle=180)
     with capsys.disabled():
         lf = sampler.run((1.5, 1.5, 1.5), 0, vm)
@@ -92,11 +98,12 @@ def test_sunsample(tmpdir, capsys):
 def test_sunviewsample(tmpdir, capsys):
     scene = Scene('skysample', "box.rad", frozen=False)
     sun = translate.skybin2xyz([176], 18)[0]
-    sampler = SunViewSampler(scene, sun, 176)
+    rtrace = Rtrace(scene=scene.scene, direct=True)
+    sampler = SunViewSampler(scene, rtrace, sun, 176)
     with capsys.disabled():
         lf = sampler.run((1.5, 1.5, 1.79), 0, plotp=False)
         lf2 = sampler.run((1.5, 1.5, 1.5), 1, plotp=False)
-    assert lf.lum == lf2.lum == 1.0
+    assert np.allclose([lf.lum, lf2.lum], 1.0)
     assert lf.vec[2] < lf2.vec[2]
     assert np.isclose(lf2.omega, 2*np.pi*(1 - np.cos(0.533*np.pi/360)))
     assert np.isclose(lf.omega/lf2.omega, 0.566650390625, atol=.0001 )
@@ -116,3 +123,5 @@ def test_sunviewsample(tmpdir, capsys):
         omega = vm.pixel2omega(pxy, sun2.shape[0])
         omegat = np.einsum("i,i", omega.ravel(), sun2.ravel())
         assert np.isclose(omegat, lf2.omega, atol=.01, rtol=.01)
+    Rtrace.reset()
+    Rtrace._pyinstance = None

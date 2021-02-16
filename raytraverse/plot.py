@@ -27,15 +27,6 @@ def save_img(fig, ax, outf, title=None):
         fig.savefig(outf)
 
 
-def imshow(im, figsize=(10, 10), outf=None, **kwargs):
-    fig = Figure(figsize=figsize)
-    ax = fig.add_subplot()
-    ax.imshow(im.T, origin='lower', **kwargs)
-    ax.set_xticks([])
-    ax.set_yticks([])
-    save_img(fig, ax, outf=outf)
-
-
 def mk_img_setup(lums, bounds=None, figsize=(10, 10), ext=1):
     defparam = {
         'font.weight': 'ultralight',
@@ -63,27 +54,3 @@ def mk_img_setup(lums, bounds=None, figsize=(10, 10), ext=1):
     else:
         ax.set(xlim=ext[0:2], ylim=ext[2:4])
     return lums, fig, ax, norm, lev
-
-
-def set_ang_ticks(ax, ext):
-    ax.tick_params(length=10, width=.5, direction='inout', pad=5)
-    ticks = np.linspace(-ext, ext, 7)
-    labs = np.round(np.linspace(-ext*180/np.pi,
-                                ext*180/np.pi, 7)).astype(int)
-    ax.set_yticks(ticks)
-    ax.set_yticklabels(labs)
-    ax.set_xticks(ticks)
-    ax.set_xticklabels(labs)
-
-
-def colormap(colors, norm):
-    cmap = get_colors(colors)
-    cmap.set_norm(norm)
-    return cmap
-
-
-def plot_patches(ax, patches, patchargs=None):
-    if patchargs is None:
-        patchargs = {}
-    for lum, p in patches:
-        ax.add_patch(Polygon(p, closed=True, facecolor=lum, **patchargs))

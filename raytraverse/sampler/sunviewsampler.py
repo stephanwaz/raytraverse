@@ -34,10 +34,9 @@ class SunViewSampler(Sampler):
     #: deterministic sample draws
     ub = 1
 
-    def __init__(self, scene, sun, sunbin, **kwargs):
-        engine_args = scene.formatter.direct_args
-        super().__init__(scene, stype=f"sunview_{sunbin:04d}", idres=4, fdres=6,
-                         engine_args=engine_args, **kwargs)
+    def __init__(self, scene, engine, sun, sunbin, **kwargs):
+        super().__init__(scene, engine, stype=f"sunview_{sunbin:04d}", idres=4,
+                         fdres=6, **kwargs)
         self.sunpos = np.asarray(sun).flatten()[0:3]
         # load new source
         srcdef = f'{scene.outdir}/tmp_srcdef_{sunbin}.rad'
@@ -51,7 +50,7 @@ class SunViewSampler(Sampler):
 
     def sample(self, vecf, vecs, outf=None):
         """call rendering engine to sample direct view rays"""
-        lum = super().sample(vecf, vecs, outf=None).ravel()
+        lum = self.engine.call(vecs).ravel()
         self.lum = np.concatenate((self.lum, lum))
         return lum
 
@@ -63,7 +62,6 @@ class SunViewSampler(Sampler):
     def run_callback(self, vecfs, name, point, posidx, vm):
         """post sampling, write full resolution (including interpolated values)
          non zero rays to result file."""
-        [os.remove(f) for f in vecfs]
         skd = LightPointKD(self.scene, self.vecs, self.lum, vm, point, posidx,
                            name, calcomega=False, write=False)
         shp = self.weights.shape
@@ -74,7 +72,7 @@ class SunViewSampler(Sampler):
         i = skd.query_ray(grid)[0]
         lumg = skd.lum[i, 0]
         keep = lumg > 1e-8
-        if keep.size > 0:
+        if np.sum(keep) > 0:
             lightpoint = SunViewPoint(self.scene, grid[keep],
                                       np.average(lumg[keep]), point, posidx,
                                       self.stype, shp[1])
@@ -87,7 +85,6 @@ class SunViewSampler(Sampler):
             self.vecs = vecs
         else:
             self.vecs = np.concatenate((self.vecs, vecs))
-        super()._dump_vecs(vecs, vecf)
 
     def run(self, point, posidx, vm=None, plotp=False, **kwargs):
         self.vecs = None

@@ -22,6 +22,9 @@
 #define RAYTRAVERSE_RTRACE_HH
 #include "render.hh"
 #include <pybind11/pybind11.h>
+#include <pybind11/numpy.h>
+
+namespace py = pybind11;
 
 class Rtrace : public Renderer {
 
@@ -31,13 +34,12 @@ private:
 
 public:
     static Rtrace& getInstance();
-    void initialize(pybind11::object pyargv11);
+    int initialize(pybind11::object pyargv11);
     void loadscene(char* octname) override;
     void initc(int argc, char **argv) override;
-    void call(char *fname) override;
-    void updateOSpec(char *vs, char of);
-    static void resetRadiance();
-    static void resetInstance();
+    py::array_t<double> call(py::array_t<double, py::array::c_style> &vecs);
+    int updateOSpec(char *vs);
+    void resetRadiance();
     void loadsrc(char* srcname, int freesrc) override;
 };
 

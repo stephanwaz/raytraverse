@@ -9,27 +9,19 @@
 import numpy as np
 from scipy.interpolate import RegularGridInterpolator
 
-from raytraverse import io, translate
+from raytraverse import io
 from raytraverse.mapper import ViewMapper
-from raytraverse.renderer.renderer import Renderer
+from raytraverse.renderer import Renderer
 
 
-class ImageRenderer(object):
+class ImageRenderer(Renderer):
     """interface to treat image data as the source for ray tracing results"""
+    args = ""
 
-    def __init__(self):
-        self.name = "ImageRenderer"
-        self.initialized = False
-        self.instance = None
-        self.Engine = None
-        self.scene = None
-        self.header = ""
-        self.arg_prefix = ''
-        self.vm = ViewMapper(viewangle=180)
-
-    def initialize(self, args, scene, viewmapper=None, method="linear",
-                   **kwargs):
-        if viewmapper is not None:
+    def __init__(self, scene, viewmapper=None, method="linear"):
+        if viewmapper is None:
+            self.vm = ViewMapper(viewangle=180)
+        else:
             self.vm = viewmapper
         self.scene = io.hdr2array(scene)
         res = self.scene.shape[0]
@@ -42,16 +34,7 @@ class ImageRenderer(object):
                                                 bounds_error=False,
                                                 method=method,
                                                 fill_value=fv)
-        self.initialized = True
 
     def call(self, rays, store=True, outf=None):
         pxy = self.vm.xyz2xy(rays[:, 3:6])
         return self.instance(pxy)
-
-    @classmethod
-    def reset(cls):
-        pass
-
-    @classmethod
-    def reset_instance(cls):
-        pass

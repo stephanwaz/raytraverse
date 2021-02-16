@@ -38,7 +38,7 @@ class Formatter(object):
         return out
 
     @staticmethod
-    def add_source(scene, src, out):
+    def add_source(scene, src):
         """add source files to compiled scene"""
         pass
 

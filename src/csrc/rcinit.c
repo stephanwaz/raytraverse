@@ -217,11 +217,11 @@ rcontrib_init(int argc, char *argv[])
 				badarg(argc-i-1,argv+i+1,al)) \
 				goto badopt
 #define	 check_bool(olen,var)		switch (argv[i][olen]) { \
-				case '\0': var = !var; break; \
+				case '\0': (var) = !(var); break; \
 				case 'y': case 'Y': case 't': case 'T': \
-				case '+': case '1': var = 1; break; \
+				case '+': case '1': (var) = 1; break; \
 				case 'n': case 'N': case 'f': case 'F': \
-				case '-': case '0': var = 0; break; \
+				case '-': case '0': (var) = 0; break; \
 				default: goto badopt; }
   char	*curout = NULL;
   char	*prms = NULL;
@@ -369,11 +369,14 @@ rcontrib_init(int argc, char *argv[])
         check_bool(2,outbright);
         break;
       default:
+        sprintf(errmsg, "command line error at '%s'", argv[i]);
         goto badopt;
     }
   }
-  if (nmods <= 0)
-    error(USER, "missing required modifier argument");
+  if (nmods <= 0) {
+    sprintf(errmsg, "missing required modifier argument");
+    goto badopt;
+  }
   /* override some option settings */
   override_options();
   /* initialize object types */
@@ -414,8 +417,7 @@ rcontrib_init(int argc, char *argv[])
     fprintf(stderr,
             "Usage: %s [-n nprocs][-V][-c count][-r][-e expr][-f source][-o ospec][-p p1=V1,p2=V2][-b binv][-bn N] {-m mod | -M file} [rtrace options] octree\n",
             progname);
-    sprintf(errmsg, "command line error at '%s'", argv[i]);
-    error(USER, errmsg);
+    return -1;
   }
   //ignore all header flags
   header = 0;

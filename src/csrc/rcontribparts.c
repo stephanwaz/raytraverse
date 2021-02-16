@@ -377,7 +377,6 @@ getvecfp(FVECT vec, FILE *fp)
   else
     VCOPY(vec, vec_1);
   feed_repeat = feed_repeat + 1;
-//  fprintf(stderr, "here! %d %f %f %f\n", feed_repeat, vec[0], vec[1], vec[2]);
   return(0);
 }
 

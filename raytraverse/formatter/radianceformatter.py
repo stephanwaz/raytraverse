@@ -22,9 +22,6 @@ class RadianceFormatter(Formatter):
     #: line comment character
     comment = "#"
 
-    #: arguments for direct trace
-    direct_args = "-oZ -ab 0 -lr 0"
-
     #: extension for renderer scene file
     scene_ext = ".oct"
 
@@ -56,8 +53,9 @@ class RadianceFormatter(Formatter):
         return out
 
     @staticmethod
-    def add_source(scene, src, out):
+    def add_source(scene, src):
         """add source files to compiled scene"""
+        out = scene.rsplit(".", 1)[0] + "_sky.oct"
         if os.path.isfile(src):
             ocom = f'oconv -f -i {scene} {src}'
             inp = None
@@ -66,6 +64,7 @@ class RadianceFormatter(Formatter):
             inp = src
         f = open(out, 'wb')
         cst.pipeline([ocom], outfile=f, inp=inp, close=True)
+        return out
 
     @staticmethod
     def get_skydef(color, ground=True, name='skyglow'):
@@ -77,32 +76,12 @@ class RadianceFormatter(Formatter):
         return skydeg
 
     @staticmethod
-    def get_sundef(vec, color, size=0.5333, mat_name='solar', mat_id='sun',
-                   glow=False):
+    def get_sundef(vec, color, size=0.5333, mat_name='solar', mat_id='sun'):
         """assemble sun definition"""
         d = f"{vec[0]} {vec[1]} {vec[2]}"
-        if glow:
-            dec = f"void glow {mat_name} 0 0 4 {color[0]} {color[1]} {color[2]} 0\n"
-        else:
-            dec = f"void light {mat_name} 0 0 3 {color[0]} {color[1]} {color[2]}\n"
-        dec += f"{mat_name} source {mat_id} 0 0 4 {d} {size}\n"
+        dec = (f"void light {mat_name} 0 0 3 {color[0]} {color[1]} {color[2]}\n"
+               f"{mat_name} source {mat_id} 0 0 4 {d} {size}\n")
         return dec
-
-    @staticmethod
-    def get_contribution_args(render_args, side, name):
-        """prepare arguments for contribution based simulation"""
-        srcn = side**2 + 1
-        engine_args = (f"-V+ {render_args} -Z+ -e 'side:{side}' -f "
-                       f"scbins.cal -b bin -bn {srcn} -m {name}")
-        return engine_args, srcn
-
-    @staticmethod
-    def get_standard_args(render_args, ambfile=None):
-        """prepare arguments for standard simulations"""
-        engine_args = f"{render_args} -oZ"
-        if ambfile is not None:
-            engine_args += f" -af {ambfile}"
-        return engine_args
 
     @staticmethod
     def extract_sources(srcdef, accuracy):

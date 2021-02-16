@@ -6,41 +6,20 @@
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 # =======================================================================
 class Renderer(object):
-    """virtual renderer class"""
+    """virtual singleton renderer class.
+    the Renderer is implemented as a singleton as specific subclasses (rtrace,
+    rcontrib) have many global variables set at import time. This ensures the
+    python object is connected to the current state of the engine c++-class.
+    """
 
-    initialized = False
-    instance = None
+    args = ""
     _pyinstance = None
-    Engine = None
-    name = None
-    header = ""
-    arg_prefix = ''
-    scene = None
 
     def __new__(cls, rayargs=None, scene=None, nproc=None, **kwargs):
         if cls._pyinstance is None:
             cls._pyinstance = object.__new__(cls)
         return cls._pyinstance
 
-    def __init__(self, rayargs=None, scene=None, nproc=None, **kwargs):
-        self.initialize(rayargs, scene, nproc, **kwargs)
-
     @classmethod
-    def initialize(cls, args, scene, nproc=None, **kwargs):
-        cls.scene = scene
-        pass
-
-    @classmethod
-    def call(cls, rayfile, store=True, outf=None):
+    def call(cls, rays, **kwargs):
         return None
-
-    @classmethod
-    def reset(cls):
-        cls.initialized = False
-        cls.header = ""
-
-    @classmethod
-    def reset_instance(cls):
-        cls.instance = None
-        cls.initialized = False
-        cls.header = ""

@@ -27,8 +27,10 @@ class ImageSampler(Sampler):
         establish sampling thresholds similar to contribution based samplers
     """
 
-    def __init__(self, scene, scalefac=None, **kwargs):
-        super().__init__(scene, stype="image", engine=ImageRenderer,  **kwargs)
+    def __init__(self, scene, vm=None, scalefac=None, method='linear',
+                 **kwargs):
+        engine = ImageRenderer(scene.scene, vm, method)
+        super().__init__(scene, engine, stype="image",  **kwargs)
         if scalefac is None:
             img = io.hdr2array(scene.scene)
             scalefac = np.average(img[img > 0])

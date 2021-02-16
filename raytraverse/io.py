@@ -166,7 +166,7 @@ def np2bytes(ar, dtype='<f'):
     return ar.astype(dt).tobytes()
 
 
-def np2bytefile(ar, outf, dtype='<f'):
+def np2bytefile(ar, outf, dtype='<f', mode='wb'):
     """save vectors to file
 
     Parameters
@@ -178,7 +178,7 @@ def np2bytefile(ar, outf, dtype='<f'):
     dtype: str
         argument to pass to np.dtype()
     """
-    f = open(outf, 'wb')
+    f = open(outf, mode)
     f.write(np2bytes(ar, dtype=dtype))
     f.close()
 

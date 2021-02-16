@@ -25,16 +25,17 @@
 extern "C" {
 #endif
 
+extern int return_value_count;
+
 static void onsig(int  signo);
 static void sigdie(int  signo, char  *msg);
-static void printdefaults(void);
 extern int rtinit(int  argc, char  **argv);
 extern void rtrace_loadscene(char* octname);
 extern int rtrace_loadsrc(char* srcname, int freesrc);
-extern int setoutput2(char *vs, char of);
+extern int setoutput2(char *vs);
 extern void rtrace_setup(int nproc);
-extern void rtrace_call(char *fname, int nproc);
-static void oputrad(RAY  *r);
+extern RREAL* rtrace_call(double *vptr, int nproc, int raycount);
+void oputrad(RAY  *r);
 
 #ifdef __cplusplus
 }

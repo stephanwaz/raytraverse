@@ -35,8 +35,6 @@ extern "C" {
 #include  <signal.h>
 
 #include  "platform.h"
-#include  "rtprocess.h" /* getpid() */
-#include  "resolu.h"
 #include  "ray.h"
 #include  "source.h"
 #include  "ambient.h"
@@ -59,30 +57,21 @@ char  *errfile = NULL;			/* error output file */
 
 int  nproc = 1;				/* number of processes */
 
-extern char  *formstr(int f);		/* string from format */
-extern int  setrtoutput(void);		/* set output values */
 
-int  inform = 'a';			/* input format */
-int  outform = 'a';			/* output format */
-char  *outvals = "v";			/* output specification */
+char  *outvals = "Z";			/* output specification */
 
 int  hresolu = 0;			/* horizontal (scan) size */
 int  vresolu = 0;			/* vertical resolution */
 
 extern int  castonly;			/* only doing ray-casting? */
 
-int  imm_irrad = 0;			/* compute immediate irradiance? */
+extern int  imm_irrad;			/* compute immediate irradiance? */
 int  lim_dist = 0;			/* limit distance? */
 
 #ifndef	MAXMODLIST
 #define	MAXMODLIST	1024		/* maximum modifiers we'll track */
 #endif
 
-	/* object notification calls */
-extern void  tranotify(OBJECT obj);
-
-char  *tralist[MAXMODLIST];		/* list of modifers to trace (or no) */
-int  traincl = -1;			/* include == 1, exclude == 0 */
 
 static int  loadflags = ~IO_FILES;	/* what to load from octree */
 
@@ -132,10 +121,8 @@ rtinit(int  argc, char  *argv[])
 				case 'n': case 'N': case 'f': case 'F': \
 				case '-': case '0': var = 0; break; \
 				default: goto badopt; }
-  int  persist = 0;
   int complete = 0;
   char  **tralp = NULL;
-  int  duped1 = -1;
   int  rval;
   int  i;
   repeat = 1;
@@ -149,13 +136,10 @@ rtinit(int  argc, char  *argv[])
     addobjnotify[i] = NULL;
   }
   addobjnotify[0] = ambnotify;
-  addobjnotify[1] = tranotify;
   /* option city */
   /* reset these with each call */
   imm_irrad = 0;			/* compute immediate irradiance? */
   lim_dist = 0;			/* limit distance? */
-  inform = 'a';			/* input format */
-  outform = 'a';			/* output format */
   outvals = "v";			/* output specification */
   loadflags = ~IO_FILES;
   for (i = 1; i < argc; i++) {
@@ -168,15 +152,6 @@ rtinit(int  argc, char  *argv[])
     }
     if (argv[i] == NULL || argv[i][0] != '-')
       break;			/* break from options */
-    if (!strcmp(argv[i], "-version")) {
-      puts(VersionID);
-      quit(0);
-    }
-    if (!strcmp(argv[i], "-defaults") ||
-        !strcmp(argv[i], "-help")) {
-      printdefaults();
-      quit(0);
-    }
     rval = getrenderopt(argc-i, argv+i);
     if (rval >= 0) {
       i += rval;
@@ -192,14 +167,6 @@ rtinit(int  argc, char  *argv[])
         nproc = atoi(argv[++i]);
         if (nproc <= 0)
           error(USER, "bad number of processes");
-        break;
-      case 'x':				/* x resolution */
-        check(2,"i");
-        hresolu = atoi(argv[++i]);
-        break;
-      case 'y':				/* y resolution */
-        check(2,"i");
-        vresolu = atoi(argv[++i]);
         break;
       case 'w':				/* warnings */
         rval = erract[WARNING].pf != NULL;
@@ -219,96 +186,13 @@ rtinit(int  argc, char  *argv[])
       case 'I':				/* immed. irradiance */
         check_bool(2,imm_irrad);
         break;
-      case 'f':				/* format i/o */
-        switch (argv[i][2]) {
-          case 'a':				/* ascii */
-          case 'f':				/* float */
-          case 'd':				/* double */
-            inform = argv[i][2];
-            break;
-          default:
-            goto badopt;
-        }
-        switch (argv[i][3]) {
-          case '\0':
-            outform = inform;
-            break;
-          case 'a':				/* ascii */
-          case 'f':				/* float */
-          case 'd':				/* double */
-          case 'c':				/* color */
-            check(4,"");
-            outform = argv[i][3];
-            break;
-          default:
-            goto badopt;
-        }
-        break;
       case 'o':				/* output */
         outvals = argv[i]+2;
-        break;
-      case 'h':				/* header output */
-        rval = loadflags & IO_INFO;
-        check_bool(2,rval);
-        loadflags = rval ? loadflags | IO_INFO :
-                    loadflags & ~IO_INFO;
-        break;
-      case 't':				/* trace */
-        switch (argv[i][2]) {
-          case 'i':				/* include */
-          case 'I':
-            check(3,"s");
-            if (traincl != 1) {
-              traincl = 1;
-              tralp = tralist;
-            }
-            if (argv[i][2] == 'I') {	/* file */
-              rval = wordfile(tralp, MAXMODLIST-(tralp-tralist),
-                              getpath(argv[++i],getrlibpath(),R_OK));
-              if (rval < 0) {
-                sprintf(errmsg,
-                        "cannot open trace include file \"%s\"",
-                        argv[i]);
-                error(SYSTEM, errmsg);
-              }
-              tralp += rval;
-            } else {
-              *tralp++ = argv[++i];
-              *tralp = NULL;
-            }
-            break;
-          case 'e':				/* exclude */
-          case 'E':
-            check(3,"s");
-            if (traincl != 0) {
-              traincl = 0;
-              tralp = tralist;
-            }
-            if (argv[i][2] == 'E') {	/* file */
-              rval = wordfile(tralp, MAXMODLIST-(tralp-tralist),
-                              getpath(argv[++i],getrlibpath(),R_OK));
-              if (rval < 0) {
-                sprintf(errmsg,
-                        "cannot open trace exclude file \"%s\"",
-                        argv[i]);
-                error(SYSTEM, errmsg);
-              }
-              tralp += rval;
-            } else {
-              *tralp++ = argv[++i];
-              *tralp = NULL;
-            }
-            break;
-          default:
-            goto badopt;
-        }
         break;
       default:
         goto badopt;
     }
   }
-  if (nproc > 1 && persist)
-    error(USER, "multiprocessing incompatible with persist file");
   /* initialize object types */
   initotypes();
   /* initialize urand */
@@ -351,34 +235,10 @@ rtinit(int  argc, char  *argv[])
   /* get octree */
   if (i != argc)
     goto badopt;
-  /* set up output */
-  if (outform != 'a')
-          SET_FILE_BINARY(stdout);
-  rval = setoutput2(outvals, outform);
-
-//ignore header
-//  if (loadflags & IO_INFO) {	/* print header */
-//    printargs(i, argv, stdout);
-//    printf("SOFTWARE= %s\n", VersionID);
-//    fputnow(stdout);
-//    if (rval > 0)		/* saved from setrtoutput() call */
-//      printf("NCOMP=%d\n", rval);
-//    if ((outform == 'f') | (outform == 'd'))
-//      fputendian(stdout);
-//    fputformat(formstr(outform), stdout);
-//    putchar('\n');
-//  }
-
-
-  complete = 1;
-//  ray_done_pmap();           /* PMAP: free photon maps */
-//
-//  quit(0);
-
+  complete = setoutput2(outvals);
   badopt:
-  if (!complete){
-    sprintf(errmsg, "command line error at '%s'", argv[i]);
-    error(USER, errmsg);
+  if (complete < 1){
+    return -1;
   }
 
   return nproc;
@@ -410,11 +270,17 @@ rtrace_loadsrc(char* srcname, int freesrc) {
     readobj(srcname);
     nsceneobjs = nobjects;
   }
+  /* don't warn about sources as this is expected behavior */
+  int warnings = erract[WARNING].pf != NULL;
+  erract[WARNING].pf = NULL;
   if (!castonly) {	/* any actual ray traversal to do? */
     ray_init_pmap();	/* PMAP: set up & load photon maps */
     marksources();		/* find and mark sources */
   } else
     distantsources();	/* else mark only distant sources */
+  if (warnings) {
+    erract[WARNING].pf = wputsrt;
+  }
   return nobjects - oldcnt;
 }
 
@@ -450,57 +316,6 @@ sigdie(			/* set fatal signal */
     signal(signo, SIG_IGN);
   sigerr[signo] = msg;
 }
-
-
-static void
-printdefaults(void)			/* print default values to stdout */
-{
-  register char  *cp;
-
-  if (imm_irrad)
-    printf("-I+\t\t\t\t# immediate irradiance on\n");
-  printf("-c %-2d\t\t\t\t# number of times to repeat calculation for each point (results averaged)\n", repeat);
-  printf("-n %-2d\t\t\t\t# number of rendering processes\n", nproc);
-  printf("-x %-9d\t\t\t# %s\n", hresolu,
-         vresolu && hresolu ? "x resolution" : "flush interval");
-  printf("-y %-9d\t\t\t# y resolution\n", vresolu);
-  printf(lim_dist ? "-ld+\t\t\t\t# limit distance on\n" :
-         "-ld-\t\t\t\t# limit distance off\n");
-  printf("-h%c\t\t\t\t# %s header\n", loadflags & IO_INFO ? '+' : '-',
-         loadflags & IO_INFO ? "output" : "no");
-  printf("-f%c%c\t\t\t\t# format input/output = %s/%s\n",
-         inform, outform, formstr(inform), formstr(outform));
-  printf("-o%-9s\t\t\t# output", outvals);
-  for (cp = outvals; *cp; cp++)
-    switch (*cp) {
-      case 't': case 'T': printf(" trace"); break;
-      case 'o': printf(" origin"); break;
-      case 'd': printf(" direction"); break;
-      case 'r': printf(" reflect_contrib"); break;
-      case 'R': printf(" reflect_length"); break;
-      case 'x': printf(" unreflect_contrib"); break;
-      case 'X': printf(" unreflect_length"); break;
-      case 'v': printf(" value"); break;
-      case 'V': printf(" contribution"); break;
-      case 'l': printf(" length"); break;
-      case 'L': printf(" first_length"); break;
-      case 'p': printf(" point"); break;
-      case 'n': printf(" normal"); break;
-      case 'N': printf(" unperturbed_normal"); break;
-      case 's': printf(" surface"); break;
-      case 'w': printf(" weight"); break;
-      case 'W': printf(" coefficient"); break;
-      case 'm': printf(" modifier"); break;
-      case 'M': printf(" material"); break;
-      case '-': printf(" stroke"); break;
-    }
-  putchar('\n');
-  printf(erract[WARNING].pf != NULL ?
-         "-w+\t\t\t\t# warning messages on\n" :
-         "-w-\t\t\t\t# warning messages off\n");
-  print_rdefaults();
-}
-
 
 #ifdef __cplusplus
 }

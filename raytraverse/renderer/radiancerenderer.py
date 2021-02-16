@@ -6,58 +6,63 @@
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 # =======================================================================
 import shlex
+import sys
+
 from raytraverse import io
 from raytraverse.renderer.renderer import Renderer
+from raytraverse.crenderer import cRtrace
 
 
 class RadianceRenderer(Renderer):
     """Virtual class for wrapping c++ Radiance renderer executable classes"""
 
-    returnbytes = False
+    name = "radiance_virtual"
+    engine = cRtrace
+    arg_prefix = ""
+    instance = None
+    scene = None
+    srcn = 1
+    defaultargs = ""
 
-    def __new__(cls, rayargs=None, scene=None, nproc=None, iot="ff"):
-        cls.instance = cls.Engine.get_instance()
-        return super().__new__(cls, rayargs=rayargs, scene=scene, nproc=nproc,
-                               iot=iot)
-
-    @classmethod
-    def update_param(cls, args, nproc=None, iot="ff"):
-        cls.returnbytes = iot[-1] != "a"
-        nproc = io.get_nproc(nproc)
-        cls.initialized = cls._set_args(args, iot, nproc)
-        cls.instance.initialize(cls.initialized)
-
-    @classmethod
-    def initialize(cls, args, scene, nproc=None, iot="ff", **kwargs):
-        if cls.instance is None:
-            cls.instance = cls.Engine.get_instance()
-        if args is not None:
-            firstload = not cls.initialized
-            cls.update_param(args, nproc, iot)
-            if firstload:
-                cls.instance.load_scene(scene)
-                # TODO: populate header
-                cls.header = ""
+    def __init__(self, rayargs=None, scene=None, nproc=None, default_args=True):
+        type(self).instance = self.engine.get_instance()
+        if default_args:
+            if rayargs is None:
+                rayargs = self.get_default_args()
+            else:
+                rayargs = f"{self.get_default_args()} {rayargs}"
+        if rayargs is not None and scene is not None:
+            self.set_args(rayargs, nproc)
+            self.load_scene(scene)
 
     @classmethod
-    def call(cls, rayfile, store=True, outf=None):
-        if not cls.initialized:
-            raise ValueError(f'{cls.__name__} instance not initialized')
-        with io.CaptureStdOut(cls.returnbytes, store, outf) as capture:
-            cls.instance.call(rayfile)
-        return capture.stdout
+    def call(cls, rays, **kwargs):
+        return cls.instance.call(rays)
+
+    @classmethod
+    def get_default_args(cls):
+        return cls.defaultargs
 
     @classmethod
     def reset(cls):
         cls.instance.reset()
-        super().reset()
+        cls.scene = None
+        cls.args = None
 
     @classmethod
-    def reset_instance(cls):
-        cls.instance.reset_instance()
-        super().reset_instance()
+    def set_args(cls, args, nproc=None):
+        nproc = io.get_nproc(nproc)
+        cls.args = shlex.split(f"{cls.name} -n {nproc} "
+                               f"{cls.arg_prefix} {args}")
+        nproc = cls.instance.initialize(cls.args)
+        if nproc < 0:
+            raise ValueError(f"Could not initialize {cls.__name__} with "
+                             f"arguments: '{' '.join(cls.args)}'")
 
     @classmethod
-    def _set_args(cls, args, iot, nproc):
-        return shlex.split(f"{cls.name} -f{iot} -n {nproc} {cls.arg_prefix}"
-                           f" {args} -av 0 0 0")
+    def load_scene(cls, scene):
+        if cls.args is None:
+            raise ValueError(f'{cls.__name__} instance args must be '
+                             'initialized before scene is loaded')
+        cls.scene = scene
+        cls.instance.load_scene(scene)

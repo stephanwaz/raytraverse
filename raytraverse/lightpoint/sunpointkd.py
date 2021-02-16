@@ -28,6 +28,5 @@ class SunPointKD(LightPointKD):
         if len(broken_clock) > 0:
             vec = np.delete(vec, broken_clock, 0)
             lum = np.delete(lum, broken_clock, 0)
-            print(vec.shape, file=sys.stderr)
             d_kd = cKDTree(vec)
         return d_kd, vec, lum, clear

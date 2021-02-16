@@ -1,0 +1,12 @@
+# obj2rad F:\switchdrive\Private\proj\objtest\109710\refs\plane.obj
+# Rhino
+
+void light solar
+0
+0
+3 10 10 10
+
+solar source sun
+0
+0
+4 0 0 1 1

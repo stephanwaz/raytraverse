@@ -9,7 +9,7 @@ import os
 
 import numpy as np
 
-from raytraverse import translate, io, renderer
+from raytraverse import translate, io
 from raytraverse.sampler import draw
 from raytraverse.lightpoint import LightPointKD
 from raytraverse.mapper import ViewMapper
@@ -22,7 +22,7 @@ class Sampler(object):
     ----------
     scene: raytraverse.scene.Scene
         scene class containing geometry and formatter compatible with engine
-    engine: type, optional
+    engine: raytraverse.renderer.Renderer
         should inherit from raytraverse.renderer.Renderer
     idres: int, optional
         initial direction resolution (as log2(res))
@@ -55,13 +55,10 @@ class Sampler(object):
     lb = .25
     ub = 8
 
-    def __init__(self, scene, engine=renderer.Rtrace, idres=5, fdres=9,
-                 accuracy=1.0,  srcn=1, stype='generic', srcdef=None, bands=1,
-                 engine_args="", nproc=None, **kwargs):
+    def __init__(self, scene, engine, idres=5, fdres=9,
+                 accuracy=1.0,  srcn=1, stype='generic', bands=1, **kwargs):
         #: raytraverse.renderer.Renderer
-        engine().reset_instance()
-        self.engine = engine()
-        self._staticscene = True
+        self.engine = engine
         #: int: number of spectral bands / channels returned by renderer
         #: based on given renderopts (user ensures these agree).
         self.bands = bands
@@ -79,31 +76,6 @@ class Sampler(object):
         self.weights = np.empty(0)
         #: str: sampler type
         self.stype = stype
-        self.compiledscene = srcdef
-        self.engine_args = (engine_args, self.compiledscene)
-        self.engine_kwargs = dict(nproc=nproc, iot="ff")
-        self.engine.initialize(*self.engine_args, **self.engine_kwargs)
-
-    def __del__(self):
-        if not self._staticscene:
-            try:
-                os.remove(self.compiledscene)
-            except (IOError, TypeError):
-                pass
-
-    @property
-    def compiledscene(self):
-        return self._compiledscene
-
-    @compiledscene.setter
-    def compiledscene(self, src):
-        self._staticscene = src is None
-        if self._staticscene:
-            self._compiledscene = self.scene.scene
-        else:
-            self._compiledscene = f'{self.scene.outdir}/{self.stype}.oct'
-            self.scene.formatter.add_source(self.scene.scene, src,
-                                            self._compiledscene)
 
     @property
     def levels(self):
@@ -356,8 +328,9 @@ class Sampler(object):
             f.close()
         else:
             outf = None
-        self.scene.log(self, f"Started sampling {name} {self.stype}", logerr)
-        self.scene.log(self, f"Settings: {self.engine_args[0]}", logerr)
+        self.scene.log(self, f"Started sampling {self.scene.outdir} at {name} "
+                             f"with {self.stype}", logerr)
+        self.scene.log(self, f"Settings: {' '.join(self.engine.args)}", logerr)
         if detaillog:
             hdr = ['level ', '      shape', 'samples', '   rate',
                    'filesize (MB)']

@@ -23,6 +23,8 @@ class SunSampler(Sampler):
     ----------
     scene: raytraverse.scene.Scene
         scene class containing geometry, location and analysis plane
+    engine: raytraverse.renderer.Rtrace
+        initialized renderer instance (with scene loaded, no sources)
     sun: np.array
         shape 3, sun position
     sunbin: int
@@ -43,23 +45,13 @@ class SunSampler(Sampler):
         caching (and thus should write an -af file argument to the engine)
     """
 
-    def __init__(self, scene, sun, sunbin, speclevel=9, fdres=10,
-                 engine_args='-ab 7 -ad 10 -c 100 -as 0 -lw 1.25e-5',
-                 keepamb=True, ambcache=False, slimit=0.01, maxspec=0.3,
-                 **kwargs):
+    def __init__(self, scene, engine, sun, sunbin, speclevel=9, fdres=10,
+                 engine_args='-ab 7 -ad 128 -as 0 -c 10 -as 0 -lw 1e-5',
+                 slimit=0.01, maxspec=0.3, **kwargs):
         self.slimit = slimit
         self.maxspec = maxspec
         self.specguide = None
-        # update ambient file and args before init
-        self._keepamb = keepamb and ambcache
-        if ambcache:
-            self.ambfile = f"{scene.outdir}/sun_{sunbin:04d}.amb"
-        else:
-            self.ambfile = None
-            engine_args += " -aa 0"
-        engine_args = scene.formatter.get_standard_args(engine_args,
-                                                        self.ambfile)
-        super().__init__(scene, stype=f"sun_{sunbin:04d}", fdres=fdres,
+        super().__init__(scene, engine, stype=f"sun_{sunbin:04d}", fdres=fdres,
                          engine_args=engine_args, **kwargs)
         # update parameters post init
         # normalize accuracy for sun source
@@ -68,7 +60,6 @@ class SunSampler(Sampler):
         self.specidx = speclevel - self.idres
         #: np.array: sun position x,y,z
         self.sunpos = np.asarray(sun).flatten()[0:3]
-
         # load new source
         srcdef = f'{scene.outdir}/tmp_srcdef_{sunbin}.rad'
         f = open(srcdef, 'w')
@@ -76,10 +67,14 @@ class SunSampler(Sampler):
         f.close()
         self.engine.load_source(srcdef)
         os.remove(srcdef)
+        self.vecs = None
+        self.lum = []
 
     def sample(self, vecf, vecs, outf=None):
         """call rendering engine to sample sky contribution"""
-        return super().sample(vecf, vecs, outf=outf).ravel()
+        lum = self.engine.call(vecs).ravel()
+        self.lum = np.concatenate((self.lum, lum))
+        return lum
 
     # @profile
     def draw(self, level):
@@ -104,22 +99,9 @@ class SunSampler(Sampler):
         return pdraws, pa + s
 
     def run_callback(self, vecfs, name, point, posidx, vm):
-        outf = f'{self.scene.outdir}/{name}_{self.stype}_vals.out'
-        vecs = []
-        for vecf in vecfs:
-            fsrc = open(vecf, 'rb')
-            vecs.append(io.bytefile2np(fsrc, (-1, 6)))
-            fsrc.close()
-        vecs = np.concatenate(vecs)
-        lightpoint = SunPointKD(self.scene, vecs, outf, sun=self.sunpos,
+        lightpoint = SunPointKD(self.scene, self.vecs, self.lum, sun=self.sunpos,
                                 src=self.stype, pt=point, write=True,
                                 srcn=self.srcn, posidx=posidx, vm=vm)
-        [os.remove(vecf) for vecf in vecfs]
-        if not self._keepamb:
-            try:
-                os.remove(self.ambfile)
-            except (IOError, TypeError):
-                pass
         return lightpoint
 
     def _load_specguide(self, point, posidx, vm):
@@ -138,10 +120,18 @@ class SunSampler(Sampler):
             lumg = np.max(skykd.lum[:, skybin], 1)[i].reshape(shp)
             self.specguide = np.where(lumg > self.maxspec, 0, lumg)
 
+    def _dump_vecs(self, vecs, vecf):
+        if self.vecs is None:
+            self.vecs = vecs
+        else:
+            self.vecs = np.concatenate((self.vecs, vecs))
+
     def run(self, point, posidx, vm=None, plotp=False, **kwargs):
+        self.vecs = None
+        self.lum = []
         if vm is None:
             vm = ViewMapper()
         self._load_specguide(point, posidx, vm)
         if plotp:
             io.array2hdr(self.specguide, "specguide.hdr")
-        return super().run(point, posidx, vm, plotp, **kwargs)
+        return super().run(point, posidx, vm, plotp, outf=False, **kwargs)

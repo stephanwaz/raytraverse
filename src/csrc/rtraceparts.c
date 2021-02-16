@@ -55,12 +55,10 @@ extern "C" {
 #include  "source.h"
 #include  "otypes.h"
 #include  "otspecial.h"
-#include  "resolu.h"
 #include  "random.h"
 
 extern int repeat;  /* RAYTRAVERSE MODIFICATION number of times to repeat ray */
-extern int  inform;			/* input format */
-extern int  outform;			/* output format */
+int return_value_count = 1;
 extern char  *outvals;			/* output values */
 
 extern int  imm_irrad;			/* compute immediate irradiance? */
@@ -71,6 +69,9 @@ extern int  traincl;			/* include == 1, exclude == 0 */
 
 extern int  hresolu;			/* horizontal resolution */
 extern int  vresolu;			/* vertical resolution */
+
+long putcount;
+RREAL *output_values;
 
 int  castonly = 0;			/* only doing ray-casting? */
 
@@ -83,66 +84,21 @@ static RAY  thisray;			/* for our convenience */
 
 static FILE  *inpfp = NULL;		/* input stream pointer */
 
-static FVECT	*inp_queue = NULL;	/* ray input queue if flushing */
-static int	inp_qpos = 0;		/* next ray to return */
-static int	inp_qend = 0;		/* number of rays in this work group */
-
 typedef void putf_t(RREAL *v, int n);
-static putf_t puta, putd, putf, putrgbe;
+putf_t putn;
 
 typedef void oputf_t(RAY *r);
 static oputf_t  oputo, oputd, oputv, oputV, oputl, oputL, oputc, oputp,
         oputr, oputR, oputx, oputX, oputn, oputN, oputs,
         oputw, oputW, oputm, oputM, oputtilde;
 
-extern void tranotify(OBJECT obj);
-static int is_fifo(FILE *fp);
-static void bogusray(void);
 static void raycast(RAY *r);
 static void rayirrad(RAY *r);
 static void rtcompute(FVECT org, FVECT dir, double dmax);
 static int printvals(RAY *r);
-static int getvec(FVECT vec, int fmt, FILE *fp);
-static int iszerovec(const FVECT vec);
-static double nextray(FVECT org, FVECT dir);
-static void tabin(RAY *r);
-static void ourtrace(RAY *r);
 
 static oputf_t *ray_out[32], *every_out[32];
 static putf_t *putreal;
-
-char *
-formstr(				/* return format identifier */
-        int  f
-)
-{
-  switch (f) {
-    case 'a': return("ascii");
-    case 'f': return("float");
-    case 'd': return("double");
-    case 'c': return(COLRFMT);
-  }
-  return("unknown");
-}
-
-
-static void
-trace_sources(void)			/* trace rays to light sources, also */
-{
-  int	sn;
-
-  for (sn = 0; sn < nsources; sn++)
-    source[sn].sflags |= SFOLLOW;
-}
-
-
-static void
-bogusray(void)			/* print out empty record */
-{
-  rayorigin(&thisray, PRIMARY, NULL, NULL);
-  printvals(&thisray);
-}
-
 
 static void
 raycast(			/* compute first ray intersection only */
@@ -157,7 +113,6 @@ raycast(			/* compute first ray intersection only */
       sourcehit(r);
   }
 }
-
 
 static void
 rayirrad(			/* compute irradiance rather than radiance */
@@ -232,187 +187,8 @@ printvals(			/* print requested ray values */
     scalecolor(accumulated_color, 0.0);
     for (tp = ray_out; *tp != NULL; tp++)
       (**tp)(r);
-    if (outform == 'a')
-      putchar('\n');
   }
   return(1);
-}
-
-
-static int
-is_fifo(		/* check if file pointer connected to pipe */
-        FILE *fp
-)
-{
-#ifdef S_ISFIFO
-  struct stat  sbuf;
-
-	if (fstat(fileno(fp), &sbuf) < 0)
-		error(SYSTEM, "fstat() failed on input stream");
-	return(S_ISFIFO(sbuf.st_mode));
-#else
-  return (fp == stdin);		/* just a guess, really */
-#endif
-}
-
-
-static int
-getvec(			/* get a vector from fp */
-        FVECT  vec,
-        int  fmt,
-        FILE  *fp
-)
-{
-  static float  vf[3];
-  static double  vd[3];
-  char  buf[32];
-  int  i;
-
-  switch (fmt) {
-    case 'a':					/* ascii */
-      for (i = 0; i < 3; i++) {
-        if (fgetword(buf, sizeof(buf), fp) == NULL ||
-            !isflt(buf))
-          return(-1);
-        vec[i] = atof(buf);
-      }
-      break;
-    case 'f':					/* binary float */
-      if (getbinary(vf, sizeof(float), 3, fp) != 3)
-        return(-1);
-      VCOPY(vec, vf);
-      break;
-    case 'd':					/* binary double */
-      if (getbinary(vd, sizeof(double), 3, fp) != 3)
-        return(-1);
-      VCOPY(vec, vd);
-      break;
-    default:
-      error(CONSISTENCY, "botched input format");
-  }
-  return(0);
-}
-
-
-static int
-iszerovec(const FVECT vec)
-{
-  return (vec[0] == 0.0) & (vec[1] == 0.0) & (vec[2] == 0.0);
-}
-
-
-static double
-nextray(		/* return next ray in work group (-1.0 if EOF) */
-        FVECT org,
-        FVECT dir
-)
-{
-  const size_t	qlength = !vresolu * hresolu;
-
-  if ((org == NULL) | (dir == NULL)) {
-    if (inp_queue != NULL)	/* asking to free queue */
-      free(inp_queue);
-    inp_queue = NULL;
-    inp_qpos = inp_qend = 0;
-    return(-1.);
-  }
-  if (!inp_qend) {		/* initialize FIFO queue */
-    int	rsiz = 6*20;	/* conservative ascii ray size */
-    if (inform == 'f') rsiz = 6*sizeof(float);
-    else if (inform == 'd') rsiz = 6*sizeof(double);
-    /* check against pipe limit */
-    if (qlength*rsiz > 512 && is_fifo(inpfp))
-      inp_queue = (FVECT *)malloc(sizeof(FVECT)*2*qlength);
-    inp_qend = -(inp_queue == NULL);	/* flag for no queue */
-  }
-  if (inp_qend < 0) {		/* not queuing? */
-    if (getvec(org, inform, inpfp) < 0 ||
-        getvec(dir, inform, inpfp) < 0)
-      return(-1.);
-    return normalize(dir);
-  }
-  if (inp_qpos >= inp_qend) {	/* need to refill input queue? */
-    for (inp_qend = 0; inp_qend < qlength; inp_qend++) {
-      if (getvec(inp_queue[2*inp_qend], inform, inpfp) < 0
-          || getvec(inp_queue[2*inp_qend+1],
-                    inform, inpfp) < 0)
-        break;		/* hit EOF */
-      if (iszerovec(inp_queue[2*inp_qend+1])) {
-        ++inp_qend;	/* flush request */
-        break;
-      }
-    }
-    inp_qpos = 0;
-  }
-  if (inp_qpos >= inp_qend)	/* unexpected EOF? */
-    return(-1.);
-  VCOPY(org, inp_queue[2*inp_qpos]);
-  VCOPY(dir, inp_queue[2*inp_qpos+1]);
-  ++inp_qpos;
-  return normalize(dir);
-}
-
-
-void
-tranotify(			/* record new modifier */
-        OBJECT	obj
-)
-{
-  static int  hitlimit = 0;
-  OBJREC	 *o = objptr(obj);
-  char  **tralp;
-
-  if (obj == OVOID) {		/* starting over */
-    traset[0] = 0;
-    hitlimit = 0;
-    return;
-  }
-  if (hitlimit || !ismodifier(o->otype))
-    return;
-  for (tralp = tralist; *tralp != NULL; tralp++)
-    if (!strcmp(o->oname, *tralp)) {
-      if (traset[0] >= MAXTSET) {
-        error(WARNING, "too many modifiers in trace list");
-        hitlimit++;
-        return;		/* should this be fatal? */
-      }
-      insertelem(traset, obj);
-      return;
-    }
-}
-
-
-static void
-ourtrace(				/* print ray values */
-        RAY  *r
-)
-{
-  oputf_t **tp;
-
-  if (every_out[0] == NULL)
-    return;
-  if (r->ro == NULL) {
-    if (traincl == 1)
-      return;
-  } else if (traincl != -1 && traincl != inset(traset, r->ro->omod))
-    return;
-  tabin(r);
-  for (tp = every_out; *tp != NULL; tp++)
-    (**tp)(r);
-  if (outform == 'a')
-    putchar('\n');
-}
-
-
-static void
-tabin(				/* tab in appropriate amount */
-        RAY  *r
-)
-{
-  const RAY  *rp;
-
-  for (rp = r->parent; rp != NULL; rp = rp->parent)
-    putchar('\t');
 }
 
 
@@ -660,78 +436,12 @@ oputM(				/* print material */
   putchar('\t');
 }
 
-
-static void
-oputtilde(			/* output tilde (spacer) */
-        RAY  *r
-)
-{
-  fputs("~\t", stdout);
-}
-
-
-static void
-puta(				/* print ascii value(s) */
-        RREAL *v, int n
-)
-{
-  if (n == 3) {
-    printf("%e\t%e\t%e\t", v[0], v[1], v[2]);
-    return;
+void putn(RREAL *v, int n){ /* output to buffer */
+  for (int i = 0; i < n; i++){
+    output_values[putcount + i] = v[i];
   }
-  while (n--)
-    printf("%e\t", *v++);
+  putcount += n;
 }
-
-
-static void
-putd(RREAL *v, int n)		/* output binary double(s) */
-{
-#ifdef	SMLFLT
-  double	da[3];
-	int	i;
-
-	if (n > 3)
-		error(INTERNAL, "code error in putd()");
-	for (i = n; i--; )
-		da[i] = v[i];
-	putbinary(da, sizeof(double), n, stdout);
-#else
-  putbinary(v, sizeof(RREAL), n, stdout);
-#endif
-}
-
-
-static void
-putf(RREAL *v, int n)		/* output binary float(s) */
-{
-#ifndef	SMLFLT
-  float	fa[3];
-  int	i;
-
-  if (n > 3)
-    error(INTERNAL, "code error in putf()");
-  for (i = n; i--; )
-    fa[i] = v[i];
-  putbinary(fa, sizeof(float), n, stdout);
-#else
-  putbinary(v, sizeof(RREAL), n, stdout);
-#endif
-}
-
-
-static void
-putrgbe(RREAL *v, int n)	/* output RGBE color */
-{
-  COLR  cout;
-
-  if (n != 3)
-    error(INTERNAL, "putrgbe() not called with 3 components");
-  setcolr(cout, v[0], v[1], v[2]);
-  putbinary(cout, sizeof(cout), 1, stdout);
-}
-
-
 
 extern char	*shm_boundary;		/* boundary of shared memory */
 
@@ -741,80 +451,43 @@ rtrace_setup( /* initialize processes */
 )
 {
   setambient();
-  long  nextflush = (!vresolu | (hresolu <= 1)) * hresolu;
   if (castonly || every_out[0] != NULL)
     nproc = 1;		/* don't bother multiprocessing */
-  if ((nextflush > 0) & (nproc > nextflush)) {
-    error(WARNING, "reducing number of processes to match flush interval");
-    nproc = nextflush;
-  }
   if (nproc > 1) {		/* start multiprocessing */
     ray_popen(nproc);
     ray_fifo_out = printvals;
   }
 }
 
-extern void
+extern RREAL*
 rtrace_call( /* run rtrace process */
-        char *fname,
-        int nproc
+        double *vptr,
+        int nproc,
+        int raycount
 )
 {
+  output_values = (RREAL *)malloc(sizeof(RREAL) * raycount * return_value_count);
+  putcount = 0;
+  int i = 0;
   rtrace_setup(nproc);
-  unsigned long  vcount = (hresolu > 1) ? (unsigned long)hresolu*vresolu
-                                        : (unsigned long)vresolu;
-  long  nextflush = (!vresolu | (hresolu <= 1)) * hresolu;
-  int  something2flush = 0;
-  FILE  *fp;
   double	d;
+  int ti;
   FVECT  orig, direc;
-  /* set up input */
-  if (fname == NULL)
-    inpfp = stdin;
-  else if ((inpfp = fopen(fname, "r")) == NULL) {
-    sprintf(errmsg, "cannot open input file \"%s\"", fname);
-    error(SYSTEM, errmsg);
-  }
-#ifdef getc_unlocked
-  flockfile(inpfp);		/* avoid lock/unlock overhead */
-  flockfile(stdout);
-#endif
-  if (inform != 'a')
-          SET_FILE_BINARY(inpfp);
-  if (hresolu > 0) {
-    if (vresolu > 0)
-      fprtresolu(hresolu, vresolu, stdout);
-    else
-      fflush(stdout);
-  }
+
   /* process input rays */
-  while ((d = nextray(orig, direc)) >= 0.0) {
-    if (d == 0.0) {				/* flush request? */
-      if (something2flush) {
-        if (ray_pnprocs > 1 && ray_fifo_flush() < 0)
-          error(USER, "child(ren) died");
-        bogusray();
-        fflush(stdout);
-        nextflush = (!vresolu | (hresolu <= 1)) * hresolu;
-        something2flush = 0;
-      } else
-        bogusray();
-    } else {				/* compute and print */
-      for (int r = 0; r < repeat; r++) {
-        rtcompute(orig, direc, lim_dist ? d : 0.0);
-      }
-      if (!--nextflush) {		/* flush if time */
-        if (ray_pnprocs > 1 && ray_fifo_flush() < 0)
-          error(USER, "child(ren) died");
-        fflush(stdout);
-        nextflush = hresolu;
-      } else
-        something2flush = 1;
+  while (raycount > 0) {
+    raycount--;
+    ti = i;
+    i += 6;
+    orig[0] = vptr[ti];
+    orig[1] = vptr[ti+1];
+    orig[2] = vptr[ti+2];
+    direc[0] = vptr[ti+3];
+    direc[1] = vptr[ti+4];
+    direc[2] = vptr[ti+5];
+    for (int r = 0; r < repeat; r++) {
+      rtcompute(orig, direc, lim_dist ? d : 0.0);
     }
-    if (ferror(stdout))
-      error(SYSTEM, "write error");
-    if (vcount && !--vcount)		/* check for end */
-      break;
   }
   if (ray_pnprocs > 1) {				/* clean up children */
     if (ray_fifo_flush() < 0)
@@ -826,22 +499,11 @@ rtrace_call( /* run rtrace process */
       shm_boundary = NULL;
     }
   }
-  if (vcount)
-    error(WARNING, "unexpected EOF on input");
-  if (fflush(stdout) < 0)
-    error(SYSTEM, "write error");
-  if (fname != NULL) {
-    fclose(inpfp);
-    inpfp = NULL;
-  }
-  nextray(NULL, NULL);
-#ifdef getc_unlocked
-  funlockfile(stdout);
-#endif
   ambdone();
+  return output_values;
 }
 
-static void
+void
 oputrad(				/* print value -o spec: Z*/
         RAY  *r
 )
@@ -851,28 +513,19 @@ oputrad(				/* print value -o spec: Z*/
 }
 
 int
-setoutput2(char  *vs, char of)			/* provides additional outputspec Z to output radiance (1 component)*/
+setoutput2(char *vs)      /* provides additional outputspec Z to output radiance (1 component)*/
 {
   oputf_t **table = ray_out;
   int  ncomp = 0;
-
-  if (!*vs)
-    error(USER, "empty output specification");
-
+  return_value_count = 0;
+  if (!*vs) {
+    sprintf(errmsg, "empty output specification");
+    goto badopt;
+  }
+  sprintf(errmsg, "empty output specification");
   castonly = 1;			/* sets castonly as side-effect */
   do
     switch (*vs) {
-      case 'T':				/* trace sources */
-        if (!vs[1]) break;
-        trace_sources();
-        /* fall through */
-      case 't':				/* trace */
-        if (!vs[1]) break;
-        *table = NULL;
-        table = every_out;
-        trace = ourtrace;
-        castonly = 0;
-        break;
       case 'o':				/* origin */
         *table++ = oputo;
         ncomp += 3;
@@ -910,10 +563,6 @@ setoutput2(char  *vs, char of)			/* provides additional outputspec Z to output r
         *table++ = oputV;
         ncomp += 3;
         castonly = 0;
-        if (ambounce > 0 && (ambacc > FTINY || ambssamp > 0))
-          error(WARNING,
-                "-otV accuracy depends on -aa 0 -as 0");
-        break;
       case 'l':				/* effective distance */
         *table++ = oputl;
         ncomp++;
@@ -952,9 +601,6 @@ setoutput2(char  *vs, char of)			/* provides additional outputspec Z to output r
         *table++ = oputW;
         ncomp += 3;
         castonly = 0;
-        if (ambounce > 0 && (ambacc > FTINY) | (ambssamp > 0))
-          error(WARNING,
-                "-otW accuracy depends on -aa 0 -as 0");
         break;
       case 'm':				/* modifier */
         *table++ = oputm;
@@ -964,17 +610,14 @@ setoutput2(char  *vs, char of)			/* provides additional outputspec Z to output r
         *table++ = oputM;
         ncomp++;
         break;
-      case '~':				/* tilde */
-        *table++ = oputtilde;
-        break;
-      case 'Z':
+      case 'Z':     /* photopic brightness value */
         *table++ = oputrad;
         castonly = 0;
         ncomp++;
         break;
       default:
         sprintf(errmsg, "unrecognized output option '%c'", *vs);
-        error(USER, errmsg);
+        goto badopt;
     }
   while (*++vs);
 
@@ -982,31 +625,30 @@ setoutput2(char  *vs, char of)			/* provides additional outputspec Z to output r
   if (*every_out != NULL)
     ncomp = 0;
   /* compatibility */
-  if ((do_irrad | imm_irrad) && castonly)
-    error(USER, "-I+ and -i+ options require some value output");
+  if ((do_irrad | imm_irrad) && castonly){
+    sprintf(errmsg, "-I+ and -i+ options require some value output");
+    goto badopt;
+  }
+
   for (table = ray_out; *table != NULL; table++) {
-    if ((*table == oputV) | (*table == oputW))
-      error(WARNING, "-oVW options require trace mode");
+    if ((*table == oputV) | (*table == oputW)){
+      sprintf(errmsg, "-oVW options require trace mode");
+      goto badopt;
+    }
     if ((do_irrad | imm_irrad) &&
         (*table == oputr) | (*table == oputR) |
-        (*table == oputx) | (*table == oputX))
-      error(WARNING, "-orRxX options incompatible with -I+ and -i+");
-  }
-  switch (of) {
-    case 'z': break;
-    case 'a': putreal = puta; break;
-    case 'f': putreal = putf; break;
-    case 'd': putreal = putd; break;
-    case 'c':
-      if (outvals[1] || !strchr("vrx", outvals[0]))
-        error(USER, "color format only with -ov, -or, -ox");
-      putreal = putrgbe; break;
-    default:
-      error(CONSISTENCY, "botched output format");
-  }
+        (*table == oputx) | (*table == oputX)){
+      sprintf(errmsg, "-orRxX options incompatible with -I+ and -i+");
+      goto badopt;
+    }
 
-
-  return(ncomp);
+  }
+  putreal = putn;
+  return_value_count = ncomp;
+  badopt:
+  if (return_value_count < 1)
+    return -1;
+  return ncomp;
 }
 
 

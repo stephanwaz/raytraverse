@@ -2,7 +2,8 @@
 # -*- coding: utf-8 -*-
 
 """Tests for raytraverse.craytraverse"""
-import importlib
+import os
+import shutil
 import sys
 
 from raytraverse import renderer
@@ -13,6 +14,20 @@ import pytest
 
 
 import clasp.script_tools as cst
+
+
+@pytest.fixture(scope="module")
+def tmpdir(tmp_path_factory):
+    data = str(tmp_path_factory.mktemp("data"))
+    shutil.copytree('tests/craytraverse/', data + '/test')
+    cpath = os.getcwd()
+    # use temp
+    path = data + '/test'
+    # uncomment to use actual (to debug results)
+    # path = cpath + '/tests/samplers'
+    os.chdir(path)
+    yield path
+    os.chdir(cpath)
 
 
 def test_from_pdf():
@@ -31,77 +46,100 @@ def test_from_pdf():
     assert np.isclose(c.size, exp)
 
 
-def test_empty_reset():
-    rt = renderer.Rtrace()
-    rc = renderer.Rcontrib()
+def test_empty_reset(tmpdir):
+    rt = renderer.Rtrace("", "sky.oct")
+    args = ('-I+ -ab 2 -ad 60000 -as 30000 -lw 1e-7')
+    rc = renderer.Rcontrib(args, "scene.oct")
     rc.reset()
     rc.reset()
-    rc.reset_instance()
     rt.reset()
     rt.reset()
-    rt.reset_instance()
     assert True
 
 
-@pytest.mark.skipif(renderer.rcontrib.cRcontrib.version == "PyVirtual",
-                    reason="no c-extension modules present")
-def test_rcontrib_call(capfd):
+def test_rcontrib_call(capfd, tmpdir):
     args = ('-V+ -I+ -ab 2 -ad 60000 -as 30000 -lw 1e-7 -e side:6'
-            ' -f tests/test/scbins.cal -b bin -bn 36 -m skyglow ')
-    cargs = f"rcontrib -n 5 -h- {args}  tests/test/test_run/sky.oct"
-    check = cst.pipeline([cargs], inp='tests/test/rays2.txt',
+            ' -f scbins.cal -b bin -bn 36 -m skyglow ')
+    cargs = f"rcontrib -n 5 -h- {args}  sky.oct"
+    check = cst.pipeline([cargs], inp='rays2.txt',
                          forceinpfile=True)
     check = np.fromstring(check, sep=' ').reshape(-1, 36, 3)
     check = np.einsum('ikj,j->ik', check, [47.435/179, 119.93/179, 11.635/179])
-    r = renderer.Rcontrib('-Z+' + args, 'tests/test/test_run/sky.oct', iot='aa')
+    r = renderer.Rcontrib(rayargs=None, skyres=30, ground=False, iot='aa')
+    r.set_args('-I+ -ab 2 -ad 60000 -as 30000 -lw 1e-7 -Z+')
+    r.load_scene("sky.oct")
     try:
         with capfd.disabled():
-            ans = r.call('tests/test/rays.txt')
+            ans = r.call('rays2.txt')
     except AttributeError:
-        ans = r.call('tests/test/rays.txt')
+        ans = r.call('rays2.txt')
     test = np.fromstring(ans, sep=' ').reshape(-1, 36)
     assert np.allclose(check, test, atol=.03)
-    r.reset_instance()
+    renderer.Rcontrib.reset()
+    renderer.Rcontrib._pyinstance = None
 
 
-@pytest.mark.skipif(renderer.rtrace.cRtrace.version == "PyVirtual",
-                    reason="no c-extension modules present")
-def test_rtrace_call(capfd):
-    args = "-ab 1 -ar 600 -ad 2000 -aa .2 -as 1500 -I"
-    cargs = f"rtrace -h {args} -n 4 tests/test/test_run/sky.oct"
-    check = cst.pipeline([cargs], inp='tests/test/rays.txt',
+def test_rtrace_call(tmpdir):
+    args = "-ab 1 -ar 600 -ad 2000 -aa .2 -as 1500 -I+"
+    cargs = f"rtrace -h {args} -n 4 sky.oct"
+    check = cst.pipeline([cargs], inp='rays.txt',
                          forceinpfile=True)
     check = np.fromstring(check, sep=' ').reshape(-1, 3)
     check2 = np.einsum('ij,j->i', check, [47.435/179, 119.93/179, 11.635/179])
-    r = renderer.Rtrace(args, "tests/test/test_run/sky.oct", iot='aa')
-    print('call')
-    try:
-        with capfd.disabled():
-            ans = r.call('tests/test/rays.txt')
-    except AttributeError:
-        ans = r.call('tests/test/rays.txt')
-    print('call done')
-    test = np.fromstring(ans, sep=' ').reshape(-1, 3)
-    r.update_ospec('ZL', 'a')
-    try:
-        with capfd.disabled():
-            ans = r.call('tests/test/rays.txt')
-    except AttributeError:
-        ans = r.call('tests/test/rays.txt')
-    test2 = np.fromstring(ans, sep=' ').reshape(-1, 2)
+    # first load
+    r = renderer.Rtrace(args, "sky.oct", default_args=False)
+    vecs = np.loadtxt('rays.txt')
+    ans = r.instance.call(vecs)
+    assert np.allclose(check, ans, atol=.03)
+
+    # change output
+    r.update_ospec('ZL')
+    ans = r.instance.call(vecs)
+    assert np.allclose(check2, ans[:, 0], atol=.03)
+
+
+    #
+    # reload and change output to float
     r.reset()
     args2 = args + ' -oZ'
-    r.initialize(args2, "tests/test/test_run/sky.oct", iot='af')
-    try:
-        with capfd.disabled():
-            ans = r.call('tests/test/rays.txt')
-    except AttributeError:
-        ans = r.call('tests/test/rays.txt')
-    # test3 = np.fromstring(ans, sep=' ').reshape(-1, 3)
-    test3 = np.frombuffer(ans, '<f')
-    assert np.allclose(check, test, atol=.03)
-    assert np.allclose(check2, test2[:, 0], atol=.03)
+    r = renderer.Rtrace(args, "sky.oct", default_args=True)
+    test3 = r.call(vecs).ravel()
     assert np.allclose(check2, test3, atol=.03)
+    #
+    # reload new scene
+    r.load_scene("sky.oct")
+    test3 = r.call(vecs).ravel()
+    assert np.allclose(check2, test3, atol=.03)
+    #
+    # change args
+    r.set_args("-ab 0 -oZ -I")
+    test3 = r.call(vecs).ravel()
+    assert np.allclose([0, 0, 0, 0, np.pi*2], test3, atol=.03)
+    #
+    # change back
+    r.set_args(args2)
+    test3 = r.call(vecs).ravel()
+    assert np.allclose(check2, test3, atol=.03)
+    #
+    # load sources
+    r.set_args("-ab 0 -oZ")
+    r.load_scene("scene.oct")
+    r.load_source("sun.rad")
+    test = r.call(vecs).ravel()
+    r.load_source("sun2.rad")
+    test2 = r.call(vecs).ravel()
+    assert np.allclose(test * 2, test2, atol=.03)
+    cargs = f"rtrace -h -ab 0 -n 4 sun.oct"
+    check = cst.pipeline([cargs], inp='rays.txt',
+                         forceinpfile=True)
+    check = np.fromstring(check, sep=' ').reshape(-1, 3)
+    check2 = np.einsum('ij,j->i', check, [47.435/179, 119.93/179, 11.635/179])
+    assert np.allclose(test, check2, atol=.03)
+
+    renderer.Rtrace.reset()
+    renderer.Rtrace._pyinstance = None
+
+
     # print(r.header)
-    r.reset_instance()
+
 

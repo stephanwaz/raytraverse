@@ -30,13 +30,10 @@ namespace rayrc{
     }
 }
 
-namespace py = pybind11;
-
 Rcontrib* Rcontrib::renderer = nullptr;
 
 void Rcontrib::call(char *fname) {
   rayrc::rcontrib_call(fname);
-//  rayrc::end_children(0);
 }
 
 Rcontrib& Rcontrib::getInstance() {
@@ -44,21 +41,6 @@ Rcontrib& Rcontrib::getInstance() {
     renderer = new Rcontrib;
   }
   return *renderer;
-}
-
-void Rcontrib::initialize(pybind11::object pyargv11) {
-  Renderer::initialize(pyargv11.ptr());
-  nproc = rayrc::rcontrib_init(argc, argv);
-}
-
-void Rcontrib::loadscene(char* octname) {
-  Renderer::loadscene(octname);
-  rayrc::rcontrib_loadscene(octree);
-}
-
-void Rcontrib::initc(int argcount, char** argvector) {
-  Renderer::initc(argcount, argvector);
-  nproc = rayrc::rcontrib_init(argc, argv);
 }
 
 void Rcontrib::resetRadiance() {
@@ -69,17 +51,28 @@ void Rcontrib::resetRadiance() {
   rayrc::dcleanup(2);
 }
 
-void Rcontrib::resetInstance() {
-  resetRadiance();
-  delete renderer;
-  renderer = nullptr;
+int Rcontrib::initialize(pybind11::object pyargv11) {
+  Renderer::initialize(pyargv11.ptr());
+  nproc = rayrc::rcontrib_init(argc, argv);
+  return nproc;
+}
+
+void Rcontrib::initc(int argcount, char** argvector) {
+  Renderer::initc(argcount, argvector);
+  nproc = rayrc::rcontrib_init(argc, argv);
+}
+
+void Rcontrib::loadscene(char* octname) {
+  Renderer::loadscene(octname);
+  rayrc::ray_done(0);
+  rayrc::rcontrib_loadscene(octree);
 }
 
 
+namespace py = pybind11;
 PYBIND11_MODULE(rcontrib_c, m) {
   py::class_<Rcontrib>(m, "cRcontrib")
           .def("get_instance", &Rcontrib::getInstance, py::return_value_policy::reference)
-          .def("reset_instance", [](py::args& args){Rcontrib::resetInstance();})
           .def("reset", [](py::args& args){Rcontrib::resetRadiance();})
           .def("initialize", &Rcontrib::initialize)
           .def("load_scene", &Rcontrib::loadscene)
