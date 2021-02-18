@@ -131,12 +131,6 @@ else()
     set_target_properties(craytraverse PROPERTIES LIBRARY_OUTPUT_DIRECTORY "${PARENT_DIR}/raytraverse/")
     set_target_properties(rtrace_c PROPERTIES LIBRARY_OUTPUT_DIRECTORY "${PARENT_DIR}/raytraverse/crenderer/")
     set_target_properties(rcontrib_c PROPERTIES LIBRARY_OUTPUT_DIRECTORY "${PARENT_DIR}/raytraverse/crenderer/")
-    # these are for testing buy building as an exectuble, should function the same as rtrace/rcontrib
-    # except input is given as last argument instead of stdin
-    add_executable(rtracemain main.cpp render.cpp rtrace.cpp)
-    target_link_libraries(rtracemain PRIVATE pybind11::embed raycalls radiance rtrad rtracecfiles)
-    add_executable(rcontribmain mainrc.cpp render.cpp rcontrib.cpp)
-    target_link_libraries(rcontribmain PRIVATE pybind11::embed rcraycalls radiance rtrad rcontribcfiles)
 endif()
 
 # target for building 3 craytraverse modules

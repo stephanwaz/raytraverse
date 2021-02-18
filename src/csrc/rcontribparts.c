@@ -330,10 +330,11 @@ getvecfa(FVECT vec, const double *vecs, int raycount)
   FVECT vec_1;
   int	i;
   feed_repeat = feed_repeat % (accumulate * 2);
+  fprintf(stderr, "%d\n", feed_repeat);
   if (feed_repeat < 2) {
     if (current_vec_cnt >= raycount * 6)
       return -1;
-    if (feed_repeat % 2 == 0) {
+    if (feed_repeat == 0) {
       for (i = 0; i < 3; i++) {
         vec_0[i] = vecs[current_vec_cnt + i];
       }
@@ -348,7 +349,7 @@ getvecfa(FVECT vec, const double *vecs, int raycount)
     VCOPY(vec, vec_0);
   else
     VCOPY(vec, vec_1);
-  feed_repeat = feed_repeat + 1;
+  feed_repeat++;
   return 0;
 }
 

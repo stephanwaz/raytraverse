@@ -25,32 +25,6 @@
 </dl>
 </dd></dl>
 
-<dl class="py function">
-<dt id="raytraverse.craytraverse.interpolate_kdquery">
-<code class="sig-prename descclassname">raytraverse.craytraverse.</code><code class="sig-name descname">interpolate_kdquery</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">destvec</span><span class="p">:</span> <span class="n">numpy.ndarray<span class="p">[</span>numpy.float64<span class="p">]</span></span></em>, <em class="sig-param"><span class="n">errs</span><span class="p">:</span> <span class="n">numpy.ndarray<span class="p">[</span>numpy.float64<span class="p">]</span></span></em>, <em class="sig-param"><span class="n">idxs</span><span class="p">:</span> <span class="n">numpy.ndarray<span class="p">[</span>numpy.int32<span class="p">]</span></span></em>, <em class="sig-param"><span class="n">srcvec</span><span class="p">:</span> <span class="n">numpy.ndarray<span class="p">[</span>numpy.float64<span class="p">]</span></span></em>, <em class="sig-param"><span class="n">srclum</span><span class="p">:</span> <span class="n">numpy.ndarray<span class="p">[</span>numpy.float64<span class="p">]</span></span></em>, <em class="sig-param"><span class="n">err</span><span class="p">:</span> <span class="n">float</span> <span class="o">=</span> <span class="default_value">0.00436</span></em><span class="sig-paren">)</span> &#x2192; numpy.ndarray<span class="p">[</span>numpy.float64<span class="p">]</span><a class="headerlink" href="#raytraverse.craytraverse.interpolate_kdquery" title="Permalink to this definition">¶</a></dt>
-<dd><p>interpolate luminance values associated with query results
-from scipy.cKDTree.query. Finds closest point and then locates vertices of enclosing triangle from this point.
-returns 0 in cases where the query provides no results, so the distance_upper_bound must be set appropriately.</p>
-<dl class="field-list simple">
-<dt class="field-odd">Parameters</dt>
-<dd class="field-odd"><ul class="simple">
-<li><p><strong>dest_vec</strong> (<em>np.array</em>) – destination vectors to interpolate to, shape (N, 3)</p></li>
-<li><p><strong>errs</strong> (<em>np.array</em>) – distances between src and destination (row matches dest_vec, column is sorted ascending), shape (N, # of queries)</p></li>
-<li><p><strong>idxs</strong> (<em>np.array</em>) – query result, index row in src_vec close to dest_vec, shape (N, # of queries)</p></li>
-<li><p><strong>src_vec</strong> (<em>np.array</em>) – vectors of src_kd, shape (N, 3)</p></li>
-<li><p><strong>src_lum</strong> (<em>np.array</em>) – luminance values for src_kd, shape (src_vec.shape[0], srcn)</p></li>
-<li><p><strong>err</strong> (<em>float</em><em>, </em><em>optional</em>) – distance below which closest sample is used directly</p></li>
-</ul>
-</dd>
-<dt class="field-even">Returns</dt>
-<dd class="field-even"><p><strong>arrout</strong> – destination luminances shape (N, srcn)</p>
-</dd>
-<dt class="field-odd">Return type</dt>
-<dd class="field-odd"><p>np.array</p>
-</dd>
-</dl>
-</dd></dl>
-
 <div class="section" id="crtrace">
 <h1>cRtrace<a class="headerlink" href="#crtrace" title="Permalink to this headline">¶</a></h1>
 <dl class="py class">
@@ -58,50 +32,114 @@ returns 0 in cases where the query provides no results, so the distance_upper_bo
 <em class="property">class </em><code class="sig-prename descclassname">raytraverse.crenderer.</code><code class="sig-name descname">cRtrace</code><a class="headerlink" href="#raytraverse.crenderer.cRtrace" title="Permalink to this definition">¶</a></dt>
 <dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">pybind11_builtins.pybind11_object</span></code></p>
 <dl class="py method">
-<dt id="raytraverse.crenderer.cRtrace.call">
-<code class="sig-name descname">call</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">self</span><span class="p">:</span> <span class="n">raytraverse.crenderer.rtrace_c.cRtrace</span></em>, <em class="sig-param"><span class="n">arg0</span><span class="p">:</span> <span class="n">str</span></em><span class="sig-paren">)</span> &#x2192; None<a class="headerlink" href="#raytraverse.crenderer.cRtrace.call" title="Permalink to this definition">¶</a></dt>
+<dt id="raytraverse.crenderer.cRtrace.__call__">
+<code class="sig-name descname">__call__</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">self</span><span class="p">:</span> <span class="n">raytraverse.crenderer.rtrace_c.cRtrace</span></em>, <em class="sig-param"><span class="n">vecs</span><span class="p">:</span> <span class="n">numpy.ndarray<span class="p">[</span>numpy.float64<span class="p">]</span></span></em><span class="sig-paren">)</span> &#x2192; numpy.ndarray<span class="p">[</span>numpy.float64<span class="p">]</span><a class="headerlink" href="#raytraverse.crenderer.cRtrace.__call__" title="Permalink to this definition">¶</a></dt>
+<dd><p>run renderer for a set of rays</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><p><strong>vecs</strong> (<em>np.array</em>) – shape (N, 6) origin + direction vectors</p>
+</dd>
+<dt class="field-even">Returns</dt>
+<dd class="field-even"><p><strong>values</strong> – shape (N, M) result array, M depends on output specification</p>
+</dd>
+<dt class="field-odd">Return type</dt>
+<dd class="field-odd"><p>np.array</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt id="raytraverse.crenderer.cRtrace.__init__">
+<code class="sig-name descname">__init__</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#raytraverse.crenderer.cRtrace.__init__" title="Permalink to this definition">¶</a></dt>
+<dd><p>Initialize self.  See help(type(self)) for accurate signature.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt id="raytraverse.crenderer.cRtrace.__module__">
+<code class="sig-name descname">__module__</code><em class="property"> = 'raytraverse.crenderer.rtrace_c'</em><a class="headerlink" href="#raytraverse.crenderer.cRtrace.__module__" title="Permalink to this definition">¶</a></dt>
 <dd></dd></dl>
 
 <dl class="py method">
 <dt id="raytraverse.crenderer.cRtrace.get_instance">
 <code class="sig-name descname">get_instance</code><span class="sig-paren">(</span><span class="sig-paren">)</span> &#x2192; raytraverse.crenderer.rtrace_c.cRtrace<a class="headerlink" href="#raytraverse.crenderer.cRtrace.get_instance" title="Permalink to this definition">¶</a></dt>
-<dd></dd></dl>
+<dd><p>returns (instantiating if necessary) pointer to Renderer instance.</p>
+</dd></dl>
 
 <dl class="py method">
 <dt id="raytraverse.crenderer.cRtrace.initialize">
-<code class="sig-name descname">initialize</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">self</span><span class="p">:</span> <span class="n">raytraverse.crenderer.rtrace_c.cRtrace</span></em>, <em class="sig-param"><span class="n">arg0</span><span class="p">:</span> <span class="n">object</span></em><span class="sig-paren">)</span> &#x2192; None<a class="headerlink" href="#raytraverse.crenderer.cRtrace.initialize" title="Permalink to this definition">¶</a></dt>
-<dd><p>pyargv11 (a sequence of strings) must be a member of calling
+<code class="sig-name descname">initialize</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">self</span><span class="p">:</span> <span class="n">raytraverse.crenderer.rtrace_c.cRtrace</span></em>, <em class="sig-param"><span class="n">arglist</span><span class="p">:</span> <span class="n">object</span></em><span class="sig-paren">)</span> &#x2192; int<a class="headerlink" href="#raytraverse.crenderer.cRtrace.initialize" title="Permalink to this definition">¶</a></dt>
+<dd><p>arglist (a sequence of strings) must be a member of calling
 instance and persist for duration of program</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><p><strong>arglist</strong> (<em>list</em>) – a sequence of arguments to initialize renderer. must be a member of calling
+instance and persist for duration of program</p>
+</dd>
+<dt class="field-even">Returns</dt>
+<dd class="field-even"><p><strong>nproc</strong> – number of processors renderer initialized with or -1 if initialization failed.</p>
+</dd>
+<dt class="field-odd">Return type</dt>
+<dd class="field-odd"><p>int</p>
+</dd>
+</dl>
 </dd></dl>
 
 <dl class="py method">
 <dt id="raytraverse.crenderer.cRtrace.load_scene">
-<code class="sig-name descname">load_scene</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">self</span><span class="p">:</span> <span class="n">raytraverse.crenderer.rtrace_c.cRtrace</span></em>, <em class="sig-param"><span class="n">arg0</span><span class="p">:</span> <span class="n">str</span></em><span class="sig-paren">)</span> &#x2192; None<a class="headerlink" href="#raytraverse.crenderer.cRtrace.load_scene" title="Permalink to this definition">¶</a></dt>
-<dd></dd></dl>
+<code class="sig-name descname">load_scene</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">self</span><span class="p">:</span> <span class="n">raytraverse.crenderer.rtrace_c.cRtrace</span></em>, <em class="sig-param"><span class="n">octree</span><span class="p">:</span> <span class="n">str</span></em><span class="sig-paren">)</span> &#x2192; None<a class="headerlink" href="#raytraverse.crenderer.cRtrace.load_scene" title="Permalink to this definition">¶</a></dt>
+<dd><p>load scene file to renderer</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><p><strong>octee</strong> (<em>str</em>) – path to octree file.</p>
+</dd>
+</dl>
+</dd></dl>
 
 <dl class="py method">
 <dt id="raytraverse.crenderer.cRtrace.load_source">
 <code class="sig-name descname">load_source</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">self</span><span class="p">:</span> <span class="n">raytraverse.crenderer.rtrace_c.cRtrace</span></em>, <em class="sig-param"><span class="n">srcname</span><span class="p">:</span> <span class="n">str</span></em>, <em class="sig-param"><span class="n">freesrc</span><span class="p">:</span> <span class="n">int</span> <span class="o">=</span> <span class="default_value">- 1</span></em><span class="sig-paren">)</span> &#x2192; None<a class="headerlink" href="#raytraverse.crenderer.cRtrace.load_source" title="Permalink to this definition">¶</a></dt>
-<dd></dd></dl>
+<dd><p>arglist (a sequence of strings) must be a member of calling
+instance and persist for duration of program</p>
+<p>updates private srcobj parameter for default removing all sources</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>srcname</strong> (<em>str</em>) – path to file with source definition.</p></li>
+<li><p><strong>freesrc</strong> (<em>int</em><em>, </em><em>optional</em>) – number of previous sources to unload (unloads from end of object list
+only safe if removing sources loaded by this function. If negative removes
+all sources loaded by this function.</p></li>
+</ul>
+</dd>
+</dl>
+</dd></dl>
 
 <dl class="py method">
 <dt id="raytraverse.crenderer.cRtrace.reset">
-<code class="sig-name descname">reset</code><span class="sig-paren">(</span><em class="sig-param"><span class="o">*</span><span class="n">args</span></em><span class="sig-paren">)</span> &#x2192; None<a class="headerlink" href="#raytraverse.crenderer.cRtrace.reset" title="Permalink to this definition">¶</a></dt>
-<dd></dd></dl>
-
-<dl class="py method">
-<dt id="raytraverse.crenderer.cRtrace.reset_instance">
-<code class="sig-name descname">reset_instance</code><span class="sig-paren">(</span><em class="sig-param"><span class="o">*</span><span class="n">args</span></em><span class="sig-paren">)</span> &#x2192; None<a class="headerlink" href="#raytraverse.crenderer.cRtrace.reset_instance" title="Permalink to this definition">¶</a></dt>
-<dd></dd></dl>
+<code class="sig-name descname">reset</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">self</span><span class="p">:</span> <span class="n">raytraverse.crenderer.rtrace_c.cRtrace</span></em><span class="sig-paren">)</span> &#x2192; None<a class="headerlink" href="#raytraverse.crenderer.cRtrace.reset" title="Permalink to this definition">¶</a></dt>
+<dd><p>reset renderer state, must be called before loading an new scene or changing rendering
+parameters</p>
+</dd></dl>
 
 <dl class="py method">
 <dt id="raytraverse.crenderer.cRtrace.update_ospec">
-<code class="sig-name descname">update_ospec</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">self</span><span class="p">:</span> <span class="n">raytraverse.crenderer.rtrace_c.cRtrace</span></em>, <em class="sig-param"><span class="n">vs</span><span class="p">:</span> <span class="n">str</span></em>, <em class="sig-param"><span class="n">of</span><span class="p">:</span> <span class="n">str</span> <span class="o">=</span> <span class="default_value">'z'</span></em><span class="sig-paren">)</span> &#x2192; None<a class="headerlink" href="#raytraverse.crenderer.cRtrace.update_ospec" title="Permalink to this definition">¶</a></dt>
-<dd></dd></dl>
+<code class="sig-name descname">update_ospec</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">self</span><span class="p">:</span> <span class="n">raytraverse.crenderer.rtrace_c.cRtrace</span></em>, <em class="sig-param"><span class="n">vs</span><span class="p">:</span> <span class="n">str</span></em><span class="sig-paren">)</span> &#x2192; int<a class="headerlink" href="#raytraverse.crenderer.cRtrace.update_ospec" title="Permalink to this definition">¶</a></dt>
+<dd><p>update output values request</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><p><strong>vs</strong> (<em>str</em>) – output specification string (see rtrace manpage option -o)</p>
+</dd>
+<dt class="field-even">Returns</dt>
+<dd class="field-even"><p><strong>ncomp</strong> – number of components renderer will return, or -1 on failure.</p>
+</dd>
+<dt class="field-odd">Return type</dt>
+<dd class="field-odd"><p>int</p>
+</dd>
+</dl>
+</dd></dl>
 
 <dl class="py attribute">
 <dt id="raytraverse.crenderer.cRtrace.version">
-<code class="sig-name descname">version</code><em class="property"> = 'RADIANCE 5.4a 2021-02-10 LBNL (..)'</em><a class="headerlink" href="#raytraverse.crenderer.cRtrace.version" title="Permalink to this definition">¶</a></dt>
+<code class="sig-name descname">version</code><em class="property"> = 'RADIANCE 5.4a 2021-02-16 LBNL (..)'</em><a class="headerlink" href="#raytraverse.crenderer.cRtrace.version" title="Permalink to this definition">¶</a></dt>
 <dd></dd></dl>
 
 </dd></dl>
@@ -113,39 +151,88 @@ instance and persist for duration of program</p>
 <dt id="raytraverse.crenderer.cRcontrib">
 <em class="property">class </em><code class="sig-prename descclassname">raytraverse.crenderer.</code><code class="sig-name descname">cRcontrib</code><a class="headerlink" href="#raytraverse.crenderer.cRcontrib" title="Permalink to this definition">¶</a></dt>
 <dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">pybind11_builtins.pybind11_object</span></code></p>
+<p>docstring for rcontrib</p>
 <dl class="py method">
-<dt id="raytraverse.crenderer.cRcontrib.call">
-<code class="sig-name descname">call</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">self</span><span class="p">:</span> <span class="n">raytraverse.crenderer.rcontrib_c.cRcontrib</span></em>, <em class="sig-param"><span class="n">arg0</span><span class="p">:</span> <span class="n">str</span></em><span class="sig-paren">)</span> &#x2192; None<a class="headerlink" href="#raytraverse.crenderer.cRcontrib.call" title="Permalink to this definition">¶</a></dt>
+<dt id="raytraverse.crenderer.cRcontrib.__call__">
+<code class="sig-name descname">__call__</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">self</span><span class="p">:</span> <span class="n">raytraverse.crenderer.rcontrib_c.cRcontrib</span></em>, <em class="sig-param"><span class="n">vecs</span><span class="p">:</span> <span class="n">numpy.ndarray<span class="p">[</span>numpy.float64<span class="p">]</span></span></em><span class="sig-paren">)</span> &#x2192; numpy.ndarray<span class="p">[</span>numpy.float64<span class="p">]</span><a class="headerlink" href="#raytraverse.crenderer.cRcontrib.__call__" title="Permalink to this definition">¶</a></dt>
+<dd><p>run renderer for a set of rays</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><p><strong>vecs</strong> (<em>np.array</em>) – shape (N, 6) origin + direction vectors</p>
+</dd>
+<dt class="field-even">Returns</dt>
+<dd class="field-even"><p><strong>values</strong> – shape (N, M) result array, M depends on output specification</p>
+</dd>
+<dt class="field-odd">Return type</dt>
+<dd class="field-odd"><p>np.array</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt id="raytraverse.crenderer.cRcontrib.__init__">
+<code class="sig-name descname">__init__</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#raytraverse.crenderer.cRcontrib.__init__" title="Permalink to this definition">¶</a></dt>
+<dd><p>Initialize self.  See help(type(self)) for accurate signature.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt id="raytraverse.crenderer.cRcontrib.__module__">
+<code class="sig-name descname">__module__</code><em class="property"> = 'raytraverse.crenderer.rcontrib_c'</em><a class="headerlink" href="#raytraverse.crenderer.cRcontrib.__module__" title="Permalink to this definition">¶</a></dt>
 <dd></dd></dl>
 
 <dl class="py method">
 <dt id="raytraverse.crenderer.cRcontrib.get_instance">
 <code class="sig-name descname">get_instance</code><span class="sig-paren">(</span><span class="sig-paren">)</span> &#x2192; raytraverse.crenderer.rcontrib_c.cRcontrib<a class="headerlink" href="#raytraverse.crenderer.cRcontrib.get_instance" title="Permalink to this definition">¶</a></dt>
-<dd></dd></dl>
+<dd><p>returns (instantiating if necessary) pointer to Renderer instance.</p>
+</dd></dl>
 
 <dl class="py method">
 <dt id="raytraverse.crenderer.cRcontrib.initialize">
-<code class="sig-name descname">initialize</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">self</span><span class="p">:</span> <span class="n">raytraverse.crenderer.rcontrib_c.cRcontrib</span></em>, <em class="sig-param"><span class="n">arg0</span><span class="p">:</span> <span class="n">object</span></em><span class="sig-paren">)</span> &#x2192; None<a class="headerlink" href="#raytraverse.crenderer.cRcontrib.initialize" title="Permalink to this definition">¶</a></dt>
-<dd></dd></dl>
+<code class="sig-name descname">initialize</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">self</span><span class="p">:</span> <span class="n">raytraverse.crenderer.rcontrib_c.cRcontrib</span></em>, <em class="sig-param"><span class="n">arglist</span><span class="p">:</span> <span class="n">object</span></em><span class="sig-paren">)</span> &#x2192; int<a class="headerlink" href="#raytraverse.crenderer.cRcontrib.initialize" title="Permalink to this definition">¶</a></dt>
+<dd><p>arglist (a sequence of strings) must be a member of calling
+instance and persist for duration of program</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><p><strong>arglist</strong> (<em>list</em>) – a sequence of arguments to initialize renderer. must be a member of calling
+instance and persist for duration of program</p>
+</dd>
+<dt class="field-even">Returns</dt>
+<dd class="field-even"><p><strong>nproc</strong> – number of processors renderer initialized with or -1 if initialization failed.</p>
+</dd>
+<dt class="field-odd">Return type</dt>
+<dd class="field-odd"><p>int</p>
+</dd>
+</dl>
+</dd></dl>
 
 <dl class="py method">
 <dt id="raytraverse.crenderer.cRcontrib.load_scene">
-<code class="sig-name descname">load_scene</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">self</span><span class="p">:</span> <span class="n">raytraverse.crenderer.rcontrib_c.cRcontrib</span></em>, <em class="sig-param"><span class="n">arg0</span><span class="p">:</span> <span class="n">str</span></em><span class="sig-paren">)</span> &#x2192; None<a class="headerlink" href="#raytraverse.crenderer.cRcontrib.load_scene" title="Permalink to this definition">¶</a></dt>
-<dd></dd></dl>
+<code class="sig-name descname">load_scene</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">self</span><span class="p">:</span> <span class="n">raytraverse.crenderer.rcontrib_c.cRcontrib</span></em>, <em class="sig-param"><span class="n">octree</span><span class="p">:</span> <span class="n">str</span></em><span class="sig-paren">)</span> &#x2192; None<a class="headerlink" href="#raytraverse.crenderer.cRcontrib.load_scene" title="Permalink to this definition">¶</a></dt>
+<dd><p>arglist (a sequence of strings) must be a member of calling
+instance and persist for duration of program</p>
+<p>updates private srcobj parameter for default removing all sources</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>srcname</strong> (<em>str</em>) – path to file with source definition.</p></li>
+<li><p><strong>freesrc</strong> (<em>int</em><em>, </em><em>optional</em>) – number of previous sources to unload (unloads from end of object list
+only safe if removing sources loaded by this function. If negative removes
+all sources loaded by this function.</p></li>
+</ul>
+</dd>
+</dl>
+</dd></dl>
 
 <dl class="py method">
 <dt id="raytraverse.crenderer.cRcontrib.reset">
-<code class="sig-name descname">reset</code><span class="sig-paren">(</span><em class="sig-param"><span class="o">*</span><span class="n">args</span></em><span class="sig-paren">)</span> &#x2192; None<a class="headerlink" href="#raytraverse.crenderer.cRcontrib.reset" title="Permalink to this definition">¶</a></dt>
-<dd></dd></dl>
-
-<dl class="py method">
-<dt id="raytraverse.crenderer.cRcontrib.reset_instance">
-<code class="sig-name descname">reset_instance</code><span class="sig-paren">(</span><em class="sig-param"><span class="o">*</span><span class="n">args</span></em><span class="sig-paren">)</span> &#x2192; None<a class="headerlink" href="#raytraverse.crenderer.cRcontrib.reset_instance" title="Permalink to this definition">¶</a></dt>
-<dd></dd></dl>
+<code class="sig-name descname">reset</code><span class="sig-paren">(</span><span class="sig-paren">)</span> &#x2192; None<a class="headerlink" href="#raytraverse.crenderer.cRcontrib.reset" title="Permalink to this definition">¶</a></dt>
+<dd><p>reset renderer state, must be called before loading an new scene or changing rendering
+parameters</p>
+</dd></dl>
 
 <dl class="py attribute">
 <dt id="raytraverse.crenderer.cRcontrib.version">
-<code class="sig-name descname">version</code><em class="property"> = 'RADIANCE 5.4a 2021-02-10 LBNL (..)'</em><a class="headerlink" href="#raytraverse.crenderer.cRcontrib.version" title="Permalink to this definition">¶</a></dt>
+<code class="sig-name descname">version</code><em class="property"> = 'RADIANCE 5.4a 2021-02-16 LBNL (..)'</em><a class="headerlink" href="#raytraverse.crenderer.cRcontrib.version" title="Permalink to this definition">¶</a></dt>
 <dd></dd></dl>
 
 </dd></dl>

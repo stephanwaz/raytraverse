@@ -25,17 +25,17 @@
 
 /* -------------------------------------------------------------------------- */
 
-void Renderer::initialize(PyObject *pyargv){
+int Renderer::initialize(PyObject *arglist){
   //code snippet to convert python sequence of strings to char**
   // from: https://stackoverflow.com/questions/60067092/passing-a-list-of-strings
   // -from-python-to-c-through-pybind11/60068350#60068350
-  if (PySequence_Check(pyargv)) {
-    Py_ssize_t sz = PySequence_Size(pyargv);
+  if (PySequence_Check(arglist)) {
+    Py_ssize_t sz = PySequence_Size(arglist);
     argc = (int) sz;
     argv = (char **) malloc(sz * sizeof(char *));
 
     for (Py_ssize_t i = 0; i < sz; ++i) {
-      PyObject *item = PySequence_GetItem(pyargv, i);
+      PyObject *item = PySequence_GetItem(arglist, i);
       //assumes python 3 string (unicode)
       argv[i] = (char *) PyUnicode_AsUTF8(item);
       Py_DECREF(item);
@@ -52,17 +52,15 @@ void Renderer::initialize(PyObject *pyargv){
     throw pybind11::error_already_set();
   }
   //end snippet
+  return 0;
 }
-
-void Renderer::initc(int argcount, char **argvector) {
-  argc = argcount;
-  argv = argvector;
-}
-
-void Renderer::call(char *fname) {}
 
 void Renderer::loadscene(char* octname) {
   octree = octname;
 }
 
 void Renderer::loadsrc(char *srcname, int freesrc) {}
+
+py::array_t<double> Renderer::operator()(py::array_t<double, py::array::c_style> &vecs) {
+  return py::array_t<double>();
+}

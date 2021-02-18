@@ -10,6 +10,7 @@ cRtrace
     :members:
     :undoc-members:
     :show-inheritance:
+    :special-members:
     :private-members:
 
 cRcontrib
@@ -19,4 +20,5 @@ cRcontrib
     :members:
     :undoc-members:
     :show-inheritance:
+    :special-members:
     :private-members:

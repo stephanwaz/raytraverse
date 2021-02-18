@@ -9,15 +9,6 @@ import numpy as np
 from scipy import stats
 
 
-# def test_version():
-#     # with craytraverse.ostream_redirect():
-#     #     craytraverse.rtrace("rtrace -defaults".split())
-#     print(craytraverse.version())
-#
-#     # print(craytraverse.__doc__)
-#     # print(craytraverse.rtdefaults())
-
-
 def test_from_pdf():
     rv = stats.norm()
     nsamp = 500000

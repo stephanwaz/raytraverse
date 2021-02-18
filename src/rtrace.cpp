@@ -30,8 +30,6 @@ namespace ray{
     }
 }
 
-namespace py = pybind11;
-
 Rtrace* Rtrace::renderer = nullptr;
 
 py::array_t<double> Rtrace::operator()(py::array_t<double, py::array::c_style> &vecs) {
@@ -56,21 +54,15 @@ Rtrace& Rtrace::getInstance() {
 void Rtrace::resetRadiance() {
   ray::ray_done(1);
   ray::dcleanup(2);
-  ray::ray_restore(NULL);
+  ray::ray_restore(nullptr);
   srcobj = 0;
 }
 
-int Rtrace::initialize(pybind11::object pyargv11) {
-  Renderer::initialize(pyargv11.ptr());
-  ray::ray_restore(NULL);
+int Rtrace::initialize(pybind11::object arglist) {
+  Renderer::initialize(arglist.ptr());
+  ray::ray_restore(nullptr);
   nproc = ray::rtinit(argc, argv);
   return nproc;
-}
-
-void Rtrace::initc(int argcount, char** argvector) {
-  Renderer::initc(argcount, argvector);
-  ray::ray_restore(NULL);
-  nproc = ray::rtinit(argc, argv);
 }
 
 int Rtrace::updateOSpec(char *vs) {
@@ -82,7 +74,7 @@ void Rtrace::loadscene(char *octname) {
   ray::ray_done(0);
   nproc = ray::rtinit(argc, argv);
   ray::rtrace_loadscene(octree);
-  ray::rtrace_loadsrc(NULL, 0);
+  ray::rtrace_loadsrc(nullptr, 0);
 }
 
 void Rtrace::loadsrc(char *srcname, int freesrc) {
@@ -92,17 +84,93 @@ void Rtrace::loadsrc(char *srcname, int freesrc) {
 }
 
 using namespace pybind11::literals;
+
+const char* doc_get_instance = R"pbdoc(returns (instantiating if necessary) pointer to Renderer instance.)pbdoc";
+
+const char* doc_reset =
+        R"pbdoc(reset renderer state, must be called before loading an new scene or changing rendering
+parameters)pbdoc";
+
+const char* doc_initialize =
+        R"pbdoc(arglist (a sequence of strings) must be a member of calling
+instance and persist for duration of program
+
+Parameters
+----------
+arglist: list
+    a sequence of arguments to initialize renderer. must be a member of calling
+    instance and persist for duration of program
+
+Returns
+-------
+nproc: int
+    number of processors renderer initialized with or -1 if initialization failed.
+)pbdoc";
+
+const char* doc_load_scene =
+        R"pbdoc(load scene file to renderer
+
+Parameters
+----------
+octee: str
+    path to octree file.
+)pbdoc";
+
+const char* doc_load_src =
+        R"pbdoc(arglist (a sequence of strings) must be a member of calling
+instance and persist for duration of program
+
+updates private srcobj parameter for default removing all sources
+
+Parameters
+----------
+srcname: str
+    path to file with source definition.
+freesrc: int, optional
+    number of previous sources to unload (unloads from end of object list
+    only safe if removing sources loaded by this function. If negative removes
+    all sources loaded by this function.
+
+)pbdoc";
+
+const char* doc_call =
+        R"pbdoc(run renderer for a set of rays
+
+Parameters
+----------
+vecs: np.array
+    shape (N, 6) origin + direction vectors
+
+Returns
+-------
+values: np.array
+    shape (N, M) result array, M depends on output specification
+)pbdoc";
+
+const char* doc_update_ospec =
+        R"pbdoc(update output values request
+
+Parameters
+----------
+vs: str
+    output specification string (see rtrace manpage option -o)
+
+Returns
+-------
+ncomp: int
+    number of components renderer will return, or -1 on failure.
+)pbdoc";
+
+
 PYBIND11_MODULE(rtrace_c, m) {
   py::class_<Rtrace>(m, "cRtrace")
-          .def("get_instance", &Rtrace::getInstance, py::return_value_policy::reference)
-          .def("reset", &Rtrace::resetRadiance)
-          .def("initialize", &Rtrace::initialize,
-               R"pbdoc(pyargv11 (a sequence of strings) must be a member of calling
-instance and persist for duration of program)pbdoc")
-          .def("load_scene", &Rtrace::loadscene)
-          .def("load_source", &Rtrace::loadsrc, "srcname"_a, "freesrc"_a=-1)
-          .def("__call__", &Rtrace::operator(), "vecs"_a)
-          .def("update_ospec", &Rtrace::updateOSpec, "vs"_a)
+          .def("get_instance", &Rtrace::getInstance, py::return_value_policy::reference, doc_get_instance)
+          .def("reset", &Rtrace::resetRadiance, doc_reset)
+          .def("initialize", &Rtrace::initialize, "arglist"_a, doc_initialize)
+          .def("load_scene", &Rtrace::loadscene, "octree"_a, doc_load_scene)
+          .def("load_source", &Rtrace::loadsrc, "srcname"_a, "freesrc"_a=-1, doc_load_src)
+          .def("__call__", &Rtrace::operator(), "vecs"_a, doc_call)
+          .def("update_ospec", &Rtrace::updateOSpec, "vs"_a, doc_update_ospec)
           .def_property_readonly_static("version", [](py::object) { return ray::VersionID; });
 
 #ifdef VERSION_INFO

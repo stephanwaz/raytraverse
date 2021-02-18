@@ -153,7 +153,7 @@ def _array2hdr(ar, imgf, header, pval):
         imgf
         """
     if imgf is None:
-        f = sys.stdout.buffer
+        f = None
     else:
         f = open(imgf, 'wb')
     if header is not None:
@@ -167,7 +167,10 @@ def _array2hdr(ar, imgf, header, pval):
     p.stdin.write(np2bytes(ar))
     p.stdin.flush()
     q.communicate()
-    f.close()
+    try:
+        f.close()
+    except AttributeError:
+        pass
     return imgf
 
 

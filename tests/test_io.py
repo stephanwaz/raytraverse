@@ -3,8 +3,7 @@
 
 """Tests for raytraverse.io"""
 import os
-import shutil
-import sys
+import re
 
 import pytest
 from raytraverse import io
@@ -31,5 +30,32 @@ def test_array2img(tmpdir):
     ar2 = io.hdr2array('mgrid.hdr')
     assert np.allclose(a.T, a2, atol=.25, rtol=.03)
     assert np.allclose(b.T, b2, atol=.25, rtol=.03)
-    assert np.allclose(ar2, ar2, atol=.25, rtol=.03)
+    assert np.allclose(ar.T, ar2, atol=.25, rtol=.03)
 
+
+def test_setproc():
+    nproc = io.get_nproc(8)
+    assert nproc == 8
+    nproc = io.get_nproc()
+    assert nproc == os.cpu_count()
+    io.set_nproc(7)
+    assert io.get_nproc() == 7
+    io.unset_nproc()
+    assert io.get_nproc() == os.cpu_count()
+    io.unset_nproc()
+    with pytest.raises(ValueError):
+        io.set_nproc("7")
+    assert io.get_nproc() == os.cpu_count()
+
+
+def test_version_header():
+    header = io.version_header()
+    check = r'CAPDATE= .* UTC\nSOFTWARE= RAYTRAVERSE .* lastmod .* // RADIANCE .*'
+    assert re.match(check, "\n".join(header))
+
+
+def test_npbytefile(tmpdir):
+    a = np.arange(999).reshape(-1, 9)
+    io.np2bytefile(a, "test_npbytefile")
+    c = io.bytefile2np(open("test_npbytefile", 'rb'), (-1, 9))
+    assert np.all(a == c)

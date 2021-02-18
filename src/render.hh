@@ -21,7 +21,9 @@
 #ifndef RAYTRAVERSE_RENDER_H
 #define RAYTRAVERSE_RENDER_H
 #include <pybind11/pybind11.h>
+#include <pybind11/numpy.h>
 
+namespace py = pybind11;
 
 class Renderer {
 
@@ -31,9 +33,8 @@ protected:
 public:
     int srcobj = 0;
     ~Renderer() = default;
-    virtual void initialize(PyObject* pyargv);
-    virtual void initc(int argcount, char **argvector);
-    virtual void call(char *fname);
+    int initialize(PyObject* arglist);
+    virtual py::array_t<double> operator()(py::array_t<double, py::array::c_style> &vecs);
     virtual void loadscene(char* octname);
     virtual void loadsrc(char *srcname, int freesrc);
 
@@ -43,6 +44,5 @@ protected:
     char* octree;
     char** argv = nullptr;
 };
-
 
 #endif //RAYTRAVERSE_RENDER_H
