@@ -66,7 +66,7 @@ def test_rcontrib_call(capfd, tmpdir):
     check = np.fromstring(check, sep=' ').reshape(-1, 36, 3)
     check = np.einsum('ikj,j->ik', check, [47.435/179, 119.93/179, 11.635/179])
     r = renderer.Rcontrib(rayargs=None, skyres=30, ground=False)
-    r.set_args('-I+ -ab 2 -ad 60000 -as 30000 -lw 1e-7 -Z+')
+    r.set_args('-I+ -ab 2 -ad 600 -as 300 -c 100 -lw 1e-5')
     r.load_scene("sky.oct")
     vecs = np.loadtxt('rays2.txt')
     # try:

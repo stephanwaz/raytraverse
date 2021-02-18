@@ -316,21 +316,21 @@ done_contrib(void)
     memset(mp->cbin, 0, sizeof(DCOLOR)*mp->nbins);
   }
   end_record();			/* end lines & flush if time */
-
   account = accumulate;		/* reset accumulation counter */
 }
 
 /*
  * Modified so that accumulate repeats rays (like vwrays), instead of averaging (classic behaviour)
  */
+FVECT vec_0;
+FVECT vec_1;
+
 int
 getvecfa(FVECT vec, const double *vecs, int raycount)
 {
-  FVECT vec_0;
-  FVECT vec_1;
+
   int	i;
   feed_repeat = feed_repeat % (accumulate * 2);
-  fprintf(stderr, "%d\n", feed_repeat);
   if (feed_repeat < 2) {
     if (current_vec_cnt >= raycount * 6)
       return -1;
@@ -479,11 +479,9 @@ void rcontrib_call(const double *vecs, int rows){
       }
       done_contrib();    /* accumulate/output */
       ++lastdone;
-//      fprintf(stderr, "last done %lu\n", lastdone);
       if (raysleft && !--raysleft)
         break;    /* preemptive EOI */
     }
-    quitrc(0);
   }
   if (nchild != -1 && (accumulate <= 0) | (account < accumulate)) {
     if (account < accumulate) {
@@ -495,7 +493,7 @@ void rcontrib_call(const double *vecs, int rows){
   }
   if (raysleft)
     error(USER, "unexpected EOF on input");
-
+  if (control == 0) quitrc(0);
 }
 
 void rcontrib_clear(){
