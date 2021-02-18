@@ -24,17 +24,19 @@
 extern "C" {
 #endif
 
+extern RREAL *output_values;
+extern int return_value_count;
+extern long putcount;
 static void rcprintdefaults(void);
 extern int rcontrib_init(int  argc, char  *argv[]);
 extern void rcontrib_loadscene(char* octname);
-extern void rcontrib_call(char *fname);
+extern void rcontrib_call(const double *vecs, int rows);
 extern void rcontrib_clear(void);
-static FILE* rcinit2(char *fname);
-extern void parental_loop2(char *fname);
-extern void feeder_loop2(char *fname);
+static int rcinit2(const double *vecs, int raycount);
+extern void parental_loop2(const double *vecs, int raycount);
 extern int in_rchild2(void);
-extern int getvecfp(FVECT vec, FILE *fp);
-extern int getvecb(FVECT vec, FILE *fp);
+extern int getvecfa(FVECT vec, const double *vecs, int raycount);
+extern int getvecb(FVECT vec);
 extern int outbright;
 
 #ifdef __cplusplus

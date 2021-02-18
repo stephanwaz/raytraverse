@@ -18,9 +18,6 @@ class RadianceRenderer(Renderer):
 
     name = "radiance_virtual"
     engine = cRtrace
-    arg_prefix = ""
-    instance = None
-    scene = None
     srcn = 1
     defaultargs = ""
 
@@ -36,10 +33,6 @@ class RadianceRenderer(Renderer):
             self.load_scene(scene)
 
     @classmethod
-    def call(cls, rays, **kwargs):
-        return cls.instance.call(rays)
-
-    @classmethod
     def get_default_args(cls):
         return cls.defaultargs
 
@@ -52,8 +45,7 @@ class RadianceRenderer(Renderer):
     @classmethod
     def set_args(cls, args, nproc=None):
         nproc = io.get_nproc(nproc)
-        cls.args = shlex.split(f"{cls.name} -n {nproc} "
-                               f"{cls.arg_prefix} {args}")
+        cls.args = shlex.split(f"{cls.name} -n {nproc} {args}")
         nproc = cls.instance.initialize(cls.args)
         if nproc < 0:
             raise ValueError(f"Could not initialize {cls.__name__} with "

@@ -26,10 +26,6 @@ class Rtrace(RadianceRenderer):
         super().__init__(rayargs, scene, nproc, default_args=default_args)
 
     @classmethod
-    def call(cls, rays, **kwargs):
-        return cls.instance.call(rays)
-
-    @classmethod
     def get_default_args(cls):
         if cls.usedirect:
             return cls.directargs

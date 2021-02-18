@@ -48,22 +48,16 @@ class SunViewSampler(Sampler):
         self.vecs = None
         self.lum = []
 
-    def sample(self, vecf, vecs, outf=None):
-        """call rendering engine to sample direct view rays"""
-        lum = self.engine.call(vecs).ravel()
-        self.lum = np.concatenate((self.lum, lum))
-        return lum
-
     def _offset(self, shape, dim):
         """no jitter on sun view because of very fine resolution and potentially
         large number of samples bog down random number generator"""
         return 0.5/dim
 
-    def run_callback(self, vecfs, name, point, posidx, vm):
+    def run_callback(self, point, posidx, vm):
         """post sampling, write full resolution (including interpolated values)
          non zero rays to result file."""
         skd = LightPointKD(self.scene, self.vecs, self.lum, vm, point, posidx,
-                           name, calcomega=False, write=False)
+                           self.stype, calcomega=False, write=False)
         shp = self.weights.shape
         si = np.stack(np.unravel_index(np.arange(np.product(shp)), shp))
         uv = (si.T + .5)/shp[1]
@@ -80,14 +74,6 @@ class SunViewSampler(Sampler):
             lightpoint = None
         return lightpoint
 
-    def _dump_vecs(self, vecs, vecf):
-        if self.vecs is None:
-            self.vecs = vecs
-        else:
-            self.vecs = np.concatenate((self.vecs, vecs))
-
     def run(self, point, posidx, vm=None, plotp=False, **kwargs):
-        self.vecs = None
-        self.lum = []
         vm = ViewMapper(self.sunpos, 0.533, "sunview")
         return super().run(point, posidx, vm, plotp, outf=False, **kwargs)

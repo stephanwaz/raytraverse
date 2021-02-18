@@ -24,7 +24,7 @@ def tmpdir(tmp_path_factory):
     # use temp
     path = data + '/test'
     # uncomment to use actual (to debug results)
-    # path = cpath + '/tests/samplers'
+    # path = cpath + '/tests/craytraverse'
     os.chdir(path)
     yield path
     os.chdir(cpath)
@@ -65,15 +65,16 @@ def test_rcontrib_call(capfd, tmpdir):
                          forceinpfile=True)
     check = np.fromstring(check, sep=' ').reshape(-1, 36, 3)
     check = np.einsum('ikj,j->ik', check, [47.435/179, 119.93/179, 11.635/179])
-    r = renderer.Rcontrib(rayargs=None, skyres=30, ground=False, iot='aa')
+    r = renderer.Rcontrib(rayargs=None, skyres=30, ground=False)
     r.set_args('-I+ -ab 2 -ad 60000 -as 30000 -lw 1e-7 -Z+')
     r.load_scene("sky.oct")
-    try:
-        with capfd.disabled():
-            ans = r.call('rays2.txt')
-    except AttributeError:
-        ans = r.call('rays2.txt')
-    test = np.fromstring(ans, sep=' ').reshape(-1, 36)
+    vecs = np.loadtxt('rays2.txt')
+    # try:
+    #     with capfd.disabled():
+    #         ans, b = r.call(vecs, 'rays2.txt')
+    # except AttributeError:
+    test = r(vecs)
+    # test = np.fromstring(ans, sep=' ').reshape(-1, 36)
     assert np.allclose(check, test, atol=.03)
     renderer.Rcontrib.reset()
     renderer.Rcontrib._pyinstance = None
@@ -89,12 +90,12 @@ def test_rtrace_call(tmpdir):
     # first load
     r = renderer.Rtrace(args, "sky.oct", default_args=False)
     vecs = np.loadtxt('rays.txt')
-    ans = r.instance.call(vecs)
+    ans = r(vecs)
     assert np.allclose(check, ans, atol=.03)
 
     # change output
     r.update_ospec('ZL')
-    ans = r.instance.call(vecs)
+    ans = r(vecs)
     assert np.allclose(check2, ans[:, 0], atol=.03)
 
 
@@ -103,31 +104,31 @@ def test_rtrace_call(tmpdir):
     r.reset()
     args2 = args + ' -oZ'
     r = renderer.Rtrace(args, "sky.oct", default_args=True)
-    test3 = r.call(vecs).ravel()
+    test3 = r(vecs).ravel()
     assert np.allclose(check2, test3, atol=.03)
     #
     # reload new scene
     r.load_scene("sky.oct")
-    test3 = r.call(vecs).ravel()
+    test3 = r(vecs).ravel()
     assert np.allclose(check2, test3, atol=.03)
     #
     # change args
     r.set_args("-ab 0 -oZ -I")
-    test3 = r.call(vecs).ravel()
+    test3 = r(vecs).ravel()
     assert np.allclose([0, 0, 0, 0, np.pi*2], test3, atol=.03)
     #
     # change back
     r.set_args(args2)
-    test3 = r.call(vecs).ravel()
+    test3 = r(vecs).ravel()
     assert np.allclose(check2, test3, atol=.03)
     #
     # load sources
     r.set_args("-ab 0 -oZ")
     r.load_scene("scene.oct")
     r.load_source("sun.rad")
-    test = r.call(vecs).ravel()
+    test = r(vecs).ravel()
     r.load_source("sun2.rad")
-    test2 = r.call(vecs).ravel()
+    test2 = r(vecs).ravel()
     assert np.allclose(test * 2, test2, atol=.03)
     cargs = f"rtrace -h -ab 0 -n 4 sun.oct"
     check = cst.pipeline([cargs], inp='rays.txt',

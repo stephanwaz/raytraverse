@@ -31,7 +31,7 @@ def tmpdir(tmp_path_factory):
     os.chdir(cpath)
 
 
-def test_skysample(tmpdir, capsys):
+def test_skysample(tmpdir):
 
     def img_illum(lf0, vm0, sbin):
         outf = lf0.direct_view(res=512, srcidx=sbin, showsample=False,
@@ -52,8 +52,7 @@ def test_skysample(tmpdir, capsys):
     rcontrib = Rcontrib('-ab 1 -ad 10000 -c 1 -lw 1e-5', scene.scene)
     sampler = SkySampler(scene, rcontrib, fdres=7)
     vm = ViewMapper((0, 1, 0), viewangle=180)
-    with capsys.disabled():
-        lf = sampler.run((1.5, 1.5, 1.5), 0, vm)
+    lf = sampler.run((1.5, 1.5, 1.5), 0, vm)
     illum, illumm = img_illum(lf, vm, 176)
     assert np.isclose(illum, illumm, atol=.2, rtol=.1)
     illum2, illumm2 = img_illum(lf, vm, 158)
@@ -69,7 +68,7 @@ def test_skysample(tmpdir, capsys):
     Rcontrib._pyinstance = None
 
 
-def test_sunsample(tmpdir, capsys):
+def test_sunsample(tmpdir):
 
     def img_illum(lf0, vm0):
         outf = lf0.direct_view(res=512, showsample=False, scalefactor=285.32)
@@ -87,22 +86,20 @@ def test_sunsample(tmpdir, capsys):
     rtrace = Rtrace(scene=scene.scene, direct=True)
     sampler = SunSampler(scene, rtrace, sun, 174)
     vm = ViewMapper((0, 1, 0), viewangle=180)
-    with capsys.disabled():
-        lf = sampler.run((1.5, 1.5, 1.5), 0, vm)
+    lf = sampler.run((1.5, 1.5, 1.5), 0, vm)
     illum, illumm = img_illum(lf, vm)
     assert np.isclose(illum, illumm, atol=.01, rtol=.05)
     assert np.isclose(np.average([illum, illumm]), 0.169, atol=.01, rtol=.01)
     sampler.engine.reset()
 
 
-def test_sunviewsample(tmpdir, capsys):
+def test_sunviewsample(tmpdir):
     scene = Scene('skysample', "box.rad", frozen=False)
     sun = translate.skybin2xyz([176], 18)[0]
     rtrace = Rtrace(scene=scene.scene, direct=True)
     sampler = SunViewSampler(scene, rtrace, sun, 176)
-    with capsys.disabled():
-        lf = sampler.run((1.5, 1.5, 1.79), 0, plotp=False)
-        lf2 = sampler.run((1.5, 1.5, 1.5), 1, plotp=False)
+    lf = sampler.run((1.5, 1.5, 1.79), 0, plotp=False)
+    lf2 = sampler.run((1.5, 1.5, 1.5), 1, plotp=False)
     assert np.allclose([lf.lum, lf2.lum], 1.0)
     assert lf.vec[2] < lf2.vec[2]
     assert np.isclose(lf2.omega, 2*np.pi*(1 - np.cos(0.533*np.pi/360)))

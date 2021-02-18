@@ -30,7 +30,22 @@ class SkySampler(Sampler):
         super().__init__(scene, engine, srcn=engine.srcn, stype='sky',
                          **kwargs)
 
-    def sample(self, vecf, vecs, outf=None):
-        """call rendering engine to sample sky contribution"""
-        lum = super().sample(vecf, vecs, outf)
+    def sample(self, vecs):
+        """call rendering engine to sample rays
+
+        Parameters
+        ----------
+        vecs: np.array
+            sample vectors (subclasses can choose which to use)
+
+        Returns
+        -------
+        lum: np.array
+            array of shape (N,) to update weights
+        """
+        lum = self.engine(vecs)
+        if len(self.lum) == 0:
+            self.lum = lum
+        else:
+            self.lum = np.concatenate((self.lum, lum), 0)
         return np.max(lum, 1)

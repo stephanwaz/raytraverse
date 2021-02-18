@@ -76,6 +76,8 @@ class Sampler(object):
         self.weights = np.empty(0)
         #: str: sampler type
         self.stype = stype
+        self.vecs = None
+        self.lum = []
 
     @property
     def levels(self):
@@ -93,33 +95,22 @@ class Sampler(object):
         self._levels = np.array([(2**i*a, 2**i)
                                  for i in range(self.idres, self.fdres+1, 1)])
 
-    def sample(self, vecf, vecs, outf=None):
-        """generic sample function
+    def sample(self, vecs):
+        """call rendering engine to sample rays
 
         Parameters
         ----------
-        vecf: str
-            path of file name with sample vectors
-            shape (N, 6) vectors in binary float format
         vecs: np.array
             sample vectors (subclasses can choose which to use)
-        outf: str, optional
-            if given, append results to file
 
         Returns
         -------
         lum: np.array
             array of shape (N,) to update weights
         """
-        if outf is not None:
-            f = open(outf, 'a+b')
-            lumb = self.engine.call(vecf, outf=f)
-            f.close()
-        else:
-            lumb = self.engine.call(vecf)
-        shape = (-1, self.srcn, self.bands)
-        lum = io.bytes2np(lumb, shape)
-        return np.squeeze(lum, axis=-1)
+        lum = self.engine(np.copy(vecs, 'C')).ravel()
+        self.lum = np.concatenate((self.lum, lum))
+        return lum
 
     def _offset(self, shape, dim):
         """for modifying jitter behavior of UV direction samples
@@ -262,23 +253,18 @@ class Sampler(object):
         """
         self.weights[tuple(si)] = lum
 
-    def run_callback(self, vecfs, name, point, posidx, vm):
+    def run_callback(self, point, posidx, vm):
         """handle class specific cleanup and lightpointKD construction"""
-        outf = f'{self.scene.outdir}/{name}_{self.stype}_vals.out'
-        vecs = []
-        for vecf in vecfs:
-            fsrc = open(vecf, 'rb')
-            vecs.append(io.bytefile2np(fsrc, (-1, 6)))
-            fsrc.close()
-        vecs = np.concatenate(vecs)
-        lightpoint = LightPointKD(self.scene, vecs, outf, src=self.stype,
+        lightpoint = LightPointKD(self.scene, self.vecs, self.lum, src=self.stype,
                                   pt=point, write=True, srcn=self.srcn,
                                   posidx=posidx, vm=vm)
-        [os.remove(vecf) for vecf in vecfs]
         return lightpoint
 
-    def _dump_vecs(self, vecs, vecf):
-        io.np2bytefile(vecs, vecf)
+    def _dump_vecs(self, vecs):
+        if self.vecs is None:
+            self.vecs = vecs
+        else:
+            self.vecs = np.concatenate((self.vecs, vecs))
 
     def run(self, point, posidx, vm=None, plotp=False, log=False, outf=True,
             **kwargs):
@@ -309,6 +295,8 @@ class Sampler(object):
         -------
 
         """
+        self.vecs = None
+        self.lum = []
         detaillog = True
         logerr = False
         if log == 'scene':
@@ -357,12 +345,12 @@ class Sampler(object):
                     self.scene.log(self, row, logerr)
                 vecf = (f'{self.scene.outdir}/{name}_{self.stype}_vecs_'
                         f'{i:02d}.out')
-                self._dump_vecs(vecs, vecf)
+                self._dump_vecs(vecs)
                 vecfs.append(vecf)
                 if plotp:
                     self._plot_p(p, i, vm, name)
                     self._plot_vecs(vecs[:, 3:], i, vm, name)
-                lum = self.sample(vecf, vecs, outf)
+                lum = self.sample(vecs)
                 self.update_weights(si, lum)
                 a = lum.shape[0]
                 allc += a
@@ -370,4 +358,4 @@ class Sampler(object):
         row = ['total sampling:', '- ', f"{allc: >7}", f"{srate: >7.02%}",
                f'{fsize:.03f}']
         self.scene.log(self, '\t'.join(row), logerr)
-        return self.run_callback(vecfs, name, point, posidx, vm)
+        return self.run_callback(point, posidx, vm)

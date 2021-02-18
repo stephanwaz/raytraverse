@@ -35,6 +35,6 @@ class ImageRenderer(Renderer):
                                                 method=method,
                                                 fill_value=fv)
 
-    def call(self, rays, store=True, outf=None):
+    def __call__(self, rays):
         pxy = self.vm.xyz2xy(rays[:, 3:6])
         return self.instance(pxy)

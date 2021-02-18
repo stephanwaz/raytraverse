@@ -67,6 +67,7 @@ int	imm_irrad = 0;			/* compute immediate irradiance? */
 int	lim_dist = 0;			/* limit distance? */
 
 int	report_intvl = 0;		/* reporting interval (seconds) */
+int return_value_count = 0;
 
 const char	*modname[MAXMODLIST];	/* ordered modifier name list */
 int		nmods = 0;		/* number of modifiers */
@@ -223,7 +224,7 @@ rcontrib_init(int argc, char *argv[])
 				case 'n': case 'N': case 'f': case 'F': \
 				case '-': case '0': (var) = 0; break; \
 				default: goto badopt; }
-  char	*curout = NULL;
+  char	*curout = "raytraverse";
   char	*prms = NULL;
   char	*binval = NULL;
   int	bincnt = 0;
@@ -252,6 +253,7 @@ rcontrib_init(int argc, char *argv[])
   lim_dist = 0;			/* limit distance? */
   outbright = 0; /* output one component brightness */
   report_intvl = 0;		/* reporting interval (seconds) */
+  return_value_count = 0;
   /* option city */
   for (i = 1; i < argc; i++) {
     /* expand arguments */

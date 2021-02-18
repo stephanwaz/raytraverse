@@ -5,6 +5,14 @@
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 # =======================================================================
+
+class _VirtEngine:
+
+    @classmethod
+    def __call__(cls, rays):
+        return None
+
+
 class Renderer(object):
     """virtual singleton renderer class.
     the Renderer is implemented as a singleton as specific subclasses (rtrace,
@@ -14,6 +22,8 @@ class Renderer(object):
 
     args = ""
     _pyinstance = None
+    instance = _VirtEngine()
+    scene = None
 
     def __new__(cls, rayargs=None, scene=None, nproc=None, **kwargs):
         if cls._pyinstance is None:
@@ -21,5 +31,5 @@ class Renderer(object):
         return cls._pyinstance
 
     @classmethod
-    def call(cls, rays, **kwargs):
-        return None
+    def __call__(cls, rays):
+        return cls.instance(rays)

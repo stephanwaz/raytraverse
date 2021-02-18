@@ -38,19 +38,7 @@ class ImageSampler(Sampler):
         self.vecs = None
         self.lum = []
 
-    def sample(self, vecf, vecs, outf=None):
-        """sample an ImageRenderer"""
-        lum = self.engine.call(vecs).ravel()
-        self.lum = np.concatenate((self.lum, lum))
-        return lum
-
-    def _dump_vecs(self, vecs, vecf):
-        if self.vecs is None:
-            self.vecs = vecs
-        else:
-            self.vecs = np.concatenate((self.vecs, vecs))
-
-    def run_callback(self, vecfs, name, point, posidx, vm):
+    def run_callback(self, point, posidx, vm):
         return LightPointKD(self.scene, self.vecs, self.lum, vm=vm, pt=point,
                             posidx=posidx, src=self.stype, write=False)
 

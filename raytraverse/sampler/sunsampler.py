@@ -67,14 +67,6 @@ class SunSampler(Sampler):
         f.close()
         self.engine.load_source(srcdef)
         os.remove(srcdef)
-        self.vecs = None
-        self.lum = []
-
-    def sample(self, vecf, vecs, outf=None):
-        """call rendering engine to sample sky contribution"""
-        lum = self.engine.call(vecs).ravel()
-        self.lum = np.concatenate((self.lum, lum))
-        return lum
 
     # @profile
     def draw(self, level):
@@ -98,7 +90,7 @@ class SunSampler(Sampler):
             pdraws = np.concatenate((pdraws, sdraws))
         return pdraws, pa + s
 
-    def run_callback(self, vecfs, name, point, posidx, vm):
+    def run_callback(self, point, posidx, vm):
         lightpoint = SunPointKD(self.scene, self.vecs, self.lum, sun=self.sunpos,
                                 src=self.stype, pt=point, write=True,
                                 srcn=self.srcn, posidx=posidx, vm=vm)
@@ -120,15 +112,7 @@ class SunSampler(Sampler):
             lumg = np.max(skykd.lum[:, skybin], 1)[i].reshape(shp)
             self.specguide = np.where(lumg > self.maxspec, 0, lumg)
 
-    def _dump_vecs(self, vecs, vecf):
-        if self.vecs is None:
-            self.vecs = vecs
-        else:
-            self.vecs = np.concatenate((self.vecs, vecs))
-
     def run(self, point, posidx, vm=None, plotp=False, **kwargs):
-        self.vecs = None
-        self.lum = []
         if vm is None:
             vm = ViewMapper()
         self._load_specguide(point, posidx, vm)

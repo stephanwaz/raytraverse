@@ -44,6 +44,9 @@ extern "C" {
 
 char	*shm_boundary = NULL;		/* boundary of shared memory */
 
+int current_vec_cnt = 0;
+long putcount = 0;
+
 CUBE	thescene;			/* our scene */
 OBJECT	nsceneobjs;			/* number of objects in our scene */
 
@@ -127,7 +130,7 @@ addmodifier(char *modn, char *outf, char *prms, char *binv, int bincnt)
   MODCONT	*mp;
   EPNODE	*ebinv;
   int	i;
-
+  return_value_count += bincnt;
   if (lep->data != NULL) {
     sprintf(errmsg, "duplicate modifier '%s'", modn);
     error(USER, errmsg);
@@ -169,16 +172,9 @@ addmodifier(char *modn, char *outf, char *prms, char *binv, int bincnt)
   mp->bin0 = 0;
   mp->nbins = bincnt;
   memset(mp->cbin, 0, sizeof(DCOLOR)*bincnt);
-  /* figure out starting bin */
-  while (!getostream(mp->outspec, mp->modname, mp->bin0, 1))
-    mp->bin0++;
-  /* allocate other output streams */
-  for (i = 0; ++i < mp->nbins; )
-    getostream(mp->outspec, mp->modname, mp->bin0+i, 1);
   lep->data = (char *)mp;
   return(mp);
 }
-
 
 /* Add modifiers from a file list */
 void
@@ -324,67 +320,43 @@ done_contrib(void)
   account = accumulate;		/* reset accumulation counter */
 }
 
-
-FVECT vec_0;
-FVECT vec_1;
-
 /*
  * Modified so that accumulate repeats rays (like vwrays), instead of averaging (classic behaviour)
  */
 int
-getvecfp(FVECT vec, FILE *fp)
+getvecfa(FVECT vec, const double *vecs, int raycount)
 {
-  float	vf[3];
-  double	vd[3];
-  char	buf[32];
+  FVECT vec_0;
+  FVECT vec_1;
   int	i;
   feed_repeat = feed_repeat % (accumulate * 2);
   if (feed_repeat < 2) {
-    switch (inpfmt) {
-      case 'a':					/* ascii */
-        for (i = 0; i < 3; i++) {
-          if (fgetword(buf, sizeof(buf), fp) == NULL ||
-              !isflt(buf))
-            return(-1);
-          if (feed_repeat % 2 == 0)
-            vec_0[i] = atof(buf);
-          else
-            vec_1[i] = atof(buf);
-        }
-        break;
-      case 'f':					/* binary float */
-        if (getbinary((char *)vf, sizeof(float), 3, fp) != 3)
-          return(-1);
-        if (feed_repeat % 2 == 0)
-          VCOPY(vec_0, vf);
-        else
-          VCOPY(vec_1, vf);
-        break;
-      case 'd':					/* binary double */
-        if (getbinary((char *)vd, sizeof(double), 3, fp) != 3)
-          return(-1);
-        if (feed_repeat % 2 == 0)
-          VCOPY(vec_0, vd);
-        else
-          VCOPY(vec_1, vd);
-        break;
-      default:
-        error(CONSISTENCY, "botched input format");
+    if (current_vec_cnt >= raycount * 6)
+      return -1;
+    if (feed_repeat % 2 == 0) {
+      for (i = 0; i < 3; i++) {
+        vec_0[i] = vecs[current_vec_cnt + i];
+      }
+    } else {
+      for (i = 0; i < 3; i++) {
+        vec_1[i] = vecs[current_vec_cnt + i];
+      }
     }
+    current_vec_cnt += 3;
   }
   if (feed_repeat % 2 == 0)
     VCOPY(vec, vec_0);
   else
     VCOPY(vec, vec_1);
   feed_repeat = feed_repeat + 1;
-  return(0);
+  return 0;
 }
 
 int
-getvecb(FVECT vec, FILE *fp)
+getvecb(FVECT vec)
 {
   double	vd[3];
-  if (getbinary((char *)vd, sizeof(double), 3, fp) != 3)
+  if (getbinary((char *)vd, sizeof(double), 3, stdin) != 3)
     return(-1);
   VCOPY(vec, vd);
   return(0);
@@ -392,8 +364,8 @@ getvecb(FVECT vec, FILE *fp)
 
 /************************** MODIFIED PARTS ***********************/
 
-FILE*
-rcinit2(char *fname)
+int
+rcinit2(const double *vecs, int raycount)
 {
   int	i;
 
@@ -419,33 +391,14 @@ rcinit2(char *fname)
     raysleft *= accumulate;
   waitflush = (yres > 0) & (xres > 1) ? 0 : xres;
   if (nproc > 1 && in_rchild2())	/* forked child? */{
-    return stdin;      /* return to main processing loop */
-  }
-
-  if (recover) {			/* recover previous output? */
-    if (accumulate <= 0)
-      reload_output();
-    else
-      recover_output();
+    return 0;      /* return to main processing loop */
   }
   if (nproc == 1)	{ /* single process? */
-    FILE *fp;
-    if (fname == NULL)
-      fp = stdin;
-    else if ((fp = fopen(fname, "rb")) == NULL) {
-      fprintf(stderr, "cannot open input file \"%s\"", fname);
-      error(SYSTEM, errmsg);
-    }
-    return fp;
+    return 1;
   }
   /* else run appropriate controller */
-  if (accumulate <= 0) {
-    feeder_loop2(fname);
-  }
-  else {
-    parental_loop2(fname);
-  }
-  return NULL;
+  parental_loop2(vecs, raycount);
+  return 2;
 }
 
 /* Quit program */
@@ -462,24 +415,20 @@ quitrc(
 }
 
 
-void rcontrib_call(char *fname){
+void rcontrib_call(const double *vecs, int rows){
+  current_vec_cnt = 0;
+  putcount = 0;
   static int	ignore_warning_given = 0;
   FVECT		orig, direc;
   double		d;
-  FILE *fp;
-  fp = rcinit2(fname);
-  if (fp == NULL){
+  int control;
+  output_values = (RREAL *)malloc(sizeof(RREAL) * rows * return_value_count);
+  control = rcinit2(vecs, rows);
+  if (control == 2){
     return;
   }
-  else if (fp != stdin) {
-  #ifdef getc_unlocked
-    flockfile(fp);
-  #endif
-  }
-//  if (nproc <= 1)
-//    repeats = accumulate;
-  if (nproc == 1){
-    while (getvecfp(orig, fp) == 0 && getvecfp(direc, fp) == 0) {
+  if (control == 1){
+    while (getvecfa(orig, vecs, rows) == 0 && getvecfa(direc, vecs, rows) == 0) {
       d = normalize(direc);
       if (nchild != -1 && (d == 0.0) & (accumulate == 0)) {
         if (!ignore_warning_given++)
@@ -507,7 +456,7 @@ void rcontrib_call(char *fname){
         break;    /* preemptive EOI */
     }
   } else {
-    while (getvecb(orig, fp) == 0 && getvecb(direc, fp) == 0) {
+    while (getvecb(orig) == 0 && getvecb(direc) == 0) {
       d = normalize(direc);
       if (nchild != -1 && (d == 0.0) & (accumulate == 0)) {
         if (!ignore_warning_given++)
@@ -536,7 +485,6 @@ void rcontrib_call(char *fname){
     }
   }
 
-
   if (nchild != -1 && (accumulate <= 0) | (account < accumulate)) {
     if (account < accumulate) {
       error(WARNING, "partial accumulation in final record");
@@ -544,12 +492,6 @@ void rcontrib_call(char *fname){
     }
     account = 1;		/* output accumulated totals */
     done_contrib();
-  }
-  if (fp != stdin) {
-#ifdef getc_unlocked
-    funlockfile(fp);    /* avoid lock/unlock overhead */
-#endif
-    fclose(fp);
   }
   if (raysleft)
     error(USER, "unexpected EOF on input");

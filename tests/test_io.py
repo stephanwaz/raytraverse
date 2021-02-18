@@ -33,28 +33,3 @@ def test_array2img(tmpdir):
     assert np.allclose(b.T, b2, atol=.25, rtol=.03)
     assert np.allclose(ar2, ar2, atol=.25, rtol=.03)
 
-
-def test_capture(tmpdir):
-    inp = ("cnt 100 | rcalc -f rayinit.cal -f b2d.cal -e 'side=10;bin=$1"
-           ";$1=$1;$2=U;$3=V;$4=Dx;$5=Dy;$6=Dz' | rcalc -f rayinit.cal -f "
-           "d2b.cal -e 'side=10;Dx=$4;Dy=$5;Dz=$6;$1=bin'")
-    f = open("test.txt", 'w')
-    with io.CaptureStdOut(outf=f) as cap:
-        pass
-    with io.CaptureStdOut(outf=f) as cap:
-        print(inp)
-    f.close()
-    f = open('test.txt').read()
-    assert inp + "\n" == f
-    assert cap.stdout == inp + "\n"
-    inp = np.arange(10)
-    f = open("test.txt", 'wb')
-    with io.CaptureStdOut(b=True, outf=f) as cap:
-        sys.stdout.buffer.write(io.np2bytes(inp))
-    f.close()
-    f = open('test.txt', 'rb').read()
-    assert np.allclose(inp, io.bytes2np(f, (10,)))
-    assert np.allclose(inp, io.bytes2np(cap.stdout, (10,)))
-    with pytest.raises(AttributeError):
-        with io.CaptureStdOut(b=True, outf="test.txt"):
-            pass

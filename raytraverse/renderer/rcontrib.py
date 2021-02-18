@@ -18,27 +18,21 @@ from raytraverse.formatter import RadianceFormatter as Fmt
 class Rcontrib(RadianceRenderer):
     """wrapper for c++ crenderer.cRcontrib singleton class"""
     name = 'rcontrib'
-    arg_prefix = "-o !cat"
     engine = cRcontrib
-    returnbytes = False
-    iot = "ff"
     ground = True
     side = 18
     srcn = 325
     modname = "skyglow"
 
-    def __init__(self, rayargs=None, scene=None, nproc=None, iot="ff",
+    def __init__(self, rayargs=None, scene=None, nproc=None,
                  skyres=10.0, modname='skyglow', ground=True,
                  default_args=True):
-        scene = self.setup(scene, ground, modname, skyres, iot)
+        scene = self.setup(scene, ground, modname, skyres)
         super().__init__(rayargs, scene, nproc=nproc,
                          default_args=default_args)
 
     @classmethod
-    def setup(cls, scene=None, ground=True, modname="skyglow", skyres=10.0,
-              iot="ff"):
-        cls.returnbytes = iot[-1] != "a"
-        cls.iot = iot
+    def setup(cls, scene=None, ground=True, modname="skyglow", skyres=10.0):
         cls.ground = ground
         if scene is not None:
             srcdef = Fmt.get_skydef((1, 1, 1), ground=True, name=modname)
@@ -49,17 +43,11 @@ class Rcontrib(RadianceRenderer):
         return scene
 
     @classmethod
-    def call(cls, rays, **kwargs):
-        with io.CaptureStdOut(cls.returnbytes, **kwargs) as capture:
-            cls.instance.call(rays)
-        return capture.stdout
-
-    @classmethod
     def get_default_args(cls):
         return f"-av 0 0 0 -ab 7 -ad 10 -c {10*cls.srcn} -as 0 -lw 1e-5 -Z+"
 
     @classmethod
     def set_args(cls, args, nproc=None):
-        args = (f" -f{cls.iot} -V+ {args} -e 'side:{cls.side}' -f scbins.cal "
+        args = (f" -V+ {args} -e 'side:{cls.side}' -f scbins.cal "
                 f"-b bin -bn {cls.srcn} -m {cls.modname}")
         super().set_args(args, nproc)

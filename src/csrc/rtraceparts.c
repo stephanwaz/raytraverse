@@ -461,7 +461,7 @@ rtrace_setup( /* initialize processes */
 
 extern RREAL*
 rtrace_call( /* run rtrace process */
-        double *vptr,
+        const double *vptr,
         int nproc,
         int raycount
 )

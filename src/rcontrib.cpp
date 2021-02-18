@@ -30,11 +30,9 @@ namespace rayrc{
     }
 }
 
-Rcontrib* Rcontrib::renderer = nullptr;
+namespace py = pybind11;
 
-void Rcontrib::call(char *fname) {
-  rayrc::rcontrib_call(fname);
-}
+Rcontrib* Rcontrib::renderer = nullptr;
 
 Rcontrib& Rcontrib::getInstance() {
   if (not renderer) {
@@ -68,15 +66,25 @@ void Rcontrib::loadscene(char* octname) {
   rayrc::rcontrib_loadscene(octree);
 }
 
+py::array_t<double> Rcontrib::operator()(py::array_t<double, py::array::c_style> &vecs) {
+  int rows = vecs.shape(0);
+  int cols = rayrc::return_value_count;
+  py::buffer_info vbuff = vecs.request();
+  auto *vptr = (double *) vbuff.ptr;
+  rayrc::rcontrib_call(vptr, rows);
+  double* buff = rayrc::output_values;
 
-namespace py = pybind11;
+  return py::array_t<double>({rows, cols}, buff);
+}
+
+using namespace pybind11::literals;
 PYBIND11_MODULE(rcontrib_c, m) {
   py::class_<Rcontrib>(m, "cRcontrib")
           .def("get_instance", &Rcontrib::getInstance, py::return_value_policy::reference)
           .def("reset", [](py::args& args){Rcontrib::resetRadiance();})
           .def("initialize", &Rcontrib::initialize)
           .def("load_scene", &Rcontrib::loadscene)
-          .def("call", &Rcontrib::call, py::call_guard<py::gil_scoped_release>())
+          .def("__call__", &Rcontrib::operator(), "vecs"_a)
           .def_property_readonly_static("version", [](py::object) { return rayrc::VersionID; });
 
 #ifdef VERSION_INFO

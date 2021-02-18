@@ -34,7 +34,7 @@ namespace py = pybind11;
 
 Rtrace* Rtrace::renderer = nullptr;
 
-py::array_t<double> Rtrace::call(py::array_t<double, py::array::c_style> &vecs) {
+py::array_t<double> Rtrace::operator()(py::array_t<double, py::array::c_style> &vecs) {
   int rows = vecs.shape(0);
   int cols = ray::return_value_count;
   py::buffer_info vbuff = vecs.request();
@@ -101,7 +101,7 @@ PYBIND11_MODULE(rtrace_c, m) {
 instance and persist for duration of program)pbdoc")
           .def("load_scene", &Rtrace::loadscene)
           .def("load_source", &Rtrace::loadsrc, "srcname"_a, "freesrc"_a=-1)
-          .def("call", &Rtrace::call, "vecs"_a)
+          .def("__call__", &Rtrace::operator(), "vecs"_a)
           .def("update_ospec", &Rtrace::updateOSpec, "vs"_a)
           .def_property_readonly_static("version", [](py::object) { return ray::VersionID; });
 
