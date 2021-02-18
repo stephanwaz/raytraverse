@@ -51,8 +51,8 @@ int	nchild = 0;			/* number of children (-1 in child) */
 int	inpfmt = 'a';			/* input format */
 int	outfmt = 'a';			/* output format */
 
-int	header = 1;			/* output header? */
-int outbright = 0;
+int	header = 0;			/* output header? */
+int outbright = 1;
 int	force_open = 0;			/* truncate existing output? */
 int	recover = 0;			/* recover previous output? */
 int	accumulate = 1;			/* RAYTRAVERSE MODIFICATION number of times to repeat ray  */
@@ -72,69 +72,7 @@ int return_value_count = 0;
 const char	*modname[MAXMODLIST];	/* ordered modifier name list */
 int		nmods = 0;		/* number of modifiers */
 
-//void	(*addobjnotify[8])() = {ambnotify, NULL};
-
 char	RCCONTEXT[] = "RC.";		/* our special evaluation context */
-
-
-static void
-rcprintdefaults(void)			/* print default values to stdout */
-{
-  printf("-c %-5d\t\t\t# repeat calculation per record\n", accumulate);
-  printf("-V%c\t\t\t\t# output %s\n", contrib ? '+' : '-',
-         contrib ? "contributions" : "coefficients");
-  if (imm_irrad)
-    printf("-I+\t\t\t\t# immediate irradiance on\n");
-  printf("-n %-2d\t\t\t\t# number of rendering processes\n", nproc);
-  printf("-x %-9d\t\t\t# %s\n", xres,
-         yres && xres ? "x resolution" : "flush interval");
-  printf("-y %-9d\t\t\t# y resolution\n", yres);
-  printf(lim_dist ? "-ld+\t\t\t\t# limit distance on\n" :
-         "-ld-\t\t\t\t# limit distance off\n");
-  printf("-h%c\t\t\t\t# %s header\n", header ? '+' : '-',
-         header ? "output" : "no");
-  printf("-f%c%c\t\t\t\t# format input/output = %s/%s\n",
-         inpfmt, outfmt, formstr(inpfmt), formstr(outfmt));
-  printf(erract[WARNING].pf != NULL ?
-         "-w+\t\t\t\t# warning messages on\n" :
-         "-w-\t\t\t\t# warning messages off\n");
-  print_rdefaults();
-}
-
-/* set input/output format */
-static void
-setformat(const char *fmt)
-{
-  switch (fmt[0]) {
-    case 'f':
-    case 'd':
-      SET_FILE_BINARY(stdin);
-      /* fall through */
-    case 'a':
-      inpfmt = fmt[0];
-      break;
-    default:
-      goto fmterr;
-  }
-  switch (fmt[1]) {
-    case '\0':
-      outfmt = inpfmt;
-      return;
-    case 'a':
-    case 'f':
-    case 'd':
-    case 'c':
-      outfmt = fmt[1];
-      break;
-    default:
-      goto fmterr;
-  }
-  if (!fmt[2])
-    return;
-  fmterr:
-  sprintf(errmsg, "Illegal i/o format: -f%s", fmt);
-  error(USER, errmsg);
-}
 
 void
 eputsrc(				/* put string to stderr */
@@ -251,7 +189,7 @@ rcontrib_init(int argc, char *argv[])
   using_stdout = 0;		/* are we using stdout? */
   imm_irrad = 0;			/* compute immediate irradiance? */
   lim_dist = 0;			/* limit distance? */
-  outbright = 0; /* output one component brightness */
+  outbright = 1; /* output one component brightness */
   report_intvl = 0;		/* reporting interval (seconds) */
   return_value_count = 0;
   /* option city */
@@ -261,20 +199,10 @@ rcontrib_init(int argc, char *argv[])
       ;
     if (rval < 0) {
       sprintf(errmsg, "cannot expand '%s'", argv[i]);
-      error(SYSTEM, errmsg);
+      goto badopt;
     }
     if (argv[i] == NULL || argv[i][0] != '-')
       break;			/* break from options */
-    if (!strcmp(argv[i], "-version")) {
-      puts(VersionID);
-      quit(0);
-    }
-    if (!strcmp(argv[i], "-defaults") ||
-        !strcmp(argv[i], "-help")) {
-      override_options();
-      rcprintdefaults();
-      quit(0);
-    }
     rval = getrenderopt(argc-i, argv+i);
     if (rval >= 0) {
       i += rval;
@@ -289,14 +217,6 @@ rcontrib_init(int argc, char *argv[])
         break;
       case 'V':			/* output contributions */
         check_bool(2,contrib);
-        break;
-      case 'x':			/* x resolution */
-        check(2,"i");
-        xres = atoi(argv[++i]);
-        break;
-      case 'y':			/* y resolution */
-        check(2,"i");
-        yres = atoi(argv[++i]);
         break;
       case 'w':			/* warnings */
         rval = (erract[WARNING].pf != NULL);
@@ -316,31 +236,15 @@ rcontrib_init(int argc, char *argv[])
       case 'I':			/* immed. irradiance */
         check_bool(2,imm_irrad);
         break;
-      case 'f':			/* file or force or format */
+      case 'f':			/* file  */
         if (!argv[i][2]) {
           check(2,"s");
           loadfunc(argv[++i]);
           break;
-        }
-        if (argv[i][2] == 'o') {
-          check_bool(3,force_open);
-          break;
-        }
-        setformat(argv[i]+2);
-        break;
-      case 'o':			/* output */
-        check(2,"s");
-        curout = argv[++i];
-        break;
+        } else goto badopt;
       case 'c':			/* RAYTRAVERSE MODIFICATION number of times to repeat ray  */
         check(2,"i");
         accumulate = atoi(argv[++i]);
-        break;
-      case 'r':			/* recover output */
-        check_bool(2,recover);
-        break;
-      case 'h':			/* header output */
-        check_bool(2,header);
         break;
       case 'p':			/* parameter setting(s) */
         check(2,"s");
@@ -417,7 +321,7 @@ rcontrib_init(int argc, char *argv[])
   badopt:
   if (!complete) {
     fprintf(stderr,
-            "Usage: %s [-n nprocs][-V][-c count][-r][-e expr][-f source][-o ospec][-p p1=V1,p2=V2][-b binv][-bn N] {-m mod | -M file} [rtrace options] octree\n",
+            "Usage: %s [-n nprocs][-V][-c count][-e expr][-f source][-o ospec][-p p1=V1,p2=V2][-b binv][-bn N] {-m mod | -M file} [rtrace options] octree\n",
             progname);
     return -1;
   }

@@ -122,7 +122,6 @@ rtinit(int  argc, char  *argv[])
 				case '-': case '0': var = 0; break; \
 				default: goto badopt; }
   int complete = 0;
-  char  **tralp = NULL;
   int  rval;
   int  i;
   repeat = 1;
@@ -140,7 +139,7 @@ rtinit(int  argc, char  *argv[])
   /* reset these with each call */
   imm_irrad = 0;			/* compute immediate irradiance? */
   lim_dist = 0;			/* limit distance? */
-  outvals = "v";			/* output specification */
+  outvals = "Z";			/* output specification */
   loadflags = ~IO_FILES;
   for (i = 1; i < argc; i++) {
     /* expand arguments */
@@ -148,7 +147,7 @@ rtinit(int  argc, char  *argv[])
       ;
     if (rval < 0) {
       sprintf(errmsg, "cannot expand '%s'", argv[i]);
-      error(SYSTEM, errmsg);
+      goto badopt;
     }
     if (argv[i] == NULL || argv[i][0] != '-')
       break;			/* break from options */

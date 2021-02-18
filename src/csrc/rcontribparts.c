@@ -414,7 +414,6 @@ quitrc(
   exit(code);
 }
 
-
 void rcontrib_call(const double *vecs, int rows){
   current_vec_cnt = 0;
   putcount = 0;
@@ -483,8 +482,8 @@ void rcontrib_call(const double *vecs, int rows){
       if (raysleft && !--raysleft)
         break;    /* preemptive EOI */
     }
+    quitrc(0);
   }
-
   if (nchild != -1 && (accumulate <= 0) | (account < accumulate)) {
     if (account < accumulate) {
       error(WARNING, "partial accumulation in final record");
@@ -495,7 +494,7 @@ void rcontrib_call(const double *vecs, int rows){
   }
   if (raysleft)
     error(USER, "unexpected EOF on input");
-  quitrc(0);
+
 }
 
 void rcontrib_clear(){

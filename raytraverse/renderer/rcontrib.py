@@ -44,7 +44,7 @@ class Rcontrib(RadianceRenderer):
 
     @classmethod
     def get_default_args(cls):
-        return f"-av 0 0 0 -ab 7 -ad 10 -c {10*cls.srcn} -as 0 -lw 1e-5 -Z+"
+        return f"-av 0 0 0 -ab 7 -ad 10 -c {10*cls.srcn} -as 0 -lw 1e-5"
 
     @classmethod
     def set_args(cls, args, nproc=None):

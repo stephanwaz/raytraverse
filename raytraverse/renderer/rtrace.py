@@ -15,8 +15,8 @@ class Rtrace(RadianceRenderer):
     """singleton wrapper for c++ crenderer.cRtrace singleton class"""
     name = 'rtrace'
     engine = cRtrace
-    defaultargs = "-av 0 0 0 -aa 0 -ab 7 -ad 128 -as 0 -c 10 -as 0 -lw 1e-5 -oZ"
-    directargs = "-av 0 0 0 -ab 0 -oZ -lr 0"
+    defaultargs = "-av 0 0 0 -aa 0 -ab 7 -ad 128 -as 0 -c 10 -as 0 -lw 1e-5"
+    directargs = "-av 0 0 0 -ab 0 -lr 0"
     usedirect = False
 
     def __init__(self, rayargs=None, scene=None, nproc=None,
