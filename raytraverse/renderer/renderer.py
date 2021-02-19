@@ -36,3 +36,7 @@ class Renderer(object):
     @classmethod
     def __call__(cls, rays):
         return cls.instance(rays)
+
+    @classmethod
+    def set_args(cls, args, nproc=None):
+        pass

@@ -40,27 +40,25 @@ class LightPointKD(object):
         self.file = f"{self.scene.outdir}/{self.src}/{self.posidx:06d}.rytpt"
         if vec is not None and lum is not None:
             scene.log(self, f"building {src} at {posidx}")
-            self._d_kd, self._vec, self._lum, clr = self._build(vec, lum, srcn)
+            self._d_kd, self._vec, self._lum = self._build(vec, lum, srcn)
             self._omega = None
             if calcomega:
                 self.calc_omega(False)
             if write:
                 self.dump()
-                for rf in clr:
-                    try:
-                        os.remove(rf)
-                    except IOError:
-                        pass
             scene.log(self, f"build complete")
         elif os.path.isfile(self.file):
-            f = open(self.file, 'rb')
-            self._d_kd, self._vec, self._omega, self._lum = pickle.load(f)
-            f.close()
+            self.load()
         else:
             raise ValueError(f"Cannot initialize {type(self).__name__} without"
                              f" file: {self.file} or parameters 'vec' "
                              f"and 'lum'")
         self.srcn = self.lum.shape[1]
+
+    def load(self):
+        f = open(self.file, 'rb')
+        self._d_kd, self._vec, self._omega, self._lum = pickle.load(f)
+        f.close()
 
     def dump(self):
         try_mkdir(f"{self.scene.outdir}/{self.src}")
@@ -162,7 +160,7 @@ class LightPointKD(object):
             c = np.broadcast_to(coefs, (1, self.srcn))
         return np.einsum('ij,kj->ik', c, self.lum)
 
-    def add_to_img(self, img, vecs, mask=None, coefs=1, interp=False,
+    def add_to_img(self, img, vecs, mask=None, skyvec=1, interp=False,
                    omega=False, vm=None):
         """add luminance contributions to image array (updates in place)
 
@@ -172,10 +170,10 @@ class LightPointKD(object):
             2D image array to add to (either zeros or with other source)
         vecs: np.array
             vectors corresponding to img pixels shape (N, 3)
-        mask: np.array
+        mask: np.array, optional
             indices to img that correspond to vec (in case where whole image
             is not being updated, such as corners of fisheye)
-        coefs: int, float, np.array
+        skyvec: int float np.array, optional
             source coefficients, shape is (1,) or (srcn,)
         interp: bool, optional
             for linear interpolation (falls back to nearest outside of
@@ -192,7 +190,7 @@ class LightPointKD(object):
         if omega:
             val = self.omega.reshape(1, -1)
         else:
-            val = self.apply_coef(coefs)
+            val = self.apply_coef(skyvec)
         if interp:
             if vm is None:
                 vm = self.vm
@@ -235,16 +233,16 @@ class LightPointKD(object):
         img = np.zeros((res*vm.aspect, res))
         if showweight:
             if srcidx is not None:
-                coefs = np.zeros(self.srcn)
-                coefs[srcidx] = scalefactor
+                skyvec = np.zeros(self.srcn)
+                skyvec[srcidx] = scalefactor
             else:
-                coefs = np.full(self.srcn, scalefactor / self.srcn)
+                skyvec = np.full(self.srcn, scalefactor / self.srcn)
             self.add_to_img(img, pdirs[mask], mask,
-                            interp=interp, coefs=coefs, omega=omega)
+                            interp=interp, skyvec=skyvec, omega=omega)
             if vm.aspect == 2:
                 mask = vm.ivm.in_view(pdirs[res:])
                 self.add_to_img(img[res:], pdirs[res:][mask], mask, vm=vm.ivm,
-                                interp=interp, coefs=coefs, omega=omega)
+                                interp=interp, skyvec=skyvec, omega=omega)
             channels = (1, 0, 0)
         else:
             channels = (1, 1, 1)
@@ -267,22 +265,7 @@ class LightPointKD(object):
     @staticmethod
     def _build(vec, lum, srcn):
         """load samples and build data structure"""
-        clear = []
-        try:
-            f = open(vec, 'rb')
-        except TypeError:
-            pass
-        else:
-            clear.append(vec)
-            vec = io.bytefile2np(f, (-1, 6))
-            f.close()
         vec = vec[:, -3:]
-        try:
-            f = open(lum, 'rb')
-        except TypeError:
-            lum = lum.reshape(-1, srcn)
-        else:
-            clear.append(lum)
-            lum = io.bytefile2np(f, (-1, srcn))
         d_kd = cKDTree(vec)
-        return d_kd, vec, lum, clear
+        lum = lum.reshape(-1, srcn)
+        return d_kd, vec, lum

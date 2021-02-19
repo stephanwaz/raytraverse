@@ -9,6 +9,7 @@
 import numpy as np
 
 from raytraverse.lightpoint.lightpointkd import LightPointKD
+from raytraverse.lightpoint.sunpointkd import SunPointKD
 
 
 def add_sources(lf1, lf2, src=None, calcomega=True, write=True):
@@ -39,7 +40,21 @@ def add_sources(lf1, lf2, src=None, calcomega=True, write=True):
     lums = np.concatenate((lum1at2, lum2at1), axis=1)
     if src is None:
         src = f"{lf1.src}_{lf2.src}"
-    lf_out = LightPointKD(lf1.scene, vec=vecs, lum=lums, vm=lf1.vm, pt=lf1.pt,
-                          posidx=lf1.posidx, src=src, srcn=lf1.srcn + lf2.srcn,
-                          calcomega=calcomega, write=write)
+    kwargs = dict(vec=vecs, lum=lums, vm=lf1.vm, pt=lf1.pt, posidx=lf1.posidx,
+                  src=src, srcn=lf1.srcn + lf2.srcn, calcomega=calcomega,
+                  write=write)
+    if hasattr(lf1, "sunview") and hasattr(lf1, "sunpos"):
+        sunview = lf1.sunview
+        sun = lf1.sunpos
+    elif hasattr(lf2, "sunview") and hasattr(lf2, "sunpos"):
+        sunview = lf2.sunview
+        sun = lf2.sunpos
+    else:
+        sunview = None
+        sun = None
+    if sunview is None:
+        lf_out = LightPointKD(lf1.scene, **kwargs)
+    else:
+        lf_out = SunPointKD(lf1.scene, sun=sun, sunview=sunview,
+                            filterview=False, **kwargs)
     return lf_out

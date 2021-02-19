@@ -70,5 +70,6 @@ def test_metric():
     assert np.isclose(a2.gcr, 1.25)
     assert np.isclose(a2.illum, np.pi * 2000, rtol=.01)
     assert np.isclose(a1.dgp, a2.dgp - a2.dgp_t2)
-
+    r, o, l = checker.get_applied_rays([[3000/179], [1000/179]])
+    print(r.shape, o.shape, l.shape)
 

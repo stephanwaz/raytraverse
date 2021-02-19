@@ -23,7 +23,8 @@ class RadianceRenderer(Renderer):
     engine = cRtrace
     srcn = 1
     defaultargs = ""
-    args = ""
+    args = None
+    _args = None
 
     def __init__(self, rayargs=None, scene=None, nproc=None, default_args=True):
         type(self).instance = self.engine.get_instance()
@@ -46,6 +47,7 @@ class RadianceRenderer(Renderer):
         cls.instance.reset()
         cls.scene = None
         cls.args = None
+        cls._args = None
 
     @classmethod
     def set_args(cls, args, nproc=None):
@@ -60,11 +62,12 @@ class RadianceRenderer(Renderer):
 
         """
         nproc = io.get_nproc(nproc)
-        cls.args = shlex.split(f"{cls.name} -n {nproc} {args}")
-        nproc = cls.instance.initialize(cls.args)
+        cls.args = args
+        cls._args = shlex.split(f"{cls.name} -n {nproc} {args}")
+        nproc = cls.instance.initialize(cls._args)
         if nproc < 0:
             raise ValueError(f"Could not initialize {cls.__name__} with "
-                             f"arguments: '{' '.join(cls.args)}'")
+                             f"arguments: '{' '.join(cls._args)}'")
 
     @classmethod
     def load_scene(cls, scene):
@@ -81,7 +84,7 @@ class RadianceRenderer(Renderer):
             can only be called after set_args, otherwise engine instance
             will abort.
         """
-        if cls.args is None:
+        if cls._args is None:
             raise ValueError(f'{cls.__name__} instance args must be '
                              'initialized before scene is loaded')
         cls.scene = scene

@@ -305,7 +305,7 @@ class Sampler(object):
         name = f"{vm.name}_{posidx:06d}"
         self.scene.log(self, f"Started sampling {self.scene.outdir} at {name} "
                              f"with {self.stype}", logerr)
-        self.scene.log(self, f"Settings: {' '.join(self.engine.args)}", logerr)
+        self.scene.log(self, f"Settings: {self.engine.args}", logerr)
         if detaillog:
             hdr = ['level ', '      shape', 'samples', '   rate']
             self.scene.log(self, '\t'.join(hdr), logerr)

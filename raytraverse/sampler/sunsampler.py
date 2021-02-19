@@ -13,7 +13,7 @@ from raytraverse import translate, io
 from raytraverse.lightpoint import LightPointKD, SunPointKD
 from raytraverse.mapper import ViewMapper
 from raytraverse.sampler.sampler import Sampler
-from raytraverse.sampler import draw
+from raytraverse.sampler import draw, SunViewSampler
 
 
 class SunSampler(Sampler):
@@ -60,6 +60,7 @@ class SunSampler(Sampler):
         self.specidx = speclevel - self.idres
         #: np.array: sun position x,y,z
         self.sunpos = np.asarray(sun).flatten()[0:3]
+        self.sunbin = sunbin
         # load new source
         srcdef = f'{scene.outdir}/tmp_srcdef_{sunbin}.rad'
         f = open(srcdef, 'w')
@@ -91,10 +92,17 @@ class SunSampler(Sampler):
         return pdraws, pa + s
 
     def run_callback(self, point, posidx, vm):
+        args = self.engine.args
+        # temporarily override arguments
+        self.engine.set_args(self.engine.directargs)
+        viewsampler = SunViewSampler(self.scene, self.engine, self.sunpos,
+                                     self.sunbin)
+        sunview = viewsampler.run(point, posidx)
+        self.engine.set_args(args)
         lightpoint = SunPointKD(self.scene, self.vecs, self.lum,
                                 sun=self.sunpos, src=self.stype, pt=point,
                                 write=True, srcn=self.srcn, posidx=posidx,
-                                vm=vm)
+                                vm=vm, sunview=sunview)
         return lightpoint
 
     def _load_specguide(self, point, posidx, vm):
