@@ -589,10 +589,6 @@ setoutput2(char *vs)      /* provides additional outputspec Z to output radiance
         *table++ = oputN;
         ncomp += 3;
         break;
-      case 's':				/* surface */
-        *table++ = oputs;
-        ncomp++;
-        break;
       case 'w':				/* weight */
         *table++ = oputw;
         ncomp++;
@@ -601,14 +597,6 @@ setoutput2(char *vs)      /* provides additional outputspec Z to output radiance
         *table++ = oputW;
         ncomp += 3;
         castonly = 0;
-        break;
-      case 'm':				/* modifier */
-        *table++ = oputm;
-        ncomp++;
-        break;
-      case 'M':				/* material */
-        *table++ = oputM;
-        ncomp++;
         break;
       case 'Z':     /* photopic brightness value */
         *table++ = oputrad;

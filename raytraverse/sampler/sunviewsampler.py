@@ -76,4 +76,4 @@ class SunViewSampler(Sampler):
 
     def run(self, point, posidx, vm=None, plotp=False, **kwargs):
         vm = ViewMapper(self.sunpos, 0.533, "sunview")
-        return super().run(point, posidx, vm, plotp, outf=False, **kwargs)
+        return super().run(point, posidx, vm, plotp, **kwargs)

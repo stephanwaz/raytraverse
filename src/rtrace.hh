@@ -29,13 +29,14 @@ private:
     static Rtrace* renderer;
 
 public:
+    int srcobj = 0;
     static Rtrace& getInstance();
     int initialize(pybind11::object arglist);
     void loadscene(char* octname) override;
     py::array_t<double> operator()(py::array_t<double, py::array::c_style> &vecs) override;
     int updateOSpec(char *vs);
     void resetRadiance();
-    void loadsrc(char* srcname, int freesrc) override;
+    void loadsrc(char* srcname, int freesrc);
 };
 
 

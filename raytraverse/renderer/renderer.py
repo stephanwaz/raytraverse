@@ -18,9 +18,12 @@ class Renderer(object):
     the Renderer is implemented as a singleton as specific subclasses (rtrace,
     rcontrib) have many global variables set at import time. This ensures the
     python object is connected to the current state of the engine c++-class.
+
+    All renderer classes are callable with with a numpy array of shape (N,6)
+    representing the origin and direction of ray samples to calculate.
     """
 
-    args = ""
+    args = None
     _pyinstance = None
     instance = _VirtEngine()
     scene = None

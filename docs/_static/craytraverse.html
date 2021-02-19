@@ -31,6 +31,65 @@
 <dt id="raytraverse.crenderer.cRtrace">
 <em class="property">class </em><code class="sig-prename descclassname">raytraverse.crenderer.</code><code class="sig-name descname">cRtrace</code><a class="headerlink" href="#raytraverse.crenderer.cRtrace" title="Permalink to this definition">¶</a></dt>
 <dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">pybind11_builtins.pybind11_object</span></code></p>
+<p>singleton interface to the Radiance rtrace executable.</p>
+<p>See the rtrace man page for a full description of the programs functionality. Instance is initialized with a list
+of arguments similar to the command line tool, but with several differences:</p>
+<blockquote>
+<div><ul class="simple">
+<li><p>no -f format specifier, input and output is always a numpy array.</p></li>
+<li><p>no -h option.</p></li>
+<li><p>no -x/-y options, shape output data as necessary with np.reshape</p></li>
+<li><p>no -P/-PP modes</p></li>
+<li><p>-lr 0 behaves differently from radiance, sets a true reflection limit of 0 rather than disabling limit, for behavior
+approaching radiance, set -lr -1000</p></li>
+<li><p>an additional -c N option repeats each input N times and averages the result. Make sure that uncorrelated sampling
+is used (-U+, default)</p></li>
+<li><p>the default output is -oz, z is an additional output specifier that yields a single photopic brightness per input
+ray.</p></li>
+<li><p>no s/m/M/t/T/~ allowed as output specifiers</p></li>
+</ul>
+</div></blockquote>
+<p class="rubric">Examples</p>
+<p>basic usage:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span> <span class="nn">raytraverse.crenderer</span> <span class="kn">import</span> <span class="n">cRtrace</span>
+<span class="n">instance</span> <span class="o">=</span> <span class="n">cRtrace</span><span class="o">.</span><span class="n">get_instance</span><span class="p">()</span>
+<span class="n">instance</span><span class="o">.</span><span class="n">initialize</span><span class="p">([</span><span class="s2">&quot;rtrace&quot;</span><span class="p">,</span> <span class="o">...</span><span class="p">])</span> <span class="c1">#Note: do not include octree at end!</span>
+<span class="n">instance</span><span class="o">.</span><span class="n">load_scene</span><span class="p">(</span><span class="s2">&quot;scene.oct&quot;</span><span class="p">)</span>
+<span class="c1"># ...</span>
+<span class="c1"># define &#39;rays&#39; as a numpy array of shape (N, 6)</span>
+<span class="c1"># ...</span>
+<span class="n">lum</span> <span class="o">=</span> <span class="n">instance</span><span class="p">(</span><span class="n">rays</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>cRtrace can also update the output specification and/or the settings without reloading the scene geometry:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">instance</span><span class="o">.</span><span class="n">update_ospec</span><span class="p">(</span><span class="s2">&quot;L&quot;</span><span class="p">)</span> <span class="c1"># to query ray distance</span>
+<span class="n">instance</span><span class="o">.</span><span class="n">initialize</span><span class="p">(</span><span class="s2">&quot;rtrace -ab 0 -lr 0&quot;</span><span class="o">.</span><span class="n">split</span><span class="p">())</span> <span class="c1"># note this begins with default arguments, it is not additive with previous settings!</span>
+<span class="n">raylength</span> <span class="o">=</span> <span class="n">instance</span><span class="p">(</span><span class="n">rays</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>but if you are loading new geometry, the instance should be reset:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">instance</span><span class="o">.</span><span class="n">reset</span><span class="p">()</span>
+<span class="n">instance</span><span class="o">.</span><span class="n">initialize</span><span class="p">([</span><span class="s2">&quot;rtrace&quot;</span><span class="p">,</span> <span class="o">...</span><span class="p">])</span>
+<span class="n">instance</span><span class="o">.</span><span class="n">load_scene</span><span class="p">(</span><span class="s2">&quot;scene2.oct&quot;</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>by loading a scene without light sources, sources can be dynamically loaded and unloaded without a reset:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">instance</span><span class="o">.</span><span class="n">reset</span><span class="p">()</span>
+<span class="n">instance</span><span class="o">.</span><span class="n">initialize</span><span class="p">([</span><span class="s2">&quot;rtrace&quot;</span><span class="p">,</span> <span class="o">...</span><span class="p">])</span>
+<span class="n">instance</span><span class="o">.</span><span class="n">load_scene</span><span class="p">(</span><span class="s2">&quot;scene_no_sources.oct&quot;</span><span class="p">)</span>
+<span class="n">instance</span><span class="o">.</span><span class="n">load_source</span><span class="p">(</span><span class="s2">&quot;sky.rad&quot;</span><span class="p">)</span>
+<span class="n">skylum</span> <span class="o">=</span> <span class="n">instance</span><span class="p">(</span><span class="n">rays</span><span class="p">)</span>
+<span class="n">instance</span><span class="o">.</span><span class="n">load_source</span><span class="p">(</span><span class="s2">&quot;sun.rad&quot;</span><span class="p">)</span> <span class="c1"># this unloads sky.rad and loads sun.rad</span>
+<span class="n">sunlum</span> <span class="o">=</span> <span class="n">instance</span><span class="p">(</span><span class="n">rays</span><span class="p">)</span>
+<span class="n">instance</span><span class="o">.</span><span class="n">load_source</span><span class="p">(</span><span class="s2">&quot;sky.rad&quot;</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span> <span class="c1"># using the optional freesrc, keep the sun loaded</span>
+<span class="n">totallum</span> <span class="o">=</span> <span class="n">instance</span><span class="p">(</span><span class="n">rays</span><span class="p">)</span>
+<span class="k">if</span> <span class="n">np</span><span class="o">.</span><span class="n">allclose</span><span class="p">(</span><span class="n">skylum</span> <span class="o">+</span> <span class="n">sunlum</span><span class="p">,</span> <span class="n">totallum</span><span class="p">,</span> <span class="n">atol</span><span class="o">=.</span><span class="mi">03</span><span class="p">):</span> <span class="c1"># depending on rendering settings / scene complexity</span>
+    <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;light is additive!)</span>
+</pre></div>
+</div>
+<p class="rubric">Notes</p>
+<p>the cRcontrib instance is best managed from a seperate class that handles argument generation.
+See raytraverse.renderer.Rtrace</p>
 <dl class="py method">
 <dt id="raytraverse.crenderer.cRtrace.__call__">
 <code class="sig-name descname">__call__</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">self</span><span class="p">:</span> <span class="n">raytraverse.crenderer.rtrace_c.cRtrace</span></em>, <em class="sig-param"><span class="n">vecs</span><span class="p">:</span> <span class="n">numpy.ndarray<span class="p">[</span>numpy.float64<span class="p">]</span></span></em><span class="sig-paren">)</span> &#x2192; numpy.ndarray<span class="p">[</span>numpy.float64<span class="p">]</span><a class="headerlink" href="#raytraverse.crenderer.cRtrace.__call__" title="Permalink to this definition">¶</a></dt>
@@ -151,7 +210,41 @@ parameters</p>
 <dt id="raytraverse.crenderer.cRcontrib">
 <em class="property">class </em><code class="sig-prename descclassname">raytraverse.crenderer.</code><code class="sig-name descname">cRcontrib</code><a class="headerlink" href="#raytraverse.crenderer.cRcontrib" title="Permalink to this definition">¶</a></dt>
 <dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">pybind11_builtins.pybind11_object</span></code></p>
-<p>docstring for rcontrib</p>
+<p>singleton interface to the Radiance rcontrib executable.</p>
+<p>See the rcontrib man page for a full description of the programs functionality. Instance is initialized with a list
+of arguments similar to the command line tool, but with several differences:</p>
+<blockquote>
+<div><ul class="simple">
+<li><p>no -o option. All output is written to a memory buffer returned as a Numpy array</p></li>
+<li><p>no -f format specifier, input and output is always a numpy array.</p></li>
+<li><p>no -r option.</p></li>
+<li><p>no -h option.</p></li>
+<li><p>the -c option repeats and accumulates input rays rather than accumulating input.</p></li>
+<li><p>an additional flag -Z outputs a single brightness value (photopic) rather than 3-color channels. this is True
+by default.</p></li>
+</ul>
+</div></blockquote>
+<p class="rubric">Examples</p>
+<p>basic usage:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span> <span class="nn">raytraverse.crenderer</span> <span class="kn">import</span> <span class="n">cRcontrib</span>
+<span class="n">instance</span> <span class="o">=</span> <span class="n">cRcontrib</span><span class="o">.</span><span class="n">get_instance</span><span class="p">()</span>
+<span class="n">instance</span><span class="o">.</span><span class="n">initialize</span><span class="p">([</span><span class="s2">&quot;rcontrib&quot;</span><span class="p">,</span> <span class="s2">&quot;-n&quot;</span><span class="p">,</span> <span class="s2">&quot;8&quot;</span><span class="p">,</span> <span class="o">...</span><span class="p">,</span> <span class="s2">&quot;-m&quot;</span><span class="p">,</span> <span class="s2">&quot;mod&quot;</span><span class="p">])</span>  <span class="c1">#Note: do not include octree at end!</span>
+<span class="n">instance</span><span class="o">.</span><span class="n">load_scene</span><span class="p">(</span><span class="s2">&quot;scene.oct&quot;</span><span class="p">)</span>
+<span class="c1"># ...</span>
+<span class="c1"># define &#39;rays&#39; as a numpy array of shape (N, 6)</span>
+<span class="c1"># ...</span>
+<span class="n">contributions</span> <span class="o">=</span> <span class="n">instance</span><span class="p">(</span><span class="n">rays</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>Subsequent calls can be made to the instance, but if either the settings or scene are changed:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">instance</span><span class="o">.</span><span class="n">reset</span><span class="p">()</span>
+<span class="n">instance</span><span class="o">.</span><span class="n">initialize</span><span class="p">([</span><span class="s2">&quot;rcontrib&quot;</span><span class="p">,</span> <span class="s2">&quot;-n&quot;</span><span class="p">,</span> <span class="s2">&quot;8&quot;</span><span class="p">,</span> <span class="o">...</span><span class="p">,</span> <span class="s2">&quot;-m&quot;</span><span class="p">,</span> <span class="s2">&quot;mod2&quot;</span><span class="p">])</span>
+<span class="n">instance</span><span class="o">.</span><span class="n">load_scene</span><span class="p">(</span><span class="s2">&quot;scene2.oct&quot;</span><span class="p">)</span>
+</pre></div>
+</div>
+<p class="rubric">Notes</p>
+<p>the cRcontrib instance is best managed from a seperate class that handles argument generation.
+See raytraverse.renderer.Rcontrib</p>
 <dl class="py method">
 <dt id="raytraverse.crenderer.cRcontrib.__call__">
 <code class="sig-name descname">__call__</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">self</span><span class="p">:</span> <span class="n">raytraverse.crenderer.rcontrib_c.cRcontrib</span></em>, <em class="sig-param"><span class="n">vecs</span><span class="p">:</span> <span class="n">numpy.ndarray<span class="p">[</span>numpy.float64<span class="p">]</span></span></em><span class="sig-paren">)</span> &#x2192; numpy.ndarray<span class="p">[</span>numpy.float64<span class="p">]</span><a class="headerlink" href="#raytraverse.crenderer.cRcontrib.__call__" title="Permalink to this definition">¶</a></dt>
@@ -225,7 +318,7 @@ all sources loaded by this function.</p></li>
 
 <dl class="py method">
 <dt id="raytraverse.crenderer.cRcontrib.reset">
-<code class="sig-name descname">reset</code><span class="sig-paren">(</span><span class="sig-paren">)</span> &#x2192; None<a class="headerlink" href="#raytraverse.crenderer.cRcontrib.reset" title="Permalink to this definition">¶</a></dt>
+<code class="sig-name descname">reset</code><span class="sig-paren">(</span><em class="sig-param"><span class="o">*</span><span class="n">args</span></em><span class="sig-paren">)</span> &#x2192; None<a class="headerlink" href="#raytraverse.crenderer.cRcontrib.reset" title="Permalink to this definition">¶</a></dt>
 <dd><p>reset renderer state, must be called before loading an new scene or changing rendering
 parameters</p>
 </dd></dl>

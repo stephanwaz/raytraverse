@@ -5,8 +5,6 @@
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 # =======================================================================
-import os
-
 import numpy as np
 
 from raytraverse import translate, io
@@ -266,8 +264,7 @@ class Sampler(object):
         else:
             self.vecs = np.concatenate((self.vecs, vecs))
 
-    def run(self, point, posidx, vm=None, plotp=False, log=False, outf=True,
-            **kwargs):
+    def run(self, point, posidx, vm=None, plotp=False, log=False, **kwargs):
         """
 
         Parameters
@@ -286,10 +283,6 @@ class Sampler(object):
             'scene' - logs to Scene log file
             'err' - logs to stderr
             anything else - does not log incremental progress
-        outf: bool, optional
-            some inheriting classes do not need an outfile, but this should
-            not be changed unless the class stores the lum results directly
-            and the run_callback of the class does not expect the file to exist.
 
         Returns
         -------
@@ -310,20 +303,12 @@ class Sampler(object):
         point = np.asarray(point).flatten()[0:3]
         allc = 0
         name = f"{vm.name}_{posidx:06d}"
-        if outf:
-            outf = f'{self.scene.outdir}/{name}_{self.stype}_vals.out'
-            f = open(outf, 'wb')
-            f.close()
-        else:
-            outf = None
         self.scene.log(self, f"Started sampling {self.scene.outdir} at {name} "
                              f"with {self.stype}", logerr)
         self.scene.log(self, f"Settings: {' '.join(self.engine.args)}", logerr)
         if detaillog:
-            hdr = ['level ', '      shape', 'samples', '   rate',
-                   'filesize (MB)']
+            hdr = ['level ', '      shape', 'samples', '   rate']
             self.scene.log(self, '\t'.join(hdr), logerr)
-        fsize = 0
         self.levels = vm.aspect
         # reset weights
         self.weights = np.full(self.levels[0], 1e-7, dtype=np.float32)
@@ -337,11 +322,10 @@ class Sampler(object):
                 xyz = vm.uv2xyz(uv)
                 vecs = np.hstack((np.broadcast_to(point, xyz.shape), xyz))
                 srate = si.shape[1]/np.prod(shape)
-                fsize += 4*self.bands*self.srcn*si.shape[1]/1000000
                 if detaillog:
                     row = (f"{i + 1} of {self.levels.shape[0]}\t"
                            f"{str(shape): >11}\t{si.shape[1]: >7}\t"
-                           f"{srate: >7.02%}\t{fsize:.03f}")
+                           f"{srate: >7.02%}")
                     self.scene.log(self, row, logerr)
                 vecf = (f'{self.scene.outdir}/{name}_{self.stype}_vecs_'
                         f'{i:02d}.out')
@@ -355,7 +339,6 @@ class Sampler(object):
                 a = lum.shape[0]
                 allc += a
         srate = allc/self.weights.size
-        row = ['total sampling:', '- ', f"{allc: >7}", f"{srate: >7.02%}",
-               f'{fsize:.03f}']
+        row = ['total sampling:', '- ', f"{allc: >7}", f"{srate: >7.02%}"]
         self.scene.log(self, '\t'.join(row), logerr)
         return self.run_callback(point, posidx, vm)

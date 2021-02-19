@@ -162,9 +162,72 @@ ncomp: int
 )pbdoc";
 
 
-PYBIND11_MODULE(rtrace_c, m) {
-  py::class_<Rtrace>(m, "cRtrace")
-          .def("get_instance", &Rtrace::getInstance, py::return_value_policy::reference, doc_get_instance)
+PYBIND11_MODULE(rtrace_c, m){
+  py::class_<Rtrace>(m, "cRtrace", R"pbdoc(singleton interface to the Radiance rtrace executable.
+
+See the rtrace man page for a full description of the programs functionality. Instance is initialized with a list
+of arguments similar to the command line tool, but with several differences:
+
+  - no -f format specifier, input and output is always a numpy array.
+  - no -h option.
+  - no -x/-y options, shape output data as necessary with np.reshape
+  - no -P/-PP modes
+  - -lr 0 behaves differently from radiance, sets a true reflection limit of 0 rather than disabling limit, for behavior
+    approaching radiance, set -lr -1000
+  - an additional -c N option repeats each input N times and averages the result. Make sure that uncorrelated sampling
+    is used (-U+, default)
+  - the default output is -oz, z is an additional output specifier that yields a single photopic brightness per input
+    ray.
+  - no s/m/M/t/T/~ allowed as output specifiers
+
+Examples
+--------
+
+basic usage::
+
+  from raytraverse.crenderer import cRtrace
+  instance = cRtrace.get_instance()
+  instance.initialize(["rtrace", ...]) #Note: do not include octree at end!
+  instance.load_scene("scene.oct")
+  # ...
+  # define 'rays' as a numpy array of shape (N, 6)
+  # ...
+  lum = instance(rays)
+
+cRtrace can also update the output specification and/or the settings without reloading the scene geometry::
+
+  instance.update_ospec("L") # to query ray distance
+  instance.initialize("rtrace -ab 0 -lr 0".split()) # note this begins with default arguments, it is not additive with previous settings!
+  raylength = instance(rays)
+
+but if you are loading new geometry, the instance should be reset::
+
+  instance.reset()
+  instance.initialize(["rtrace", ...])
+  instance.load_scene("scene2.oct")
+
+by loading a scene without light sources, sources can be dynamically loaded and unloaded without a reset::
+
+  instance.reset()
+  instance.initialize(["rtrace", ...])
+  instance.load_scene("scene_no_sources.oct")
+  instance.load_source("sky.rad")
+  skylum = instance(rays)
+  instance.load_source("sun.rad") # this unloads sky.rad and loads sun.rad
+  sunlum = instance(rays)
+  instance.load_source("sky.rad", 0) # using the optional freesrc, keep the sun loaded
+  totallum = instance(rays)
+  if np.allclose(skylum + sunlum, totallum, atol=.03): # depending on rendering settings / scene complexity
+      print("light is additive!)
+
+Notes
+-----
+
+the cRcontrib instance is best managed from a seperate class that handles argument generation.
+See raytraverse.renderer.Rtrace
+
+)pbdoc")
+          .def("get_instance", [](){return Rtrace::getInstance();}, py::return_value_policy::reference, doc_get_instance)
           .def("reset", &Rtrace::resetRadiance, doc_reset)
           .def("initialize", &Rtrace::initialize, "arglist"_a, doc_initialize)
           .def("load_scene", &Rtrace::loadscene, "octree"_a, doc_load_scene)

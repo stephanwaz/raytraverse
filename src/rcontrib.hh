@@ -34,7 +34,7 @@ public:
     int initialize(pybind11::object arglist);
     py::array_t<double> operator()(py::array_t<double, py::array::c_style> &vecs) override;
     void loadscene(char* octname) override;
-    void resetRadiance();
+    static void resetRadiance();
 };
 
 

@@ -77,7 +77,6 @@ def test_rcontrib_call(capfd, tmpdir):
     # test = np.fromstring(ans, sep=' ').reshape(-1, 36)
     assert np.allclose(check, test, atol=.03)
     renderer.Rcontrib.reset()
-    renderer.Rcontrib._pyinstance = None
 
 
 def test_rtrace_call(tmpdir):
@@ -89,6 +88,7 @@ def test_rtrace_call(tmpdir):
     check2 = np.einsum('ij,j->i', check, [47.435/179, 119.93/179, 11.635/179])
     # first load
     r = renderer.Rtrace(args, "sky.oct", default_args=False)
+    print(r.instance)
     vecs = np.loadtxt('rays.txt')
     ans = r(vecs)
     assert np.allclose(check, ans, atol=.03)
@@ -137,8 +137,18 @@ def test_rtrace_call(tmpdir):
     check2 = np.einsum('ij,j->i', check, [47.435/179, 119.93/179, 11.635/179])
     assert np.allclose(test, check2, atol=.03)
 
+
+    r.set_args(args)
+    test2 = r(vecs).ravel()
+    r.load_source("sky.rad")
+    test3 = r(vecs).ravel()
+    r.load_source("sun2.rad", 0)
+    test4 = r(vecs).ravel()
+    r.load_source("sun.rad")
+    test5 = r(vecs).ravel()
+    assert np.allclose(test2 + test3, test4, atol=.03)
+    assert np.allclose(test2, test5, atol=.03)
     renderer.Rtrace.reset()
-    renderer.Rtrace._pyinstance = None
 
 
     # print(r.header)

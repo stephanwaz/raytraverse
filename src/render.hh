@@ -31,12 +31,10 @@ protected:
     Renderer() = default;
 
 public:
-    int srcobj = 0;
     ~Renderer() = default;
     int initialize(PyObject* arglist);
     virtual py::array_t<double> operator()(py::array_t<double, py::array::c_style> &vecs);
     virtual void loadscene(char* octname);
-    virtual void loadsrc(char *srcname, int freesrc);
 
 protected:
     int nproc = 1;

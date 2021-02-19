@@ -136,9 +136,48 @@ values: np.array
 
 
 PYBIND11_MODULE(rcontrib_c, m) {
-  py::class_<Rcontrib>(m, "cRcontrib", R"pbdoc(docstring for rcontrib)pbdoc")
-          .def("get_instance", &Rcontrib::getInstance, py::return_value_policy::reference, doc_get_instance)
-          .def("reset", &Rcontrib::resetRadiance, doc_reset)
+  py::class_<Rcontrib>(m, "cRcontrib", R"pbdoc(singleton interface to the Radiance rcontrib executable.
+
+See the rcontrib man page for a full description of the programs functionality. Instance is initialized with a list
+of arguments similar to the command line tool, but with several differences:
+
+  - no -o option. All output is written to a memory buffer returned as a Numpy array
+  - no -f format specifier, input and output is always a numpy array.
+  - no -r option.
+  - no -h option.
+  - the -c option repeats and accumulates input rays rather than accumulating input.
+  - an additional flag -Z outputs a single brightness value (photopic) rather than 3-color channels. this is True
+    by default.
+
+Examples
+--------
+
+basic usage::
+
+  from raytraverse.crenderer import cRcontrib
+  instance = cRcontrib.get_instance()
+  instance.initialize(["rcontrib", "-n", "8", ..., "-m", "mod"])  #Note: do not include octree at end!
+  instance.load_scene("scene.oct")
+  # ...
+  # define 'rays' as a numpy array of shape (N, 6)
+  # ...
+  contributions = instance(rays)
+
+Subsequent calls can be made to the instance, but if either the settings or scene are changed::
+
+  instance.reset()
+  instance.initialize(["rcontrib", "-n", "8", ..., "-m", "mod2"])
+  instance.load_scene("scene2.oct")
+
+Notes
+-----
+
+the cRcontrib instance is best managed from a seperate class that handles argument generation.
+See raytraverse.renderer.Rcontrib
+
+)pbdoc")
+          .def("get_instance", [](){return Rcontrib::getInstance();}, py::return_value_policy::reference, doc_get_instance)
+          .def("reset", [](py::args& args){Rcontrib::resetRadiance();}, doc_reset)
           .def("initialize", &Rcontrib::initialize, "arglist"_a, doc_initialize)
           .def("load_scene", &Rcontrib::loadscene, "octree"_a, doc_load_src)
           .def("__call__", &Rcontrib::operator(), "vecs"_a, doc_call)

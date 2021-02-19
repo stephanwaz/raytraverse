@@ -91,9 +91,10 @@ class SunSampler(Sampler):
         return pdraws, pa + s
 
     def run_callback(self, point, posidx, vm):
-        lightpoint = SunPointKD(self.scene, self.vecs, self.lum, sun=self.sunpos,
-                                src=self.stype, pt=point, write=True,
-                                srcn=self.srcn, posidx=posidx, vm=vm)
+        lightpoint = SunPointKD(self.scene, self.vecs, self.lum,
+                                sun=self.sunpos, src=self.stype, pt=point,
+                                write=True, srcn=self.srcn, posidx=posidx,
+                                vm=vm)
         return lightpoint
 
     def _load_specguide(self, point, posidx, vm):
@@ -118,4 +119,4 @@ class SunSampler(Sampler):
         self._load_specguide(point, posidx, vm)
         if plotp:
             io.array2hdr(self.specguide, "specguide.hdr")
-        return super().run(point, posidx, vm, plotp, outf=False, **kwargs)
+        return super().run(point, posidx, vm, plotp, **kwargs)

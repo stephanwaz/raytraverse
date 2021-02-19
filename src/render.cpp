@@ -59,8 +59,6 @@ void Renderer::loadscene(char* octname) {
   octree = octname;
 }
 
-void Renderer::loadsrc(char *srcname, int freesrc) {}
-
 py::array_t<double> Renderer::operator()(py::array_t<double, py::array::c_style> &vecs) {
   return py::array_t<double>();
 }
