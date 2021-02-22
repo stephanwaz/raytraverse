@@ -15,17 +15,30 @@ import numpy as np
 @pytest.fixture(scope="module")
 def tmpdir(tmp_path_factory):
     data = str(tmp_path_factory.mktemp("data"))
-    shutil.copytree('tests/test/', data + '/test')
+    shutil.copytree('tests/spacemapper/', data + '/test')
     cpath = os.getcwd()
-    os.chdir(data + '/test')
-    yield data + '/test'
+    # use temp
+    path = data + '/test'
+    # uncomment to use actual (to debug results)
+    # path = cpath + '/tests/spacemapper'
+    os.chdir(path)
+    yield path
     os.chdir(cpath)
 
 
 def test_spacemapper(tmpdir):
-    sm = SpaceMapper('plane.rad')
+    sm = SpaceMapper("rad", area='plane.rad', ptres=4, reload=False)
     assert np.all(np.equal(sm.pt2uv(sm.bbox), [[0, 0], [1, 1]]))
-    sm2 = SpaceMapper('plane.rad', rotation=54)
-    assert np.allclose(sm2.uv2pt(sm2._path[0].vertices), sm.uv2pt(sm._path[0].vertices))
+    sm.add_grid()
+    points = np.loadtxt('rad/points.dat')
+    sm2 = SpaceMapper("pts", points=points, ptres=4, reload=False)
+    assert np.allclose(sm.points, sm2.points)
+    sm2.ptres = 2
+    sm2.add_grid()
+    sm3 = SpaceMapper("pts", ptres=2)
+    assert np.allclose(sm2.points, sm3.points)
+    sm4 = SpaceMapper("pts2", mask=False, reload=False, rotation=43, points=np.array([[0, 0, 0], [1, 0, 0]]))
+    sm4.add_points([[0, 4, 0], [0, 8, 0]])
+    assert np.allclose(sm4.pt2uv(sm4.uv2pt([[0, 0], [1, 1]])), [[0, 0], [1, 1]])
 
 

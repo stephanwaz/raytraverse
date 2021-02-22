@@ -19,7 +19,38 @@ from raytraverse.mapper import ViewMapper
 
 
 class LightPointKD(object):
-    """light field with KDtree structures for spatial query"""
+    """light distribution from a point with KDtree structure for directional
+    query
+
+    Parameters
+    ----------
+    scene: raytraverse.scene.scene
+    vec: np.array, optional
+        shape (N, >=3) where last three columns are normalized direction vectors
+        of samples. If not given, tries to load from scene.outdir
+    lum: np.array, optional
+        reshapeable to (N, srcn). sample values for each source corresponding
+        to vec. If not given, tries to load from scene.outdir
+    vm: raytraverse.mapper.ViewMapper, optional
+        a default viewmapper for image and metric calculations, should match
+        viewmapper of sampler.run() if possible.
+    pt: tuple list np.array
+        3 item point location of light distribution
+    posidx: int, optional
+        index position of point, will govern file naming so must be set to
+        avoid clobbering writes. also used by spacemapper for planar sampling
+    src: str, optional
+        name of source group. will govern file naming so must be set to
+        avoid clobbering writes.
+    srcn: int, optional
+        must match lum, does not need to be set if reloading from scene.outdir
+    calcomega: bool, optional
+        if True (default) calculate solid angle of rays. This  is
+        unnecessary if point will be combined before calculating any metrics.
+        setting to False will save some computation time.
+    write: bool, optional
+        whether to write to disk.
+    """
 
     def __init__(self, scene, vec=None, lum=None, vm=None, pt=(0, 0, 0),
                  posidx=0, src='sky', srcn=1, calcomega=True,
@@ -154,6 +185,18 @@ class LightPointKD(object):
             self.dump()
 
     def apply_coef(self, coefs):
+        """apply coefficient vector to self.lum
+
+        Parameters
+        ----------
+        coefs: np.array int float list
+            shape (N, self.srcn) or broadcastable
+
+        Returns
+        -------
+        alum: np.array
+            shape (N, self.vec.shape[0])
+        """
         try:
             c = np.asarray(coefs).reshape(-1, self.srcn)
         except ValueError:
@@ -181,11 +224,6 @@ class LightPointKD(object):
         omega: bool
             if true, add value of ray solid angle instead of luminance
         vm: raytraverse.mapper.ViewMapper, optional
-
-        Returns
-        -------
-        None
-
         """
         if omega:
             val = self.omega.reshape(1, -1)
@@ -207,7 +245,24 @@ class LightPointKD(object):
         img[mask] += np.squeeze(lum)
 
     def get_applied_rays(self, skyvec, vm=None):
-        """the analog to add_to_img for metric calculations"""
+        """return rays within view with skyvec applied. this is the
+        analog to add_to_img for metric calculations
+
+        Parameters
+        ----------
+        skyvec: int float np.array, optional
+            source coefficients, shape is (1,) or (srcn,)
+        vm: raytraverse.mapper.ViewMapper, optional
+
+        Returns
+        -------
+        rays: np.array
+            shape (N, 3) rays falling within view
+        omega: np.array
+            shape (N,) associated solid angles
+        lum: np.array
+            shape (N,) associated luminances
+        """
         if vm is None:
             vm = self.vm
         idx = self.query_ball(vm.dxyz)[0]
@@ -217,16 +272,48 @@ class LightPointKD(object):
         return rays, omega, lum
 
     def query_ray(self, vecs):
+        """return the index and distance of the nearest ray to each of vecs
+
+        Parameters
+        ----------
+        vecs: np.array
+            shape (N, 3) normalized vectors to query, could represent image
+            pixels for example.
+
+        Returns
+        -------
+        i: np.array
+            integer indices of closest ray to each query
+        d: np.array
+            distance (corresponds to chord length on unit sphere) from query to
+            ray in lightpoint. use translate.chord2theta to convert to angle.
+        """
         d, i = self.d_kd.query(vecs)
         return i, d
 
     def query_ball(self, vecs, viewangle=180):
+        """return set of rays within a view cone
+
+        Parameters
+        ----------
+        vecs: np.array
+            shape (N, 3) vectors to query.
+        viewangle: int float
+            opening angle of view cone
+
+        Returns
+        -------
+        i: list np.array
+            if vecs is a single point, a list of vector indices of rays
+            within view cone. if vecs is a set of point an array of lists, one
+            for each vec is returned.
+        """
         vs = translate.theta2chord(viewangle/360*np.pi)
         return self.d_kd.query_ball_point(translate.norm(vecs), vs)
 
     def direct_view(self, res=512, showsample=False, showweight=True,
                     srcidx=None, interp=False, omega=False, scalefactor=1):
-        """create a summary image of lightfield for each vpt"""
+        """create an unweighted summary image of lightpoint"""
         vm = self.vm
         pdirs = vm.pixelrays(res)
         mask = vm.in_view(pdirs[0:res])

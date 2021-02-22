@@ -10,68 +10,133 @@ import re
 
 import numpy as np
 from matplotlib.path import Path
-from scipy.spatial import cKDTree
+from shapely.geometry import Polygon
+from scipy.spatial import cKDTree, ConvexHull
+from clasp import script_tools as cst
 
 
 class SpaceMapper(object):
-    """translate between world coordinates and normalized UV space"""
+    """manage point based queries and indexing for a scene
 
-    def __init__(self, dfile, ptres=1.0, rotation=0.0, tolerance=1.0):
+    Parameters
+    ----------
+    scene: raytraverse.scene.Scene raytraverse.scene.BaseScene str
+        scene object or out directory for saving points
+    area: str, optional
+        radiance scene geometry defining a plane to sample
+    mask: bool, optional
+        if False, do not constrain points to border
+    reload: bool, optional
+        include scene/points.dat if it exists.
+    ptres: float, optional
+        resolution for considering points duplicates, border generation
+        (1/2) and add_grid(). updateable
+    rotation: float, optional
+        positive Z rotation for point grid alignment
+    fill: bool, optional
+        create a full grid of points spaced by ptres on initialization
+        (calls self.add_grid())
+    precision: int, optional
+        digits to round point coordinates
+    """
+
+    def __init__(self, scene, points=None, area=None, mask=True,
+                 reload=True, ptres=1.0, rotation=0.0, fill=False, precision=3):
+        try:
+            #: str: out directory for saving points
+            self.outdir = scene.outdir
+        except AttributeError:
+            self.outdir = scene
+            cst.try_mkdir(scene)
+        self._bbox = None
         #: float: ccw rotation (in degrees) for point grid on plane
         self.rotation = rotation
-        #: float: tolerance for point search when using point list for area
-        self.tolerance = tolerance
-        #: float: point resolution for area
+        #: float: point resolution for area look ups
         self.ptres = ptres
-        self.pt_kd = None
-        #: np.array: boundary frame for translating between coordinates
-        #: [[xmin ymin zmin] [xmax ymax zmax]]
-        self.bbox = dfile
+        self._pt_kd = None
+        self.precision = precision
+        #: bool: wheether to test points against border paths
+        self.mask = mask
+        if reload:
+            self.points = f"{self.outdir}/points.dat"
+        else:
+            self._points = np.empty((0, 3))
+        if area is not None:
+            self.update_bbox(area)
+        if points is not None:
+            self.add_points(points)
+        if fill:
+            self.add_grid()
+
+    @property
+    def bbox(self):
+        """np.array: boundary frame for translating between coordinates
+        [[xmin ymin zmin] [xmax ymax zmax]]"""
+        return self._bbox
+
+    @property
+    def points(self):
+        """points indexed in spacemapper"""
+        return self._points
+
+    @points.setter
+    def points(self, arg):
+        """set points from a file"""
+        try:
+            self._points = np.reshape(np.loadtxt(arg), (-1, 3))
+        except (ValueError, TypeError, IOError):
+            self._points = np.empty((0, 3))
 
     @property
     def pt_kd(self):
         """point kdtree for spatial queries built at first use"""
         if self._pt_kd is None:
-            self._pt_kd = cKDTree(self.pts())
+            self._pt_kd = cKDTree(self.points)
         return self._pt_kd
-
-    @pt_kd.setter
-    def pt_kd(self, pt_kd):
-        self._pt_kd = pt_kd
-
-    @property
-    def bbox(self):
-        """np.array of shape (3,2): bounding box"""
-        return self._bbox
 
     @property
     def sf(self):
         """bbox scale factor"""
         return self._sf
 
-    @property
-    def ptshape(self):
-        """shape of point grid"""
-        return self._ptshape
-
-    @property
-    def npts(self):
-        """number of points"""
-        return int(np.product(self.ptshape))
-
-    @bbox.setter
-    def bbox(self, plane):
+    def update_bbox(self, plane):
         """read radiance geometry file as boundary path"""
-        paths, bbox = self._rad_scene_to_bbox(plane)
+        if plane is not None:
+            paths, z = self._rad_scene_to_paths(plane)
+        else:
+            paths, z = self._calc_border()
+        bbox = np.squeeze([np.amin(paths, 1), np.amax(paths, 1)])
+        bbox = np.hstack([bbox, [[z], [z]]])
         self._bbox = bbox
         self._sf = self.bbox[1, 0:2] - self.bbox[0, 0:2]
         self._path = []
         for pt in paths:
-            p = (np.concatenate((pt, [pt[0]])) - bbox[0, 0:2])/self._sf
+            p = (np.concatenate((pt, [pt[0]])) - bbox[0, 0:2])/self.sf
             xy = Path(p, closed=True)
             self._path.append(xy)
-        size = (bbox[1, 0:2] - bbox[0, 0:2])/self.ptres
-        self._ptshape = np.ceil(size).astype(int)
+
+    def add_points(self, points):
+        points = np.atleast_2d(points)
+        ds, idxs = self.pt_kd.query(points)
+        newpts = points[ds > self.ptres]
+        if self.bbox is not None:
+            newpts = np.round(newpts[self.in_area(newpts)], self.precision)
+        self._points = np.concatenate((self._points, newpts), 0)
+        self._pt_kd = None
+        np.savetxt(f"{self.outdir}/points.dat", self.points,
+                   f'%.{self.precision}f', '\t')
+        if self.bbox is None or not self.mask:
+            self.update_bbox(None)
+
+    def add_grid(self, jitter=True):
+        shape = np.ceil(self.sf/self.ptres).astype(int)
+        idx = np.arange(np.product(shape))
+        si = np.stack(np.unravel_index(idx, shape)).T
+        if jitter:
+            offset = np.random.default_rng().random(si.shape)
+        else:
+            offset = 0.5
+        self.add_points(self.uv2pt((si + offset)/shape))
 
     def _ro_pts(self, points, rdir=-1):
         """
@@ -108,9 +173,8 @@ class SpaceMapper(object):
         pt: np.array
             world xyz coordinates of shape (N, 3)
         """
-        sf = self.bbox[1] - self.bbox[0]
         uv = np.hstack((uv, np.zeros(len(uv)).reshape(-1, 1)))
-        pt = self.bbox[0] + uv * sf
+        pt = self.bbox[0] + uv * [*self.sf, 0]
         return self._ro_pts(pt)
 
     def pt2uv(self, xyz):
@@ -126,17 +190,8 @@ class SpaceMapper(object):
         uv: np.array
             normalized UV coordinates of shape (N, 2)
         """
-        uv = (self._ro_pts(xyz, rdir=1) - self.bbox[0])[:, 0:2] / self._sf
+        uv = (self._ro_pts(xyz, rdir=1) - self.bbox[0])[:, 0:2] / self.sf
         return uv
-
-    def idx2pt(self, idx):
-        shape = self.ptshape
-        si = np.stack(np.unravel_index(idx, shape)).T
-        return self.uv2pt((si + .5)/shape)
-
-    def pts(self):
-        shape = self.ptshape
-        return self.idx2pt(np.arange(np.product(shape)))
 
     def in_area(self, xyz):
         """check if point is in boundary path
@@ -153,7 +208,7 @@ class SpaceMapper(object):
         """
         uv = self.pt2uv(xyz)
         path = self._path
-        if path is None:
+        if path is None or not self.mask:
             return np.full((uv.shape[0]), True)
         else:
             result = np.empty((len(path), uv.shape[0]), bool)
@@ -161,7 +216,32 @@ class SpaceMapper(object):
                 result[i] = p.contains_points(uv)
         return np.any(result, 0)
 
-    def _rad_scene_to_bbox(self, plane):
+    def query_pt(self, points, clip=True):
+        """return the index and distance of the nearest point to each of points
+
+        Parameters
+        ----------
+        points: np.array
+            shape (N, 3) positions to query.
+        clip: bool, optional
+            return d = 1e6 if not in_area
+
+        Returns
+        -------
+        i: np.array
+            integer indices of closest ray to each query
+        d: np.array
+            distance from query to point in spacemapper.
+        """
+        d, i = self.pt_kd.query(points)
+        if clip:
+            omask = self.mask
+            self.mask = True
+            d = np.where(self.in_area(points), d, 1e6)
+            self.mask = omask
+        return i, d
+
+    def _rad_scene_to_paths(self, plane):
         with open(plane, 'r') as f:
             dl = [i for i in re.split(r'[\n\r]+', f.read().strip())
                   if not bool(re.match(r'#', i))]
@@ -176,7 +256,22 @@ class SpaceMapper(object):
             z = max(z, max(pt[:, 2]))
             pt2 = self._ro_pts(pt, rdir=1)
             paths.append(pt2[:, 0:2])
-        bbox = np.array(paths)
-        bbox = np.squeeze([np.amin(bbox, 1), np.amax(bbox, 1)])
-        bbox = np.hstack([bbox, [[z], [z]]])
-        return paths, bbox
+        return np.array(paths), z
+
+    def _calc_border(self):
+        if len(self.points) > 2:
+            hull = ConvexHull(self.points[:, 0:2])
+            p = Polygon(hull.points[hull.vertices])
+            b = p.boundary.parallel_offset(self.ptres/2, join_style=2)
+            pts = np.array(b.xy).T
+        else:
+            o = self.ptres/2
+            offset = np.array([[o, o], [o, -o], [-o, -o], [-o, o]])
+            pts = (self.points[:, 0:2] + offset[:, None]).reshape(-1, 2)
+        z = np.max(self.points[:, 2])
+        hull = ConvexHull(pts)
+        pt = hull.points[hull.vertices]
+        pt2 = np.full((pt.shape[0], 3), z)
+        pt2[:, 0:2] = pt
+        pt2 = self._ro_pts(pt2, rdir=1)
+        return pt2[None, :, 0:2], z

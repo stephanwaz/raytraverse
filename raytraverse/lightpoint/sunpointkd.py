@@ -52,6 +52,27 @@ class SunPointKD(LightPointKD):
 
     def add_to_img(self, img, vecs, mask=None, skyvec=1, interp=False,
                    omega=False, vm=None):
+        """add luminance contributions to image array (updates in place).
+        adds sunview if it exists.
+
+        Parameters
+        ----------
+        img: np.array
+            2D image array to add to (either zeros or with other source)
+        vecs: np.array
+            vectors corresponding to img pixels shape (N, 3)
+        mask: np.array, optional
+            indices to img that correspond to vec (in case where whole image
+            is not being updated, such as corners of fisheye)
+        skyvec: int float np.array, optional
+            source coefficients, shape is (1,) or (srcn,)
+        interp: bool, optional
+            for linear interpolation (falls back to nearest outside of
+            convexhull
+        omega: bool
+            if true, add value of ray solid angle instead of luminance
+        vm: raytraverse.mapper.ViewMapper, optional
+        """
         skyvec = np.atleast_1d(skyvec)
         if vm is None:
             vm = self.vm
@@ -61,6 +82,25 @@ class SunPointKD(LightPointKD):
             self.sunview.add_to_img(img, vecs, mask, skyvec[-1], vm)
 
     def get_applied_rays(self, skyvec, vm=None):
+        """return rays within view with skyvec applied. this is the
+        analog to add_to_img for metric calculations. includes sunview ray if
+        it exists.
+
+        Parameters
+        ----------
+        skyvec: int float np.array, optional
+            source coefficients, shape is (1,) or (srcn,)
+        vm: raytraverse.mapper.ViewMapper, optional
+
+        Returns
+        -------
+        rays: np.array
+            shape (N, 3) rays falling within view
+        omega: np.array
+            shape (N,) associated solid angles
+        lum: np.array
+            shape (N,) associated luminances
+        """
         skyvec = np.atleast_1d(skyvec)
         if vm is None:
             vm = self.vm

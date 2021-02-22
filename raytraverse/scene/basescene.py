@@ -10,6 +10,7 @@ import os
 import shutil
 import sys
 
+from raytraverse.formatter import Formatter
 
 class BaseScene(object):
     """container for scene description
@@ -33,7 +34,7 @@ class BaseScene(object):
         log progress events to outdir/log.txt
     """
 
-    def __init__(self, outdir, scene=None, frozen=True, formatter=None,
+    def __init__(self, outdir, scene=None, frozen=True, formatter=Formatter,
                  reload=True, overwrite=False, log=True):
         self.outdir = outdir
         try:
@@ -73,7 +74,8 @@ class BaseScene(object):
         except AttributeError:
             self._scene = None
         else:
-            if self.reload and os.path.isfile(self._scene):
+            if self.outdir is None or (self.reload and
+                                       os.path.isfile(self._scene)):
                 pass
             else:
                 self._scene = self.formatter.make_scene(scene_files,

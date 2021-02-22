@@ -157,7 +157,7 @@ def sunpos_utc(timesteps, lat, lon, builtin=True):
     dt = np.apply_along_axis(lambda x: x[0].replace(tzinfo=utc), 1,
                              timesteps.reshape(-1, 1))
     # use radiance +west longitude coordinates
-    loc = earth + Topos(lat, -lon)
+    loc = earth + Topos(float(lat), float(-lon))
     # faster but requires updating periodically
     ts = load.timescale(builtin=builtin)
     astro = loc.at(ts.utc(dt)).observe(sun)

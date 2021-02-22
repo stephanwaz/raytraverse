@@ -36,7 +36,7 @@ class SunsLoc(Suns):
         si = np.stack(np.unravel_index(np.arange(self.sunres**2),
                                        (self.sunres, self.sunres)))
         uv = si.T/self.sunres
-        ib = self.sky.in_solarbounds(uv + .5/self.sunres)
+        ib = self.sky.in_solarbounds_uv(uv + .5/self.sunres)
         xyz = self._jitter_suns(si.T[ib])
         return xyz
 

@@ -70,7 +70,7 @@ class SolarBoundary(object):
             duv = duv[duv[:, 0].argsort()]
             self._solarbounds = (juv, duv)
 
-    def in_solarbounds(self, uv, size=0.0):
+    def in_solarbounds_uv(self, uv, size=0.0):
         """
         for checking if src direction is in solar transit
 
@@ -94,12 +94,13 @@ class SolarBoundary(object):
             uv = translate.xyz2uv(rxyz, flipu=False)
         o = size/2
         juv, duv = self.solarbounds
-        vlowleft = duv[np.searchsorted(duv[:, 0], uv[:, 0] - o) - 1]
-        vlowright = duv[np.searchsorted(duv[:, 0], uv[:, 0] - o) - 1]
-        vupleft = juv[np.searchsorted(juv[:, 0], uv[:, 0] + o) - 1]
-        vupright = juv[np.searchsorted(juv[:, 0], uv[:, 0] + o) - 1]
-        inbounds = np.stack((vlowleft[:, 1] <= uv[:, 1] - o,
-                             vlowright[:, 1] <= uv[:, 1] - o,
-                             uv[:, 1] + o <= vupleft[:, 1],
-                             uv[:, 1] + o <= vupright[:, 1]))
+        j_interp = np.interp(uv[:, 0], juv[:, 0], juv[:, 1])
+        d_interp = np.interp(uv[:, 0], duv[:, 0], duv[:, 1])
+        inbounds = np.stack((d_interp <= uv[:, 1] - o,
+                             uv[:, 1] + o <= j_interp))
         return np.all(inbounds, 0)
+
+    def in_solarbounds(self, xyz, size=0.0):
+        xyz = np.atleast_2d(xyz)
+        uv = translate.xyz2uv(xyz, normalize=True, flipu=False)
+        return self.in_solarbounds_uv(uv, size/180)

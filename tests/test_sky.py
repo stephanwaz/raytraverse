@@ -33,7 +33,7 @@ def test_suns(tmpdir):
     suns = Suns("testsky4", reload=False)
     assert suns.suns.shape == (suns.sunres**2, 3)
     suns = SunsLoc("testsky5", (46.25, -6.13, -15), reload=False, skyro=30)
-    assert suns.suns.shape[0] == 127
+    assert suns.suns.shape[0] == 129
 
 
 def test_suncheck(tmpdir):

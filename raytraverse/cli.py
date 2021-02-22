@@ -20,6 +20,7 @@ import clasp.script_tools as cst
 
 import raytraverse
 from raytraverse.scene import Scene
+from raytraverse.sky import SunsLoc, Suns, SunsPos, skycalc
 
 
 @clk.pretty_name("NPY, TSV, FLOATS,FLOATS")
@@ -91,6 +92,32 @@ def main(ctx, out, config, n=None,  **kwargs):
 
 
 @main.command()
+@click.option('-scene', help='space separated list of radiance scene files '
+              '(no sky) or precompiled octree')
+@click.option('--reload/--no-reload', default=True,
+              help='if a scene already exists at OUT reload it, note that if'
+                   'this is False and overwrite is False, the program will'
+                   'abort')
+@click.option('--overwrite/--no-overwrite', default=False,
+              help='Warning! if set to True and reload is False all files in'
+                   'OUT will be deleted')
+@click.option('--frozen/--no-frozen', default=True,
+              help='create frozen octree from scene files')
+@click.option('--log/--no-log', default=True,
+              help='log progress to <out>/log.txt')
+@clk.shared_decs(clk.command_decs(raytraverse.__version__, wrap=True))
+def scene(ctx, opts=False, debug=False, **kwargs):
+    """The scene commands creates a Scene object which holds geometric
+    information about the model including object geometry (and defined
+    materials), the analysis plane and the desired resolutions for sky and
+    analysis plane subdivision"""
+    print(kwargs)
+    s = Scene(ctx.obj['out'], **kwargs)
+    ctx.obj['scene'] = s
+    ctx.obj['initlf'] = []
+
+
+@main.command()
 @click.option('-skyro', default=0.0,
               help='counter clockwise rotation (in degrees) of the sky to'
                    ' rotate true North to project North, so if project North'
@@ -126,11 +153,10 @@ def main(ctx, out, config, n=None,  **kwargs):
                    "tsv files are loaded with loadtxt")
 @click.option('--plotdview/--no-plotdview', default=False,
               help="creates a png showing sun positions on an angular fisheye"
-                   " projection of the sky. sky patches are colored by the"
-                   " maximum contributing ray to the scene")
+                   " projection of the sky.")
 @click.option('--reload/--no-reload', default=True,
               help="if False, regenerates sun positions, because positions may"
-                   " be randomly selected this will make any sunrun results"
+                   " be randomly selected this will make any previous results"
                    " obsolete")
 @click.option('--printsuns/--no-printsuns', default=False,
               help="print sun positions to stdout")
@@ -152,149 +178,99 @@ def suns(ctx, loc=None, wea=None, usepositions=False, plotdview=False,
 
     the wea and skyro parameters are used to reduce the number of suns in cases
     where a specific site is known. Only suns within the solar transit (or
-    positions if usepositions is True will be selected. It is important to note
-    that when integrating, if a sun position outside this range is queried than
-    results will not include the more detailed simulations involved in sunrun
-    and will instead place the suns energy within the nearest sky patch. if
-    skyres is small and or the patch is directly visible this will introduce
-    significant bias in most metrics.
+    positions if usepositions is True will be selected.
     """
-    pass
-    # if usepositions:
-    #     if wea is None:
-    #         raise ValueError('option -wea is required when use positions is '
-    #                          'True')
-    #     s = SunsPos(ctx.obj['out'], wea, **kwargs)
-    # elif loc is not None:
-    #     s = SunsLoc(ctx.obj['out'], loc, **kwargs)
-    # elif wea is not None:
-    #     loc = raytraverse.skycalc.get_loc_epw(wea)
-    #     s = SunsLoc(ctx.obj['out'], loc, **kwargs)
-    # else:
-    #     s = Suns(ctx.obj['out'], **kwargs)
-    # if plotdview:
-    #     s.direct_view()
-    # ctx.obj['suns'] = s
-    # if printsuns:
-    #     for pt in s.suns:
-    #         print('{}\t{}\t{}'.format(*pt))
+    if usepositions:
+        if wea is None:
+            raise ValueError('option -wea is required when use positions is '
+                             'True')
+        s = SunsPos(ctx.obj['out'], wea, **kwargs)
+    elif loc is not None:
+        s = SunsLoc(ctx.obj['out'], loc, **kwargs)
+    elif wea is not None:
+        loc = skycalc.get_loc_epw(wea)
+        s = SunsLoc(ctx.obj['out'], loc, **kwargs)
+    else:
+        s = Suns(ctx.obj['out'], **kwargs)
+    if plotdview:
+        s.direct_view()
+    ctx.obj['suns'] = s
+    if printsuns:
+        for pt in s.suns:
+            print('{}\t{}\t{}'.format(*pt))
+
+
+run_opts = [
+ click.option('-accuracy', default=1.0,
+              help='a generic accuracy parameter that sets the threshold'
+                   ' variance to sample. A value of 1 will have a sample count'
+                   ' at the final sampling level equal to the number of'
+                   ' directions with a contribution variance greater than .25'),
+ click.option('-idres', default=5,
+              help='the initial directional sampling resolution. each side'
+                   ' of the sampling square (representing a hemisphere) will'
+                   ' be subdivided 2^idres, yielding 2^(2*idres) samples and'
+                   ' a resolution of 2^(2*idres)/(2pi) samples/steradian. this'
+                   ' value should be smaller than 1/2 the size of the smallest'
+                   ' view to an aperture that should be captured with 100%'
+                   ' certainty'),
+ click.option('-rargs', default="",
+              help='additional arguments to pass to the  rendering engine, '
+                   'appended to engine defaults'),
+ click.option('--plotp/--no-plotp', default=False,
+              help='for diagnostics only, plots the pdf, weights and vectors'
+                   ' throughout the sampling process. This will generate a '
+                   'large number of images, so do not use when sampling more '
+                   'than a few points at a time.'),
+ click.option('--plotdview/--no-plotdview', default=False,
+              help='plot a direct view of the sky field (as a .hdr file),'
+                   ' this is equivalent to integrating with a value of 1 for'
+                   ' all sky patches with no interpolation, with --showsample '
+                   'plots pixels of actualsample vectors in red'),
+ click.option('--overwrite/--no-overwrite', default=False,
+              help='execute run even if simulations exist'),
+ click.option('--showsample/--no-showsample', default=True,
+              help='show samples on dviews')
+    ]
 
 
 @main.command()
-@click.option('-scene', help='space separated list of radiance scene files '
-              '(no sky) or precompiled octree')
-@click.option('--reload/--no-reload', default=True,
-              help='if a scene already exists at OUT reload it, note that if'
-                   'this is False and overwrite is False, the program will'
-                   'abort')
-@click.option('--overwrite/--no-overwrite', default=False,
-              help='Warning! if set to True and reload is False all files in'
-                   'OUT will be deleted')
-@click.option('--frozen/--no-frozen', default=True,
-              help='create frozen octree from scene files')
-@click.option('--log/--no-log', default=True,
-              help='log progress to <out>/log.txt')
+@click.option('-fdres', default=9,
+              help='the final directional sampling resolution, yielding a'
+                   ' grid of potential samples at 2^fdres x 2^fdres per'
+                   ' hemisphere')
+@click.option('-dviewpatch',
+              callback=clk.split_float,
+              help="to plot direct view for a single patch,"
+                   "give an x,y,z direction")
+@clk.shared_decs(run_opts)
 @clk.shared_decs(clk.command_decs(raytraverse.__version__, wrap=True))
-def scene(ctx, opts=False, debug=False, **kwargs):
-    """The scene commands creates a Scene object which holds geometric
-    information about the model including object geometry (and defined
-    materials), the analysis plane and the desired resolutions for sky and
-    analysis plane subdivision"""
-    print(kwargs)
-    s = Scene(ctx.obj['out'], **kwargs)
-    ctx.obj['scene'] = s
-    ctx.obj['initlf'] = []
-#
-#
-# run_opts = [
-#  click.option('-accuracy', default=1.0,
-#               help='a generic accuracy parameter that sets the threshold'
-#                    ' variance to sample. A value of 1 will have a sample count'
-#                    ' at the final sampling level equal to the number of'
-#                    ' directions with a contribution variance greater than .25'),
-#  click.option('-idres', default=4,
-#               help='the initial directional sampling resolution. each side'
-#                    ' of the sampling square (representing a hemisphere) will'
-#                    ' be subdivided 2^idres, yielding 2^(2*idres) samples and'
-#                    ' a resolution of 2^(2*idres)/(2pi) samples/steradian. this'
-#                    ' value should be smaller than 1/2 the size of the smallest'
-#                    ' view to an aperture that should be captured with 100%'
-#                    ' certainty'),
-#  click.option('--plotp/--no-plotp', default=False,
-#               help='for diagnostics only, plots the pdf at each level for'
-#                    ' point[0,0] in an interactive display (note that program'
-#                    ' will hang until the user closes the plot window at each'
-#                    ' level)'),
-#  click.option('--plotdview/--no-plotdview', default=False,
-#               help='plot a direct view of the sky field (as a .hdr file),'
-#                    ' this is equivalent to integrating with a value of 1 for'
-#                    ' all sky patches with no interpolation, plots pixels of'
-#                    ' actualsample vectors in red'),
-#  click.option('--run/--no-run', default=True,
-#               help='if True calls sampler.run()'),
-#  click.option('--rmraw/--no-rmraw', default=True,
-#               help='if True removes output of sampler.run(), after SCBinField'
-#                    ' is constructed. Note that SCBinField cannot be rebuilt'
-#                    ' once raw files are removed'),
-#  click.option('--overwrite/--no-overwrite', default=False,
-#               help='execute run even if simulations exist'),
-#  click.option('--rebuild/--no-rebuild', default=False,
-#               help='force rebuild kdtree'),
-#  click.option('--showsample/--no-showsample', default=True,
-#                  help='show samples on dviews'),
-#  click.option('--showweight/--no-showweight', default=True,
-#                  help='show weights on dviews'),
-#  click.option('-dpts', default=None, callback=np_load,
-#               help="if given points to evaluate with --plotdview, this can be "
-#                    "a .npy file, a whitespace "
-#                    "seperated text file or entered as a string with commas "
-#                    "between components of a point and spaces between points. "
-#                    "in all cases each point requires 6 numbers x,y,z,dx,dy,dz "
-#                    "so the shape of the array will be (N, 6)")
-#     ]
-#
-#
-# @main.command()
-# @click.option('-fdres', default=9,
-#               help='the final directional sampling resolution, yielding a'
-#                    ' grid of potential samples at 2^fdres x 2^fdres per'
-#                    ' hemisphere')
-# @click.option('-rcopts',
-#               default='-ab 7 -ad 60000 -as 30000 -lw 1e-7 -st 0 -ss 16',
-#               help='rtrace options to pass to the rcontrib call'
-#                    ' see the man pages for rtrace, rcontrib, and '
-#                    ' rcontrib -defaults for more information')
-# @click.option('-dviewpatch',
-#               callback=clk.split_float,
-#               help="to plot direct view for a single patch,"
-#                    "give an x,y,z direction")
-# @clk.shared_decs(run_opts)
-# @clk.shared_decs(clk.command_decs(raytraverse.__version__, wrap=True))
-# def sky(ctx, plotdview=False, run=True, rmraw=True, overwrite=False,
-#         rebuild=False, showsample=True, showweight=True, dpts=None,
-#         dviewpatch=None, **kwargs):
-#     """the sky command intitializes and runs a sky sampler and then readies
-#     the results for integration by building a SCBinField. sky should be invoked
-#     before calling suns, as the sky contributions are used to select the
-#     necessary sun positions to run"""
-#     if 'scene' not in ctx.obj:
-#         clk.invoke_dependency(ctx, scene)
-#     s = ctx.obj['scene']
-#     lumf = f'{s.outdir}/sky_kd_lum.dat'
-#     exists = os.path.isfile(lumf) and os.stat(lumf).st_size > 1000
-#     run = run and (overwrite or not exists)
-#     if run:
-#         sampler = SkySampler(s, **kwargs)
-#         sampler.run()
-#         try:
-#             os.remove(f"{s.outdir}/sunpdfidxs.npz")
-#         except IOError:
-#             pass
-#     sk = SCBinField(s, rebuild=run or rebuild, rmraw=rmraw)
-#     ctx.obj['initlf'].append(sk)
-#     if plotdview:
-#         sk.direct_view(showsample=showsample, showweight=showweight, dpts=dpts,
-#                        srcidx=dviewpatch, res=1024)
+def skyrun(ctx, plotdview=False, overwrite=False, showsample=True,
+           showweight=True, dviewpatch=None, **kwargs):
+    """The skyrun command will run a fixed sampling a set of a set of points
+    or run an adaptive area sampler depending on the options given. Rendering
+    is done with the raytraverse.renderer.Rcontrib renderer. In addition to
+    the default options of rcontrib (see rcontrib -defaults), the raytraverse
+    defaults are: -ab 7 -ad 10 -as 0 -lw 1e-5 -st 0 -ss 16 -c nrbins*10. These
+    options can be overridden by the -rargs parameter."""
+    if 'scene' not in ctx.obj:
+        clk.invoke_dependency(ctx, scene)
+    s = ctx.obj['scene']
+    lumf = f'{s.outdir}/sky_kd_lum.dat'
+    exists = os.path.isfile(lumf) and os.stat(lumf).st_size > 1000
+    run = run and (overwrite or not exists)
+    if run:
+        sampler = SkySampler(s, **kwargs)
+        sampler.run()
+        try:
+            os.remove(f"{s.outdir}/sunpdfidxs.npz")
+        except IOError:
+            pass
+    sk = SCBinField(s, rebuild=run or rebuild, rmraw=rmraw)
+    ctx.obj['initlf'].append(sk)
+    if plotdview:
+        sk.direct_view(showsample=showsample, showweight=showweight, dpts=dpts,
+                       srcidx=dviewpatch, res=1024)
 #
 # @main.command()
 # @click.option('-fdres', default=10,

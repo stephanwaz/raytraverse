@@ -5,7 +5,7 @@
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 # =======================================================================
-from raytraverse.formatter import Formatter
+
 from raytraverse.scene.basescene import BaseScene
 
 
@@ -20,9 +20,9 @@ class ImageScene(BaseScene):
         image file (hdr format -vta projection)
     """
 
-    def __init__(self, outdir, scene=None, formatter=Formatter, reload=True,
+    def __init__(self, outdir, scene=None, reload=True,
                  log=False):
-        super().__init__(outdir, scene=scene, formatter=formatter, frozen=True,
+        super().__init__(outdir, scene=scene, frozen=True,
                          reload=reload, log=log)
         self._logf = None
 

@@ -16,9 +16,6 @@ class Formatter(object):
     #: line comment character
     comment = "#"
 
-    #: arguments for direct trace
-    direct_args = ""
-
     #: extension for renderer scene file
     scene_ext = ""
 
