@@ -31,7 +31,7 @@ class Mock(MagicMock):
         return MagicMock()
 
 
-MOCK_MODULES = ['numpy', 'scipy', 'clipt', 'skyfield', 'matplotlib', 'shapely',
+MOCK_MODULES = ['scipy', 'clipt', 'skyfield', 'matplotlib', 'shapely',
                 'raytraverse.craytraverse', 'raytraverse.crenderer',
                 'raytraverse.crenderer.rcontrib_c',
                 'raytraverse.crenderer.rtrace_c', 'scipy.ndimage',

@@ -45,12 +45,14 @@ class Sampler(object):
         number of processors to give to the engine, if None, uses os.cpu_count()
     """
 
-    #: coefficients used to set the sampling thresholds
+    #: initial sampling threshold coefficient
     t0 = 2**-8
+    #: final sampling threshold coefficient
     t1 = .0625
 
-    #: lower and upper bounds for drawing from pdf
+    #: lower bound for drawing from pdf
     lb = .25
+    #: lower bound for drawing from pdf
     ub = 8
 
     def __init__(self, scene, engine, idres=5, fdres=9,
@@ -190,7 +192,25 @@ class Sampler(object):
         """threshold for determining sample count"""
         return self.accuracy * self._linear(idx, self.t0, self.t1)
 
+    #: filter banks for calculating detail choices:
+    #:
+    #: 'prewitt': [[1 1 1] [0 0 0] [-1 -1 -1]]/3, [[1 0 -1] [1 0 -1] [1 0 -1]]/3
+    #:
+    #: 'sobel': [[1 2 1] [0 0 0] [-1 -2 -1]]/4, [[1 0 -1] [2 0 -2] [1 0 -1]]/3
+    #:
+    #: 'sobelswap': [[1 2 -1] [0 0 0] [1 -2 -1]]/4,
+    #: [[1 0 1] [-2 0 2] [-1 0 -1]]/4
+    #:
+    #: 'cross': [[1 0] [0 -1]]/2, [[0 1] [-1 0]]/2
+    #:
+    #: 'point': [[-1 -1 -1] [-1 8 -1] [-1 -1 -1]]/3
+    #:
+    #: 'wav': [[-1 0 0] [-1 4 -1] [0 0 -1]]/3, [[0 0 -1] [-1 4 -1] [-1 0 0]]/3
+    #:
+    #: 'wav3': [[0 0 0] [-1 2 -1] [0 0 0]] / 2, [[0 -1 0] [0 2 0] [0 -1 0]] / 2,
+    #: [[-1 0 0] [0 2 0] [0 0 -1]] / 2
     detailfunc = 'wav3'
+
 
     filters = {'prewitt': (np.array([[1, 1, 1], [0, 0, 0], [-1, -1, -1]])/3,
                            np.array([[1, 0, -1], [1, 0, -1], [1, 0, -1]])/3),
@@ -204,9 +224,9 @@ class Sampler(object):
                          np.array([[0, 0, 0], [0, 0, 0], [0, 0, 0]])),
                'wav': (np.array([[-1, 0, 0], [-1, 4, -1], [0, 0, -1]])/3,
                        np.array([[0, 0, -1], [-1, 4, -1], [-1, 0, 0]])/3),
-               'wav3': (1 / 2 * np.array([[0, 0, 0], [-1, 2, -1], [0, 0, 0]]),
-                        1 / 2 * np.array([[0, -1, 0], [0, 2, 0], [0, -1, 0]]),
-                        1 / 2 * np.array([[-1, 0, 0], [0, 2, 0], [0, 0, -1]])),
+               'wav3': (np.array([[0, 0, 0], [-1, 2, -1], [0, 0, 0]])/2,
+                        np.array([[0, -1, 0], [0, 2, 0], [0, -1, 0]])/2,
+                        np.array([[-1, 0, 0], [0, 2, 0], [0, 0, -1]])/2),
                }
 
     def draw(self, level):

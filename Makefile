@@ -71,13 +71,8 @@ coverage: ## check code coverage quickly with the default Python
 coverall: coverage
 	coveralls
 
-docs: cdocs ## generate Sphinx HTML documentation, including API docs
-	# rm -f docs/raytraverse.rst
-	# rm -f docs/modules.rst
-	# sphinx-apidoc -o docs/ raytraverse
-	$(MAKE) -C docs clean
-	$(MAKE) -C docs html
-	$(BROWSER) docs/_build/html/index.html
+docs: cdocs pdocs## generate Sphinx HTML documentation, including API docs
+
 
 cdocs: ## generate Sphinx HTML documentation, including API docs
 	$(MAKE) -C docs/cdocs clean
@@ -85,6 +80,13 @@ cdocs: ## generate Sphinx HTML documentation, including API docs
 	python docs/cdocs/static_html.py
 	$(MAKE) -C docs/cdocs clean
 
+pdocs:
+	# rm -f docs/raytraverse.rst
+	# rm -f docs/modules.rst
+	# sphinx-apidoc -o docs/ raytraverse
+	$(MAKE) -C docs clean
+	$(MAKE) -C docs html
+	$(BROWSER) docs/_build/html/index.html
 
 servedocs: docs ## compile the docs watching for changes
 	watchmedo shell-command -p '*.rst' -c '$(MAKE) -C docs html' -R -D .
