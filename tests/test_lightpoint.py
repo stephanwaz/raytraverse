@@ -8,7 +8,7 @@ import pytest
 import numpy as np
 
 from raytraverse.mapper import ViewMapper
-from raytraverse.lightpoint import LightPointKD
+from raytraverse.lightpoint import LightPointKD, lpconstruct
 from raytraverse import translate, io
 from raytraverse.scene import BaseScene
 from raytraverse.evaluate import MetricSet
@@ -28,7 +28,7 @@ def tmpdir(tmp_path_factory):
     os.chdir(cpath)
 
 
-def make_checker(res, offset=0.5):
+def make_checker(res, offset=0.5, src='checker'):
     bn = np.arange(res*res)
     uv = translate.bin2uv(bn, res, offset=offset)
     vm = ViewMapper(viewangle=180)
@@ -36,7 +36,7 @@ def make_checker(res, offset=0.5):
     vals = np.mod(np.indices((res, res)).sum(axis=0), 2).ravel()
     vals = np.stack((vals, 1-vals)).T
     scene = BaseScene(None)
-    return LightPointKD(scene, xyz, vals, write=False, vm=vm, srcn=2)
+    return LightPointKD(scene, xyz, vals, write=False, vm=vm, srcn=2, src=src)
 
 
 def test_img(tmpdir):
@@ -54,8 +54,8 @@ def test_metric():
     energy = ['illum', 'avglum', 'dgp_t1', 'avgraylum']
     energy_part = ['tasklum', 'backlum', 'srcillum', 'backlum_true']
     constants = ['threshold']
-    tree = ['view_area', 'density', 'reldensity']
-    contrast = ['gcr', 'ugp', 'ugr', 'dgp', 'log_gc', 'dgp_t2', 'ugr', 'pwsl2']
+    tree = ['view_area', 'density']
+    contrast = ['gcr', 'ugp', 'ugr', 'dgp', 'log_gc', 'dgp_t2', 'pwsl2']
     allmets = energy + energy_part + contrast + tree + constants
     assert len(allmets) == len(MetricSet.allmetrics)
     a1 = MetricSet(checker.vm, *checker.get_applied_rays(2000/179))
@@ -70,6 +70,13 @@ def test_metric():
     assert np.isclose(a2.gcr, 1.25)
     assert np.isclose(a2.illum, np.pi * 2000, rtol=.01)
     assert np.isclose(a1.dgp, a2.dgp - a2.dgp_t2)
-    r, o, l = checker.get_applied_rays([[3000/179], [1000/179]])
-    print(r.shape, o.shape, l.shape)
 
+
+def test_add_sources():
+    checker1 = make_checker(15, src='c1')
+    checker2 = make_checker(45, src='c2')
+    checker3 = lpconstruct.add_sources(checker1, checker2, write=False, src='c3')
+    a1 = MetricSet(checker1.vm, *checker1.get_applied_rays([3000/179, 0]))
+    a3 = MetricSet(checker3.vm, *checker3.get_applied_rays([3000/179, 0, 0, 0]))
+    assert np.isclose(a1.illum, a3.illum, rtol=.1)
+    assert np.isclose(a1.avglum, a3.avglum, rtol=.01)

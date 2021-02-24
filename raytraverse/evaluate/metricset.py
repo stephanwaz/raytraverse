@@ -5,15 +5,14 @@
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 # =======================================================================
-import sys
 import numpy as np
 import functools
 
-from raytraverse import translate
+from raytraverse.evaluate.basemetricset import BaseMetricSet
 from raytraverse.evaluate.positionindex import PositionIndex
 
 
-class MetricSet(object):
+class MetricSet(BaseMetricSet):
     """object for calculating metrics based on a view direction, and rays
     consisting on direction, solid angle and luminance information
 
@@ -53,114 +52,24 @@ class MetricSet(object):
     """
 
     #: available metrics (and the default return set)
-    defaultmetrics = ["illum", "avglum", "gcr", "ugp", "dgp"]
+    defaultmetrics = BaseMetricSet.defaultmetrics + ["ugp", "dgp"]
 
-    allmetrics = defaultmetrics + ["tasklum", "backlum", "dgp_t1", "log_gc",
-                                   "dgp_t2", "ugr", "threshold", "pwsl2",
-                                   "view_area", "density", "reldensity",
-                                   "lumcenter", "avgraylum", "backlum_true",
-                                   "srcillum"]
+    allmetrics = BaseMetricSet.allmetrics + ["ugp", "dgp", "tasklum", "backlum",
+                                             "dgp_t1", "log_gc", "dgp_t2",
+                                             "ugr", "threshold", "pwsl2",
+                                             "view_area", "backlum_true",
+                                             "srcillum"]
 
     def __init__(self, vm, vec, omega, lum, metricset=None, scale=179.,
                  threshold=2000., guth=True, tradius=30.0, **kwargs):
-        if metricset is not None:
-            self.check_metrics(metricset, True)
-            self.defaultmetrics = metricset
-        self.vm = vm
-        self.view_area = vm.area
-        v = translate.norm(vec)
-        mask = self.vm.in_view(v)
-        self._vec = v[mask]
-        self._lum = lum[mask]
-        self.omega = omega[mask]
-        self.scale = scale
+        super().__init__(vm, vec, omega, lum, metricset=metricset, scale=scale,
+                         **kwargs)
         self._threshold = threshold
         self.guth = guth
         self.tradius = tradius
         self.kwargs = kwargs
 
-    def __call__(self, metrics=None):
-        """
-        Returns
-        -------
-        result: np.array
-            list of computed metrics
-
-        """
-        if metrics is None:
-            metrics = self.defaultmetrics
-        else:
-            self.check_metrics(metrics, True)
-        return np.array([getattr(self, m) for m in metrics])
-
-    @staticmethod
-    def check_metrics(metrics, raise_error=False):
-        """returns list of valid metric names from argument
-        if raise_error is True, raises an Atrribute Error"""
-        good = [m for m in metrics if m in MetricSet.allmetrics]
-        if raise_error and len(good) != len(metrics):
-            bad = [m for m in metrics if not m in MetricSet.allmetrics]
-            raise AttributeError(f"'{bad}' are not defined in "
-                                 f"MetricSet: {MetricSet.allmetrics}")
-        return good
-
-    @property
-    def vec(self):
-        return self._vec
-
-    @property
-    def lum(self):
-        return self._lum
-
-    @property
-    def omega(self):
-        return self._omega
-
-    @omega.setter
-    def omega(self, og):
-        """correct omega of rays at edge of view to normalize view size"""
-        self._omega = np.copy(og)
-        # square appoximation of ray area
-        ray_side = np.sqrt(self._omega)
-        excess = np.sum(og) - self.view_area
-        if abs(excess) > .1:
-            print(f"Warning, large discrepancy between sum(omega) and view "
-                  f"area: {excess}", file=sys.stderr)
-        while True:
-            # get ray squares that overlap edge of view
-            onedge = self.radians > (self.vm.viewangle * np.pi / 360 - ray_side)
-            edgetotal = np.sum(og[onedge])
-            adjust = 1 - excess/edgetotal
-            # if this fails increase search radius to ensure enough rays to
-            # absorb the adjustment
-            if adjust < 0:
-                print("Warning, intitial search radius failed for omega "
-                      "adjustment", file=sys.stderr)
-                ray_side *= 1.1
-            else:
-                break
-        self._omega[onedge] = og[onedge] * adjust
-
     # -------------------metric dependencies (return array)--------------------
-
-    @property
-    @functools.lru_cache(1)
-    def ctheta(self):
-        """cos angle between ray and view"""
-        # """cos angle between ray and view
-        #         with linear interpolation across omega"""
-        # radius = np.sqrt(self._omega/np.pi)
-        # return .5*(np.cos(self.radians + radius) +
-        #            np.cos(self.radians - radius))
-        return self.vm.ctheta(self.vec)
-
-    @property
-    @functools.lru_cache(1)
-    def radians(self):
-        """cos angle between ray and view"""
-        # return np.arccos(self.vm.ctheta(self.vec))
-        rad = np.arccos(self.ctheta)
-        return rad
 
     @property
     @functools.lru_cache(1)
@@ -259,28 +168,6 @@ class MetricSet(object):
 
     @property
     @functools.lru_cache(1)
-    def avglum(self):
-        """average luminance"""
-        return (np.einsum('i,i->', self.lum, self.omega) *
-                self.scale/self.view_area)
-
-    @property
-    @functools.lru_cache(1)
-    def avgraylum(self):
-        """average luminance (not weighted by omega"""
-        return np.average(self.lum) * self.scale
-
-    @property
-    @functools.lru_cache(1)
-    def gcr(self):
-        """a unitless measure of relative contrast defined as the average of
-        the squared luminances divided by the average luminance squared"""
-        a2lum = (np.einsum('i,i,i->', self.lum, self.lum, self.omega) *
-                 self.scale**2/self.view_area)
-        return a2lum/self.avglum**2
-
-    @property
-    @functools.lru_cache(1)
     def dgp(self):
         ll = 1
         if self.illum < 1000:
@@ -311,27 +198,3 @@ class MetricSet(object):
     @functools.lru_cache(1)
     def ugp(self):
         return self.ugr * .0325
-
-    @property
-    @functools.lru_cache(1)
-    def density(self):
-        return self.omega.size / self.view_area
-
-    @property
-    @functools.lru_cache(1)
-    def reldensity(self):
-        try:
-            avgdensity = self.kwargs['lfcnt']/self.kwargs['lfang']
-        except KeyError:
-            return 0.0
-        else:
-            return self.density/avgdensity
-
-    @property
-    @functools.lru_cache(1)
-    def lumcenter(self):
-        try:
-            return np.average(self.radians,
-                              weights=self.lum*self.omega) * 180/np.pi
-        except ZeroDivisionError:
-            return 0.0

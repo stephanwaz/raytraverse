@@ -26,15 +26,18 @@ class ViewMapper(object):
 
     def __init__(self, dxyz=(0.0, 1.0, 0.0), viewangle=360.0, name='view',
                  mtxs=None, imtxs=None):
-        self._viewangle = viewangle
         # float: aspect ratio width/height
         self.aspect = 1
+        self._viewangle = viewangle
+        if viewangle > 180:
+            self.aspect = 2
+            self._viewangle = 180
         self._initmtx = (mtxs, imtxs)
         self.dxyz = dxyz
         self._initmtx = None
-        self.area = 2*np.pi*(1 - np.cos(viewangle*np.pi/360))
+        self.area = 2*np.pi*(1 - np.cos(self.viewangle*np.pi*self.aspect/360))
         cl = translate.theta2chord(np.pi/2)/(np.pi/2)
-        va = viewangle*np.pi/360/self.aspect
+        va = self.viewangle*np.pi/360
         clp = translate.theta2chord(va)/va
         self._chordfactor = cl / clp
         self.name = name
@@ -92,10 +95,9 @@ class ViewMapper(object):
                                            for x in self.dxyz])
         else:
             self._ymtx, self._pmtx = zip(*self._initmtx[0])
-        if self._viewangle > 180:
+        if self.aspect == 2:
             self._sf = np.array((1, 1))
             self._bbox = np.stack(((0, 0), (2, 1)))
-            self.aspect = 2
             self._ivm = ViewMapper(-self.dxyz, 180, mtxs=self._initmtx[1])
         else:
             self._sf = np.array((self._viewangle/180, self._viewangle/180))
@@ -155,17 +157,16 @@ class ViewMapper(object):
         return pxy
 
     def pixel2ray(self, pxy, res, i=0):
-        rxyz = translate.pxy2xyz(pxy/res, self.viewangle/self.aspect)
+        rxyz = translate.pxy2xyz(pxy/res, self.viewangle)
         xyz = self.view2world(rxyz.reshape(-1, 3), i).reshape(rxyz.shape)
         return xyz
 
     def pixel2omega(self, pxy, res):
-        va = self.viewangle/self.aspect
         of = np.array(((.5, 0), (0, .5)))
-        xa = translate.pxy2xyz((pxy - of[0])/res, va)
-        xb = translate.pxy2xyz((pxy + of[0])/res, va)
-        ya = translate.pxy2xyz((pxy - of[1])/res, va)
-        yb = translate.pxy2xyz((pxy + of[1])/res, va)
+        xa = translate.pxy2xyz((pxy - of[0])/res, self.viewangle)
+        xb = translate.pxy2xyz((pxy + of[0])/res, self.viewangle)
+        ya = translate.pxy2xyz((pxy - of[1])/res, self.viewangle)
+        yb = translate.pxy2xyz((pxy + of[1])/res, self.viewangle)
         cp = np.cross(xb - xa, yb - ya)
         return np.linalg.norm(cp, axis=-1)
 
@@ -182,8 +183,7 @@ class ViewMapper(object):
 
     def in_view(self, vec, i=0, indices=True):
         ang = self.radians(vec, i)
-        mask = ang < (self._chordfactor * self.viewangle * np.pi /
-                      (360 * self.aspect))
+        mask = ang < (self._chordfactor * self.viewangle * np.pi / 360)
         if indices:
             return np.unravel_index(np.arange(ang.size)[mask], vec.shape[:-1])
         else:
@@ -223,5 +223,5 @@ class ViewMapper(object):
         else:
             mask2 = None
         header = ('VIEW= -vta -vv {0} -vh {0} -vd {1} {2} {3} -vp {4} {5} '
-                  '{6}'.format(self.viewangle/self.aspect, *self.dxyz[0], *pt))
+                  '{6}'.format(self.viewangle, *self.dxyz[0], *pt))
         return img, vecs, mask, mask2, header

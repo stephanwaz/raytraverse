@@ -279,7 +279,7 @@ def rgbe2lum(rgbe):
 
 def add_vecs_to_img(vm, img, v, channels=(1, 0, 0), grow=0):
     res = img.shape[-1]
-    if vm.viewangle == 360:
+    if vm.aspect == 2:
         reverse = vm.degrees(v) > 90
         pa = vm.ivm.ray2pixel(v[reverse], res)
         pa[:, 0] += res

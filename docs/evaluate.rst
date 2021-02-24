@@ -1,6 +1,16 @@
 raytraverse.evaluate
 ==========================================================
 
+BaseMetricSet
+---------------------------------
+
+.. autoclass:: raytraverse.evaluate.BaseMetricSet
+    :members:
+    :undoc-members:
+    :show-inheritance:
+    :private-members:
+
+
 MetricSet
 ---------------------------------
 

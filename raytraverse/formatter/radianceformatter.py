@@ -30,7 +30,7 @@ class RadianceFormatter(Formatter):
         """compile scene"""
         dims = cst.pipeline([f'getinfo -d {scene_files}', ])
         try:
-            m = re.match(scene_files + r': [\d.-]+ [\d.-]+ [\d.-]+ [\d.-]+',
+            m = re.match(scene_files + r'.*: [\d.-]+ [\d.-]+ [\d.-]+ [\d.-]+',
                          dims.strip())
         except TypeError:
             raise ValueError(f'{scene_files} does not exist, Scene() must be '

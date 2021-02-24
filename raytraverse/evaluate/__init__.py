@@ -8,7 +8,8 @@
 
 """mapper objects"""
 
-__all__ = ['MetricSet', 'PositionIndex', 'retina']
+__all__ = ['MetricSet', 'MetricSet', 'PositionIndex', 'retina']
 
+from raytraverse.evaluate.basemetricset import BaseMetricSet
 from raytraverse.evaluate.metricset import MetricSet
 from raytraverse.evaluate.positionindex import PositionIndex

@@ -21,6 +21,10 @@ import clasp.script_tools as cst
 import raytraverse
 from raytraverse.scene import Scene
 from raytraverse.sky import SunsLoc, Suns, SunsPos, skycalc
+from raytraverse.mapper import SpaceMapper
+from raytraverse.renderer import Rtrace, Rcontrib
+from raytraverse.sampler import SkySampler
+from raytraverse.lightpoint import LightPointKD
 
 
 @clk.pretty_name("NPY, TSV, FLOATS,FLOATS")
@@ -75,7 +79,7 @@ def main(ctx, out, config, n=None,  **kwargs):
     any dependencies will be loaded with the correct options, a complete run
     and evaluation can then be called by::
 
-        raytraverse -c run.cfg OUT sky sunrun integrate
+        raytraverse -c run.cfg OUT skyrun sunrun evaluate
 
     as both scene and sun will be invoked automatically as needed.
 
@@ -92,29 +96,28 @@ def main(ctx, out, config, n=None,  **kwargs):
 
 
 @main.command()
-@click.option('-scene', help='space separated list of radiance scene files '
-              '(no sky) or precompiled octree')
+@click.option('-scene',
+              help='space separated list of radiance scene files (no sky) or '
+                   'precompiled octree')
 @click.option('--reload/--no-reload', default=True,
               help='if a scene already exists at OUT reload it, note that if'
                    'this is False and overwrite is False, the program will'
                    'abort')
 @click.option('--overwrite/--no-overwrite', default=False,
-              help='Warning! if set to True and reload is False all files in'
+              help='Warning! if set to True all files in'
                    'OUT will be deleted')
 @click.option('--frozen/--no-frozen', default=True,
               help='create frozen octree from scene files')
 @click.option('--log/--no-log', default=True,
               help='log progress to <out>/log.txt')
 @clk.shared_decs(clk.command_decs(raytraverse.__version__, wrap=True))
-def scene(ctx, opts=False, debug=False, **kwargs):
+def scene(ctx, opts=False, debug=False, version=None, **kwargs):
     """The scene commands creates a Scene object which holds geometric
     information about the model including object geometry (and defined
     materials), the analysis plane and the desired resolutions for sky and
     analysis plane subdivision"""
-    print(kwargs)
     s = Scene(ctx.obj['out'], **kwargs)
     ctx.obj['scene'] = s
-    ctx.obj['initlf'] = []
 
 
 @main.command()
@@ -200,6 +203,50 @@ def suns(ctx, loc=None, wea=None, usepositions=False, plotdview=False,
             print('{}\t{}\t{}'.format(*pt))
 
 
+@main.command()
+@click.option('-ptfile', default=None, callback=np_load,
+              help="points to analyze (use with --static-pos), shape (N, 3)")
+@click.option('-area', default=None, callback=clk.is_file,
+              help="radiance scene geometry defining a plane to sample, if "
+                   "given overrides ptfile")
+@click.option('-ptres', default=1.0,
+              help="resolution for considering points duplicates, border "
+                   "generation (1/2) and add_grid().")
+@click.option('-rotation', default=0.0,
+              help="CCW rotation in degrees for point grid (with --area)")
+@click.option('-precision', default=3,
+              help="digits to round point coordinates")
+@click.option('--reload/--no-reload', default=True,
+              help="include existing points from scene directory")
+@click.option('--mask/--no-mask', default=True,
+              help="mask new points by existing perimeter")
+@click.option('--fill/--no-fill', default=False,
+              help="with -area, generate grid of points position (use True with"
+                   "--static skyrun and sunrun, False with --adaptive")
+@click.option('--jitter/--no-jitter', default=True,
+              help="used with fill, if True jitters point locations within"
+                   "each grid cell")
+@click.option('--printpts/--no-printpts', default=False,
+              help="print positions to stdout")
+@clk.shared_decs(clk.command_decs(raytraverse.__version__, wrap=True))
+def points(ctx, ptfile=None, area=None, mask=True, reload=True, ptres=1.0,
+           rotation=0.0, fill=False, precision=3, jitter=True, **kwargs):
+    if area is not None:
+        ptfile = None
+    pts = SpaceMapper(ctx.obj['out'], points=ptfile, area=area, mask=mask,
+                      reload=reload, ptres=ptres, rotation=rotation,
+                      fill=fill and jitter, precision=precision)
+    if fill and not jitter:
+        pts.add_grid(False)
+    ctx.obj['points'] = pts
+    if kwargs['printpts']:
+        if pts.points.size == 0:
+            click.echo('SpaceMapper has no points, did you mean to use --fill?',
+                       err=True)
+        for pt in pts.points:
+            print('{}\t{}\t{}'.format(*pt))
+
+
 run_opts = [
  click.option('-accuracy', default=1.0,
               help='a generic accuracy parameter that sets the threshold'
@@ -230,7 +277,12 @@ run_opts = [
  click.option('--overwrite/--no-overwrite', default=False,
               help='execute run even if simulations exist'),
  click.option('--showsample/--no-showsample', default=True,
-              help='show samples on dviews')
+              help='show samples on dviews'),
+ click.option('--static/--dynamic', default=True,
+              help='--static will sample predefined point locations '
+                   '(set by raytraverse points). --dynamic will adaptively '
+                   'select sampling positions, use "raytraverse points" w/ '
+                   '-area')
     ]
 
 
@@ -243,10 +295,17 @@ run_opts = [
               callback=clk.split_float,
               help="to plot direct view for a single patch,"
                    "give an x,y,z direction")
+@click.option('-skyres', default=10.0,
+              help='approximate resolution for skypatch subdivision '
+                   '(in degrees). Patches will have (rounded) size skyres x '
+                   'skyres. So if skyres=10, each patch will be 100 sq. '
+                   'degrees (0.03046174197 steradians) and there will be 18 * '
+                   '18 = 324 sky patches.')
 @clk.shared_decs(run_opts)
 @clk.shared_decs(clk.command_decs(raytraverse.__version__, wrap=True))
 def skyrun(ctx, plotdview=False, overwrite=False, showsample=True,
-           showweight=True, dviewpatch=None, **kwargs):
+           dviewpatch=None, static=True, rargs="", skyres=10.0, accuracy=1.0,
+           idres=5, fdres=9, **kwargs):
     """The skyrun command will run a fixed sampling a set of a set of points
     or run an adaptive area sampler depending on the options given. Rendering
     is done with the raytraverse.renderer.Rcontrib renderer. In addition to
@@ -255,22 +314,47 @@ def skyrun(ctx, plotdview=False, overwrite=False, showsample=True,
     options can be overridden by the -rargs parameter."""
     if 'scene' not in ctx.obj:
         clk.invoke_dependency(ctx, scene)
+    if 'points' not in ctx.obj:
+        clk.invoke_dependency(ctx, points)
     s = ctx.obj['scene']
-    lumf = f'{s.outdir}/sky_kd_lum.dat'
-    exists = os.path.isfile(lumf) and os.stat(lumf).st_size > 1000
-    run = run and (overwrite or not exists)
-    if run:
-        sampler = SkySampler(s, **kwargs)
-        sampler.run()
-        try:
-            os.remove(f"{s.outdir}/sunpdfidxs.npz")
-        except IOError:
-            pass
-    sk = SCBinField(s, rebuild=run or rebuild, rmraw=rmraw)
-    ctx.obj['initlf'].append(sk)
-    if plotdview:
-        sk.direct_view(showsample=showsample, showweight=showweight, dpts=dpts,
-                       srcidx=dviewpatch, res=1024)
+    pts = ctx.obj['points']
+    skyengine = Rcontrib(rargs, s.scene, skyres=skyres)
+    skysamp = SkySampler(s, skyengine, accuracy=accuracy, idres=idres,
+                         fdres=fdres)
+    if static:
+        if pts.points.size == 0:
+            raise ValueError("static skyrun requires assigning points, see "
+                             "raytraverse points --help")
+        idx, d = pts.query_pt(pts.points)
+        for i, pt in list(zip(idx, pts.points)):
+            if overwrite or not os.path.isfile(f"{s.outdir}/sky/{i:06d}.rytpt"):
+                lf = skysamp.run(pt, i, log='err')
+                if plotdview:
+                    lf.direct_view(showsample=showsample, srcidx=dviewpatch)
+            else:
+                click.echo(f"skipping point: {i} at {pt}, results exist. use "
+                           f"--overwrite to force rerun", err=True)
+                if plotdview:
+                    lf = LightPointKD(s, pt=pt, posidx=i)
+                    lf.direct_view(showsample=showsample, srcidx=dviewpatch)
+    else:
+        print("--dynamic is not implemented")
+    skyengine.reset()
+    # lumf = f'{s.outdir}/sky_kd_lum.dat'
+    # exists = os.path.isfile(lumf) and os.stat(lumf).st_size > 1000
+    # run = run and (overwrite or not exists)
+    # if run:
+    #     sampler = SkySampler(s, **kwargs)
+    #     sampler.run()
+    #     try:
+    #         os.remove(f"{s.outdir}/sunpdfidxs.npz")
+    #     except IOError:
+    #         pass
+    # sk = SCBinField(s, rebuild=run or rebuild, rmraw=rmraw)
+    # ctx.obj['initlf'].append(sk)
+    # if plotdview:
+    #     sk.direct_view(showsample=showsample, showweight=showweight, dpts=dpts,
+    #                    srcidx=dviewpatch, res=1024)
 #
 # @main.command()
 # @click.option('-fdres', default=10,
