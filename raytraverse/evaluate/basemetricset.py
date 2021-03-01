@@ -46,18 +46,27 @@ class BaseMetricSet(object):
 
     allmetrics = defaultmetrics + ["density", "avgraylum"]
 
-    def __init__(self, vm, vec, omega, lum, metricset=None, scale=179.,
-                 **kwargs):
+    def __init__(self, vec, omega, lum, vm, metricset=None, scale=179.,
+                 omega_as_view_area=True, **kwargs):
         if metricset is not None:
             self.check_metrics(metricset, True)
             self.defaultmetrics = metricset
         self.vm = vm
-        self.view_area = vm.area
+        if omega_as_view_area:
+            self.view_area = np.sum(omega)
+            self._correct_omega = False
+        else:
+            self.view_area = vm.area
         v = translate.norm(vec)
-        mask = self.vm.in_view(v)
-        self._vec = v[mask]
-        self._lum = lum[mask]
-        self.omega = omega[mask]
+        if self.vm.aspect == 2:
+            self._vec = v
+            self._lum = lum
+            self.omega = omega
+        else:
+            mask = self.vm.in_view(v)
+            self._vec = v[mask]
+            self._lum = lum[mask]
+            self.omega = omega[mask]
         self.scale = scale
         self.kwargs = kwargs
 
@@ -101,27 +110,30 @@ class BaseMetricSet(object):
     @omega.setter
     def omega(self, og):
         """correct omega of rays at edge of view to normalize view size"""
-        self._omega = np.copy(og)
-        # square appoximation of ray area
-        ray_side = np.sqrt(self._omega)
-        excess = np.sum(og) - self.view_area
-        if abs(excess) > .1:
-            print(f"Warning, large discrepancy between sum(omega) and view "
-                  f"area: {excess}", file=sys.stderr)
-        while True:
-            # get ray squares that overlap edge of view
-            onedge = self.radians > (self.vm.viewangle * np.pi / 360 - ray_side)
-            edgetotal = np.sum(og[onedge])
-            adjust = 1 - excess/edgetotal
-            # if this fails increase search radius to ensure enough rays to
-            # absorb the adjustment
-            if adjust < 0:
-                print("Warning, intitial search radius failed for omega "
-                      "adjustment", file=sys.stderr)
-                ray_side *= 1.1
-            else:
-                break
-        self._omega[onedge] = og[onedge] * adjust
+        if self._correct_omega:
+            self._omega = np.copy(og)
+            # square appoximation of ray area
+            ray_side = np.sqrt(self._omega)
+            excess = np.sum(og) - self.view_area
+            if abs(excess) > .1:
+                print(f"Warning, large discrepancy between sum(omega) and view "
+                      f"area: {excess}", file=sys.stderr)
+            while True:
+                # get ray squares that overlap edge of view
+                onedge = self.radians > (self.vm.viewangle * np.pi / 360 - ray_side)
+                edgetotal = np.sum(og[onedge])
+                adjust = 1 - excess/edgetotal
+                # if this fails increase search radius to ensure enough rays to
+                # absorb the adjustment
+                if adjust < 0:
+                    print("Warning, intitial search radius failed for omega "
+                          "adjustment", file=sys.stderr)
+                    ray_side *= 1.1
+                else:
+                    break
+            self._omega[onedge] = og[onedge] * adjust
+        else:
+            self._omega = og
 
     # -------------------metric dependencies (return array)--------------------
 

@@ -138,7 +138,7 @@ class LightPointKD(object):
         vm = self.vm
         if self.vec.shape[0] < 100:
             omega = None
-        elif vm.viewangle <= 180:
+        elif vm.aspect == 1:
             # in case of 180 view, cannot use spherical voronoi, instead
             # the method estimates area in square coordinates by intersecting
             # 2D voronoi with border square.
@@ -265,7 +265,7 @@ class LightPointKD(object):
         """
         if vm is None:
             vm = self.vm
-        idx = self.query_ball(vm.dxyz)[0]
+        idx = self.query_ball(vm.dxyz, vm.viewangle * vm.aspect)[0]
         omega = np.squeeze(self.omega[idx])
         rays = self.vec[idx]
         lum = np.squeeze(self.apply_coef(skyvec))[idx]

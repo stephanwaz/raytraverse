@@ -23,8 +23,8 @@ from raytraverse.scene import Scene
 from raytraverse.sky import SunsLoc, Suns, SunsPos, skycalc
 from raytraverse.mapper import SpaceMapper
 from raytraverse.renderer import Rtrace, Rcontrib
-from raytraverse.sampler import SkySampler
-from raytraverse.lightpoint import LightPointKD
+from raytraverse.sampler import SkySampler, SunSampler
+from raytraverse.lightpoint import LightPointKD, SunPointKD
 
 
 @clk.pretty_name("NPY, TSV, FLOATS,FLOATS")
@@ -340,21 +340,58 @@ def skyrun(ctx, plotdview=False, overwrite=False, showsample=True,
     else:
         print("--dynamic is not implemented")
     skyengine.reset()
-    # lumf = f'{s.outdir}/sky_kd_lum.dat'
-    # exists = os.path.isfile(lumf) and os.stat(lumf).st_size > 1000
-    # run = run and (overwrite or not exists)
-    # if run:
-    #     sampler = SkySampler(s, **kwargs)
-    #     sampler.run()
-    #     try:
-    #         os.remove(f"{s.outdir}/sunpdfidxs.npz")
-    #     except IOError:
-    #         pass
-    # sk = SCBinField(s, rebuild=run or rebuild, rmraw=rmraw)
-    # ctx.obj['initlf'].append(sk)
-    # if plotdview:
-    #     sk.direct_view(showsample=showsample, showweight=showweight, dpts=dpts,
-    #                    srcidx=dviewpatch, res=1024)
+
+
+@main.command()
+@click.option('-fdres', default=10,
+              help='the final directional sampling resolution, yielding a'
+                   ' grid of potential samples at 2^fdres x 2^fdres per'
+                   ' hemisphere')
+@clk.shared_decs(run_opts)
+@clk.shared_decs(clk.command_decs(raytraverse.__version__, wrap=True))
+def sunrun(ctx, plotdview=False, overwrite=False, showsample=True,
+           dviewpatch=None, static=True, rargs="", accuracy=1.0,
+           idres=5, fdres=9, **kwargs):
+    """The skyrun command will run a fixed sampling a set of a set of points
+    or run an adaptive area sampler depending on the options given. Rendering
+    is done with the raytraverse.renderer.Rcontrib renderer. In addition to
+    the default options of rcontrib (see rcontrib -defaults), the raytraverse
+    defaults are: -ab 7 -ad 10 -as 0 -lw 1e-5 -st 0 -ss 16 -c nrbins*10. These
+    options can be overridden by the -rargs parameter."""
+    if 'scene' not in ctx.obj:
+        clk.invoke_dependency(ctx, scene)
+    if 'points' not in ctx.obj:
+        clk.invoke_dependency(ctx, points)
+    if 'suns' not in ctx.obj:
+        clk.invoke_dependency(ctx, suns)
+    s = ctx.obj['scene']
+    pts = ctx.obj['points']
+    sunpos = ctx.obj['suns']
+    sunengine = Rtrace(rargs, s.scene)
+    if static:
+        if pts.points.size == 0:
+            raise ValueError("static skyrun requires assigning points, see "
+                             "raytraverse points --help")
+        idx, d = pts.query_pt(pts.points)
+        for j, sn in zip(sunpos.sbins, sunpos.suns):
+            sunsamp = SunSampler(s, sunengine, sn, j, accuracy=accuracy, idres=idres, fdres=fdres)
+            for i, pt in zip(idx, pts.points):
+                if overwrite or not os.path.isfile(f"{s.outdir}/sun_{j:04d}/{i:06d}.rytpt"):
+                    lf = sunsamp.run(pt, i, log='err')
+                    if plotdview:
+                        lf.direct_view(showsample=showsample, srcidx=dviewpatch)
+                else:
+                    click.echo(f"skipping point: {i} at {pt} for source sun_{j:04d}, results exist. use "
+                               f"--overwrite to force rerun", err=True)
+                    if plotdview:
+                        lf = SunPointKD(s, pt=pt, posidx=i, src=f"sun_{j:04d}")
+                        lf.direct_view(showsample=showsample, srcidx=dviewpatch)
+    else:
+        print("--dynamic is not implemented")
+    sunengine.reset()
+
+
+
 #
 # @main.command()
 # @click.option('-fdres', default=10,

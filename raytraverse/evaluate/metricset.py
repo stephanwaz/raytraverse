@@ -60,14 +60,13 @@ class MetricSet(BaseMetricSet):
                                              "view_area", "backlum_true",
                                              "srcillum"]
 
-    def __init__(self, vm, vec, omega, lum, metricset=None, scale=179.,
+    def __init__(self, vec, omega, lum, vm, metricset=None, scale=179.,
                  threshold=2000., guth=True, tradius=30.0, **kwargs):
-        super().__init__(vm, vec, omega, lum, metricset=metricset, scale=scale,
+        super().__init__(vec, omega, lum, vm, metricset=metricset, scale=scale,
                          **kwargs)
         self._threshold = threshold
         self.guth = guth
         self.tradius = tradius
-        self.kwargs = kwargs
 
     # -------------------metric dependencies (return array)--------------------
 

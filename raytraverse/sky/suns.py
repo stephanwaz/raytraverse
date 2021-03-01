@@ -82,8 +82,7 @@ class Suns(object):
         if s is not None:
             self._suns = s
         elif os.path.isfile(self.sunfile):
-            xyz = np.loadtxt(self.sunfile)
-            self._suns = xyz
+            self._suns = np.atleast_2d(np.loadtxt(self.sunfile))
         else:
             self._suns = self.choose_suns()
             try:

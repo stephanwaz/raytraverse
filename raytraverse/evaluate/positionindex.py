@@ -43,11 +43,14 @@ class PositionIndex(object):
         up = vm.view2world(np.array((0, 1, 0)))
         #: sigma: angle between source and view direction
         sigma = vm.degrees(vec)
+        return self._positions(vm.dxyz, vec, sigma, up)
+
+    def _positions(self, viewvec, vec, sigma, up):
         #: tau: angle between vertical and source projected to view plane
-        tau = self._angle_vv(up, self._to_plane(vm.dxyz, vec))*180/np.pi
+        tau = self._angle_vv(up, self._to_plane(viewvec, vec))*180/np.pi
         if self.guth:
-            hv = np.cross(vm.dxyz, up)
-            vv = np.cross(vm.dxyz, hv)
+            hv = np.cross(viewvec, up)
+            vv = np.cross(viewvec, hv)
             #: phi: vertical angle
             phi = self._angle_vv(vv, vec) - np.pi/2.0
             #: theta: horizontal angle
@@ -60,11 +63,18 @@ class PositionIndex(object):
             posidx = self._get_pidx_kim(sigma, tau)
         return posidx
 
+    def positions_vec(self, viewvec, srcvec, up=(0, 0, 1)):
+        sigma = np.arccos(np.einsum("ki,ji->kj", np.atleast_2d(viewvec),
+                                    np.atleast_2d(srcvec))) * 180/np.pi
+        return self._positions(viewvec, srcvec, sigma, up)
+
+
     @staticmethod
     def _to_plane(n, vec):
-        nv = n.reshape(1, 3)
-        proj = vec - np.tensordot(nv, vec, (-1, -1)).T*nv
-        return translate.norm(proj)
+        nv = n.reshape(-1, 3)
+        proj = vec[None] - np.tensordot(nv, vec, (-1, -1))[..., None]*nv[:, None, :]
+        proj = proj/np.linalg.norm(proj, axis=-1)[..., None]
+        return proj
 
     @staticmethod
     def _angle_vv(a, b):

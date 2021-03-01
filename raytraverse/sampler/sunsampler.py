@@ -46,13 +46,12 @@ class SunSampler(Sampler):
     """
 
     def __init__(self, scene, engine, sun, sunbin, speclevel=9, fdres=10,
-                 engine_args='-ab 7 -ad 128 -as 0 -c 10 -as 0 -lw 1e-5',
                  slimit=0.01, maxspec=0.3, **kwargs):
         self.slimit = slimit
         self.maxspec = maxspec
         self.specguide = None
         super().__init__(scene, engine, stype=f"sun_{sunbin:04d}", fdres=fdres,
-                         engine_args=engine_args, **kwargs)
+                         **kwargs)
         # update parameters post init
         # normalize accuracy for sun source
         self.accuracy = self.accuracy * (1 - np.cos(.533*np.pi/360))

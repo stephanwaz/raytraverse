@@ -170,9 +170,9 @@ class Sampler(object):
             io.array2hdr(np.where(mask, img, 0), outp)
         else:
             io.array2hdr(translate.resample(self.weights[-1::-1], outshape,
-                                            radius=0), outw)
+                                            radius=0, gauss=False), outw)
             io.array2hdr(translate.resample(ps[-1::-1], outshape,
-                                            radius=0), outp)
+                                            radius=0, gauss=False), outp)
 
     def _plot_vecs(self, vecs, level, vm, name, suffix=".hdr"):
         outshape = (512*vm.aspect, 512)
@@ -284,7 +284,8 @@ class Sampler(object):
         else:
             self.vecs = np.concatenate((self.vecs, vecs))
 
-    def run(self, point, posidx, vm=None, plotp=False, log=False, **kwargs):
+    def run(self, point, posidx, vm=None, plotp=False, log=False, pfish=True,
+            **kwargs):
         """
 
         Parameters
@@ -351,11 +352,11 @@ class Sampler(object):
                         f'{i:02d}.out')
                 self._dump_vecs(vecs)
                 vecfs.append(vecf)
-                if plotp:
-                    self._plot_p(p, i, vm, name)
-                    self._plot_vecs(vecs[:, 3:], i, vm, name)
                 lum = self.sample(vecs)
                 self.update_weights(si, lum)
+                if plotp:
+                    self._plot_p(p, i, vm, name, fisheye=pfish)
+                    self._plot_vecs(vecs[:, 3:], i, vm, name)
                 a = lum.shape[0]
                 allc += a
         srate = allc/self.weights.size

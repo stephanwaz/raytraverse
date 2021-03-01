@@ -7,7 +7,9 @@
 # =======================================================================
 """functions for generating new lightpoints from existing"""
 import numpy as np
+from sklearn.cluster import DBSCAN
 
+from raytraverse import translate
 from raytraverse.lightpoint.lightpointkd import LightPointKD
 from raytraverse.lightpoint.sunpointkd import SunPointKD
 
@@ -58,3 +60,22 @@ def add_sources(lf1, lf2, src=None, calcomega=True, write=True):
         lf_out = SunPointKD(lf1.scene, sun=sun, sunview=sunview,
                             filterview=False, **kwargs)
     return lf_out
+
+
+def _cluster(x, eps, min_samples=10):
+    clust = DBSCAN(eps=eps, min_samples=min_samples)
+    clust.fit(x)
+    lsort = np.argsort(clust.labels_)
+    ul, sidx = np.unique(clust.labels_[lsort], return_index=True)
+    return np.array_split(lsort, sidx[1:])
+
+
+def consolidate(lf, src=None, write=True, unit_eps=None):
+    if unit_eps is None:
+        unit_eps = translate.theta2chord(np.pi/32)
+    lum = lf.apply_coef(1)
+    wv = np.einsum('ij,i->ij', lf.vec, lum)
+    c = _cluster(wv, unit_eps * np.max(lum))
+    ovec = []
+    olum = []
+    ooga = []
