@@ -277,19 +277,24 @@ def rgbe2lum(rgbe):
     return rgb2lum(rgb)
 
 
-def add_vecs_to_img(vm, img, v, channels=(1, 0, 0), grow=0):
+def add_vecs_to_img(vm, img, v, channels=(1, 0, 0), grow=0, fisheye=True):
     res = img.shape[-1]
-    if vm.aspect == 2:
-        reverse = vm.degrees(v) > 90
-        pa = vm.ivm.ray2pixel(v[reverse], res)
-        pa[:, 0] += res
-        pb = vm.ray2pixel(v[np.logical_not(reverse)], res)
-        xp = np.concatenate((pa[:, 0], pb[:, 0]))
-        yp = np.concatenate((pa[:, 1], pb[:, 1]))
+    if fisheye:
+        if vm.aspect == 2:
+            reverse = vm.degrees(v) > 90
+            pa = vm.ivm.ray2pixel(v[reverse], res)
+            pa[:, 0] += res
+            pb = vm.ray2pixel(v[np.logical_not(reverse)], res)
+            xp = np.concatenate((pa[:, 0], pb[:, 0]))
+            yp = np.concatenate((pa[:, 1], pb[:, 1]))
+        else:
+            pb = vm.ray2pixel(v, res)
+            xp = pb[:, 0]
+            yp = pb[:, 1]
     else:
-        pb = vm.ray2pixel(v, res)
-        xp = pb[:, 0]
-        yp = pb[:, 1]
+        pa = translate.uv2ij(vm.xyz2uv(v), res)
+        xp = res - 1 - pa[:, 0]
+        yp = pa[:, 1]
     r = int(grow*2 + 1)
     if len(img.shape) == 2:
         try:

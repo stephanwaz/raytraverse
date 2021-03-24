@@ -190,7 +190,7 @@ class FieldMetric(BaseMetricSet):
             nweight = n.pdf(ang)
             return np.average(self.lum, weights=nweight*weights)
 
-        return np.apply_along_axis(polar_kernel, 1, nx)
+        return np.apply_along_axis(polar_kernel, 1, nx) * self.scale
 
     @property
     @functools.lru_cache(1)
@@ -225,7 +225,6 @@ class FieldMetric(BaseMetricSet):
         pos = PositionIndex().positions_vec(self.eq_xyz, self.sources[:, 0:3])
         pwsl2 = np.sum(np.square(slum[None])*soga[None] / np.square(pos), axis=1)
         return np.log10(1 + pwsl2/ev**1.87)
-
 
     @property
     @functools.lru_cache(1)

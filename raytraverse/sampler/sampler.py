@@ -169,17 +169,23 @@ class Sampler(object):
             img = ps[ij[:, 0], ij[:, 1]].reshape(outshape)
             io.array2hdr(np.where(mask, img, 0), outp)
         else:
-            io.array2hdr(translate.resample(self.weights[-1::-1], outshape,
-                                            radius=0, gauss=False), outw)
-            io.array2hdr(translate.resample(ps[-1::-1], outshape,
-                                            radius=0, gauss=False), outp)
+            weights = translate.resample(self.weights[-1::-1], outshape,
+                                         radius=0, gauss=False)
+            detail = translate.resample(ps[-1::-1], outshape, radius=0,
+                                        gauss=False)
+            if vm.aspect == 2:
+                weights = np.concatenate((weights[res:], weights[0:res]), 0)
+                detail = np.concatenate((detail[res:], detail[0:res]), 0)
+            io.array2hdr(weights, outw)
+            io.array2hdr(detail, outp)
 
-    def _plot_vecs(self, vecs, level, vm, name, suffix=".hdr"):
+    def _plot_vecs(self, vecs, level, vm, name, suffix=".hdr", fisheye=True):
         outshape = (512*vm.aspect, 512)
         outf = (f"{self.scene.outdir}_{name}_{self.stype}_samples_"
                 f"{level:02d}{suffix}")
         img = np.zeros(outshape)
-        img = io.add_vecs_to_img(vm, img, vecs, channels=level+1, grow=1)
+        img = io.add_vecs_to_img(vm, img, vecs, channels=level+1, grow=1,
+                                 fisheye=fisheye)
         io.array2hdr(img, outf)
 
     def _linear(self, x, x1, x2):
@@ -273,9 +279,9 @@ class Sampler(object):
 
     def run_callback(self, point, posidx, vm):
         """handle class specific cleanup and lightpointKD construction"""
-        lightpoint = LightPointKD(self.scene, self.vecs, self.lum, src=self.stype,
-                                  pt=point, write=True, srcn=self.srcn,
-                                  posidx=posidx, vm=vm)
+        lightpoint = LightPointKD(self.scene, self.vecs, self.lum,
+                                  src=self.stype, pt=point, write=True,
+                                  srcn=self.srcn, posidx=posidx, vm=vm)
         return lightpoint
 
     def _dump_vecs(self, vecs):
@@ -356,7 +362,7 @@ class Sampler(object):
                 self.update_weights(si, lum)
                 if plotp:
                     self._plot_p(p, i, vm, name, fisheye=pfish)
-                    self._plot_vecs(vecs[:, 3:], i, vm, name)
+                    self._plot_vecs(vecs[:, 3:], i, vm, name, fisheye=pfish)
                 a = lum.shape[0]
                 allc += a
         srate = allc/self.weights.size

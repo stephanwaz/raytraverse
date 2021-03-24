@@ -43,6 +43,10 @@ class SunPointKD(LightPointKD):
             pass
         f.close()
 
+    @property
+    def srcdir(self):
+        return self.sunpos.reshape(1, 3)
+
     def dump(self):
         try_mkdir(f"{self.scene.outdir}/{self.src}")
         f = open(self.file, 'wb')
@@ -51,7 +55,7 @@ class SunPointKD(LightPointKD):
         f.close()
 
     def add_to_img(self, img, vecs, mask=None, skyvec=1, interp=False,
-                   omega=False, vm=None):
+                   omega=False, vm=None, rnd=False):
         """add luminance contributions to image array (updates in place).
         adds sunview if it exists.
 
@@ -77,7 +81,7 @@ class SunPointKD(LightPointKD):
         if vm is None:
             vm = self.vm
         super(SunPointKD, self).add_to_img(img, vecs, mask, skyvec, interp,
-                                           omega, vm)
+                                           omega, vm, rnd)
         if self.sunview is not None:
             self.sunview.add_to_img(img, vecs, mask, skyvec[-1], vm)
 
@@ -105,6 +109,7 @@ class SunPointKD(LightPointKD):
         if vm is None:
             vm = self.vm
         rays, omega, lum = super(SunPointKD, self).get_applied_rays(skyvec, vm)
+        print(lum.shape)
         if self.sunview is not None:
             vr, vo, vl = self.sunview.get_applied_rays(skyvec[-1], vm)
             rays = np.concatenate((rays, [vr]), 0)
@@ -124,3 +129,8 @@ class SunPointKD(LightPointKD):
                 lum = np.delete(lum, broken_clock, 0)
                 d_kd = cKDTree(vec)
         return d_kd, vec, lum
+
+    def compress(self, src=None, write=False, dist=0.19603428, lweight=10,
+                 **kwargs):
+        return super().compress(src, write, dist, lweight, sun=self.sunpos,
+                                sunview=self.sunview, filterview=False)

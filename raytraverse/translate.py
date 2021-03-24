@@ -34,7 +34,7 @@ def uv2xy(uv):
     """
     uv = np.atleast_2d(uv)
     np.seterr(all="ignore")
-    xy = np.empty((uv.shape[0], 2), np.float)
+    xy = np.empty((uv.shape[0], 2), float)
     u = uv[:, 0]
     v = uv[:, 1]
     n = np.where(u > 1.0, -1, 1)
@@ -56,7 +56,7 @@ def uv2xyz(uv, axes=(0, 1, 2), xsign=-1):
     """
     np.seterr(all="ignore")
     uv = np.atleast_2d(uv)
-    xyz = np.empty((uv.shape[0], 3), np.float)
+    xyz = np.empty((uv.shape[0], 3), float)
     u = uv[:, 0]
     v = uv[:, 1]
     # u > 1 values lay in the negative z hemisphere
@@ -86,7 +86,7 @@ def xyz2uv(xyz, normalize=False, axes=(0, 1, 2), flipu=True):
     xyz = np.atleast_2d(xyz)
     if normalize:
         xyz = norm(xyz)
-    uv = np.empty((xyz.shape[0], 2), np.float)
+    uv = np.empty((xyz.shape[0], 2), float)
     # store sign of z-axis to map both hemispheres as positive
     n = np.where(xyz[:, axes[2]] < 0, -1, 1)
     r2 = 1 - n*xyz[:, axes[2]]
@@ -140,6 +140,10 @@ U = (if(n, 1, 3) - a*n)/2;
 V = (b + 1)/2;
 
 bin = if(n, binl(V, U), nrbins);
+
+{ for visualizing with gridlines }
+t : .015;
+grid(x) : if(and(inside(t, frac(U*side), 1-t), inside(t, frac(V*side), 1-t)), x, 0);
 """)
 
 scxyzcal = """
@@ -179,8 +183,24 @@ def xyz2skybin(xyz, side, tol=0, normalize=False):
 
 
 def skybin2xyz(bn, side):
+    """generate source vectors from sky bins
+
+    Parameters
+    ----------
+    bn: np.array
+        bin numbers
+    side: int
+        square side of discretization
+
+    Returns
+    -------
+    xyz: np.array
+        direction to center of sky patches
+    """
     uv = bin2uv(bn, side)
-    return uv2xyz(uv, xsign=1)
+    xyz = uv2xyz(uv, xsign=1)
+    xyz[xyz[:, 2] < 0] = (0, 0, -1)
+    return xyz
 
 
 ##################################################

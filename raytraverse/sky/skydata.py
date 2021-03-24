@@ -223,3 +223,42 @@ class SkyData(object):
                              '\n5 col: m, d, h, dir, diff')
         return skydat
 
+    def sky_description(self, i, prefix="skydata", grid=False):
+        """generate radiance scene files to directly render sky data at index i
+
+        Parameters
+        ----------
+        i: int
+            index of sky vector to generate
+        prefix: str, optional
+            name/path for output files
+        grid: bool, optional
+            render sky patches with grid lines
+
+        Returns
+        -------
+        None
+            write 3 files: prefix_i (.rad, .cal, and .dat) .cal and .dat must
+            be located in RAYPATH (which can include .) or else edit the .rad
+            file to explicitly point to their locations.
+            note that if grid is True, the sky will not be accurate, so only
+            use this for illustrative purposes.
+        """
+        outf = f"{prefix}_{i:04d}"
+        f = open(f"{outf}.rad", 'w')
+        if grid:
+            fun = "grid"
+        else:
+            fun = "noop"
+        f.write(f"void brightdata skyfunc 4 {fun} {outf}.dat {outf}.cal bin 0 "
+                "0\nskyfunc glow skyglow 0 0 4 1 1 1 0\n"
+                "skyglow source sky 0 0 4 0 0 1 180")
+        f.close()
+        f = open(f"{outf}.cal", 'w')
+        f.write(f"side:{self.skyres};\n{translate.scbinscal}")
+        f.close()
+        data = self.smtx[i]
+        nrbins = data.size
+        header = "1\n0 {} {}\n".format(nrbins - 1, nrbins)
+        np.savetxt(f"{outf}.dat", data, delimiter="\n", header=header,
+                   comments="")
