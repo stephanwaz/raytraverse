@@ -24,7 +24,7 @@ from raytraverse.sky import SunsLoc, Suns, SunsPos, skycalc
 from raytraverse.mapper import SpaceMapper
 from raytraverse.renderer import Rtrace, Rcontrib
 from raytraverse.sampler import SkySampler, SunSampler
-from raytraverse.lightpoint import LightPointKD, SunPointKD
+from raytraverse.lightpoint import LightPointKD
 
 
 @clk.pretty_name("NPY, TSV, FLOATS,FLOATS")
@@ -384,7 +384,7 @@ def sunrun(ctx, plotdview=False, overwrite=False, showsample=True,
                     click.echo(f"skipping point: {i} at {pt} for source sun_{j:04d}, results exist. use "
                                f"--overwrite to force rerun", err=True)
                     if plotdview:
-                        lf = SunPointKD(s, pt=pt, posidx=i, src=f"sun_{j:04d}")
+                        lf = LightPointKD(s, pt=pt, posidx=i, src=f"sun_{j:04d}")
                         lf.direct_view(showsample=showsample, srcidx=dviewpatch)
     else:
         print("--dynamic is not implemented")

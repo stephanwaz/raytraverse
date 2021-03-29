@@ -9,20 +9,11 @@ import functools
 
 import numpy as np
 from scipy import stats
-from sklearn.cluster import DBSCAN
 
 from raytraverse import translate
 from raytraverse.evaluate.positionindex import PositionIndex
 from raytraverse.evaluate.basemetricset import BaseMetricSet
 from raytraverse.mapper import ViewMapper
-
-
-def cluster(x, eps, min_samples=10):
-    clust = DBSCAN(eps=eps, min_samples=min_samples)
-    clust.fit(x)
-    lsort = np.argsort(clust.labels_)
-    ul, sidx = np.unique(clust.labels_[lsort], return_index=True)
-    return np.array_split(lsort, sidx[1:])
 
 
 class Ray:
@@ -128,50 +119,6 @@ class FieldMetric(BaseMetricSet):
         """overall vector (with magnitude)"""
         i = np.argmax(self.lum)
         return Ray(self.vec[i] * self.lum[i])
-
-    # -------------------------clustered metrics-------------------------------
-    @property
-    @functools.lru_cache(1)
-    def clusters(self):
-        eps = translate.theta2chord(np.pi/32) * np.max(self.lum)
-        x = np.einsum('ij,i->ij', self.vec, self.lum)
-        return cluster(x, eps)
-
-    @property
-    @functools.lru_cache(1)
-    def sources(self):
-        src = []
-        for c in self.clusters:
-            lum = np.average(self.lum[c], weights=self.omega[c]) * self.scale
-            if lum > self.avglum:
-                vec = np.average(self.vec[c], axis=0, weights=self.omega[c])
-                omega = np.sum(self.omega[c])
-                src.append([*vec, omega, lum])
-        return np.asarray(src)
-
-    @property
-    @functools.lru_cache(1)
-    def background(self):
-        src = []
-        for c in self.clusters:
-            lum = np.average(self.lum[c], weights=self.omega[c]) * self.scale
-            if lum <= self.avglum:
-                eps = translate.theta2chord(np.pi/32) * lum * self.scale
-                vec = self.vec[c]
-                oga = self.omega[c]
-                lm = self.lum[c] * self.scale
-                x = np.einsum('ij,i->ij', vec, lm)
-                cluster2 = cluster(x, eps)
-                for c2 in cluster2:
-                    oga2 = np.sum(oga[c2])
-                    if oga2 < .25:
-                        vec2 = np.average(vec[c2], axis=0, weights=oga[c2])
-                        lm2 = np.average(lm[c2],  weights=oga[c2])
-                        src.append(np.reshape([*vec2, oga2, lm2], (1, 5)))
-                    else:
-                        src.append(np.hstack((vec[c2], oga[c2, None],
-                                              lm[c2, None])))
-        return np.vstack(src)
 
     # ----------equatorial metrics (where vm.xyz is the north pole-------------
 

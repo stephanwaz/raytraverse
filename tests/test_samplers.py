@@ -35,7 +35,7 @@ def test_skysample(tmpdir):
 
     def img_illum(lf0, vm0, sbin):
         outf = lf0.direct_view(res=512, srcidx=sbin, showsample=False,
-                               scalefactor=1)
+                               scalefactor=1, vm=vm0)
         hdr = io.hdr2array(outf)
         vecs = vm0.pixelrays(512)
         pxs = vm0.pixels(512).reshape(-1, 2)
@@ -44,7 +44,7 @@ def test_skysample(tmpdir):
 
         coefs = np.zeros(325)
         coefs[sbin] = 1
-        illumm0 = MetricSet(*lf.get_applied_rays(coefs, vm), vm, ["illum"])()[0]
+        illumm0 = MetricSet(*lf.get_applied_rays(coefs, vm0), vm0, ["illum"])()[0]
 
         return np.sum(hdr.flatten()*omega*cost)*179, illumm0
 
@@ -52,7 +52,7 @@ def test_skysample(tmpdir):
     rcontrib = Rcontrib('-ab 1 -ad 10000 -c 1 -lw 1e-5', scene.scene)
     sampler = SkySampler(scene, rcontrib, fdres=7)
     vm = ViewMapper((0, 1, 0), viewangle=180)
-    lf = sampler.run((1.5, 1.5, 1.5), 0, vm)
+    lf = sampler.run((1.5, 1.5, 1.5), 0)
     illum, illumm = img_illum(lf, vm, 176)
     assert np.isclose(illum, illumm, atol=.2, rtol=.1)
     illum2, illumm2 = img_illum(lf, vm, 158)

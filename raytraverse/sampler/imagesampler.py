@@ -53,9 +53,9 @@ class ImageSampler(Sampler):
             outp = lp.file.replace("/", "_").replace(".rytpt", ".hdr")
             io.array2hdr(img[-1::-1], outp)
 
-    def run_callback(self, point, posidx, vm):
+    def build_point(self, point, posidx, vm, write=False):
         return LightPointKD(self.scene, self.vecs, self.lum, vm=vm, pt=point,
-                            posidx=posidx, src=self.stype, write=False)
+                            posidx=posidx, src=self.stype, write=write)
 
 
 class DeterministicImageSampler(ImageSampler):

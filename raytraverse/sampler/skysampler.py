@@ -5,11 +5,11 @@
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 # =======================================================================
-import os
 import numpy as np
 
-from raytraverse import renderer
 from raytraverse.sampler.sampler import Sampler
+from raytraverse.lightpoint import LightPointKD
+from raytraverse import translate
 
 
 class SkySampler(Sampler):
@@ -49,3 +49,11 @@ class SkySampler(Sampler):
         else:
             self.lum = np.concatenate((self.lum, lum), 0)
         return np.max(lum, 1)
+
+    def build_point(self, point, posidx, vm, write=True):
+        """include sky patch source dirs"""
+        srcdirs = translate.skybin2xyz(np.arange(self.srcn), self.engine.side)
+        lightpoint = LightPointKD(self.scene, self.vecs, self.lum, vm=vm,
+                                  src=self.stype, srcdir=srcdirs, pt=point,
+                                  write=write, srcn=self.srcn, posidx=posidx)
+        return lightpoint

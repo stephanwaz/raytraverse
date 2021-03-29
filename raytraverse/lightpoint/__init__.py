@@ -8,10 +8,9 @@
 
 """light field storage/query objects"""
 
-__all__ = ['LightPointKD', 'SunPointKD', 'SunViewPoint', 'SkyPointKD']
+__all__ = ['LightPointKD', 'SrcViewPoint', 'CompressedPointKD']
 
 
 from raytraverse.lightpoint.lightpointkd import LightPointKD
-from raytraverse.lightpoint.sunpointkd import SunPointKD
-from raytraverse.lightpoint.sunviewpoint import SunViewPoint
-from raytraverse.lightpoint.skypointkd import SkyPointKD
+from raytraverse.lightpoint.srcviewpoint import SrcViewPoint
+from raytraverse.lightpoint.compressedpointkd import CompressedPointKD

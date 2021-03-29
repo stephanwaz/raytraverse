@@ -217,7 +217,6 @@ class Sampler(object):
     #: [[-1 0 0] [0 2 0] [0 0 -1]] / 2
     detailfunc = 'wav3'
 
-
     filters = {'prewitt': (np.array([[1, 1, 1], [0, 0, 0], [-1, -1, -1]])/3,
                            np.array([[1, 0, -1], [1, 0, -1], [1, 0, -1]])/3),
                'sobel': (np.array([[1, 2, 1], [0, 0, 0], [-1, -2, -1]])/4,
@@ -277,10 +276,10 @@ class Sampler(object):
         """
         self.weights[tuple(si)] = lum
 
-    def run_callback(self, point, posidx, vm):
-        """handle class specific cleanup and lightpointKD construction"""
+    def build_point(self, point, posidx, vm, write=True):
+        """handle class specific lightpointKD construction"""
         lightpoint = LightPointKD(self.scene, self.vecs, self.lum,
-                                  src=self.stype, pt=point, write=True,
+                                  src=self.stype, pt=point, write=write,
                                   srcn=self.srcn, posidx=posidx, vm=vm)
         return lightpoint
 
@@ -302,18 +301,23 @@ class Sampler(object):
             position index
         vm: raytraverse.mapper.ViewMapper
             view direction to sample
-        plotp:
+        plotp: bool, optional
             plot weights, detail and vectors for each level
-        log:
+        log: bool, optional
             whether to log level sampling rates
             can be 'scene', 'err' or None
             'scene' - logs to Scene log file
             'err' - logs to stderr
             anything else - does not log incremental progress
+        pfish: bool, optional
+            if True and plotp, use fisheye projection for detail/weight/vector
+            images.
+        kwargs:
+            unused
 
         Returns
         -------
-
+        LightPointKD
         """
         self.vecs = None
         self.lum = []
@@ -368,4 +372,4 @@ class Sampler(object):
         srate = allc/self.weights.size
         row = ['total sampling:', '- ', f"{allc: >7}", f"{srate: >7.02%}"]
         self.scene.log(self, '\t'.join(row), logerr)
-        return self.run_callback(point, posidx, vm)
+        return self.build_point(point, posidx, vm, **kwargs)

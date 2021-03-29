@@ -15,16 +15,13 @@ from scipy.spatial import ConvexHull
 from shapely.geometry import Polygon
 
 
-class SunViewPoint(object):
+class SrcViewPoint(object):
     """interface for sun view data"""
-
-    solar_omega = 6.796702357283834e-05
 
     @staticmethod
     def offset(points, target):
         hull = ConvexHull(points)
         tr = np.sqrt(target/np.pi)
-        h0 = hull.volume
         while abs(hull.volume - target)/target > .02:
             r = np.sqrt(hull.volume/np.pi)
             offset = tr - r
@@ -33,8 +30,8 @@ class SunViewPoint(object):
             hull = ConvexHull(np.array(b.xy).T)
         return hull.points[hull.vertices]
 
-    def __init__(self, scene, vecs, lum, pt=(0, 0, 0),
-                 posidx=0, src='sunview', res=64, blursun=1.0):
+    def __init__(self, scene, vecs, lum, pt=(0, 0, 0), posidx=0, src='sunview',
+                 res=64, blursun=1.0, srcomega=6.796702357283834e-05):
         #: raytraverse.scene.Scene
         self.scene = scene
         #: int: index for point
@@ -43,10 +40,14 @@ class SunViewPoint(object):
         self.pt = np.asarray(pt).flatten()[0:3]
         #: str: source key
         self.src = src
+        #: np.array: individual vectors that hit the source (pixels)
         self.raster = vecs
+        #: float: source luminance (average)
         self.lum = lum
+        #: float: source radius
+        self.radius = (srcomega/np.pi)**.5
         # 2*np.pi*(1 - np.cos(0.533*np.pi/360))
-        self.omega = self.solar_omega*vecs.shape[0]/(res * res)
+        self.omega = srcomega*vecs.shape[0]/(res * res)
         self.vec = np.average(vecs, 0)
         self.blursun = blursun
 
@@ -82,7 +83,7 @@ class SunViewPoint(object):
         else:
             target = self.omega/np.average(omegap)
             target = np.square(np.sqrt(target/np.pi) + .5) * np.pi
-            hullpoints = SunViewPoint.offset(px, target)
+            hullpoints = SrcViewPoint.offset(px, target)
             return hullpoints
 
     def add_to_img(self, img, vecs, mask=None, coefs=1, vm=None):

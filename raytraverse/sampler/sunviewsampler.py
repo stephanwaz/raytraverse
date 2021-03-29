@@ -11,7 +11,7 @@ import numpy as np
 
 from raytraverse.mapper import ViewMapper
 from raytraverse.sampler import Sampler
-from raytraverse.lightpoint import LightPointKD, SunViewPoint
+from raytraverse.lightpoint import LightPointKD, SrcViewPoint
 
 
 class SunViewSampler(Sampler):
@@ -53,11 +53,11 @@ class SunViewSampler(Sampler):
         large number of samples bog down random number generator"""
         return 0.5/dim
 
-    def run_callback(self, point, posidx, vm):
+    def build_point(self, point, posidx, vm, write=False):
         """post sampling, write full resolution (including interpolated values)
          non zero rays to result file."""
         skd = LightPointKD(self.scene, self.vecs, self.lum, vm, point, posidx,
-                           self.stype, calcomega=False, write=False)
+                           self.stype, calcomega=False, write=write)
         shp = self.weights.shape
         si = np.stack(np.unravel_index(np.arange(np.product(shp)), shp))
         uv = (si.T + .5)/shp[1]
@@ -67,7 +67,7 @@ class SunViewSampler(Sampler):
         lumg = skd.lum[i, 0]
         keep = lumg > 1e-8
         if np.sum(keep) > 0:
-            lightpoint = SunViewPoint(self.scene, grid[keep],
+            lightpoint = SrcViewPoint(self.scene, grid[keep],
                                       np.average(lumg[keep]), point, posidx,
                                       self.stype, shp[1])
         else:

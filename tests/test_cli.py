@@ -4,12 +4,10 @@
 """Tests for raytraverse.scene"""
 import os
 import shutil
-import traceback
 
 import pytest
 from click.testing import CliRunner
 import numpy as np
-import click
 
 from raytraverse import cli, translate
 from raytraverse.sky import SolarBoundary, skycalc
