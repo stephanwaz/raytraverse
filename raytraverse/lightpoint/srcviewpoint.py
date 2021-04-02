@@ -133,6 +133,6 @@ class SrcViewPoint(object):
         self.add_to_img(img, vecs[mask], mask, vm=vm)
         outf = f"{self.scene.outdir}_{self.src}_{self.posidx:06d}.hdr"
         vstr = ('VIEW= -vta -vv {0} -vh {0} -vd {1} {2} {3}'
-                ' -vp {4} {5} {6}'.format(vm.viewangle, *vm.dxyz[0], *self.pt))
+                ' -vp {4} {5} {6}'.format(vm.viewangle, *vm.dxyz, *self.pt))
         io.array2hdr(img, outf, [vstr])
         return outf

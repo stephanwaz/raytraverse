@@ -59,10 +59,14 @@ class CompressedPointKD(LightPointKD):
         if write and new:
             self.dump()
         if self._clusterimg is not None:
-            vimg = translate.resample(self._clusterimg, (3, 1024, 1024),
+            res = 1024
+            vimg = translate.resample(self._clusterimg,
+                                      (3, res * self.vm.aspect, res),
                                       gauss=False)
-            img, pdirs, mask, mask2, header = self.vm.init_img(1024, self.pt)
+            img, pdirs, mask, mask2, header = self.vm.init_img(res, self.pt)
             self.add_to_img(img, pdirs[mask], mask)
+            if mask2 is not None:
+                self.add_to_img(img[res:], pdirs[res:][mask2], mask2)
             outf = self.file.replace("/", "_").replace(".rytpt", "_clust.hdr")
             vimg = np.where(np.sum(vimg, axis=0)[None] == 0, img[None], vimg)
             io.carray2hdr(vimg, outf, header=[header])

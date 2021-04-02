@@ -9,37 +9,47 @@ draw
     :undoc-members:
     :show-inheritance:
 
-Sampler
+BaseSampler
 ---------------------------
 
-.. autoclass:: raytraverse.sampler.Sampler
+.. autoclass:: raytraverse.sampler.BaseSampler
     :members:
     :undoc-members:
     :show-inheritance:
     :private-members:
 
-SkySampler
+
+SamplerPt
+---------------------------
+
+.. autoclass:: raytraverse.sampler.SamplerPt
+    :members:
+    :undoc-members:
+    :show-inheritance:
+    :private-members:
+
+SkySamplerPt
 --------------------------------
 
-.. autoclass:: raytraverse.sampler.SkySampler
+.. autoclass:: raytraverse.sampler.SkySamplerPt
     :members:
     :undoc-members:
     :show-inheritance:
     :private-members:
 
-SunSampler
+SunSamplerPt
 --------------------------------
 
-.. autoclass:: raytraverse.sampler.SunSampler
+.. autoclass:: raytraverse.sampler.SunSamplerPt
     :members:
     :undoc-members:
     :show-inheritance:
     :private-members:
 
-SunViewSampler
+SunViewSamplerPt
 ------------------------------------
 
-.. autoclass:: raytraverse.sampler.SunViewSampler
+.. autoclass:: raytraverse.sampler.SunViewSamplerPt
     :members:
     :undoc-members:
     :show-inheritance:

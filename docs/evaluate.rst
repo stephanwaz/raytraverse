@@ -20,6 +20,15 @@ MetricSet
     :show-inheritance:
     :private-members:
 
+FieldMetric
+---------------------------------
+
+.. autoclass:: raytraverse.evaluate.FieldMetric
+    :members:
+    :undoc-members:
+    :show-inheritance:
+    :private-members:
+
 PositionIndex
 ---------------------------------
 

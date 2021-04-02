@@ -220,23 +220,6 @@ def xyz2xy(xyz, axes=(0, 1, 2), flip=True):
     return np.stack((x, y)).T
 
 
-def pxy2xyz(pxy, viewangle=180.0):
-    """pixel coordinates of angular fisheye to xyz"""
-    pxy = np.atleast_2d(pxy)
-    pxy -= .5
-    # cl = theta2chord(np.pi/2)/(np.pi/2)
-    va = viewangle * np.pi / 360
-    clp = theta2chord(va)/va
-    # theta2chord(np.pi/2)/(np.pi/2)
-    pxy *= viewangle/180 * 0.9003163161571061 / clp
-    d = np.sqrt(np.sum(np.square(pxy), -1))
-    z = np.cos(np.pi*d)
-    d = np.where(d <= 0, np.pi, np.sqrt(1 - z*z)/d)
-    pxy *= d[..., None]
-    xyz = np.concatenate((pxy, z[..., None]), -1)
-    return xyz
-
-
 ##########################################
 # Translate to/from anglular coordinates #
 ##########################################
@@ -436,10 +419,10 @@ def rmtx_yp(v):
     -------
 
     ymtx, pmtx: (np.array, np.array)
-        two rotation matrices to be premultiplied in order to reverse transorm,
+        two rotation matrices to be premultiplied in order to reverse transform,
         swap order and transpose.
-        Forward: pmtx@(ymtx@xyz.T)).T
-        Backward: ymtx.T@(pmtx.T@xyz.T)).T
+        Forward: (pmtx@(ymtx@xyz.T)).T
+        Backward: (ymtx.T@(pmtx.T@xyz.T)).T
     """
     v = norm1(v)
     v2 = np.array((0, 0, 1))

@@ -249,8 +249,8 @@ class LightPointKD(object):
         if interp:
             if vm is None:
                 vm = self.vm
-            xyp = vm.xyz2xy(vecs)
-            xys = vm.xyz2xy(self.vec)
+            xyp = vm.xyz2vxy(vecs)
+            xys = vm.xyz2vxy(self.vec)
             interp = LinearNDInterpolator(xys, val[0], fill_value=-1)
             lum = interp(xyp[:, 0], xyp[:, 1])
             neg = lum < 0

@@ -1,6 +1,17 @@
 raytraverse.mapper
 ==========================================================
 
+Mapper
+------------------------------
+
+.. autoclass:: raytraverse.mapper.Mapper
+    :members:
+    :undoc-members:
+    :show-inheritance:
+    :private-members:
+
+
+
 ViewMapper
 ------------------------------
 
@@ -10,12 +21,20 @@ ViewMapper
     :show-inheritance:
     :private-members:
 
-SpaceMapper
+PlanMapper
 ------------------------------
 
-.. autoclass:: raytraverse.mapper.SpaceMapper
+.. autoclass:: raytraverse.mapper.PlanMapper
     :members:
     :undoc-members:
     :show-inheritance:
     :private-members:
 
+PointSet
+------------------------------
+
+.. autoclass:: raytraverse.mapper.PointSet
+    :members:
+    :undoc-members:
+    :show-inheritance:
+    :private-members:

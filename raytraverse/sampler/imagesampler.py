@@ -11,11 +11,11 @@ import numpy as np
 
 from raytraverse import io, translate
 from raytraverse.lightpoint import LightPointKD
-from raytraverse.sampler.sampler import Sampler
+from raytraverse.sampler.samplerpt import SamplerPt
 from raytraverse.renderer import ImageRenderer
 
 
-class ImageSampler(Sampler):
+class ImageSampler(SamplerPt):
     """sample image (for testing algorithms).
 
     Parameters
@@ -53,7 +53,7 @@ class ImageSampler(Sampler):
             outp = lp.file.replace("/", "_").replace(".rytpt", ".hdr")
             io.array2hdr(img[-1::-1], outp)
 
-    def build_point(self, point, posidx, vm, write=False):
+    def _run_callback(self, point, posidx, vm, write=False):
         return LightPointKD(self.scene, self.vecs, self.lum, vm=vm, pt=point,
                             posidx=posidx, src=self.stype, write=write)
 

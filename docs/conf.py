@@ -20,26 +20,34 @@
 #
 import os
 import sys
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, Mock
 
 sys.path.insert(0, os.path.abspath('..'))
 
 
-class Mock(MagicMock):
+class MMock(MagicMock):
     @classmethod
     def __getattr__(cls, name):
-        return MagicMock()
+        m = MagicMock()
+        m.__repr__ = Mock(return_value=f"<{name}>")
+        return m
 
 
-MOCK_MODULES = ['scipy', 'clipt', 'skyfield', 'matplotlib', 'shapely',
+MOCK_MODULES = ['scipy', 'sklearn', 'clipt', 'skyfield', 'matplotlib', 'shapely',
                 'raytraverse.craytraverse', 'raytraverse.crenderer',
-                'raytraverse.crenderer.rcontrib_c',
+                'raytraverse.crenderer.rcontrib_c', 'sklearn.cluster',
                 'raytraverse.crenderer.rtrace_c', 'scipy.ndimage',
-                'scipy.ndimage.filters', 'matplotlib.path', 'scipy.spatial',
-                'scipy.interpolate', 'shapely.geometry', 'skyfield.api',
-                'clipt.plot', 'matplotlib.figure', 'matplotlib.colors',
+                'scipy.ndimage.filters', 'scipy.sparse', 'scipy.spatial',
+                'scipy.interpolate', 'scipy.stats', 'scipy.sparse.linalg',
+                'shapely.geometry', 'skyfield.api', 'clipt.plot',
+                'matplotlib.path', 'matplotlib.figure', 'matplotlib.colors',
                 'matplotlib.patches']
-sys.modules.update((mod_name, Mock()) for mod_name in MOCK_MODULES)
+modules = []
+for mod_name in MOCK_MODULES:
+    mock = MMock()
+    modules.append((mod_name, mock))
+
+sys.modules.update(m for m in modules)
 
 
 # -- General configuration ---------------------------------------------

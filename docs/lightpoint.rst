@@ -10,19 +10,19 @@ LightPointKD
     :show-inheritance:
     :private-members:
 
-SunPointKD
+SrcViewPoint
 ---------------------------------
 
-.. autoclass:: raytraverse.lightpoint.SunPointKD
+.. autoclass:: raytraverse.lightpoint.SrcViewPoint
     :members:
     :undoc-members:
     :show-inheritance:
     :private-members:
 
-SunViewPoint
+CompressedPointKD
 ---------------------------------
 
-.. autoclass:: raytraverse.lightpoint.SunViewPoint
+.. autoclass:: raytraverse.lightpoint.CompressedPointKD
     :members:
     :undoc-members:
     :show-inheritance:

@@ -13,7 +13,7 @@ from raytraverse import io, translate
 from raytraverse.evaluate import MetricSet
 from raytraverse.renderer import Rtrace, Rcontrib
 from raytraverse.scene import Scene
-from raytraverse.sampler import SkySampler, SunSampler, SunViewSampler
+from raytraverse.sampler import SkySamplerPt, SunSamplerPt, SunViewSamplerPt
 from raytraverse.mapper import ViewMapper
 
 
@@ -50,7 +50,7 @@ def test_skysample(tmpdir):
 
     scene = Scene('skysample', "box.rad", frozen=False)
     rcontrib = Rcontrib('-ab 1 -ad 10000 -c 1 -lw 1e-5', scene.scene)
-    sampler = SkySampler(scene, rcontrib, fdres=7)
+    sampler = SkySamplerPt(scene, rcontrib, fdres=7)
     vm = ViewMapper((0, 1, 0), viewangle=180)
     lf = sampler.run((1.5, 1.5, 1.5), 0)
     illum, illumm = img_illum(lf, vm, 176)
@@ -84,7 +84,7 @@ def test_sunsample(tmpdir):
     scene = Scene('skysample', "box.rad", frozen=False)
     sun = translate.skybin2xyz([174], 18)[0]
     rtrace = Rtrace(scene=scene.scene, direct=True)
-    sampler = SunSampler(scene, rtrace, sun, 174)
+    sampler = SunSamplerPt(scene, rtrace, sun, 174)
     vm = ViewMapper((0, 1, 0), viewangle=180)
     lf = sampler.run((1.5, 1.5, 1.5), 0, vm)
     illum, illumm = img_illum(lf, vm)
@@ -97,7 +97,7 @@ def test_sunviewsample(tmpdir):
     scene = Scene('skysample', "box.rad", frozen=False)
     sun = translate.skybin2xyz([176], 18)[0]
     rtrace = Rtrace(scene=scene.scene, direct=True)
-    sampler = SunViewSampler(scene, rtrace, sun, 176)
+    sampler = SunViewSamplerPt(scene, rtrace, sun, 176)
     lf = sampler.run((1.5, 1.5, 1.79), 0, plotp=False)
     lf2 = sampler.run((1.5, 1.5, 1.5), 1, plotp=False)
     assert np.allclose([lf.lum, lf2.lum], 1.0)

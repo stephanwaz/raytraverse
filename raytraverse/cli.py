@@ -9,21 +9,19 @@
 
 """Console script for raytraverse."""
 import os
-import re
 import sys
 
 import numpy as np
 
 from clasp import click
 import clasp.click_ext as clk
-import clasp.script_tools as cst
 
 import raytraverse
 from raytraverse.scene import Scene
 from raytraverse.sky import SunsLoc, Suns, SunsPos, skycalc
-from raytraverse.mapper import SpaceMapper
+from raytraverse.mapper import PlanMapper
 from raytraverse.renderer import Rtrace, Rcontrib
-from raytraverse.sampler import SkySampler, SunSampler
+from raytraverse.sampler import SkySamplerPt, SunSamplerPt
 from raytraverse.lightpoint import LightPointKD
 
 
@@ -233,15 +231,15 @@ def points(ctx, ptfile=None, area=None, mask=True, reload=True, ptres=1.0,
            rotation=0.0, fill=False, precision=3, jitter=True, **kwargs):
     if area is not None:
         ptfile = None
-    pts = SpaceMapper(ctx.obj['out'], points=ptfile, area=area, mask=mask,
-                      reload=reload, ptres=ptres, rotation=rotation,
-                      fill=fill and jitter, precision=precision)
+    pts = PlanMapper(ctx.obj['out'], points=ptfile, area=area, mask=mask,
+                     reload=reload, ptres=ptres, rotation=rotation,
+                     fill=fill and jitter, precision=precision)
     if fill and not jitter:
         pts.add_grid(False)
     ctx.obj['points'] = pts
     if kwargs['printpts']:
         if pts.points.size == 0:
-            click.echo('SpaceMapper has no points, did you mean to use --fill?',
+            click.echo('PlanMapper has no points, did you mean to use --fill?',
                        err=True)
         for pt in pts.points:
             print('{}\t{}\t{}'.format(*pt))
@@ -319,8 +317,8 @@ def skyrun(ctx, plotdview=False, overwrite=False, showsample=True,
     s = ctx.obj['scene']
     pts = ctx.obj['points']
     skyengine = Rcontrib(rargs, s.scene, skyres=skyres)
-    skysamp = SkySampler(s, skyengine, accuracy=accuracy, idres=idres,
-                         fdres=fdres)
+    skysamp = SkySamplerPt(s, skyengine, accuracy=accuracy, idres=idres,
+                           fdres=fdres)
     if static:
         if pts.points.size == 0:
             raise ValueError("static skyrun requires assigning points, see "
@@ -374,7 +372,7 @@ def sunrun(ctx, plotdview=False, overwrite=False, showsample=True,
                              "raytraverse points --help")
         idx, d = pts.query_pt(pts.points)
         for j, sn in zip(sunpos.sbins, sunpos.suns):
-            sunsamp = SunSampler(s, sunengine, sn, j, accuracy=accuracy, idres=idres, fdres=fdres)
+            sunsamp = SunSamplerPt(s, sunengine, sn, j, accuracy=accuracy, idres=idres, fdres=fdres)
             for i, pt in zip(idx, pts.points):
                 if overwrite or not os.path.isfile(f"{s.outdir}/sun_{j:04d}/{i:06d}.rytpt"):
                     lf = sunsamp.run(pt, i, log='err')
@@ -438,7 +436,7 @@ def sunrun(ctx, plotdview=False, overwrite=False, showsample=True,
 #     scn = ctx.obj['scene']
 #     sns = ctx.obj['suns']
 #     if kwargs['view']:
-#         sampler = SunViewSampler(scn, suns, checkviz=checkviz)
+#         sampler = SunViewSamplerPt(scn, suns, checkviz=checkviz)
 #         lumf = f'{scn.outdir}/sunview_kd_data.pickle'
 #         exists = os.path.isfile(lumf) and os.stat(lumf).st_size > 1000
 #         vrun = run and (overwrite or not exists)
@@ -461,7 +459,7 @@ def sunrun(ctx, plotdview=False, overwrite=False, showsample=True,
 #             if plotdview:
 #                 sv.direct_view()
 #     if kwargs['reflection']:
-#         sampler = SunSampler(scn, sns, **kwargs)
+#         sampler = SunSamplerPt(scn, sns, **kwargs)
 #         lumf = f'{scn.outdir}/sun_kd_lum.dat'
 #         exists = os.path.isfile(lumf) and os.stat(lumf).st_size > 1000
 #         rrun = run and (overwrite or not exists)
@@ -517,7 +515,7 @@ def sunrun(ctx, plotdview=False, overwrite=False, showsample=True,
 #     scn = ctx.obj['scene']
 #     if skyname is None:
 #         skyname = re.split(r"[/.]", skydef)[-2]
-#     sampler = SkySampler(scn, skydef, skyname, **kwargs)
+#     sampler = SkySamplerPt(scn, skydef, skyname, **kwargs)
 #     lumf = f'{scn.outdir}/{skyname}_kd_lum.dat'
 #     exists = os.path.isfile(lumf) and os.stat(lumf).st_size > 1000
 #     rrun = run and (overwrite or not exists)

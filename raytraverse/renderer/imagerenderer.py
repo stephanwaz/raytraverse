@@ -37,9 +37,9 @@ class ImageRenderer(Renderer):
             self.vm = viewmapper
         self.scene = io.hdr2array(scene)
         res = self.scene.shape[0]
-        of = 1/res
+        of = .5/res
         self.args = f"interpolation: {method}"
-        x = np.linspace(-1+of, 1-of, res)
+        x = np.linspace(of, 1-of, res)
         fv = np.median(np.concatenate((self.scene[0], self.scene[-1],
                                        self.scene[:,0], self.scene[:, -1])))
         self.instance = RegularGridInterpolator((x, x),
@@ -60,5 +60,5 @@ class ImageRenderer(Renderer):
         np.array
 
         """
-        pxy = self.vm.xyz2xy(rays[:, 3:6])
+        pxy = self.vm.xyz2vxy(rays[:, 3:6])
         return self.instance(pxy)

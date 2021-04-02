@@ -40,3 +40,8 @@ class Renderer(object):
     @classmethod
     def set_args(cls, args, nproc=None):
         pass
+
+    def run(self, *args, **kwargs):
+        """alias for call, for consistency with SamplerPt classes for nested
+        dimensions of evaluation"""
+        return self(args[0])

@@ -249,17 +249,11 @@ def hdr2array(imgf, stdin=None):
     return bytes2np(p.stdout.read(), shape)[-1::-1, -1::-1]
 
 
-def hdr2omega(imgf):
-    pcomb = f"pcomb -e 'lo=S(1)' {imgf}"
-    q = Popen(shlex.split(pcomb), stdout=PIPE)
-    return hdr2array("", q.stdout)
-
-
 def hdr2vol(imgf):
     ar = hdr2array(imgf)
     vm = hdr2vm(imgf)
     vecs = vm.pixelrays(ar.shape[-1]).reshape(-1, 3)
-    oga = hdr2omega(imgf).ravel()
+    oga = vm.pixel2omega(vm.pixels(ar.shape[-1]), ar.shape[-1]).ravel()
     return vecs, oga, ar.ravel()
 
 

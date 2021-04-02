@@ -8,11 +8,14 @@
 
 """sampler objects"""
 
-__all__ = ['Sampler', 'SkySampler', 'SunViewSampler',
-           'SunSampler', 'ImageSampler', 'DeterministicImageSampler']
+__all__ = ['BaseSampler', 'SamplerPt', 'SkySamplerPt', 'SunViewSamplerPt',
+           'SunSamplerPt', 'ImageSampler', 'DeterministicImageSampler']
 
-from raytraverse.sampler.sampler import Sampler
-from raytraverse.sampler.sunviewsampler import SunViewSampler
-from raytraverse.sampler.sunsampler import SunSampler
-from raytraverse.sampler.skysampler import SkySampler
-from raytraverse.sampler.imagesampler import ImageSampler, DeterministicImageSampler
+from raytraverse.sampler.basesampler import BaseSampler
+from raytraverse.sampler.samplerpt import SamplerPt
+from raytraverse.sampler.sunviewsamplerpt import SunViewSamplerPt
+from raytraverse.sampler.sunsamplerpt import SunSamplerPt
+from raytraverse.sampler.skysamplerpt import SkySamplerPt
+from raytraverse.sampler.imagesampler import ImageSampler
+from raytraverse.sampler.imagesampler import DeterministicImageSampler
+
