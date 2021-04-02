@@ -48,6 +48,10 @@ class SunViewSamplerPt(SamplerPt):
         self.vecs = None
         self.lum = []
 
+    def run(self, point, posidx, vm=None, plotp=False, **kwargs):
+        vm = ViewMapper(self.sunpos, 0.533, "sunview")
+        return super().run(point, posidx, vm, plotp=plotp, **kwargs)
+
     def _offset(self, shape, dim):
         """no jitter on sun view because of very fine resolution and potentially
         large number of samples bog down random number generator"""
@@ -74,6 +78,3 @@ class SunViewSamplerPt(SamplerPt):
             lightpoint = None
         return lightpoint
 
-    def run(self, point, posidx, vm=None, plotp=False, **kwargs):
-        vm = ViewMapper(self.sunpos, 0.533, "sunview")
-        return super().run(point, posidx, vm, plotp=plotp, **kwargs)

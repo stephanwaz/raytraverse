@@ -38,21 +38,6 @@ class ImageSampler(SamplerPt):
         self.vecs = None
         self.lum = []
 
-    def _plot_p(self, p, level, vm, name, suffix=".hdr", fisheye=True):
-        super()._plot_p(p, level, vm, name, suffix, fisheye)
-        lp = LightPointKD(self.scene, self.vecs, self.lum, vm=vm,
-                          src=f"{self.stype}_l{level:02d}", write=False)
-        if fisheye:
-            lp.direct_view()
-        else:
-            outshape = (512*vm.aspect, 512)
-            img = np.zeros(outshape)
-            uv = translate.bin2uv(np.arange(512*512), 512)
-            xyz = vm.uv2xyz(uv).reshape(512, 512, 3)
-            lp.add_to_img(img, xyz)
-            outp = lp.file.replace("/", "_").replace(".rytpt", ".hdr")
-            io.array2hdr(img[-1::-1], outp)
-
     def _run_callback(self, point, posidx, vm, write=False):
         return LightPointKD(self.scene, self.vecs, self.lum, vm=vm, pt=point,
                             posidx=posidx, src=self.stype, write=write)

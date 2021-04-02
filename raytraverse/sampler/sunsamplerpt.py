@@ -68,7 +68,15 @@ class SunSamplerPt(SamplerPt):
         self.engine.load_source(srcdef)
         os.remove(srcdef)
 
-    # @profile
+    def run(self, point, posidx, vm=None, plotp=False, **kwargs):
+        if vm is None:
+            vm = ViewMapper()
+        self._levels = self.sampling_scheme(vm.aspect)
+        self._load_specguide(point, posidx, vm)
+        if plotp:
+            io.array2hdr(self.specguide, "specguide.hdr")
+        return super().run(point, posidx, vm, plotp=plotp, **kwargs)
+
     def draw(self, level):
         """draw samples based on detail calculated from weights
         detail is calculated across direction only as it is the most precise
@@ -90,20 +98,6 @@ class SunSamplerPt(SamplerPt):
             pdraws = np.concatenate((pdraws, sdraws))
         return pdraws, pa + s
 
-    def _run_callback(self, point, posidx, vm, write=True):
-        args = self.engine.args
-        # temporarily override arguments
-        self.engine.set_args(self.engine.directargs)
-        viewsampler = SunViewSamplerPt(self.scene, self.engine, self.sunpos,
-                                       self.sunbin)
-        sunview = viewsampler.run(point, posidx)
-        self.engine.set_args(args)
-        lightpoint = LightPointKD(self.scene, self.vecs, self.lum,
-                                  srcdir=self.sunpos, src=self.stype, pt=point,
-                                  write=write, srcn=self.srcn, posidx=posidx,
-                                  vm=vm, srcviews=[sunview])
-        return lightpoint
-
     def _load_specguide(self, point, posidx, vm):
         try:
             skykd = LightPointKD(self.scene, pt=point, posidx=posidx, src='sky')
@@ -120,11 +114,18 @@ class SunSamplerPt(SamplerPt):
             lumg = np.max(skykd.lum[:, skybin], 1)[i].reshape(shp)
             self.specguide = np.where(lumg > self.maxspec, 0, lumg)
 
-    def run(self, point, posidx, vm=None, plotp=False, **kwargs):
-        if vm is None:
-            vm = ViewMapper()
-        self._levels = self.sampling_scheme(vm.aspect)
-        self._load_specguide(point, posidx, vm)
-        if plotp:
-            io.array2hdr(self.specguide, "specguide.hdr")
-        return super().run(point, posidx, vm, plotp=plotp, **kwargs)
+    def _run_callback(self, point, posidx, vm, write=True):
+        args = self.engine.args
+        # temporarily override arguments
+        self.engine.set_args(self.engine.directargs)
+        viewsampler = SunViewSamplerPt(self.scene, self.engine, self.sunpos,
+                                       self.sunbin)
+        sunview = viewsampler.run(point, posidx)
+        self.engine.set_args(args)
+        lightpoint = LightPointKD(self.scene, self.vecs, self.lum,
+                                  srcdir=self.sunpos, src=self.stype, pt=point,
+                                  write=write, srcn=self.srcn, posidx=posidx,
+                                  vm=vm, srcviews=[sunview])
+        return lightpoint
+
+
