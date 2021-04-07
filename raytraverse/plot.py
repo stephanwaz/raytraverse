@@ -11,11 +11,9 @@
 import warnings
 
 import numpy as np
-from clipt.plot import get_colors
 from matplotlib import rcParams
 from matplotlib.figure import Figure
 from matplotlib.colors import Normalize
-from matplotlib.patches import Polygon
 
 
 def save_img(fig, ax, outf, title=None):

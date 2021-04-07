@@ -6,7 +6,10 @@
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 # =======================================================================
+import functools
+
 import numpy as np
+from scipy.ndimage.filters import uniform_filter
 
 from raytraverse import translate
 
@@ -97,18 +100,19 @@ class Mapper(object):
         """transform from view image space (2d) to world xyz"""
         return self.uv2xyz(xy, stackorigin=stackorigin)
 
-    def _framesize(self, res):
+    @functools.lru_cache(1)
+    def framesize(self, res):
         if self.aspect < 1:
+            yres = res
+            xres = int(round(res*self.aspect))
+        else:
             xres = res
             yres = int(round(res/self.aspect))
-        else:
-            xres = int(round(res/self.aspect))
-            yres = res
         return xres, yres
 
     def pixels(self, res):
         """generate pixel coordinates for image space"""
-        xres, yres = self._framesize(res)
+        xres, yres = self.framesize(res)
         return np.stack(np.mgrid[0:xres, 0:yres], 2) + .5
 
     def pixelrays(self, res):
@@ -118,21 +122,23 @@ class Mapper(object):
 
     def ray2pixel(self, xyz, res, integer=True):
         """world xyz to pixel coordinate"""
-        pxy = self.xyz2vxy(xyz) * res
+        try:
+            xres, yres = res
+        except TypeError:
+            xres, yres = self.framesize(res)
+        pxy = self.xyz2vxy(xyz) * np.array([[xres, yres]])
         if integer:
             pxy = np.floor(pxy).astype(int)
-        pxy[:, 0] = res - 1 - pxy[:, 0]
+        pxy[:, 0] = xres - 1 - pxy[:, 0]
         return pxy
 
     def pixel2ray(self, pxy, res):
         """pixel coordinate to world xyz vector"""
-        pxyf = np.copy(pxy)
-        pxyf[:, 0] = res - 1 - pxy[:, 0]
         return self.vxy2xyz(pxy/res)
 
     def pixel2omega(self, pxy, res):
         """pixel area"""
-        xres, yres = self._framesize(res)
+        xres, yres = self.framesize(res)
         return np.full(len(pxy), self.area / (xres * yres))
 
     def in_view(self, vec, indices=True):
@@ -174,9 +180,29 @@ class Mapper(object):
                 add_to_img(img[res:], vecs[res:][mask2], mask2
         header: str
         """
-        img = np.zeros(self._framesize(res))
+        img = np.zeros(self.framesize(res))
         vecs = self.pixelrays(res)
         mask = self.in_view(vecs)
         mask2 = None
         header = self.header(**kwargs)
         return img, vecs, mask, mask2, header
+
+    def add_vecs_to_img(self, img, v, channels=(1, 0, 0), grow=0, **kwargs):
+        pxy = self.ray2pixel(v, img.shape[-2:])
+        xp = pxy[:, 0]
+        yp = pxy[:, 1]
+        r = int(grow*2 + 1)
+        if len(img.shape) == 2:
+            try:
+                channel = channels[0]
+            except TypeError:
+                channel = channels
+            img[xp, yp] = channel
+            if grow > 1:
+                img = uniform_filter(img*r**2, r)
+        else:
+            imgv = np.moveaxis(img, 0, 2)
+            imgv[xp, yp] = channels
+            if grow > 1:
+                img = uniform_filter(img*r**2, (1, r, r))
+        return img

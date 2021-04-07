@@ -20,10 +20,10 @@ def get_detail(samps, f1=None, f2=None, f3=None):
         f2 = f1.T
     s = samps.reshape(-1, *samps.shape[-2:])
     for d in s:
-        ds = np.abs(correlate(d, f1))
+        ds = np.abs(correlate(d, f1, mode='reflect'))
         for f in (f2, f3):
             if f is not None:
-                ds += np.abs(correlate(d, f))
+                ds += np.abs(correlate(d, f, mode='reflect'))
         if f1.shape[0] == 2:
             ds[:-1, :-1] += ds[1:, 1:]
         d_det.append(ds.ravel())

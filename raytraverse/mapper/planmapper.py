@@ -156,8 +156,8 @@ class PlanMapper(Mapper):
     def shape(self, level=0):
         return np.ceil(self._sf/self.ptres - 1e-4).astype(int)*2**level
 
-    def point_grid(self, jitter=True, level=0):
-        """add a grid of points
+    def point_grid(self, jitter=True, level=0, masked=True):
+        """generate a grid of points
 
         Parameters
         ----------
@@ -166,22 +166,67 @@ class PlanMapper(Mapper):
             within stratified grid
         level: int, optional
             sets the resolution of the grid as a power of 2 from ptres
+        masked: bool, optional
+            apply in_view to points before returning
 
         Returns
         -------
         np.array
             shape (N, 3)
         """
+        return self.uv2xyz(self.point_grid_uv(jitter, level, masked))
+
+    def point_grid_uv(self, jitter=True, level=0, masked=True):
+        """add a grid of UV coordinates
+
+        Parameters
+        ----------
+        jitter: bool, optional
+            if None, use the instance default, if True jitters point samples
+            within stratified grid
+        level: int, optional
+            sets the resolution of the grid as a power of 2 from ptres
+        masked: bool, optional
+            apply in_view to points before returning
+
+        Returns
+        -------
+        np.array
+            shape (N, 2)
+        """
         shape = self.shape(level)
         idx = np.arange(np.product(shape))
-        si = np.stack(np.unravel_index(idx, shape)).T
+        si, uv = self.idx2uv(idx, shape, jitter)
+        if masked:
+            return uv[self.in_view_uv(uv, False)]
+        else:
+            return uv
+
+    @staticmethod
+    def idx2uv(idx, shape, jitter=True):
+        """
+        Parameters
+        ----------
+        idx: flattened index
+        shape:
+            the shape to unravel into
+        jitter: bool, optional
+            randomly offset coordinates within grid
+
+        Returns
+        -------
+        si: np.array
+            unraveled index array
+        uv: np.array
+            uv coordinates
+        """
+        si = np.stack(np.unravel_index(idx, shape))
         if jitter:
-            offset = np.random.default_rng().random(si.shape)
+            offset = np.random.default_rng().random(si.shape).T
         else:
             offset = 0.5
-        uv = (si + offset)/shape
-        valid = self.in_view_uv(uv, False)
-        return self.uv2xyz(uv[valid])
+        uv = (si.T + offset)/np.asarray(shape)
+        return si, uv
 
     def _rad_scene_to_paths(self, plane):
         """reads a radiance scene for polygons, and sets bounding paths

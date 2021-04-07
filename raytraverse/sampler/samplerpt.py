@@ -130,6 +130,6 @@ class SamplerPt(BaseSampler):
         outf = (f"{self.scene.outdir}_{name}_{self.stype}_samples_"
                 f"{level:02d}{suffix}")
         img = np.zeros(outshape)
-        img = io.add_vecs_to_img(vm, img, vecs, channels=level+1, grow=1,
+        img = vm.add_vecs_to_img(img, vecs[:, 3:], channels=level+1, grow=1,
                                  fisheye=fisheye)
         io.array2hdr(img, outf)

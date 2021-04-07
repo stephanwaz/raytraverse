@@ -175,7 +175,7 @@ class BaseMetricSet(object):
     @property
     @functools.lru_cache(1)
     def avgraylum(self):
-        """average luminance (not weighted by omega"""
+        """average luminance (not weighted by omega)"""
         return np.average(self.lum) * self.scale
 
     @property
@@ -185,7 +185,11 @@ class BaseMetricSet(object):
         the squared luminances divided by the average luminance squared"""
         a2lum = (np.einsum('i,i,i->', self.lum, self.lum, self.omega) *
                  self.scale**2/self.view_area)
-        return a2lum/self.avglum**2
+        gcr = a2lum/self.avglum**2
+        if np.isnan(gcr):
+            return 1.0
+        else:
+            return gcr
 
     @property
     @functools.lru_cache(1)

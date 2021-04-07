@@ -6,10 +6,13 @@
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 # =======================================================================
 import numpy as np
+from scipy.interpolate import RegularGridInterpolator
+from scipy.spatial.ckdtree import cKDTree
 
+from raytraverse import io
 from raytraverse.sampler import draw
 from raytraverse.sampler.basesampler import BaseSampler
-from raytraverse.evaluate import BaseMetricSet
+from raytraverse.evaluate import SamplingMetrics
 
 
 class SamplerArea(BaseSampler):
@@ -30,14 +33,22 @@ class SamplerArea(BaseSampler):
         jitter samples
     """
 
+    #: initial sampling threshold coefficient
+    t0 = .25
+    #: final sampling threshold coefficient
+    t1 = .25
+    #: upper bound for drawing from pdf
+    ub = 100
+
     def __init__(self, scene, engine, accuracy=1.0, nlev=3, jitter=True,
-                 metricclass=BaseMetricSet,
-                 metricset=('avglum', 'density', 'gcr')):
+                 metricclass=SamplingMetrics,
+                 metricset=('loggcr', 'xpeak', 'ypeak')):
         super().__init__(scene, engine, accuracy, engine.stype)
         self.nlev = nlev
         self.jitter = jitter
         #: raytraverse.mapper.PlanMapper
         self._mapper = None
+        self._mask = slice(None)
         self.slices = []
         self.metricclass = metricclass
         self.metricset = metricset
@@ -66,6 +77,7 @@ class SamplerArea(BaseSampler):
         self._mapper = mapper
         levels = self.sampling_scheme(mapper)
         super().run(mapper, name, levels, **kwargs)
+        np.savetxt("points.txt", self.vecs)
 
     def draw(self, level):
         """draw samples based on detail calculated from weights
@@ -82,16 +94,21 @@ class SamplerArea(BaseSampler):
         dres = self.levels[level]
         # sample all if weights is not set or all even
         if level == 0 and np.var(self.weights) < 1e-9:
-            pdraws = np.arange(int(np.prod(dres)))
-            p = np.ones(self.weights.shape[1:])
+            pdraws = np.arange(int(np.prod(dres)))[self._mask]
+            p = np.ones(dres).ravel()
+            p[np.logical_not(self._mask)] = 0
         else:
-            # use weights directly on first pass
-            if level == 0:
-                p = np.sum(self.weights, axis=0).ravel()
-            else:
-                p = draw.get_detail(self.weights,
-                                    *self.filters[self.detailfunc])
-                p = np.sum(p.reshape(self.weights.shape), axis=0).ravel()
+            p = draw.get_detail(self.weights, *self.filters[self.detailfunc])
+            p = np.sum(p.reshape(self.weights.shape), axis=0)/self.features
+            # zero out cells of previous samples
+            if self.vecs is not None:
+                pxy = self._mapper.ray2pixel(self.vecs, self.weights.shape[1:])
+                x = self.weights.shape[1] - 1 - pxy[:, 0]
+                y = pxy[:, 1]
+                p[x, y] = 0
+            # zero out oob
+            p = p.ravel()
+            p[np.logical_not(self._mask)] = 0
             # draw on pdf
             pdraws = draw.from_pdf(p, self._threshold(level),
                                    lb=self.lb, ub=self.ub)
@@ -115,17 +132,8 @@ class SamplerArea(BaseSampler):
             sample vectors
         """
         if len(pdraws) == 0:
-            return [], []
-        # index assignment
-        si = np.stack(np.unravel_index(pdraws, shape))
-        if self.jitter:
-            offset = np.random.default_rng().random(si.shape).T
-        else:
-            offset = 0.5
-        # convert to UV directions and positions
-        uv = (si.T + offset)/np.asarray(shape)
-        valid = self._mapper.in_view_uv(uv, False)
-        return si[:, valid], uv[valid]
+            return np.empty(0), np.empty(0)
+        return self._mapper.idx2uv(pdraws, shape, self.jitter)
 
     def sample(self, vecs):
         """call rendering engine to sample rays
@@ -147,21 +155,31 @@ class SamplerArea(BaseSampler):
             vol = lp.get_applied_rays(1)
             metric = self.metricclass(*vol, lp.vm,  metricset=self.metricset)
             lums.append(metric())
+        if len(self.lum) == 0:
+            self.lum = np.array(lums)
+        else:
+            self.lum = np.concatenate((self.lum, lums), 0)
         return np.array(lums)
 
-    def update_weights(self, si, lum):
-        """update self.weights (which holds values used to calculate pdf)
+    def _update_weights(self, si, lum):
+        """unused, weights are recomputed from spatial query"""
+        pass
 
-        Parameters
-        ----------
-        si: np.array
-            multidimensional indices to update
-        lum:
-            values to update with
+    def _lift_weights(self, i):
+        wuv = self._mapper.point_grid_uv(jitter=False, level=i, masked=False)
+        self._mask = self._mapper.in_view_uv(wuv, False)
+        if self.vecs is not None:
+            wvecs = self._mapper.uv2xyz(wuv)
+            d, idx = cKDTree(self.vecs).query(wvecs)
+            weights = self.lum[idx].reshape(*self.levels[i], self.features)
+            self.weights = np.moveaxis(weights, 2, 0)
 
-        """
-        wv = np.moveaxis(self.weights, 0, 2)
-        wv[tuple(si)] = lum
+    def _normed_weights(self):
+        nmin = np.amin(self.weights, (1, 2), keepdims=True)
+        norm = np.amax(self.weights, (1, 2), keepdims=True) - nmin
+        nmin[norm == 0] = 0
+        norm[norm == 0] = 1
+        return (self.weights - nmin)/norm
 
     def _dump_vecs(self, vecs):
         if self.vecs is None:
@@ -176,7 +194,28 @@ class SamplerArea(BaseSampler):
         return np.concatenate(([self.features], self.levels[level]))
 
     def _plot_p(self, p, level, vm, name, suffix=".hdr", **kwargs):
-        pass
+        shp = self.weights.shape[1:]
+        ps = p.reshape(shp)
+        pixels = self._mapper.pixels(512)
+        x = (np.arange(shp[0]) + .5) * pixels.shape[0]/shp[0]
+        y = (np.arange(shp[1]) + .5) * pixels.shape[1]/shp[1]
+        pinterp = RegularGridInterpolator((x, y), ps, bounds_error=False,
+                                          method='nearest', fill_value=None)
+        outpar = pinterp(pixels.reshape(-1, 2)).reshape(pixels.shape[:-1])
+        outp = (f"{self.scene.outdir}_{name}_{self.stype}_detail_"
+                f"{level:02d}{suffix}")
+        io.array2hdr(outpar[-1::-1], outp)
+        for i, w in zip(self.metricset, self.weights):
+            pinterp = RegularGridInterpolator((x, y), w, bounds_error=False,
+                                              method='nearest', fill_value=None)
+            outwar = pinterp(pixels.reshape(-1, 2)).reshape(pixels.shape[:-1])
+            outw = (f"{self.scene.outdir}_{name}_{self.stype}_weight_{i}_"
+                    f"{level:02d}{suffix}")
+            io.array2hdr(outwar[-1::-1], outw)
 
     def _plot_vecs(self, vecs, level, vm, name, suffix=".hdr", **kwargs):
-        pass
+        img = np.zeros((3, *self._mapper.framesize(512)))
+        img = self._mapper.add_vecs_to_img(img, vecs, grow=2)
+        outv = (f"{self.scene.outdir}_{name}_{self.stype}_samples_"
+                f"{level:02d}{suffix}")
+        io.carray2hdr(img, outv)

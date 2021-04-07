@@ -63,7 +63,7 @@ def test_metric():
     a3 = MetricSet(*checker.get_applied_rays([1000/179, 3000/179]), checker.vm)
     a4 = MetricSet(*checker.get_applied_rays(0), checker.vm)
     assert np.alltrue(np.isclose(a4(energy + energy_part), 0))
-    assert np.alltrue(np.isnan(a4(contrast[:-1])))
+    assert np.alltrue(np.isnan(a4(contrast[1:-1])))
     assert np.allclose(a2(allmets), a3(allmets))
     assert np.allclose(a2(energy + constants + tree), a1(energy + constants + tree))
     assert np.isclose(np.pi * 2, a1.view_area)

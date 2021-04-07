@@ -20,10 +20,11 @@ def tmpdir(tmp_path_factory):
     data = str(tmp_path_factory.mktemp("data"))
     shutil.copytree('tests/imagesampler/', data + '/test')
     cpath = os.getcwd()
-    os.chdir(data + '/test')
-    # os.chdir(cpath + '/tests/imagesampler')
-    yield data + '/test'
-    # yield cpath + '/tests/imagesampler'
+    path = data + '/test'
+    # uncomment to use actual (to debug results)
+    # path = cpath + '/tests/imagesampler'
+    os.chdir(path)
+    yield path
     os.chdir(cpath)
 
 

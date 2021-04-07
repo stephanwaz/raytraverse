@@ -7,6 +7,7 @@
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 # =======================================================================
 import numpy as np
+from scipy.ndimage.filters import uniform_filter
 
 from raytraverse.mapper.mapper import Mapper
 from raytraverse import translate
@@ -109,7 +110,7 @@ class ViewMapper(Mapper):
             xyz = np.hstack((np.broadcast_to(self.origin, xyz.shape), xyz))
         return xyz
 
-    def _framesize(self, res):
+    def framesize(self, res):
         return res, res
 
     def pixelrays(self, res):
@@ -181,6 +182,41 @@ class ViewMapper(Mapper):
             mask2 = None
         header = self.header(pt, **kwargs)
         return img, vecs, mask, mask2, header
+
+    def add_vecs_to_img(self, img, v, channels=(1, 0, 0), grow=0, fisheye=True):
+        res = img.shape[-1]
+        if fisheye:
+            if self.aspect == 2:
+                reverse = self.degrees(v) > 90
+                pa = self.ivm.ray2pixel(v[reverse], res)
+                pa[:, 0] += res
+                pb = self.ray2pixel(v[np.logical_not(reverse)], res)
+                xp = np.concatenate((pa[:, 0], pb[:, 0]))
+                yp = np.concatenate((pa[:, 1], pb[:, 1]))
+            else:
+                pb = self.ray2pixel(v, res)
+                xp = pb[:, 0]
+                yp = pb[:, 1]
+        else:
+            pa = translate.uv2ij(self.xyz2uv(v), res)
+            xp = res - 1 - pa[:, 0]
+            yp = pa[:, 1]
+        r = int(grow*2 + 1)
+        if len(img.shape) == 2:
+            try:
+                channel = channels[0]
+            except TypeError:
+                channel = channels
+            img[xp, yp] = channel
+            if grow > 0:
+                img = uniform_filter(img*r**2, r)
+        else:
+            for i in range(img.shape[0]):
+                if channels[i] is not None:
+                    img[i, xp, yp] = channels[i]
+            if grow > 0:
+                img = uniform_filter(img*r**2, (1, r, r))
+        return img
 
     @property
     def viewangle(self):

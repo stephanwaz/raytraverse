@@ -207,8 +207,9 @@ class CompressedPointKD(LightPointKD):
             if self._clusterimg is not None:
                 color = rng.random(3)
                 color[rng.integers(3, size=1)] = 0
-                self._clusterimg = io.add_vecs_to_img(lp.vm, self._clusterimg,
-                                                      lp.vec[s], channels=color)
+                self._clusterimg = lp.vm.add_vecs_to_img(self._clusterimg,
+                                                         lp.vec[s],
+                                                         channels=color)
             v2.append(v/mag)
             o2.append(np.sum(lp.omega[s]))
             l2.append(np.average(lum[s], 0, weights=lp.omega[s]))

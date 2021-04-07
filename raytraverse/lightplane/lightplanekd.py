@@ -10,14 +10,9 @@ import pickle
 
 import numpy as np
 
-from scipy.spatial import cKDTree, SphericalVoronoi, Voronoi
-from scipy.interpolate import LinearNDInterpolator
+from scipy.spatial import cKDTree, Voronoi
 from shapely.geometry import Polygon
 from clasp.script_tools import try_mkdir
-
-from raytraverse import io, translate
-from raytraverse.mapper import ViewMapper
-from raytraverse.lightpoint.srcviewpoint import SrcViewPoint
 
 
 class LightPlaneKD(object):

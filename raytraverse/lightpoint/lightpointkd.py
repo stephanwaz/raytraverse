@@ -379,7 +379,7 @@ class LightPointKD(object):
             img = np.repeat(img[None, ...], 3, 0)
             vi = self.query_ball(vm.dxyz, vm.viewangle * vm.aspect)
             v = self.vec[vi[0]]
-            img = io.add_vecs_to_img(vm, img, v, channels=channels,
+            img = vm.add_vecs_to_img(img, v, channels=channels,
                                      fisheye=fisheye)
             io.carray2hdr(img, outf, header)
         else:

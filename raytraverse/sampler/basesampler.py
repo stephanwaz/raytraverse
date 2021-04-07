@@ -34,7 +34,7 @@ class BaseSampler(object):
 
     #: lower bound for drawing from pdf
     lb = .25
-    #: lower bound for drawing from pdf
+    #: upper bound for drawing from pdf
     ub = 8
 
     def __init__(self, scene, engine, accuracy=1.0, stype='generic'):
@@ -110,27 +110,26 @@ class BaseSampler(object):
             self.scene.log(self, '\t'.join(hdr), logerr)
         self._levels = levels
         # reset weights
-        self.weights = np.full(self._wshape(0), 1e-7, dtype=np.float32)
+        self.weights = np.full(self._wshape(0), 1, dtype=np.float32)
         for i in range(self.levels.shape[0]):
             shape = self.levels[i]
-            self.weights = translate.resample(self.weights, self._wshape(i))
+            self._lift_weights(i)
             draws, p = self.draw(i)
-            if len(draws) > 0:
-                si, uv = self.sample_to_uv(draws, shape)
+            si, uv = self.sample_to_uv(draws, shape)
+            if si.size > 0:
                 vecs = mapper.uv2xyz(uv, stackorigin=True)
                 srate = si.shape[1]/np.prod(shape)
                 self._dump_vecs(vecs)
-
                 if detaillog:
                     row = (f"{i + 1} of {self.levels.shape[0]}\t"
                            f"{str(shape): >11}\t{si.shape[1]: >7}\t"
                            f"{srate: >7.02%}")
                     self.scene.log(self, row, logerr)
                 lum = self.sample(vecs)
-                self.update_weights(si, lum)
+                self._update_weights(si, lum)
                 if plotp:
                     self._plot_p(p, i, mapper, name, fisheye=pfish)
-                    self._plot_vecs(vecs[:, 3:], i, mapper, name, fisheye=pfish)
+                    self._plot_vecs(vecs, i, mapper, name, fisheye=pfish)
                 a = lum.shape[0]
                 allc += a
         srate = allc * self.features/self.weights.size
@@ -184,7 +183,7 @@ class BaseSampler(object):
             sample vectors
         """
         if len(pdraws) == 0:
-            return [], []
+            return np.empty(0), np.empty(0)
         # index assignment
         si = np.stack(np.unravel_index(pdraws, shape))
         # convert to UV directions and positions
@@ -208,19 +207,6 @@ class BaseSampler(object):
         lum = self.engine.run(np.copy(vecs, 'C')).ravel()
         self.lum = np.concatenate((self.lum, lum))
         return lum
-
-    def update_weights(self, si, lum):
-        """update self.weights (which holds values used to calculate pdf)
-
-        Parameters
-        ----------
-        si: np.array
-            multidimensional indices to update
-        lum:
-            values to update with
-
-        """
-        self.weights[tuple(si)] = lum
 
     #: filter banks for calculating detail choices:
     #:
@@ -256,7 +242,25 @@ class BaseSampler(object):
                'wav3': (np.array([[0, 0, 0], [-1, 2, -1], [0, 0, 0]])/2,
                         np.array([[0, -1, 0], [0, 2, 0], [0, -1, 0]])/2,
                         np.array([[-1, 0, 0], [0, 2, 0], [0, 0, -1]])/2),
+               'haar': (np.array([[1, -1]])/2, np.array([[1], [-1]])/2,
+                        np.array([[1, 0], [0, -1]])/2),
                }
+
+    def _update_weights(self, si, lum):
+        """update self.weights (which holds values used to calculate pdf)
+
+        Parameters
+        ----------
+        si: np.array
+            multidimensional indices to update
+        lum:
+            values to update with
+
+        """
+        self.weights[tuple(si)] = lum
+
+    def _lift_weights(self, level):
+        self.weights = translate.resample(self.weights, self._wshape(level))
 
     def _wshape(self, level):
         return self.levels[level]
