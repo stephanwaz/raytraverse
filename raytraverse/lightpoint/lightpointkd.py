@@ -58,7 +58,8 @@ class LightPointKD(object):
 
     def __init__(self, scene, vec=None, lum=None, vm=None, pt=(0, 0, 0),
                  posidx=0, src='sky', srcn=1, srcdir=(0, 0, 1), calcomega=True,
-                 write=True, omega=None, filterviews=True, srcviews=None):
+                 write=True, omega=None, filterviews=True, srcviews=None,
+                 parent=None):
         if srcviews is None:
             srcviews = []
         self.srcviews = [i for i in srcviews
@@ -78,8 +79,13 @@ class LightPointKD(object):
         self.src = src
         #: direction to source(s)
         self.srcdir = translate.norm(np.asarray(srcdir).reshape(-1, 3))
+        if parent is not None:
+            outdir = f"{self.scene.outdir}/{parent}"
+        else:
+            outdir = self.scene.outdir
+        self._parent = parent
         #: str: relative path to disk storage
-        self.file = f"{self.scene.outdir}/{self.src}/{self.posidx:06d}.rytpt"
+        self.file = f"{outdir}/{self.src}/{self.posidx:06d}.rytpt"
         if vec is not None and lum is not None:
             scene.log(self, f"building {src} at {posidx}")
             self._d_kd, self._vec, self._lum = self._build(vec, lum, srcn)
@@ -107,7 +113,11 @@ class LightPointKD(object):
         f.close()
 
     def dump(self):
-        try_mkdir(f"{self.scene.outdir}/{self.src}")
+        if self._parent is not None:
+            try_mkdir(f"{self.scene.outdir}/{self._parent}")
+            try_mkdir(f"{self.scene.outdir}/{self._parent}/{self.src}")
+        else:
+            try_mkdir(f"{self.scene.outdir}/{self.src}")
         f = open(self.file, 'wb')
         pickle.dump((self._d_kd, self._vec, self._omega, self._lum,
                      self.srcviews, self.srcdir), f, protocol=4)

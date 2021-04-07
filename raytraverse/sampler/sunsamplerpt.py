@@ -114,7 +114,7 @@ class SunSamplerPt(SamplerPt):
             lumg = np.max(skykd.lum[:, skybin], 1)[i].reshape(shp)
             self.specguide = np.where(lumg > self.maxspec, 0, lumg)
 
-    def _run_callback(self, point, posidx, vm, write=True):
+    def _run_callback(self, point, posidx, vm, write=True, **kwargs):
         args = self.engine.args
         # temporarily override arguments
         self.engine.set_args(self.engine.directargs)
@@ -125,7 +125,7 @@ class SunSamplerPt(SamplerPt):
         lightpoint = LightPointKD(self.scene, self.vecs, self.lum,
                                   srcdir=self.sunpos, src=self.stype, pt=point,
                                   write=write, srcn=self.srcn, posidx=posidx,
-                                  vm=vm, srcviews=[sunview])
+                                  vm=vm, srcviews=[sunview], **kwargs)
         return lightpoint
 
 

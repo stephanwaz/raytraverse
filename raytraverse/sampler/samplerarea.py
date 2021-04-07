@@ -13,7 +13,7 @@ from raytraverse import io
 from raytraverse.sampler import draw
 from raytraverse.sampler.basesampler import BaseSampler, filterdict
 from raytraverse.evaluate import SamplingMetrics
-
+from raytraverse.lightplane import LightPlaneKD
 
 class SamplerArea(BaseSampler):
     """wavelet based sampling class
@@ -59,7 +59,7 @@ class SamplerArea(BaseSampler):
         return np.array([mapper.shape(i) for i in range(self.nlev)])
 
     def run(self, mapper, **kwargs):
-        """adapively sample an areaa defined by mapper
+        """adapively sample an area defined by mapper
 
         Parameters
         ----------
@@ -77,7 +77,7 @@ class SamplerArea(BaseSampler):
         self._mapper = mapper
         levels = self.sampling_scheme(mapper)
         super().run(mapper, name, levels, **kwargs)
-        np.savetxt("points.txt", self.vecs)
+        return LightPlaneKD(self.scene, self.vecs, self._mapper, self.stype)
 
     def draw(self, level):
         """draw samples based on detail calculated from weights
@@ -150,8 +150,9 @@ class SamplerArea(BaseSampler):
         """
         idx = self.slices[-1].indices(self.slices[-1].stop)
         lums = []
+        lpargs = dict(parent=self._mapper.name)
         for posidx, point in zip(range(*idx), vecs):
-            lp = self.engine.run(point, posidx)
+            lp = self.engine.run(point, posidx, lpargs=lpargs)
             vol = lp.get_applied_rays(1)
             metric = self.metricclass(*vol, lp.vm,  metricset=self.metricset)
             lums.append(metric())
@@ -189,6 +190,10 @@ class SamplerArea(BaseSampler):
             self.vecs = np.concatenate((self.vecs, vecs))
             v0 = self.slices[-1].stop
         self.slices.append(slice(v0, v0 + len(vecs)))
+        vfile = (f"{self.scene.outdir}/{self._mapper.name}_{self.stype}"
+                 f"_points.tsv")
+        idxvecs = np.hstack((np.arange(len(self.vecs))[:, None], self.vecs))
+        np.savetxt(vfile, idxvecs, ("%d", "%.4f", "%.4f", "%.4f"))
 
     def _wshape(self, level):
         return np.concatenate(([self.features], self.levels[level]))
@@ -206,6 +211,7 @@ class SamplerArea(BaseSampler):
                 f"{level:02d}{suffix}")
         io.array2hdr(outpar[-1::-1], outp)
         for i, w in zip(self.metricset, self.weights):
+            w.flat[np.logical_not(self._mask)] = 0
             pinterp = RegularGridInterpolator((x, y), w, bounds_error=False,
                                               method='nearest', fill_value=None)
             outwar = pinterp(pixels.reshape(-1, 2)).reshape(pixels.shape[:-1])

@@ -62,7 +62,7 @@ class SamplerPt(BaseSampler):
         return np.array([(2**i*a, 2**i)
                          for i in range(self.idres, self.fdres+1, 1)])
 
-    def run(self, point, posidx, mapper=None, **kwargs):
+    def run(self, point, posidx, mapper=None, lpargs=None, **kwargs):
         """sample a single point, poisition index handles file naming
 
         Parameters
@@ -73,6 +73,8 @@ class SamplerPt(BaseSampler):
             position index
         mapper: raytraverse.mapper.ViewMapper
             view direction to sample
+        lpargs: dict, optional
+            keyword arguments forwarded to LightPointKD construction
         kwargs:
             passed to BaseSampler.run()
 
@@ -80,6 +82,8 @@ class SamplerPt(BaseSampler):
         -------
         LightPointKD
         """
+        if lpargs is None:
+            lpargs = {}
         if mapper is None:
             mapper = ViewMapper()
         point = np.asarray(point).flatten()[0:3]
@@ -87,13 +91,14 @@ class SamplerPt(BaseSampler):
         name = f"{mapper.name}_{posidx:06d}"
         levels = self.sampling_scheme(mapper.aspect)
         super().run(mapper, name, levels, **kwargs)
-        return self._run_callback(point, posidx, mapper)
+        return self._run_callback(point, posidx, mapper, **lpargs)
 
-    def _run_callback(self, point, posidx, vm, write=True):
+    def _run_callback(self, point, posidx, vm, write=True, **kwargs):
         """handle class specific lightpointKD construction"""
         lightpoint = LightPointKD(self.scene, self.vecs, self.lum,
                                   src=self.stype, pt=point, write=write,
-                                  srcn=self.srcn, posidx=posidx, vm=vm)
+                                  srcn=self.srcn, posidx=posidx, vm=vm,
+                                  **kwargs)
         return lightpoint
 
     def _plot_p(self, p, level, vm, name, suffix=".hdr", fisheye=True):

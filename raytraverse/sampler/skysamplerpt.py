@@ -50,10 +50,11 @@ class SkySamplerPt(SamplerPt):
             self.lum = np.concatenate((self.lum, lum), 0)
         return np.max(lum, 1)
 
-    def _run_callback(self, point, posidx, vm, write=True):
+    def _run_callback(self, point, posidx, vm, write=True, **kwargs):
         """include sky patch source dirs"""
         srcdirs = translate.skybin2xyz(np.arange(self.srcn), self.engine.side)
         lightpoint = LightPointKD(self.scene, self.vecs, self.lum, vm=vm,
                                   src=self.stype, srcdir=srcdirs, pt=point,
-                                  write=write, srcn=self.srcn, posidx=posidx)
+                                  write=write, srcn=self.srcn, posidx=posidx,
+                                  **kwargs)
         return lightpoint

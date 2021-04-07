@@ -22,34 +22,45 @@ class LightPlaneKD(object):
     Parameters
     ----------
     scene: raytraverse.scene.BaseScene
-    pm: raytraverse.mapper.PlanMapper, optional
+    points: np.array str
+        points as array or file shape (N,3) or (N,4) if 3, indexed from 0
+    pm: raytraverse.mapper.PlanMapper
     src: str, optional
         name of source group. will govern file naming so must be set to
         avoid clobbering writes.
-    write: bool, optional
-        whether to save ray data to disk.
     """
 
-    def __init__(self, scene, points=None, pm=None, src='sky', write=True):
-        try:
-            #: str: out directory for saving points
-            self.outdir = f"{scene.outdir}/{src}"
-        except AttributeError:
-            self.outdir = f"{scene}/{src}"
-
-    def load(self):
-        pts = np.loadtxt(f"{self.outdir}/points.tsv")
-        self._points = pts.reshape(-1, 3)
-
-    def dump(self):
-        try_mkdir(f"{self.outdir}")
-        np.savetxt(f"{self.outdir}/points.tsv", self.points,
-                   f'%.{self.precision}f', '\t')
+    def __init__(self, scene, points, pm=None, src='sky'):
+        self._datadir = f"{scene.outdir}/{pm.name}/{src}"
+        self.scene = scene
+        self.pm = pm
+        self.src = src
+        self.points = points
+        self._pt_kd = cKDTree(self.points)
+        self.omega = None
 
     @property
     def points(self):
         """direction vector (N,3)"""
         return self._points
+
+    @points.setter
+    def points(self, pt):
+        try:
+            pts = np.loadtxt(pt)
+        except TypeError:
+            pts = pt
+        try:
+            pts = np.reshape(pts, (-1, 4))
+            idx = pts[:, 0].astype(int)
+            if not np.allclose(idx, pts[:, 0], atol=1e-4):
+                raise ValueError
+            pts = pts[:, 1:]
+        except ValueError:
+            pts = np.reshape(pts, (-1, 3))
+            idx = np.arange(pts.shape[0])
+        self._points = pts
+        self._lplist = [f"{self._datadir}/{i:06d}.rytpt" for i in idx]
 
     @property
     def lp(self):
@@ -73,30 +84,27 @@ class LightPlaneKD(object):
         """
         return self._omega
 
-    def calc_omega(self, write=True):
-        """calculate area
-
-        Parameters
-        ----------
-        write: bool, optional
-            update/write kdtree data to file
-        """
-        pm = self.pm
-        # border capture any infinite edges
-        bordered = np.concatenate((self.points,
-                                   pm.bbox_vertices(pm.area**.5 * 10)))
-        vor = Voronoi(bordered[:, 0:2])
-        omega = []
-        for i in range(len(self.points)):
-            region = vor.regions[vor.point_region[i]]
-            p = Polygon(vor.vertices[region])
-            area = 0
-            for mask in pm.borders():
-                area += p.intersection(mask).area
-            omega.append(area)
-        self._omega = np.asarray(omega)
-        if write:
-            self.dump()
+    @omega.setter
+    def omega(self, oga):
+        """calculate area"""
+        if oga is None:
+            pm = self.pm
+            # border capture any infinite edges
+            bordered = np.concatenate((self.points,
+                                       pm.bbox_vertices(pm.area**.5 * 10)))
+            vor = Voronoi(bordered[:, 0:2])
+            omega = []
+            for i in range(len(self.points)):
+                region = vor.regions[vor.point_region[i]]
+                p = Polygon(vor.vertices[region])
+                area = 0
+                for bord in pm.borders():
+                    mask = Polygon(bord)
+                    area += p.intersection(mask).area
+                omega.append(area)
+            self._omega = np.asarray(omega)
+        else:
+            self._omega = np.zeros(self.points.shape[0])
 
     def query_pt(self, points, clip=True):
         """return the index and distance of the nearest point to each of points
@@ -124,7 +132,7 @@ class LightPlaneKD(object):
         return i, d
 
     def query_ball(self, pts, dist=1.0):
-        """return set of rays within a view cone
+        """return set of points within a distance
 
         Parameters
         ----------

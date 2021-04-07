@@ -57,7 +57,7 @@ class SunViewSamplerPt(SamplerPt):
         large number of samples bog down random number generator"""
         return 0.5/dim
 
-    def _run_callback(self, point, posidx, vm, write=False):
+    def _run_callback(self, point, posidx, vm, write=False, **kwargs):
         """post sampling, write full resolution (including interpolated values)
          non zero rays to result file."""
         skd = LightPointKD(self.scene, self.vecs, self.lum, vm, point, posidx,

@@ -38,9 +38,10 @@ class ImageSampler(SamplerPt):
         self.vecs = None
         self.lum = []
 
-    def _run_callback(self, point, posidx, vm, write=False):
+    def _run_callback(self, point, posidx, vm, write=False, **kwargs):
         return LightPointKD(self.scene, self.vecs, self.lum, vm=vm, pt=point,
-                            posidx=posidx, src=self.stype, write=write)
+                            posidx=posidx, src=self.stype, write=write,
+                            **kwargs)
 
 
 class DeterministicImageSampler(ImageSampler):

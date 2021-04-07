@@ -24,7 +24,7 @@ class PlanMapper(Mapper):
 
     Parameters
     ----------
-    area: str np.arrary, optional
+    area: str np.array, optional
         radiance scene geometry defining a plane to sample, tsv file of
         points to generate bounding box, or np.array of points.
     ptres: float, optional
