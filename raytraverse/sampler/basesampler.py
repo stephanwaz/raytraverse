@@ -11,6 +11,26 @@ from raytraverse import translate
 from raytraverse.sampler import draw
 
 
+filterdict = {'prewitt': (np.array([[1, 1, 1], [0, 0, 0], [-1, -1, -1]])/3,
+                           np.array([[1, 0, -1], [1, 0, -1], [1, 0, -1]])/3),
+              'sobel': (np.array([[1, 2, 1], [0, 0, 0], [-1, -2, -1]])/4,
+                         np.array([[1, 0, -1], [2, 0, -2], [1, 0, -1]])/3),
+              'sobelswap': (np.array([[1, 2, -1], [0, 0, 0], [1, -2, -1]])/4,
+                             np.array([[1, 0, 1], [-2, 0, 2], [-1, 0, -1]])/4),
+              'cross': (np.array([[1, 0], [0, -1]])/2,
+                         np.array([[0, 1], [-1, 0]])/2),
+              'point': (np.array([[-1, -1, -1], [-1, 8, -1], [-1, -1, -1]])/3,
+                         np.array([[0, 0, 0], [0, 0, 0], [0, 0, 0]])),
+              'wav': (np.array([[-1, 0, 0], [-1, 4, -1], [0, 0, -1]])/3,
+                       np.array([[0, 0, -1], [-1, 4, -1], [-1, 0, 0]])/3),
+              'wav3': (np.array([[0, 0, 0], [-1, 2, -1], [0, 0, 0]])/2,
+                        np.array([[0, -1, 0], [0, 2, 0], [0, -1, 0]])/2,
+                        np.array([[-1, 0, 0], [0, 2, 0], [0, 0, -1]])/2),
+              'haar': (np.array([[1, -1]])/2, np.array([[1], [-1]])/2,
+                        np.array([[1, 0], [0, -1]])/2),
+              }
+
+
 class BaseSampler(object):
     """wavelet based sampling class
 
@@ -159,7 +179,7 @@ class BaseSampler(object):
                 p = self.weights.ravel()
             else:
                 p = draw.get_detail(self.weights,
-                                    *self.filters[self.detailfunc])
+                                    *filterdict[self.detailfunc])
             # draw on pdf
             pdraws = draw.from_pdf(p, self._threshold(level),
                                    lb=self.lb, ub=self.ub)
@@ -219,6 +239,8 @@ class BaseSampler(object):
     #:
     #: 'cross': [[1 0] [0 -1]]/2, [[0 1] [-1 0]]/2
     #:
+    #: 'haar': [[1 -1]]/2, [[1] [-1]]/2, [[1, 0] [0, -1]]/2
+    #:
     #: 'point': [[-1 -1 -1] [-1 8 -1] [-1 -1 -1]]/3
     #:
     #: 'wav': [[-1 0 0] [-1 4 -1] [0 0 -1]]/3, [[0 0 -1] [-1 4 -1] [-1 0 0]]/3
@@ -226,25 +248,6 @@ class BaseSampler(object):
     #: 'wav3': [[0 0 0] [-1 2 -1] [0 0 0]] / 2, [[0 -1 0] [0 2 0] [0 -1 0]] / 2,
     #: [[-1 0 0] [0 2 0] [0 0 -1]] / 2
     detailfunc = 'wav3'
-
-    filters = {'prewitt': (np.array([[1, 1, 1], [0, 0, 0], [-1, -1, -1]])/3,
-                           np.array([[1, 0, -1], [1, 0, -1], [1, 0, -1]])/3),
-               'sobel': (np.array([[1, 2, 1], [0, 0, 0], [-1, -2, -1]])/4,
-                         np.array([[1, 0, -1], [2, 0, -2], [1, 0, -1]])/3),
-               'sobelswap': (np.array([[1, 2, -1], [0, 0, 0], [1, -2, -1]])/4,
-                             np.array([[1, 0, 1], [-2, 0, 2], [-1, 0, -1]])/4),
-               'cross': (np.array([[1, 0], [0, -1]])/2,
-                         np.array([[0, 1], [-1, 0]])/2),
-               'point': (np.array([[-1, -1, -1], [-1, 8, -1], [-1, -1, -1]])/3,
-                         np.array([[0, 0, 0], [0, 0, 0], [0, 0, 0]])),
-               'wav': (np.array([[-1, 0, 0], [-1, 4, -1], [0, 0, -1]])/3,
-                       np.array([[0, 0, -1], [-1, 4, -1], [-1, 0, 0]])/3),
-               'wav3': (np.array([[0, 0, 0], [-1, 2, -1], [0, 0, 0]])/2,
-                        np.array([[0, -1, 0], [0, 2, 0], [0, -1, 0]])/2,
-                        np.array([[-1, 0, 0], [0, 2, 0], [0, 0, -1]])/2),
-               'haar': (np.array([[1, -1]])/2, np.array([[1], [-1]])/2,
-                        np.array([[1, 0], [0, -1]])/2),
-               }
 
     def _update_weights(self, si, lum):
         """update self.weights (which holds values used to calculate pdf)

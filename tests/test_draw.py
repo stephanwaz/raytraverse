@@ -4,7 +4,8 @@
 """Tests for raytraverse.draw"""
 
 import pytest
-from raytraverse.sampler import draw, SamplerPt
+from raytraverse.sampler import draw
+from raytraverse.sampler.basesampler import filterdict
 import numpy as np
 from scipy import stats
 
@@ -32,5 +33,5 @@ def test_get_detail():
     ans[0:-1, 1:] += ar[1:,1:]
     ans[1:, 0:-1] += ar[1:, 1:]
     ans[(0, 1, -2, -1), (1,0, -1, -2)] += .5
-    d = draw.get_detail(ar, *SamplerPt.filters['wav3']).reshape(8, 8)
+    d = draw.get_detail(ar, *filterdict['wav3']).reshape(8, 8)
     assert np.allclose(ans, d)

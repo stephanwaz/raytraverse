@@ -29,6 +29,15 @@ FieldMetric
     :show-inheritance:
     :private-members:
 
+SamplingMetrics
+---------------------------------
+
+.. autoclass:: raytraverse.evaluate.SamplingMetrics
+    :members:
+    :undoc-members:
+    :show-inheritance:
+    :private-members:
+
 PositionIndex
 ---------------------------------
 

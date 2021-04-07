@@ -14,6 +14,7 @@ API
 
    sampler
    lightpoint
+   lightplane
    evaluate
    craytraverse
 

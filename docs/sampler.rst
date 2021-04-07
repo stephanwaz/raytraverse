@@ -16,7 +16,14 @@ BaseSampler
     :members:
     :undoc-members:
     :show-inheritance:
-    :private-members:
+
+SamplerArea
+---------------------------
+
+.. autoclass:: raytraverse.sampler.SamplerArea
+    :members:
+    :undoc-members:
+    :show-inheritance:
 
 
 SamplerPt
@@ -26,7 +33,6 @@ SamplerPt
     :members:
     :undoc-members:
     :show-inheritance:
-    :private-members:
 
 SkySamplerPt
 --------------------------------
@@ -35,7 +41,6 @@ SkySamplerPt
     :members:
     :undoc-members:
     :show-inheritance:
-    :private-members:
 
 SunSamplerPt
 --------------------------------
@@ -44,7 +49,6 @@ SunSamplerPt
     :members:
     :undoc-members:
     :show-inheritance:
-    :private-members:
 
 SunViewSamplerPt
 ------------------------------------
@@ -53,7 +57,6 @@ SunViewSamplerPt
     :members:
     :undoc-members:
     :show-inheritance:
-    :private-members:
 
 ImageSampler
 --------------------------------
@@ -62,7 +65,6 @@ ImageSampler
     :members:
     :undoc-members:
     :show-inheritance:
-    :private-members:
 
 DeterministicImageSampler
 --------------------------------
@@ -71,4 +73,3 @@ DeterministicImageSampler
     :members:
     :undoc-members:
     :show-inheritance:
-    :private-members:

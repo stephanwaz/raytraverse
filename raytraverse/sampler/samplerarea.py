@@ -7,11 +7,11 @@
 # =======================================================================
 import numpy as np
 from scipy.interpolate import RegularGridInterpolator
-from scipy.spatial.ckdtree import cKDTree
+from scipy.spatial import cKDTree
 
 from raytraverse import io
 from raytraverse.sampler import draw
-from raytraverse.sampler.basesampler import BaseSampler
+from raytraverse.sampler.basesampler import BaseSampler, filterdict
 from raytraverse.evaluate import SamplingMetrics
 
 
@@ -23,7 +23,7 @@ class SamplerArea(BaseSampler):
     scene: raytraverse.scene.Scene
         scene class containing geometry and formatter compatible with engine
     engine: raytraverse.sampler.SamplerPt
-        should inherit from raytraverse.renderer.Renderer
+        point sampler
     accuracy: float, optional
         parameter to set threshold at sampling level relative to final level
         threshold (smaller number will increase sampling, default is 1.0)
@@ -98,7 +98,7 @@ class SamplerArea(BaseSampler):
             p = np.ones(dres).ravel()
             p[np.logical_not(self._mask)] = 0
         else:
-            p = draw.get_detail(self.weights, *self.filters[self.detailfunc])
+            p = draw.get_detail(self.weights, *filterdict[self.detailfunc])
             p = np.sum(p.reshape(self.weights.shape), axis=0)/self.features
             # zero out cells of previous samples
             if self.vecs is not None:
