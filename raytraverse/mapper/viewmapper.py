@@ -70,7 +70,7 @@ class ViewMapper(Mapper):
     def xyz2uv(self, xyz):
         """transform from world xyz space to mapper UV space"""
         # rotate from world to view space
-        rxyz = self.world2view(np.atleast_2d(xyz))
+        rxyz = self.world2view(xyz)
         # translate to uv
         uv = translate.xyz2uv(rxyz)
         # scale to view uv space

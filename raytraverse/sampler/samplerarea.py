@@ -13,10 +13,11 @@ from raytraverse import io
 from raytraverse.sampler import draw
 from raytraverse.sampler.basesampler import BaseSampler, filterdict
 from raytraverse.evaluate import SamplingMetrics
-from raytraverse.lightplane import LightPlaneKD
+from raytraverse.lightfield import LightPlaneKD
+
 
 class SamplerArea(BaseSampler):
-    """wavelet based sampling class
+    """wavelet based area sampling class
 
     Parameters
     ----------
@@ -31,27 +32,43 @@ class SamplerArea(BaseSampler):
         number of levels to sample
     jitter: bool, optional
         jitter samples
+    metricclass: raytraverse.evaluate.BaseMetricSet, optional
+        the metric calculator used to compute weights
+    metricset: iterable, optional
+        list of metrics (must be recognized by metricclass. metrics containing
+        "lum" will be normalized to 0-1)
+    metricfunc: func, optional
+        takes detail array as an argument, shape: (len(metricset),N, M) and an
+        axis=0 keyword argument, returns shape (N, M). could be np.max, np.sum
+        np.average or us custom function following the same pattern.
     """
 
     #: initial sampling threshold coefficient
-    t0 = .25
+    t0 = .1
     #: final sampling threshold coefficient
-    t1 = .25
+    t1 = .9
     #: upper bound for drawing from pdf
     ub = 100
 
     def __init__(self, scene, engine, accuracy=1.0, nlev=3, jitter=True,
                  metricclass=SamplingMetrics,
-                 metricset=('loggcr', 'xpeak', 'ypeak')):
+                 metricset=('avglum', 'loggcr', 'xpeak', 'ypeak'),
+                 metricfunc=np.max):
         super().__init__(scene, engine, accuracy, engine.stype)
         self.nlev = nlev
         self.jitter = jitter
         #: raytraverse.mapper.PlanMapper
         self._mapper = None
         self._mask = slice(None)
+        self._candidates = None
         self.slices = []
+        #: raytraverse.evaluate.BaseMetricSet
         self.metricclass = metricclass
+        #: iterable
         self.metricset = metricset
+        #: numpy func takes weights and axis=0 argument to reduce metric set
+        self._metricfunc = metricfunc
+        #: int:
         self.features = len(metricset)
 
     def sampling_scheme(self, mapper):
@@ -98,8 +115,9 @@ class SamplerArea(BaseSampler):
             p = np.ones(dres).ravel()
             p[np.logical_not(self._mask)] = 0
         else:
-            p = draw.get_detail(self.weights, *filterdict[self.detailfunc])
-            p = np.sum(p.reshape(self.weights.shape), axis=0)/self.features
+            nweights = self._normed_weights()
+            p = draw.get_detail(nweights, *filterdict[self.detailfunc])
+            p = self._metricfunc(p.reshape(self.weights.shape), axis=0)
             # zero out cells of previous samples
             if self.vecs is not None:
                 pxy = self._mapper.ray2pixel(self.vecs, self.weights.shape[1:])
@@ -133,7 +151,8 @@ class SamplerArea(BaseSampler):
         """
         if len(pdraws) == 0:
             return np.empty(0), np.empty(0)
-        return self._mapper.idx2uv(pdraws, shape, self.jitter)
+        si = np.stack(np.unravel_index(pdraws, shape))
+        return si, self._candidates[pdraws]
 
     def sample(self, vecs):
         """call rendering engine to sample rays
@@ -151,10 +170,13 @@ class SamplerArea(BaseSampler):
         idx = self.slices[-1].indices(self.slices[-1].stop)
         lums = []
         lpargs = dict(parent=self._mapper.name)
+        kwargs = dict(metricset=self.metricset, lmin=1e-8)
+        if hasattr(self.engine, "slimit"):
+            kwargs.update(peakthreshold=self.engine.slimit)
         for posidx, point in zip(range(*idx), vecs):
             lp = self.engine.run(point, posidx, lpargs=lpargs)
             vol = lp.get_applied_rays(1)
-            metric = self.metricclass(*vol, lp.vm,  metricset=self.metricset)
+            metric = self.metricclass(*vol, lp.vm,  **kwargs)
             lums.append(metric())
         if len(self.lum) == 0:
             self.lum = np.array(lums)
@@ -163,24 +185,35 @@ class SamplerArea(BaseSampler):
         return np.array(lums)
 
     def _update_weights(self, si, lum):
-        """unused, weights are recomputed from spatial query"""
-        pass
+        """only used by _plot_weights, weights are recomputed from spatial
+        query"""
+        wv = np.moveaxis(self.weights, 0, 2)
+        wv[tuple(si)] = lum
 
     def _lift_weights(self, i):
-        wuv = self._mapper.point_grid_uv(jitter=False, level=i, masked=False)
-        self._mask = self._mapper.in_view_uv(wuv, False)
+        """because areas can have an arbitrary border, upsamppling is not
+        effective. If we mask the weights, than the UV edges (which are padded)
+        will be treated differently from the inside edges. by remapping each
+        level with the nearest sample value and then masking after calculating
+        the detail we avoid these issues."""
+        self._candidates = self._mapper.point_grid_uv(jitter=self.jitter, level=i,
+                                                      masked=False)
+        self._mask = self._mapper.in_view_uv(self._candidates, False)
         if self.vecs is not None:
-            wvecs = self._mapper.uv2xyz(wuv)
+            wvecs = self._mapper.uv2xyz(self._candidates)
             d, idx = cKDTree(self.vecs).query(wvecs)
             weights = self.lum[idx].reshape(*self.levels[i], self.features)
             self.weights = np.moveaxis(weights, 2, 0)
 
     def _normed_weights(self):
-        nmin = np.amin(self.weights, (1, 2), keepdims=True)
-        norm = np.amax(self.weights, (1, 2), keepdims=True) - nmin
-        nmin[norm == 0] = 0
-        norm[norm == 0] = 1
-        return (self.weights - nmin)/norm
+        normi = [i for i, j in enumerate(self.metricset) if 'lum' in j]
+        nweights = np.copy(self.weights)
+        for i in normi:
+            nmin = np.min(self.weights[i])
+            norm = np.max(self.weights[i]) - nmin
+            if norm > 0:
+                nweights[i] = (nweights[i] - nmin)/norm
+        return nweights
 
     def _dump_vecs(self, vecs):
         if self.vecs is None:
@@ -198,26 +231,29 @@ class SamplerArea(BaseSampler):
     def _wshape(self, level):
         return np.concatenate(([self.features], self.levels[level]))
 
-    def _plot_p(self, p, level, vm, name, suffix=".hdr", **kwargs):
-        shp = self.weights.shape[1:]
-        ps = p.reshape(shp)
+    def _plot_dist(self, ps, outf):
+        shp = ps.shape
         pixels = self._mapper.pixels(512)
-        x = (np.arange(shp[0]) + .5) * pixels.shape[0]/shp[0]
-        y = (np.arange(shp[1]) + .5) * pixels.shape[1]/shp[1]
+        x = (np.arange(shp[0]) + .5)*pixels.shape[0]/shp[0]
+        y = (np.arange(shp[1]) + .5)*pixels.shape[1]/shp[1]
         pinterp = RegularGridInterpolator((x, y), ps, bounds_error=False,
                                           method='nearest', fill_value=None)
         outpar = pinterp(pixels.reshape(-1, 2)).reshape(pixels.shape[:-1])
+        io.array2hdr(outpar[-1::-1], outf)
+
+    def _plot_p(self, p, level, vm, name, suffix=".hdr", **kwargs):
         outp = (f"{self.scene.outdir}_{name}_{self.stype}_detail_"
                 f"{level:02d}{suffix}")
-        io.array2hdr(outpar[-1::-1], outp)
-        for i, w in zip(self.metricset, self.weights):
-            w.flat[np.logical_not(self._mask)] = 0
-            pinterp = RegularGridInterpolator((x, y), w, bounds_error=False,
-                                              method='nearest', fill_value=None)
-            outwar = pinterp(pixels.reshape(-1, 2)).reshape(pixels.shape[:-1])
+        ps = p.reshape(self.weights.shape[1:])
+        self._plot_dist(ps, outp)
+
+    def _plot_weights(self, level, vm, name, suffix=".hdr", **kwargs):
+        normw = self._normed_weights()
+        for i, w in zip(self.metricset, normw):
             outw = (f"{self.scene.outdir}_{name}_{self.stype}_weight_{i}_"
                     f"{level:02d}{suffix}")
-            io.array2hdr(outwar[-1::-1], outw)
+            w.flat[np.logical_not(self._mask)] = 0
+            self._plot_dist(w, outw)
 
     def _plot_vecs(self, vecs, level, vm, name, suffix=".hdr", **kwargs):
         img = np.zeros((3, *self._mapper.framesize(512)))

@@ -293,19 +293,22 @@ class LightPointKD(object):
             shape (N,) associated luminances
         """
         if vm is None:
-            vm = self.vm
-        idx = self.query_ball(vm.dxyz, vm.viewangle * vm.aspect)[0]
-        omega = np.squeeze(self.omega[idx])
-        rays = self.vec[idx]
-        lum = np.squeeze(self.apply_coef(skyvec))[idx]
+            rays = self.vec
+            omega = np.squeeze(self.omega)
+            lum = np.squeeze(self.apply_coef(skyvec))
+        else:
+            idx = self.query_ball(vm.dxyz, vm.viewangle * vm.aspect)[0]
+            omega = np.squeeze(self.omega[idx])
+            rays = self.vec[idx]
+            lum = np.squeeze(self.apply_coef(skyvec))[idx]
         if len(self.srcviews) > 0:
             vrs = []
             for srcview in self.srcviews:
-                vrs.append(srcview.get_applied_rays(skyvec[-1], vm))
+                vrs.append(srcview.get_applied_rays(np.atleast_1d(skyvec)[-1], vm))
             vr, vo, vl = zip(*vrs)
-            rays = np.concatenate((rays, [vr]), 0)
-            omega = np.concatenate((omega, [vo]), 0)
-            lum = np.concatenate((lum, [vl]), 0)
+            rays = np.concatenate((rays, vr), 0)
+            omega = np.concatenate((omega, vo), 0)
+            lum = np.concatenate((lum, vl), 0)
         return rays, omega, lum
 
     def query_ray(self, vecs):

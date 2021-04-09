@@ -106,18 +106,20 @@ class PlanMapper(Mapper):
 
     def uv2xyz(self, uv, stackorigin=False):
         """transform from mapper UV space to world xyz"""
-        uv = self.bbox[None, 0] + uv*self._sf[None, :]
+        uvshape = uv.shape
+        uv = self.bbox[None, 0] + np.reshape(uv, (-1, 2))*self._sf[None, :]
         pt = np.hstack((uv, np.full((len(uv), 1), self._zheight)))
-        return self.view2world(pt)
+        return self.view2world(pt).reshape(*uvshape[:-1], 3)
 
     def in_view_uv(self, uv, indices=True):
         path = self._path
-        result = np.empty((len(path), uv.shape[0]), bool)
+        uvs = uv.reshape(-1, 2)
+        result = np.empty((len(path), uvs.shape[0]), bool)
         for i, p in enumerate(path):
-            result[i] = p.contains_points(uv)
+            result[i] = p.contains_points(uvs)
         mask = np.any(result, 0)
         if indices:
-            return np.unravel_index(np.arange(uv.shape[0])[mask],
+            return np.unravel_index(np.arange(mask.size)[mask],
                                     uv.shape[:-1])
         else:
             return mask

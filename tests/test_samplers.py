@@ -63,7 +63,7 @@ def test_skysample(tmpdir):
     assert np.isclose(np.average([illum, illumm]), 0.169, atol=.03, rtol=.2)
     fmetric = MetricSet(*lf.get_applied_rays(np.ones(325), vm), vm, ["illum", "density"])()
     assert np.isclose(fmetric[0], 352.7, atol=1, rtol=.01)
-    assert np.isclose(fmetric[1], 612, atol=30)
+    assert np.isclose(fmetric[1], 570, atol=30)
     Rcontrib.reset()
     Rcontrib._pyinstance = None
 
@@ -82,14 +82,15 @@ def test_sunsample(tmpdir):
         return np.sum(hdr.flatten()*omega*cost)*179, illumm0
 
     scene = Scene('skysample', "box.rad", frozen=False)
-    sun = translate.skybin2xyz([174], 18)[0]
     rtrace = Rtrace(scene=scene.scene, direct=True)
-    sampler = SunSamplerPt(scene, rtrace, sun, 174)
-    vm = ViewMapper((0, 1, 0), viewangle=180)
-    lf = sampler.run((1.5, 1.5, 1.5), 0, vm)
-    illum, illumm = img_illum(lf, vm)
-    assert np.isclose(illum, illumm, atol=.01, rtol=.05)
-    assert np.isclose(np.average([illum, illumm]), 0.169, atol=.01, rtol=.01)
+    for sunb, ref in zip([174, 176], [0.169, 2.86]):
+        sun = translate.skybin2xyz([sunb], 18)[0]
+        sampler = SunSamplerPt(scene, rtrace, sun, sunb)
+        vm = ViewMapper((0, 1, 0), viewangle=180)
+        lf = sampler.run((1.5, 1.5, 1.5), 0, vm)
+        illum, illumm = img_illum(lf, vm)
+        assert np.isclose(illum, illumm, atol=.01, rtol=.05)
+        assert np.isclose(np.average([illum, illumm]), ref, atol=.01, rtol=.01)
     sampler.engine.reset()
 
 

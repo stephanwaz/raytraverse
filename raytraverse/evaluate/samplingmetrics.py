@@ -10,7 +10,6 @@ import functools
 
 from raytraverse import translate
 from raytraverse.evaluate.basemetricset import BaseMetricSet
-from raytraverse.evaluate.positionindex import PositionIndex
 
 
 class SamplingMetrics(BaseMetricSet):
@@ -22,7 +21,10 @@ class SamplingMetrics(BaseMetricSet):
 
     allmetrics = defaultmetrics
 
-    def __init__(self, vec, omega, lum, vm, scale=1., **kwargs):
+    def __init__(self, vec, omega, lum, vm, scale=1., peakthreshold=0.0,
+                 lmin=0, **kwargs):
+        kwargs.update(peakthreshold=peakthreshold)
+        lum = np.maximum(lum, lmin)
         super().__init__(vec, omega, lum, vm, scale=scale, **kwargs)
 
     @property
@@ -30,7 +32,8 @@ class SamplingMetrics(BaseMetricSet):
     def peakvec(self):
         """overall vector (with magnitude)"""
         mxlum = np.max(self.lum)
-        nmax = self.lum > mxlum * .9
+        t = max(mxlum * .9, self.kwargs["peakthreshold"])
+        nmax = self.lum > t
         vec = np.einsum('ij,i,i->j', self.vec[nmax], self.lum[nmax],
                         self.omega[nmax])
         return translate.norm1(vec)

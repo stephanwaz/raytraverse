@@ -145,11 +145,13 @@ class BaseSampler(object):
                            f"{str(shape): >11}\t{si.shape[1]: >7}\t"
                            f"{srate: >7.02%}")
                     self.scene.log(self, row, logerr)
-                lum = self.sample(vecs)
-                self._update_weights(si, lum)
                 if plotp:
                     self._plot_p(p, i, mapper, name, fisheye=pfish)
                     self._plot_vecs(vecs, i, mapper, name, fisheye=pfish)
+                lum = self.sample(vecs)
+                self._update_weights(si, lum)
+                if plotp:
+                    self._plot_weights(i, mapper, name, fisheye=pfish)
                 a = lum.shape[0]
                 allc += a
         srate = allc * self.features/self.weights.size
@@ -276,7 +278,7 @@ class BaseSampler(object):
         if len(self.levels) <= 2:
             return (x1, x2)[x]
         else:
-            return (x2 - x1)/len(self.levels) * x + x1
+            return (x2 - x1)/(len(self.levels) - 1) * x + x1
 
     def _offset(self, shape, dim):
         """for modifying jitter behavior of UV direction samples
@@ -297,6 +299,9 @@ class BaseSampler(object):
             self.vecs = np.concatenate((self.vecs, vecs))
 
     def _plot_p(self, p, level, vm, name, suffix=".hdr", **kwargs):
+        pass
+
+    def _plot_weights(self, level, vm, name, suffix=".hdr", **kwargs):
         pass
 
     def _plot_vecs(self, vecs, level, vm, name, suffix=".hdr", **kwargs):

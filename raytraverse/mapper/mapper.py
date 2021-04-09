@@ -81,12 +81,14 @@ class Mapper(object):
 
     def xyz2uv(self, xyz):
         """transform from world xyz space to mapper UV space"""
-        return (self.world2view(xyz)[:, 0:2] -
-                self.bbox[None, 0])/self._sf[None, :]
+        ishape = xyz.shape
+        vxy = self.world2view(np.reshape(xyz, (-1, 3)))[:, 0:2]
+        uv = (vxy - self.bbox[None, 0])/self._sf[None, :]
+        return uv.reshape(*ishape[:-1], 2)
 
     def uv2xyz(self, uv, stackorigin=False):
         """transform from mapper UV space to world xyz"""
-        uv = self.bbox[None, 0] + uv*self._sf[None, :]
+        uv = self.bbox[None, 0] + np.reshape(uv, (-1, 2))*self._sf[None, :]
         xyz = self.view2world(np.hstack((uv, np.zeros(len(uv), 1))))
         if stackorigin:
             xyz = np.hstack((np.broadcast_to(self.origin, xyz.shape), xyz))
@@ -98,6 +100,7 @@ class Mapper(object):
 
     def vxy2xyz(self, xy, stackorigin=False):
         """transform from view image space (2d) to world xyz"""
+        xy[..., 0] = 1 - xy[..., 0]
         return self.uv2xyz(xy, stackorigin=stackorigin)
 
     @functools.lru_cache(1)
@@ -134,7 +137,11 @@ class Mapper(object):
 
     def pixel2ray(self, pxy, res):
         """pixel coordinate to world xyz vector"""
-        return self.vxy2xyz(pxy/res)
+        try:
+            xres, yres = res
+        except TypeError:
+            xres, yres = self.framesize(res)
+        return self.vxy2xyz(pxy/np.broadcast_to((xres, yres), pxy.shape))
 
     def pixel2omega(self, pxy, res):
         """pixel area"""

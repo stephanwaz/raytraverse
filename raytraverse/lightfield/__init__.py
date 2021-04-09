@@ -10,4 +10,4 @@
 
 __all__ = ['LightPlaneKD']
 
-from raytraverse.lightplane.lightplanekd import LightPlaneKD
+from raytraverse.lightfield.lightplanekd import LightPlaneKD

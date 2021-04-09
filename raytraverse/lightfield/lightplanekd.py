@@ -12,7 +12,8 @@ import numpy as np
 
 from scipy.spatial import cKDTree, Voronoi
 from shapely.geometry import Polygon
-from clasp.script_tools import try_mkdir
+
+from raytraverse import io
 
 
 class LightPlaneKD(object):
@@ -150,12 +151,18 @@ class LightPlaneKD(object):
         """
         return self.pt_kd.query_ball_point(pts, dist)
 
-    def direct_view(self, res=512, showsample=False, showweight=True, rnd=False,
-                    srcidx=None, interp=False, omega=False, scalefactor=1,
-                    vm=None, fisheye=True):
-        """create an unweighted summary image of lightplane"""
-        pass
-        # return outf
+    def direct_view(self, res=512, showsample=True):
+        """create a summary image of lightplane showing samples and areas"""
+        outf = self._datadir.replace("/", "_") + "_area.hdr"
+        img, vecs, mask, _, header = self.pm.init_img(res)
+        i, d = self.query_pt(vecs[mask], False)
+        img[mask] = self.omega[i]
+        if showsample:
+            img = np.repeat(img[None, ...], 3, 0)
+            img = self.pm.add_vecs_to_img(img, self.points, channels=(1, 0, 0))
+            io.carray2hdr(img, outf, header)
+        else:
+            io.array2hdr(img, outf, header)
 
     def add(self, lf2, src=None, calcomega=True, write=False):
         """add light planes of distinct sources together

@@ -40,7 +40,7 @@ def test_sample(tmpdir):
     fmetric = MetricSet(*lf.get_applied_rays(1, vm), vm, ["illum", "density"])()
     fmetric2 = MetricSet(*lf2.get_applied_rays(1, vm), vm, ["illum", "density"])()
     assert np.abs(fmetric[0] - 28200) < 10
-    assert np.abs(fmetric[1] - 2920) < 20
+    assert np.abs(fmetric[1] - 2480) < 20
     assert np.abs(fmetric[0] - fmetric2[0])/fmetric[0] < .05
     assert np.abs(fmetric[1] - fmetric2[1])/fmetric[1] < .1
     test = io.hdr2array("imgsample_image_000000.hdr")
@@ -50,6 +50,6 @@ def test_sample(tmpdir):
     assert mad < 6 and np.abs(msd) < 2
     lf.direct_view(ref.shape[0], showsample=True, interp=False, omega=True)
     test = io.hdr2array("imgsample_image_000000_omega.hdr")
-    assert np.abs(np.sum(test) - 7280) < 3
+    assert np.abs(np.sum(test) - 6866) < 3
     assert np.isclose(np.sum(lf.omega), np.pi * 2)
 

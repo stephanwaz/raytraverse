@@ -101,34 +101,35 @@ class SamplerPt(BaseSampler):
                                   **kwargs)
         return lightpoint
 
-    def _plot_p(self, p, level, vm, name, suffix=".hdr", fisheye=True):
-        ps = p.reshape(self.weights.shape)
+    @staticmethod
+    def _plot_dist(ps, vm, outf, fisheye=True):
         outshape = (512*vm.aspect, 512)
         res = outshape[-1]
-        outw = (f"{self.scene.outdir}_{name}_{self.stype}_weights_"
-                f"{level:02d}{suffix}")
-        outp = (f"{self.scene.outdir}_{name}_{self.stype}_detail_"
-                f"{level:02d}{suffix}")
         if fisheye:
             pixelxyz = vm.pixelrays(res)
             uv = vm.xyz2uv(pixelxyz.reshape(-1, 3))
             pdirs = np.concatenate((pixelxyz[0:res], -pixelxyz[res:]), 0)
             mask = vm.in_view(pdirs, indices=False).reshape(outshape)
-            ij = translate.uv2ij(uv, self.weights.shape[-1], aspect=vm.aspect)
-            img = self.weights[ij[:, 0], ij[:, 1]].reshape(outshape)
-            io.array2hdr(np.where(mask, img, 0), outw)
+            ij = translate.uv2ij(uv, ps.shape[-1], aspect=vm.aspect)
             img = ps[ij[:, 0], ij[:, 1]].reshape(outshape)
-            io.array2hdr(np.where(mask, img, 0), outp)
+            io.array2hdr(np.where(mask, img, 0), outf)
         else:
-            weights = translate.resample(self.weights[-1::-1], outshape,
-                                         radius=0, gauss=False)
             detail = translate.resample(ps[-1::-1], outshape, radius=0,
                                         gauss=False)
             if vm.aspect == 2:
-                weights = np.concatenate((weights[res:], weights[0:res]), 0)
                 detail = np.concatenate((detail[res:], detail[0:res]), 0)
-            io.array2hdr(weights, outw)
-            io.array2hdr(detail, outp)
+            io.array2hdr(detail, outf)
+
+    def _plot_p(self, p, level, vm, name, suffix=".hdr", fisheye=True):
+        ps = p.reshape(self.weights.shape)
+        outp = (f"{self.scene.outdir}_{name}_{self.stype}_detail_"
+                f"{level:02d}{suffix}")
+        self._plot_dist(ps, vm, outp, fisheye)
+
+    def _plot_weights(self, level, vm, name, suffix=".hdr", fisheye=True):
+        outw = (f"{self.scene.outdir}_{name}_{self.stype}_weights_"
+                f"{level:02d}{suffix}")
+        self._plot_dist(self.weights, vm, outw, fisheye)
 
     def _plot_vecs(self, vecs, level, vm, name, suffix=".hdr", fisheye=True):
         outshape = (512*vm.aspect, 512)
