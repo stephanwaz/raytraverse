@@ -64,7 +64,6 @@ class LightPointKD(object):
             srcviews = []
         self.srcviews = [i for i in srcviews
                          if issubclass(type(i), SrcViewPoint)]
-        self._filterview = filterviews
         if vm is None:
             vm = ViewMapper()
         #: raytraverse.mapper.ViewMapper
@@ -86,22 +85,20 @@ class LightPointKD(object):
         self._parent = parent
         #: str: relative path to disk storage
         self.file = f"{outdir}/{self.src}/{self.posidx:06d}.rytpt"
+        self._vec = np.empty((0, 3))
+        self._lum = np.empty((0, srcn))
+        self._d_kd = None
+        self._omega = None
         if vec is not None and lum is not None:
-            scene.log(self, f"building {src} at {posidx}")
-            self._d_kd, self._vec, self._lum = self._build(vec, lum, srcn)
-            self._omega = omega
-            if calcomega and self._omega is None:
-                self.calc_omega(False)
-            if write:
-                self.dump()
-            scene.log(self, f"build complete")
+            self.srcn = srcn
+            self.update(vec, lum, omega=omega, calcomega=calcomega,
+                        write=write, filterviews=filterviews)
         elif os.path.isfile(self.file):
             self.load()
         else:
             raise ValueError(f"Cannot initialize {type(self).__name__} without"
                              f" file: {self.file} or parameters 'vec' "
                              f"and 'lum'")
-        self.srcn = self.lum.shape[1]
         self.srcdir = np.broadcast_to(self.srcdir, (self.srcn, 3))
 
     def load(self):
@@ -110,6 +107,7 @@ class LightPointKD(object):
         self._d_kd, self._vec, self._omega, self._lum = loads[0:4]
         self.srcviews = loads[4]
         self.srcdir = loads[5]
+        self.srcn = self.lum.shape[1]
         f.close()
 
     def dump(self):
@@ -249,6 +247,8 @@ class LightPointKD(object):
         omega: bool
             if true, add value of ray solid angle instead of luminance
         vm: raytraverse.mapper.ViewMapper, optional
+        rnd: bool, optional
+            use random values as contribution (for visualizing data shape)
         """
         if rnd:
             val = np.random.rand(1, self.omega.size)
@@ -273,7 +273,7 @@ class LightPointKD(object):
         for srcview in self.srcviews:
             srcview.add_to_img(img, vecs, mask, skyvec[-1], vm)
 
-    def get_applied_rays(self, skyvec, vm=None):
+    def get_applied_rays(self, skyvec, vm=None, idx=None):
         """return rays within view with skyvec applied. this is the
         analog to add_to_img for metric calculations
 
@@ -282,6 +282,8 @@ class LightPointKD(object):
         skyvec: int float np.array, optional
             source coefficients, shape is (1,) or (srcn,)
         vm: raytraverse.mapper.ViewMapper, optional
+        idx: np.array, optional
+            precomputed query_ball result
 
         Returns
         -------
@@ -295,20 +297,23 @@ class LightPointKD(object):
         if vm is None:
             rays = self.vec
             omega = np.squeeze(self.omega)
-            lum = np.squeeze(self.apply_coef(skyvec))
+            lum = np.squeeze(self.apply_coef(skyvec).T)
         else:
-            idx = self.query_ball(vm.dxyz, vm.viewangle * vm.aspect)[0]
+            if idx is None:
+                idx = self.query_ball(vm.dxyz, vm.viewangle * vm.aspect)[0]
             omega = np.squeeze(self.omega[idx])
             rays = self.vec[idx]
-            lum = np.squeeze(self.apply_coef(skyvec))[idx]
+            lum = np.squeeze(self.apply_coef(skyvec)[:, idx].T)
         if len(self.srcviews) > 0:
             vrs = []
             for srcview in self.srcviews:
-                vrs.append(srcview.get_applied_rays(np.atleast_1d(skyvec)[-1], vm))
+                srcvec = np.atleast_2d(skyvec)[:, -1]
+                vrs.append(srcview.get_applied_rays(srcvec, vm))
             vr, vo, vl = zip(*vrs)
+            vl = np.array(vl)
             rays = np.concatenate((rays, vr), 0)
             omega = np.concatenate((omega, vo), 0)
-            lum = np.concatenate((lum, vl), 0)
+            lum = np.vstack((lum, np.array(vl)))
         return rays, omega, lum
 
     def query_ray(self, vecs):
@@ -399,20 +404,6 @@ class LightPointKD(object):
             io.array2hdr(img, outf, header)
         return outf
 
-    def _build(self, vec, lum, srcn):
-        """load samples and build data structure"""
-        vec = vec[:, -3:]
-        d_kd = cKDTree(vec)
-        lum = lum.reshape(-1, srcn)
-        if self._filterview and len(self.srcviews) > 0:
-            for sv in self.srcviews:
-                lucky_squirel = d_kd.query_ball_point(sv.vec, sv.radius)
-                if len(lucky_squirel) > 0:
-                    vec = np.delete(vec, lucky_squirel, 0)
-                    lum = np.delete(lum, lucky_squirel, 0)
-            d_kd = cKDTree(vec)
-        return d_kd, vec, lum
-
     def add(self, lf2, src=None, calcomega=True, write=False):
         """add light points of distinct sources together
         results in a new lightpoint with srcn=self.srcn+srcn2 and
@@ -446,4 +437,44 @@ class LightPointKD(object):
                           posidx=self.posidx, src=src, calcomega=calcomega,
                           srcn=self.srcn + lf2.srcn, write=write, srcdir=srcdir,
                           srcviews=self.srcviews + lf2.srcviews,
-                          filterviews=False)
+                          filterviews=False, parent=self._parent)
+
+    def update(self, vec, lum, omega=None, calcomega=True, write=True,
+               filterviews=False):
+        """add additional rays to lightpoint in place
+
+        Parameters
+        ----------
+        vec: np.array, optional
+            shape (N, >=3) where last three columns are normalized direction
+            vectors of samples.
+        lum: np.array, optional
+            reshapeable to (N, srcn). sample values for each source
+            corresponding to vec.
+        omega: np.array, optional
+            provide precomputed omega values, if given, overrides calcomega
+        calcomega: bool, optional
+            if True (default) calculate solid angle of rays. This  is
+            unnecessary if point will be combined before calculating any
+            metrics. setting to False will save some computation time. If False,
+            resets omega to None!
+        write: bool, optional
+            whether to save updated ray data to disk.
+        filterviews: bool, optional
+            delete rays near sourceviews
+        """
+        self._vec = np.vstack((self.vec, vec[:, -3:]))
+        self._lum = np.vstack((self.lum, lum.reshape(-1, self.srcn)))
+        self._d_kd = cKDTree(self.vec)
+        if filterviews and len(self.srcviews) > 0:
+            for sv in self.srcviews:
+                lucky_squirel = self.d_kd.query_ball_point(sv.vec, sv.radius)
+                if len(lucky_squirel) > 0:
+                    self._vec = np.delete(self.vec, lucky_squirel, 0)
+                    self._lum = np.delete(self.lum, lucky_squirel, 0)
+            self._d_kd = cKDTree(self.vec)
+        self._omega = omega
+        if calcomega and self._omega is None:
+            self.calc_omega(False)
+        if write:
+            self.dump()

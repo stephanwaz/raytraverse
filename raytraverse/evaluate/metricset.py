@@ -160,13 +160,6 @@ class MetricSet(BaseMetricSet):
 
     @property
     @functools.lru_cache(1)
-    def illum(self):
-        """illuminance"""
-        return np.einsum('i,i,i->', self.ctheta, self.lum,
-                         self.omega) * self.scale
-
-    @property
-    @functools.lru_cache(1)
     def dgp(self):
         ll = 1
         if self.illum < 1000:

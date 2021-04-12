@@ -39,7 +39,7 @@ class SkyData(object):
     """
 
     def __init__(self, wea, suns=None, loc=None, skyro=0.0, ground_fac=0.15,
-                 skyres=10.0):
+                 skyres=10.0, minalt=2.0, mindiff=5.0):
         self.skyres = skyres
         self.suns = suns
         self.ground_fac = ground_fac
@@ -50,6 +50,8 @@ class SkyData(object):
                 pass
         #: location and sky rotation information
         self._loc = loc
+        self._minalt = minalt
+        self._mindiff = mindiff
         self._skyro = skyro
         self.skydata = wea
         self._proxysort = np.argsort(self.sunproxy[:, 1], kind='stable')
@@ -138,7 +140,8 @@ class SkyData(object):
             - 5 col: m, d, h, dir, diff
         """
         skydata = self._format_skydata(wea)
-        daysteps = skydata[:, 2] + skydata[:, 3] > 0
+        minz = np.sin(self._minalt * np.pi / 180)
+        daysteps = np.logical_and(skydata[:, 2] > minz, skydata[:, 4] > self._mindiff)
         sxyz = skydata[daysteps, 0:3]
         dirdif = skydata[daysteps, 3:]
         smtx, grnd, sun = skycalc.sky_mtx(sxyz, dirdif, self.skyres,
