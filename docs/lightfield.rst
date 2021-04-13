@@ -1,10 +1,10 @@
-raytraverse.lightplane
+raytraverse.lightfield
 ==========================================================
 
 LightPlaneKD
 ---------------------------------
 
-.. autoclass:: raytraverse.lightplane.LightPlaneKD
+.. autoclass:: raytraverse.lightfield.LightPlaneKD
     :members:
     :undoc-members:
     :show-inheritance:

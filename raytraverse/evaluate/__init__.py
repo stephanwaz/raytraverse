@@ -9,10 +9,11 @@
 """mapper objects"""
 
 __all__ = ['BaseMetricSet', 'MetricSet', 'MetricSet', 'FieldMetric',
-           'PositionIndex', 'retina', 'SamplingMetrics']
+           'PositionIndex', 'retina', 'SamplingMetrics', 'MultiLumMetricSet']
 
 from raytraverse.evaluate.basemetricset import BaseMetricSet
 from raytraverse.evaluate.metricset import MetricSet
 from raytraverse.evaluate.fieldmetric import FieldMetric
 from raytraverse.evaluate.positionindex import PositionIndex
 from raytraverse.evaluate.samplingmetrics import SamplingMetrics
+from raytraverse.evaluate.multilummetricset import MultiLumMetricSet

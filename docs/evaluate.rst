@@ -10,6 +10,14 @@ BaseMetricSet
     :show-inheritance:
     :private-members:
 
+MultiLumMetricSet
+---------------------------------
+
+.. autoclass:: raytraverse.evaluate.MultiLumMetricSet
+    :members:
+    :undoc-members:
+    :show-inheritance:
+    :private-members:
 
 MetricSet
 ---------------------------------

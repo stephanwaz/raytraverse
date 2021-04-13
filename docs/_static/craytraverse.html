@@ -25,6 +25,34 @@
 </dl>
 </dd></dl>
 
+<dl class="py function">
+<dt id="raytraverse.craytraverse.interpolate_kdquery">
+<code class="sig-prename descclassname">raytraverse.craytraverse.</code><code class="sig-name descname">interpolate_kdquery</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">destvec</span><span class="p">:</span> <span class="n">numpy.ndarray<span class="p">[</span>numpy.float64<span class="p">]</span></span></em>, <em class="sig-param"><span class="n">errs</span><span class="p">:</span> <span class="n">numpy.ndarray<span class="p">[</span>numpy.float64<span class="p">]</span></span></em>, <em class="sig-param"><span class="n">idxs</span><span class="p">:</span> <span class="n">numpy.ndarray<span class="p">[</span>numpy.int32<span class="p">]</span></span></em>, <em class="sig-param"><span class="n">srcvec</span><span class="p">:</span> <span class="n">numpy.ndarray<span class="p">[</span>numpy.float64<span class="p">]</span></span></em>, <em class="sig-param"><span class="n">srclum</span><span class="p">:</span> <span class="n">numpy.ndarray<span class="p">[</span>numpy.float64<span class="p">]</span></span></em>, <em class="sig-param"><span class="n">err</span><span class="p">:</span> <span class="n">float</span> <span class="o">=</span> <span class="default_value">0.00436</span></em><span class="sig-paren">)</span> &#x2192; numpy.ndarray<span class="p">[</span>numpy.float64<span class="p">]</span><a class="headerlink" href="#raytraverse.craytraverse.interpolate_kdquery" title="Permalink to this definition">¶</a></dt>
+<dd><p>interpolate luminance values associated with query results
+from scipy.cKDTree.query. Finds closest point and then locates vertices of enclosing triangle from this point.
+returns 0 in cases where the query provides no results, so the distance_upper_bound must be set appropriately.
+:param dest_vec: destination vectors to interpolate to, shape (N, 3)
+:type dest_vec: np.array
+:param errs: distances between src and destination (row matches dest_vec, column is sorted ascending), shape (N, # of queries)
+:type errs: np.array
+:param idxs: query result, index row in src_vec close to dest_vec, shape (N, # of queries)
+:type idxs: np.array
+:param src_vec: vectors of src_kd, shape (N, 3)
+:type src_vec: np.array
+:param src_lum: luminance values for src_kd, shape (src_vec.shape[0], srcn)
+:type src_lum: np.array
+:param err: distance below which closest sample is used directly
+:type err: float, optional</p>
+<dl class="field-list simple">
+<dt class="field-odd">Returns</dt>
+<dd class="field-odd"><p><strong>arrout</strong> – destination luminances shape (N, srcn)</p>
+</dd>
+<dt class="field-even">Return type</dt>
+<dd class="field-even"><p>np.array</p>
+</dd>
+</dl>
+</dd></dl>
+
 <div class="section" id="crtrace">
 <h1>cRtrace<a class="headerlink" href="#crtrace" title="Permalink to this headline">¶</a></h1>
 <dl class="py class">
@@ -198,7 +226,7 @@ parameters</p>
 
 <dl class="py attribute">
 <dt id="raytraverse.crenderer.cRtrace.version">
-<code class="sig-name descname">version</code><em class="property"> = 'RADIANCE 5.4a 2021-02-16 LBNL (..)'</em><a class="headerlink" href="#raytraverse.crenderer.cRtrace.version" title="Permalink to this definition">¶</a></dt>
+<code class="sig-name descname">version</code><em class="property"> = 'RADIANCE 5.4a 2021-02-19 LBNL (..)'</em><a class="headerlink" href="#raytraverse.crenderer.cRtrace.version" title="Permalink to this definition">¶</a></dt>
 <dd></dd></dl>
 
 </dd></dl>
@@ -325,7 +353,7 @@ parameters</p>
 
 <dl class="py attribute">
 <dt id="raytraverse.crenderer.cRcontrib.version">
-<code class="sig-name descname">version</code><em class="property"> = 'RADIANCE 5.4a 2021-02-16 LBNL (..)'</em><a class="headerlink" href="#raytraverse.crenderer.cRcontrib.version" title="Permalink to this definition">¶</a></dt>
+<code class="sig-name descname">version</code><em class="property"> = 'RADIANCE 5.4a 2021-02-19 LBNL (..)'</em><a class="headerlink" href="#raytraverse.crenderer.cRcontrib.version" title="Permalink to this definition">¶</a></dt>
 <dd></dd></dl>
 
 </dd></dl>

@@ -8,9 +8,8 @@
 import functools
 
 import numpy as np
-from raytraverse.craytraverse import interpolate_kdquery
 from scipy.spatial import cKDTree, Voronoi
-from scipy.interpolate import LinearNDInterpolator, SmoothBivariateSpline
+from scipy.interpolate import LinearNDInterpolator
 from shapely.geometry import Polygon
 
 from raytraverse import io
@@ -200,49 +199,14 @@ class LightPlaneKD(object):
         """
         return self.pt_kd.query_ball_point(pts, dist)
 
-    def interpolate_query(self, vals, dest_vec, k=8,
-                          err=0.1, up=2):
-        """query a kd_tree and interpolate corresponding values. used to
-        merge to kd_trees with vector and luminance
-        Parameters
-        ----------
-        pi:
-            key
-        dest_vec: np.array
-            destination vectors to interpolate to, shape (N, 3)
-        k: int
-            initial query size
-        err: float
-            chord length under which value is taken without interpolation
-            default is .25 degrees = translate.theta2chord(.25*pi/180)
-        up: float
-            chord length of maximum search radius for neighbors
-            default is 10 degrees  = translate.theta2chord(20*pi/180)
-        Returns
-        -------
-        np.array
-            shape of (dest_vec.shape[0], src_lum.shape[1])
-        """
-        errs, idxs = self.pt_kd.query(dest_vec, k=k, distance_upper_bound=up)
-        arrout = interpolate_kdquery(dest_vec, errs, idxs, self.points, vals, err=err)
-        return arrout
-
     def make_image(self, outf, vals, res=1024, interp=False, showsample=False):
         img, vecs, mask, _, header = self.pm.init_img(res)
         if interp:
             xyp = vecs[mask]
-            # interp = SmoothBivariateSpline(self.points[:, 0], self.points[:, 1], vals,
-            #                                bbox=[min(xyp[:, 0]), max(xyp[:, 0]),
-            #                                      min(xyp[:, 1]), max(xyp[:, 1])],
-            #                                kx=2, ky=2)
-            # lum = interp(xyp[:, 0], xyp[:, 1], grid=False)
-            # lum = self.interpolate_query(vals, xyp).ravel()
             interp = LinearNDInterpolator(self.points[:, 0:2], vals, fill_value=-1)
             lum = interp(xyp[:, 0], xyp[:, 1])
             neg = lum < 0
-            # i, d = self.query_pt(xyp[neg], False)
             d, i = self.pt_kd.query(xyp[neg], 2)
-            # print(d2.shape, np.asarray((vals[i2[:, 0]], vals[i2[:, 1]])).shape)
             lum[neg] = np.average((vals[i[:, 0]], vals[i[:, 1]]), axis=0, weights=1/d.T)
             lum[neg] = vals[i]
             img[mask] = lum

@@ -60,12 +60,12 @@ class BaseMetricSet(object):
         v = translate.norm(vec)
         if self.vm.aspect == 2:
             self._vec = v
-            self._lum = lum.reshape(*omega.shape, -1)
+            self._lum = lum
             self.omega = omega
         else:
             mask = self.vm.in_view(v)
             self._vec = v[mask]
-            self._lum = lum[mask].reshape(self.vec.shape[0], -1)
+            self._lum = lum[mask]
             self.omega = omega[mask]
         self.scale = scale
         self.kwargs = kwargs
@@ -162,31 +162,30 @@ class BaseMetricSet(object):
     @functools.lru_cache(1)
     def illum(self):
         """illuminance"""
-        return np.squeeze(np.einsum('i,ij,i->j', self.ctheta, self.lum,
-                          self.omega) * self.scale)
+        return np.einsum('i,i,i->', self.ctheta, self.lum,
+                         self.omega) * self.scale
 
     @property
     @functools.lru_cache(1)
     def avglum(self):
         """average luminance"""
-        return np.squeeze(np.einsum('ij,i->j', self.lum, self.omega) *
-                          self.scale/self.view_area)
+        return (np.einsum('i,i->', self.lum, self.omega) *
+                self.scale/self.view_area)
 
     @property
     @functools.lru_cache(1)
     def avgraylum(self):
-        """average luminance (not weighted by omega)"""
-        return np.squeeze(np.average(self.lum, axis=0) * self.scale)
+        """average luminance (not weighted by omega"""
+        return np.average(self.lum) * self.scale
 
     @property
     @functools.lru_cache(1)
     def gcr(self):
         """a unitless measure of relative contrast defined as the average of
         the squared luminances divided by the average luminance squared"""
-        a2lum = (np.einsum('ij,ij,i->j', self.lum, self.lum, self.omega) *
+        a2lum = (np.einsum('i,i,i->', self.lum, self.lum, self.omega) *
                  self.scale**2/self.view_area)
-        gcr = np.squeeze(a2lum/self.avglum**2)
-        return np.where(np.isnan(gcr), 1, gcr)
+        return a2lum/self.avglum**2
 
     @property
     @functools.lru_cache(1)

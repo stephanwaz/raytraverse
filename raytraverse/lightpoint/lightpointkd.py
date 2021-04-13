@@ -297,13 +297,13 @@ class LightPointKD(object):
         if vm is None:
             rays = self.vec
             omega = np.squeeze(self.omega)
-            lum = np.squeeze(self.apply_coef(skyvec).T)
+            lum = self.apply_coef(skyvec).T
         else:
             if idx is None:
                 idx = self.query_ball(vm.dxyz, vm.viewangle * vm.aspect)[0]
             omega = np.squeeze(self.omega[idx])
             rays = self.vec[idx]
-            lum = np.squeeze(self.apply_coef(skyvec)[:, idx].T)
+            lum = self.apply_coef(skyvec)[:, idx].T
         if len(self.srcviews) > 0:
             vrs = []
             for srcview in self.srcviews:
@@ -314,7 +314,7 @@ class LightPointKD(object):
             rays = np.concatenate((rays, vr), 0)
             omega = np.concatenate((omega, vo), 0)
             lum = np.vstack((lum, np.array(vl)))
-        return rays, omega, lum
+        return rays, omega, np.squeeze(lum)
 
     def query_ray(self, vecs):
         """return the index and distance of the nearest ray to each of vecs
