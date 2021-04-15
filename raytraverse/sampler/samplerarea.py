@@ -32,6 +32,10 @@ class SamplerArea(BaseSampler):
         number of levels to sample
     jitter: bool, optional
         jitter samples
+    edgemode: {‘reflect’, ‘constant’, ‘nearest’, ‘mirror’, ‘wrap’}, optional
+        default: 'reflect', if 'constant' value is set to -self.t1, so edge is
+        always seen as detail. Internal edges (resulting from PlanMapper
+        borders) will behave like 'nearest' for all options except 'constant'
     metricclass: raytraverse.evaluate.BaseMetricSet, optional
         the metric calculator used to compute weights
     metricset: iterable, optional
@@ -51,7 +55,7 @@ class SamplerArea(BaseSampler):
     ub = 100
 
     def __init__(self, scene, engine, accuracy=1.0, nlev=3, jitter=True,
-                 metricclass=SamplingMetrics,
+                 edgemode='reflect', metricclass=SamplingMetrics,
                  metricset=('avglum', 'loggcr', 'xpeak', 'ypeak'),
                  metricfunc=np.max):
         super().__init__(scene, engine, accuracy, engine.stype)
@@ -59,6 +63,11 @@ class SamplerArea(BaseSampler):
         self.jitter = jitter
         #: raytraverse.mapper.PlanMapper
         self._mapper = None
+        modes = ('reflect', 'constant', 'nearest', 'mirror', 'wrap')
+        if edgemode not in modes:
+            raise ValueError(f"edgemode={edgemode} not a valid option"
+                             " must be one of: {modes}")
+        self._edgemode = edgemode
         self._mask = slice(None)
         self._candidates = None
         self.slices = []
@@ -115,8 +124,9 @@ class SamplerArea(BaseSampler):
             p = np.ones(dres).ravel()
             p[np.logical_not(self._mask)] = 0
         else:
-            nweights = self._normed_weights()
-            p = draw.get_detail(nweights, *filterdict[self.detailfunc])
+            nweights = self._normed_weights(mask=self._edgemode == 'constant')
+            p = draw.get_detail(nweights, *filterdict[self.detailfunc],
+                                mode=self._edgemode, cval=-self.t1)
             p = self._metricfunc(p.reshape(self.weights.shape), axis=0)
             # zero out cells of previous samples
             if self.vecs is not None:
@@ -205,7 +215,7 @@ class SamplerArea(BaseSampler):
             weights = self.lum[idx].reshape(*self.levels[i], self.features)
             self.weights = np.moveaxis(weights, 2, 0)
 
-    def _normed_weights(self):
+    def _normed_weights(self, mask=False):
         normi = [i for i, j in enumerate(self.metricset) if 'lum' in j]
         nweights = np.copy(self.weights)
         for i in normi:
@@ -213,6 +223,8 @@ class SamplerArea(BaseSampler):
             norm = np.max(self.weights[i]) - nmin
             if norm > 0:
                 nweights[i] = (nweights[i] - nmin)/norm
+        if mask:
+            nweights.flat[np.logical_not(self._mask)] = -self.t1
         return nweights
 
     def _dump_vecs(self, vecs):

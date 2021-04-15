@@ -12,7 +12,7 @@ from raytraverse.craytraverse import from_pdf as c_from_pdf
 from scipy.ndimage import correlate
 
 
-def get_detail(samps, f1=None, f2=None, f3=None):
+def get_detail(samps, f1=None, f2=None, f3=None, mode='reflect', cval=0.0):
     d_det = []
     if f1 is None:
         # prewitt operator
@@ -20,10 +20,10 @@ def get_detail(samps, f1=None, f2=None, f3=None):
         f2 = f1.T
     s = samps.reshape(-1, *samps.shape[-2:])
     for d in s:
-        ds = np.abs(correlate(d, f1, mode='reflect'))
+        ds = np.abs(correlate(d, f1, mode=mode, cval=cval))
         for f in (f2, f3):
             if f is not None:
-                ds += np.abs(correlate(d, f, mode='reflect'))
+                ds += np.abs(correlate(d, f, mode=mode, cval=cval))
         if f1.shape[0] == 2:
             ds[:-1, :-1] += ds[1:, 1:]
         d_det.append(ds.ravel())

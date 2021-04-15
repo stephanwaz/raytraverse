@@ -7,7 +7,7 @@ import shutil
 import pytest
 import numpy as np
 
-from raytraverse.mapper import ViewMapper
+from raytraverse.mapper import ViewMapper, imagetools
 from raytraverse.lightpoint import LightPointKD, CompressedPointKD
 from raytraverse import translate, io
 from raytraverse.scene import BaseScene, ImageScene
@@ -95,7 +95,7 @@ def test_compress(tmpdir):
     lf2 = CompressedPointKD(lf, dist=.2, lerr=.001, plotc=True)
 
     lf2.direct_view(512, showsample=False, interp=False, fisheye=True)
-    vol = io.hdr2vol("snakesample_image_compressed_000000.hdr")
+    vol = imagetools.hdr2vol("snakesample_image_compressed_000000.hdr")
     mi = MetricSet(*vol, vm, scale=1000, threshold=500)
     assert np.isclose(mi.illum, m1.illum, atol=1e-4, rtol=.001)
 

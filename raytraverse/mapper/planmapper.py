@@ -204,32 +204,6 @@ class PlanMapper(Mapper):
         else:
             return uv
 
-    @staticmethod
-    def idx2uv(idx, shape, jitter=True):
-        """
-        Parameters
-        ----------
-        idx: flattened index
-        shape:
-            the shape to unravel into
-        jitter: bool, optional
-            randomly offset coordinates within grid
-
-        Returns
-        -------
-        si: np.array
-            unraveled index array
-        uv: np.array
-            uv coordinates
-        """
-        si = np.stack(np.unravel_index(idx, shape))
-        if jitter:
-            offset = np.random.default_rng().random(si.shape).T
-        else:
-            offset = 0.5
-        uv = (si.T + offset)/np.asarray(shape)
-        return si, uv
-
     def _rad_scene_to_paths(self, plane):
         """reads a radiance scene for polygons, and sets bounding paths
         zheight of plan (unless PlanMapper initialized with a zheight) will be

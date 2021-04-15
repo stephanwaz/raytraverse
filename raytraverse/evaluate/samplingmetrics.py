@@ -30,7 +30,7 @@ class SamplingMetrics(BaseMetricSet):
     @property
     @functools.lru_cache(1)
     def peakvec(self):
-        """overall vector (with magnitude)"""
+        """average vector (with magnitude) for peak rays"""
         mxlum = np.max(self.lum)
         t = max(mxlum * .9, self.kwargs["peakthreshold"])
         nmax = self.lum > t

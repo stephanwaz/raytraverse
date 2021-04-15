@@ -11,7 +11,7 @@ import functools
 import numpy as np
 from scipy.ndimage.filters import uniform_filter
 
-from raytraverse import translate
+from raytraverse import translate, io
 
 
 class Mapper(object):
@@ -93,6 +93,32 @@ class Mapper(object):
         if stackorigin:
             xyz = np.hstack((np.broadcast_to(self.origin, xyz.shape), xyz))
         return xyz
+
+    @staticmethod
+    def idx2uv(idx, shape, jitter=True):
+        """
+        Parameters
+        ----------
+        idx: flattened index
+        shape:
+            the shape to unravel into
+        jitter: bool, optional
+            randomly offset coordinates within grid
+
+        Returns
+        -------
+        si: np.array
+            unraveled index array
+        uv: np.array
+            uv coordinates
+        """
+        si = np.stack(np.unravel_index(idx, shape))
+        if jitter:
+            offset = np.random.default_rng().random(si.shape).T
+        else:
+            offset = 0.5
+        uv = (si.T + offset)/np.asarray(shape)
+        return si, uv
 
     def xyz2vxy(self, xyz):
         """transform from world xyz to view image space (2d)"""
@@ -213,3 +239,8 @@ class Mapper(object):
             if grow > 1:
                 img = uniform_filter(img*r**2, (1, r, r))
         return img
+
+    def plot(self, xyz, outf, res=1000, grow=1):
+        img = np.zeros(self.framesize(res))
+        self.add_vecs_to_img(img, xyz, grow=grow)
+        io.array2hdr(img, outf, [self.header()])

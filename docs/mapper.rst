@@ -10,7 +10,14 @@ Mapper
     :show-inheritance:
     :private-members:
 
+AngularMixin
+------------------------------
 
+.. autoclass:: raytraverse.mapper.angularmixin.AngularMixin
+    :members:
+    :undoc-members:
+    :show-inheritance:
+    :private-members:
 
 ViewMapper
 ------------------------------
@@ -21,19 +28,19 @@ ViewMapper
     :show-inheritance:
     :private-members:
 
-PlanMapper
+SkyMapper
 ------------------------------
 
-.. autoclass:: raytraverse.mapper.PlanMapper
+.. autoclass:: raytraverse.mapper.SkyMapper
     :members:
     :undoc-members:
     :show-inheritance:
     :private-members:
 
-PointSet
+PlanMapper
 ------------------------------
 
-.. autoclass:: raytraverse.mapper.PointSet
+.. autoclass:: raytraverse.mapper.PlanMapper
     :members:
     :undoc-members:
     :show-inheritance:

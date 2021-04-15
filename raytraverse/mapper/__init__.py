@@ -8,9 +8,11 @@
 
 """mapper objects"""
 
-__all__ = ['Mapper', 'PlanMapper', 'ViewMapper', 'PointSet']
+__all__ = ['Mapper', 'PlanMapper', 'ViewMapper', 'SkyMapper']
 
 from raytraverse.mapper.mapper import Mapper
 from raytraverse.mapper.viewmapper import ViewMapper
 from raytraverse.mapper.planmapper import PlanMapper
-from raytraverse.mapper.pointset import PointSet
+from raytraverse.mapper.skymapper import SkyMapper
+
+

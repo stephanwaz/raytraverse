@@ -206,8 +206,7 @@ class LightPlaneKD(object):
             interp = LinearNDInterpolator(self.points[:, 0:2], vals, fill_value=-1)
             lum = interp(xyp[:, 0], xyp[:, 1])
             neg = lum < 0
-            d, i = self.pt_kd.query(xyp[neg], 2)
-            lum[neg] = np.average((vals[i[:, 0]], vals[i[:, 1]]), axis=0, weights=1/d.T)
+            i, d = self.query_pt(xyp[neg], False)
             lum[neg] = vals[i]
             img[mask] = lum
         else:
@@ -228,7 +227,7 @@ class LightPlaneKD(object):
         if area:
             outf = self._datadir.replace("/", "_") + "_area.hdr"
             self.make_image(outf, self.omega, res=res, showsample=showsample,
-                            interp=interp)
+                            interp=False)
         if metrics is not None:
             result = self.get_applied_metrics(1, vm=vm,
                                               metricclass=metricclass,

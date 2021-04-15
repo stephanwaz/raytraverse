@@ -8,44 +8,77 @@ from matplotlib.testing.compare import compare_images
 import pytest
 import numpy as np
 
-from raytraverse.sky import Suns, SunsLoc, SunsPos, SkyData
-from raytraverse import translate
+from raytraverse.sky import SunsLoc, SkyData
+from raytraverse.mapper import SkyMapper
+from raytraverse import translate, io
 
 
 @pytest.fixture(scope="module")
 def tmpdir(tmp_path_factory):
     data = str(tmp_path_factory.mktemp("data"))
-    shutil.copytree('tests/sky/', data + '/test')
+    subf = 'tests/sky/'
+    shutil.copytree(subf, data + '/test')
     cpath = os.getcwd()
-    os.chdir(data + '/test')
-    yield data + '/test'
+    path = data + '/test'
+    # uncomment to use actual (to debug results)
+    # path = cpath + '/' + subf
+    os.chdir(path)
+    yield path
     os.chdir(cpath)
 
 
 def test_suns(tmpdir):
-    sunsa = SunsLoc("testsky", (46.25, -6.13, -15))
-    sunsa.direct_view()
-    assert compare_images("testsky_ref.png", "testsky_suns.png", .01) is None
-    sunsb = SunsPos("testsky2", "testsky/suns.dat", reload=False)
-    assert np.allclose(sunsa.suns, sunsb.suns)
-    suns = SunsPos("testsky3", "geneva.wea", reload=False, skyro=30)
-    assert suns.suns.shape[0] == 129
-    suns = Suns("testsky4", reload=False)
-    assert suns.suns.shape == (suns.sunres**2, 3)
-    suns = SunsLoc("testsky5", (46.25, -6.13, -15), reload=False, skyro=30)
-    assert suns.suns.shape[0] == 129
+    sm = SkyMapper((46.25, -6.13, -15))
+    suns = sm.solar_grid(False, 1)
+    sm.plot(suns, "test_sky_suns.hdr", res=512, grow=0)
+    ref = io.hdr2array("ref_sky_suns.hdr")
+    test = io.hdr2array("test_sky_suns.hdr")
+    assert np.allclose(ref, test, atol=.0001)
+    sm = SkyMapper((46.25, -6.13, -15))
+    suns = sm.solar_grid(True, 1)
+    np.savetxt('test_suns.txt', suns)
+    sm = SkyMapper('test_suns.txt')
+    suns2 = sm.solar_grid(False, 1)
+    assert np.allclose(suns, suns2, atol=.0001)
+    sm = SkyMapper(suns)
+    suns2 = sm.solar_grid(False, 1)
+    assert np.allclose(suns, suns2, atol=.0001)
+    sm = SkyMapper("geneva.wea")
+    suns2 = sm.solar_grid(False, 3)
+    assert suns2.shape[0] == 605
+    img, vecs, mask, mask2, header = sm.init_img()
+    img[mask] = sm.in_solarbounds(vecs[mask], level=3)
+    io.array2hdr(img, "test_geneva_mask.hdr")
+    ref = io.hdr2array("ref_geneva_mask.hdr")
+    test = io.hdr2array("test_geneva_mask.hdr")
+    assert np.allclose(ref, test, atol=.0001)
 
 
-def test_suncheck(tmpdir):
-    suns = Suns("testsky4", reload=False)
-    s1 = suns.suns
-    suns = Suns("testsky4", reload=False)
-    sbins, err = suns.proxy_src(s1)
-    assert np.average(err) < 5
-    sbins, err = suns.proxy_src(s1, tol=1)
-    hasmatch = sbins < suns.sunres**2
-    assert np.average(err[hasmatch]) < 1
-    assert 52 > np.sum(hasmatch) > 20
+def test_sunrotation(tmpdir):
+    sm = SkyMapper((46.25, -6.13, -15), skyro=127)
+    suns = sm.solar_grid(False, 1)
+    sm.plot(suns, "test2_sky_suns.hdr", res=512, grow=0)
+    ref = io.hdr2array("ref2_sky_suns.hdr")
+    test = io.hdr2array("test2_sky_suns.hdr")
+    assert np.allclose(ref, test, atol=.0001)
+    sm = SkyMapper((46.25, -6.13, -15), skyro=127)
+    suns = sm.solar_grid(True, 1)
+    np.savetxt('test2_suns.txt', suns)
+    sm = SkyMapper('test2_suns.txt')
+    suns2 = sm.solar_grid(False, 1)
+    assert np.allclose(suns, suns2, atol=.0001)
+    sm = SkyMapper(translate.rotate_elem(suns, -127), skyro=127)
+    suns2 = sm.solar_grid(False, 1)
+    assert np.allclose(suns, suns2, atol=.0001)
+    sm = SkyMapper("geneva.wea", skyro=127)
+    suns2 = sm.solar_grid(False, 3)
+    assert suns2.shape[0] == 600
+    img, vecs, mask, mask2, header = sm.init_img()
+    img[mask] = sm.in_solarbounds(vecs[mask], level=3)
+    io.array2hdr(img, "test2_geneva_mask.hdr")
+    ref = io.hdr2array("ref2_geneva_mask.hdr")
+    test = io.hdr2array("test2_geneva_mask.hdr")
+    assert np.allclose(ref, test, atol=.0001)
 
 
 def test_skydata(tmpdir):

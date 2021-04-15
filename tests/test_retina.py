@@ -5,7 +5,8 @@
 import os
 
 import pytest
-from raytraverse import translate, io
+from raytraverse import translate
+from raytraverse.mapper import imagetools
 from raytraverse.evaluate import retina
 import numpy as np
 
@@ -28,7 +29,7 @@ def test_rgcf_density(tmpdir):
                     6.09887818e+00, 7.10039102e+00, 8.49759373e+00,
                     1.05803866e+01, 1.40277281e+01, 2.08498700e+01,
                     4.08354445e+01, 2.77280566e+04])
-    io.uvarray2hdr(density.reshape(grid, grid), "density.hdr")
+    imagetools.uvarray2hdr(density.reshape(grid, grid), "density.hdr")
     test = np.quantile(density, np.linspace(.1, 1, 10))
     assert np.allclose(ref, test, atol=.01, rtol=.01)
 
@@ -42,6 +43,6 @@ def test_rgc_density(tmpdir):
                     12.76227423, 17.14212168, 21.7143411,
                     28.35079283, 43.31721288, 89.69326626,
                     2190.76230207])
-    io.uvarray2hdr(density.reshape(grid, grid), "density2.hdr")
+    imagetools.uvarray2hdr(density.reshape(grid, grid), "density2.hdr")
     test = np.quantile(density, np.linspace(.1, 1, 10))
     assert np.allclose(ref, test, rtol=.01)

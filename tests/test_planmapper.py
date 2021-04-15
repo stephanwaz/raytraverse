@@ -6,7 +6,7 @@ import os
 import shutil
 
 import pytest
-from raytraverse.mapper import PlanMapper, PointSet
+from raytraverse.mapper import PlanMapper
 import numpy as np
 
 # from clipt import mplt
@@ -31,11 +31,12 @@ def test_planmapper(tmpdir):
     bbox = np.hstack([sm.bbox, [[0], [0]]])
     assert np.all(np.equal(sm.xyz2uv(bbox), [[0, 0], [1, 1]]))
 
-    ps = PointSet(sm, fill=True, jitter=False)
+    sm2 = PlanMapper('grid.txt', ptres=4)
+    ps = sm.point_grid(False)
     # np.savetxt("grid.txt", ps.points)
-    psa = PointSet(sm, points='grid.txt')
-    assert np.allclose(ps.points, psa.points)
+    psa = sm2.point_grid(False)
+    assert np.allclose(ps, psa)
 
     sm2 = PlanMapper('plane43.rad', ptres=4, rotation=43)
-    ps2 = PointSet(sm2, fill=True, jitter=False)
-    assert np.allclose(ps.points, sm2.world2view(ps2.points), atol=1e-3)
+    ps2 = sm2.point_grid(False)
+    assert np.allclose(ps, sm2.world2view(ps2), atol=1e-3)
