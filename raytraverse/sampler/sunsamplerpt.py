@@ -13,7 +13,8 @@ from raytraverse import translate, io
 from raytraverse.lightpoint import LightPointKD
 from raytraverse.mapper import ViewMapper
 from raytraverse.sampler.samplerpt import SamplerPt
-from raytraverse.sampler import draw, SunViewSamplerPt
+from raytraverse.sampler.sunviewsamplerpt import SunViewSamplerPt
+from raytraverse.sampler import draw
 
 
 class SunSamplerPt(SamplerPt):

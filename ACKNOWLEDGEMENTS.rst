@@ -1,3 +1,17 @@
+Citation
+--------
+Either the latest or specific releases of this software are archived with a
+DOI at zenodo. See: https://doi.org/10.5281/zenodo.4091318
+
+Additionally, please cite this
+`conference paper <http://simaud.org/2021/content.php?f=32.pdf>`_
+for a description of the directional sampling and integration method:
+
+    Stephen Wasilewski, Lars O. Grobe, Roland Schregle, Jan Wienold, and
+    Marilyne Andersen. 2021. *Raytraverse: Navigating the Lightfield to
+    Enhance Climate-Based Daylight Modeling*. In 2021 Proceedings of the
+    Symposium on Simulation in Architecture and Urban Design.
+
 Licence
 -------
 

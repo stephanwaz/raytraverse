@@ -57,6 +57,8 @@ class BaseSampler(object):
     #: upper bound for drawing from pdf
     ub = 8
 
+    _includeorigin = False
+
     def __init__(self, scene, engine, accuracy=1.0, stype='generic'):
         self.engine = engine
         #: raytraverse.scene.Scene: scene information
@@ -137,7 +139,7 @@ class BaseSampler(object):
             draws, p = self.draw(i)
             si, uv = self.sample_to_uv(draws, shape)
             if si.size > 0:
-                vecs = mapper.uv2xyz(uv, stackorigin=True)
+                vecs = mapper.uv2xyz(uv, stackorigin=self._includeorigin)
                 srate = si.shape[1]/np.prod(shape)
                 self._dump_vecs(vecs)
                 if detaillog:
@@ -154,14 +156,13 @@ class BaseSampler(object):
                     self._plot_weights(i, mapper, name, fisheye=pfish)
                 a = lum.shape[0]
                 allc += a
-        srate = allc * self.features/self.weights.size
+        srate = (allc * self.features /
+                 np.prod(self._wshape(self.levels.shape[0] - 1)))
         row = ['total sampling:', '- ', f"{allc: >7}", f"{srate: >7.02%}"]
         self.scene.log(self, '\t'.join(row), logerr)
 
     def draw(self, level):
         """draw samples based on detail calculated from weights
-        detail is calculated across direction only as it is the most precise
-        dimension
 
         Returns
         -------

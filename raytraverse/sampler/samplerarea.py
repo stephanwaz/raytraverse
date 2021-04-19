@@ -8,6 +8,7 @@
 import numpy as np
 from scipy.interpolate import RegularGridInterpolator
 from scipy.spatial import cKDTree
+from clasp.script_tools import try_mkdir
 
 from raytraverse import io
 from raytraverse.sampler import draw
@@ -63,6 +64,7 @@ class SamplerArea(BaseSampler):
         self.jitter = jitter
         #: raytraverse.mapper.PlanMapper
         self._mapper = None
+        self._name = None
         modes = ('reflect', 'constant', 'nearest', 'mirror', 'wrap')
         if edgemode not in modes:
             raise ValueError(f"edgemode={edgemode} not a valid option"
@@ -84,7 +86,7 @@ class SamplerArea(BaseSampler):
         """calculate sampling scheme"""
         return np.array([mapper.shape(i) for i in range(self.nlev)])
 
-    def run(self, mapper, **kwargs):
+    def run(self, mapper, name=None, **kwargs):
         """adapively sample an area defined by mapper
 
         Parameters
@@ -92,6 +94,7 @@ class SamplerArea(BaseSampler):
         mapper: raytraverse.mapper.PlanMapper
             the pointset to build/run if initialized with points runs a static
             sampler
+        name: str, optional
         kwargs:
             passed to self.run()
 
@@ -99,16 +102,17 @@ class SamplerArea(BaseSampler):
         -------
         raytraverse.lightlplane.LightPlaneKD
         """
-        name = mapper.name
+        if name is None:
+            name = mapper.name
+        try_mkdir(f"{self.scene.outdir}/{name}")
         self._mapper = mapper
+        self._name = name
         levels = self.sampling_scheme(mapper)
         super().run(mapper, name, levels, **kwargs)
         return LightPlaneKD(self.scene, self.vecs, self._mapper, self.stype)
 
     def draw(self, level):
         """draw samples based on detail calculated from weights
-        detail is calculated across direction only as it is the most precise
-        dimension
 
         Returns
         -------
@@ -179,7 +183,7 @@ class SamplerArea(BaseSampler):
         """
         idx = self.slices[-1].indices(self.slices[-1].stop)
         lums = []
-        lpargs = dict(parent=self._mapper.name)
+        lpargs = dict(parent=self._name)
         kwargs = dict(metricset=self.metricset, lmin=1e-8)
         if hasattr(self.engine, "slimit"):
             kwargs.update(peakthreshold=self.engine.slimit)
@@ -235,7 +239,7 @@ class SamplerArea(BaseSampler):
             self.vecs = np.concatenate((self.vecs, vecs))
             v0 = self.slices[-1].stop
         self.slices.append(slice(v0, v0 + len(vecs)))
-        vfile = (f"{self.scene.outdir}/{self._mapper.name}_{self.stype}"
+        vfile = (f"{self.scene.outdir}/{self._name}/{self.stype}"
                  f"_points.tsv")
         idxvecs = np.hstack((np.arange(len(self.vecs))[:, None], self.vecs))
         np.savetxt(vfile, idxvecs, ("%d", "%.4f", "%.4f", "%.4f"))

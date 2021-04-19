@@ -1,10 +1,19 @@
 .. include:: ../README.rst
 
-API
----
+Command Line Interface
+----------------------
 
 .. toctree::
+   :maxdepth: 3
+   :caption: Command Line Interface
+
+   cli
+
+
+.. toctree::
+   :caption: API
    :maxdepth: 2
+   :hidden:
 
    scene
    mapper
@@ -22,11 +31,19 @@ API
    plot
    translate
 
-.. include:: ../ACKNOWLEDGEMENTS.rst
+Tutorials
+---------
+
+.. toctree::
+    :caption: Toturials
+    :maxdepth: 1
+
+    simaud2021
 
 .. toctree::
    :maxdepth: 3
    :hidden:
+   :caption: Navigation
 
    history
    genindex
@@ -34,10 +51,4 @@ API
    todo
    git
 
-Command Line Interface
-----------------------
-
-.. toctree::
-   :maxdepth: 2
-
-   cli
+.. include:: ../ACKNOWLEDGEMENTS.rst

@@ -45,6 +45,8 @@ class SamplerPt(BaseSampler):
         number of processors to give to the engine, if None, uses os.cpu_count()
     """
 
+    _includeorigin = True
+
     def __init__(self, scene, engine, idres=5, fdres=9,
                  accuracy=1.0,  srcn=1, stype='generic', bands=1, **kwargs):
         #: int: number of spectral bands / channels returned by renderer

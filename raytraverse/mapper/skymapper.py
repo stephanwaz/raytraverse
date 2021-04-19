@@ -23,16 +23,20 @@ class SkyMapper(AngularMixin, Mapper):
     ----------
     loc: any, optional
         can be a number of formats:
-            1.  either a numeric iterable of length 3 (lat, lon, mer)
-                where lat is +west and mer is tz*15 (matching gendaylit).
-            2.  an array (or tsv file loadable with np.loadtxt) of shape
+
+            1. either a numeric iterable of length 3 (lat, lon, mer)
+               where lat is +west and mer is tz*15 (matching gendaylit).
+            2. an array (or tsv file loadable with np.loadtxt) of shape
                (N,3), (N,4), or (N,5):
-                a. 3 elements: dx,dy,dz of sun positions
-                b. 4 elements: alt, azm, dirnorm, diffhoriz (angles in degrees)
-                c. 5 elements: dx, dy, dz, dirnorm, diffhoriz.
-            3.  path to an epw or wea formatted file
+
+                    a. 3 elements: dx,dy,dz of sun positions
+                    b. 4 elements: alt, azm, dirnorm, diffhoriz (angles in degrees)
+                    c. 5 elements: dx, dy, dz, dirnorm, diffhoriz.
+
+            3. path to an epw or wea formatted file
             4. None (default) all possible sun positions are considered
                self.in_solarbounds always returns True
+
         in the case of a geo location, sun positions are considered valid when
         in the solar transit for that location. for candidate options, sun
         positions are drawn from this set (with one randomly chosen from all
@@ -41,9 +45,10 @@ class SkyMapper(AngularMixin, Mapper):
         counterclockwise sky-rotation in degrees (equivalent to clockwise
         project north rotation)
     sunres: float, optional
-        if < 180, the horizontal and vertical view angle, if greater, view
-        becomes 360,180
+        if less than 180, the horizontal and vertical view angle, if greater,
+        view becomes 360,180
     name: str, optional
+
     """
 
     _flipu = False

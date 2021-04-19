@@ -240,7 +240,7 @@ class Mapper(object):
                 img = uniform_filter(img*r**2, (1, r, r))
         return img
 
-    def plot(self, xyz, outf, res=1000, grow=1):
+    def plot(self, xyz, outf, res=1000, grow=1, **kwargs):
         img = np.zeros(self.framesize(res))
-        self.add_vecs_to_img(img, xyz, grow=grow)
+        img = self.add_vecs_to_img(img, xyz, grow=grow, **kwargs)
         io.array2hdr(img, outf, [self.header()])

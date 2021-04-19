@@ -8,8 +8,9 @@
 import numpy as np
 from scipy.interpolate import RegularGridInterpolator
 from scipy.spatial import cKDTree
+from clasp.script_tools import try_mkdir
 
-from raytraverse import io
+from raytraverse import io, translate
 from raytraverse.sampler import draw
 from raytraverse.sampler.basesampler import BaseSampler, filterdict
 from raytraverse.sampler.sunsamplerpt import SunSamplerPt
@@ -17,7 +18,7 @@ from raytraverse.evaluate import SamplingMetrics
 from raytraverse.lightfield import LightPlaneKD
 
 
-class SamplerArea(BaseSampler):
+class SamplerSuns(BaseSampler):
     """wavelet based sun position sampling class
 
     Parameters
@@ -33,15 +34,6 @@ class SamplerArea(BaseSampler):
         number of levels to sample
     jitter: bool, optional
         jitter samples
-    metricclass: raytraverse.evaluate.BaseMetricSet, optional
-        the metric calculator used to compute weights
-    metricset: iterable, optional
-        list of metrics (must be recognized by metricclass. metrics containing
-        "lum" will be normalized to 0-1)
-    metricfunc: func, optional
-        takes detail array as an argument, shape: (len(metricset),N, M) and an
-        axis=0 keyword argument, returns shape (N, M). could be np.max, np.sum
-        np.average or us custom function following the same pattern.
     ptkwargs: dict, optional
         kwargs for raytraveerse.sampler.SunSamplerPt initialization
     areakwargs: dict, optional
@@ -56,9 +48,7 @@ class SamplerArea(BaseSampler):
     ub = 100
 
     def __init__(self, scene, engine, accuracy=1.0, nlev=3, jitter=True,
-                 metricclass=SamplingMetrics,
-                 metricset=('avglum', 'loggcr'),
-                 metricfunc=np.max, ptkwargs=None, areakwargs=None):
+                 ptkwargs=None, areakwargs=None):
         super().__init__(scene, engine, accuracy, stype='sunpositions')
         if areakwargs is None:
             areakwargs = {}
@@ -70,25 +60,19 @@ class SamplerArea(BaseSampler):
         self.jitter = jitter
         #: raytraverse.mapper.SkyMapper
         self._skymapper = None
+        #: raytraverse.mapper.PlanMapper
         self._areamapper = None
+        self._name = None
         self._mask = slice(None)
         self._candidates = None
         self.slices = []
-        #: raytraverse.evaluate.BaseMetricSet
-        self.metricclass = metricclass
-        #: iterable
-        self.metricset = metricset
-        #: numpy func takes weights and axis=0 argument to reduce metric set
-        self._metricfunc = metricfunc
-        #: int:
-        self.features = len(metricset)
 
     def sampling_scheme(self, mapper):
         """calculate sampling scheme"""
         return np.array([mapper.shape(i) for i in range(self.nlev)])
 
-    def run(self, skymapper, areamapper, **kwargs):
-        """adapively sample an area defined by mapper
+    def run(self, skymapper, areamapper, name=None, **kwargs):
+        """adapively sample sun positions for an area (also adaptively sampled)
 
         Parameters
         ----------
@@ -96,6 +80,7 @@ class SamplerArea(BaseSampler):
             the mapping for drawing suns
         areamapper: raytraverse.mapper.PlanMapper
             the mapping for drawing points
+        name: str, optional
         kwargs:
             passed to self.run()
 
@@ -103,10 +88,14 @@ class SamplerArea(BaseSampler):
         -------
         raytraverse.lightlplane.LightPlaneKD
         """
+        if name is None:
+            name = f"{skymapper.name}_{areamapper.name}"
+        try_mkdir(f"{self.scene.outdir}/{name}")
+        self._name = name
         self._skymapper = skymapper
         self._areamapper = areamapper
         levels = self.sampling_scheme(skymapper)
-        super().run(skymapper, "suns", levels, **kwargs)
+        super().run(skymapper, name, levels, **kwargs)
         # return MultiSourcePlaneKD(self.scene, self.vecs, self._areamapper, self.stype)
 
     def draw(self, level):
@@ -162,6 +151,7 @@ class SamplerArea(BaseSampler):
         lum: np.array
             array of shape (N,) to update weights
         """
+
         # idx = self.slices[-1].indices(self.slices[-1].stop)
         # lums = []
         # for suni, sunpos in zip(range(*idx), vecs):
@@ -173,7 +163,7 @@ class SamplerArea(BaseSampler):
         #
         #
         #
-        # lpargs = dict(parent=self._mapper.name)
+        # lpargs = dict(parent=self._name)
         # kwargs = dict(metricset=self.metricset, lmin=1e-8)
         # if hasattr(self.engine, "slimit"):
         #     kwargs.update(peakthreshold=self.engine.slimit)
@@ -192,8 +182,17 @@ class SamplerArea(BaseSampler):
         pass
 
     def _lift_weights(self, i):
-        self._candidates = self._skymapper.point_grid_uv(jitter=self.jitter, level=i, masked=False)
-        self._mask = self._skymapper.in_view_uv(self._candidates, False)
+        self._candidates = self._skymapper.solar_grid_uv(jitter=self.jitter,
+                                                         level=i, masked=False)
+        shape = self._skymapper.shape(i)
+        mask = self._skymapper.in_solarbounds_uv(self._candidates,
+                                                 False).reshape(shape)
+        if self.vecs is not None:
+            ij = translate.uv2ij(self._skymapper.xyz2uv(self.vecs),
+                                 shape[0], 1).T
+            mask[ij[0], ij[1]] = False
+        self._mask = mask.ravel()
+        self.weights = np.ones(self.levels[i])
 
     def _dump_vecs(self, vecs):
         if self.vecs is None:
@@ -203,22 +202,45 @@ class SamplerArea(BaseSampler):
             self.vecs = np.concatenate((self.vecs, vecs))
             v0 = self.slices[-1].stop
         self.slices.append(slice(v0, v0 + len(vecs)))
-        vfile = f"{self.scene.outdir}/{self._mapper.name}_{self.stype}.tsv"
+        vfile = f"{self.scene.outdir}/{self._name}/{self.stype}.tsv"
         idxvecs = np.hstack((np.arange(len(self.vecs))[:, None], self.vecs))
-        np.savetxt(vfile, idxvecs, ("%d", "%.4f", "%.4f", "%.4f"))
+        np.savetxt(vfile, idxvecs, ("%d", "%.8f", "%.8f", "%.8f"))
 
     def _wshape(self, level):
         return np.concatenate(([self.features], self.levels[level]))
 
-    def _plot_p(self, p, level, vm, name, suffix=".hdr", **kwargs):
+    @staticmethod
+    def _plot_dist(ps, vm, outf, fisheye=True):
+        outshape = (512*vm.aspect, 512)
+        res = outshape[-1]
+        if fisheye:
+            pixelxyz = vm.pixelrays(res)
+            uv = vm.xyz2uv(pixelxyz.reshape(-1, 3))
+            pdirs = np.concatenate((pixelxyz[0:res], -pixelxyz[res:]), 0)
+            mask = vm.in_view(pdirs, indices=False).reshape(outshape)
+            ij = translate.uv2ij(uv, ps.shape[-1], aspect=vm.aspect)
+            img = ps[ij[:, 0], ij[:, 1]].reshape(outshape)
+            io.array2hdr(np.where(mask, img, 0), outf)
+        else:
+            detail = translate.resample(ps[-1::-1], outshape, radius=0,
+                                        gauss=False)
+            if vm.aspect == 2:
+                detail = np.concatenate((detail[res:], detail[0:res]), 0)
+            io.array2hdr(detail, outf)
+
+    def _plot_p(self, p, level, vm, name, suffix=".hdr", fisheye=True,
+                **kwargs):
+        ps = p.reshape(self.weights.shape)
+        outp = (f"{self.scene.outdir}_{name}_{self.stype}_detail_"
+                f"{level:02d}{suffix}")
+        self._plot_dist(ps, vm, outp, fisheye)
+
+    def _plot_weights(self, level, vm, name, suffix=".hdr", fisheye=True,
+                      **kwargs):
         pass
 
-    def _plot_weights(self, level, vm, name, suffix=".hdr", **kwargs):
-        pass
-
-    def _plot_vecs(self, vecs, level, vm, name, suffix=".hdr", **kwargs):
-        img = np.zeros((3, *self._skymapper.framesize(512)))
-        img = self._skymapper.add_vecs_to_img(img, vecs, grow=2)
+    def _plot_vecs(self, vecs, level, vm, name, suffix=".hdr", fisheye=True,
+                   **kwargs):
         outv = (f"{self.scene.outdir}_{name}_{self.stype}_samples_"
                 f"{level:02d}{suffix}")
-        io.carray2hdr(img, outv)
+        self._skymapper.plot(vecs, outv, res=512, grow=2, fisheye=fisheye)
