@@ -14,7 +14,7 @@ from raytraverse.sampler.samplerpt import SamplerPt
 from raytraverse.lightpoint import LightPointKD, SrcViewPoint
 
 
-class SunViewSamplerPt(SamplerPt):
+class SunSamplerPtView(SamplerPt):
     """sample view rays to direct suns.
 
     here idres and fdres are sampled on a per sun basis for a view centered
@@ -48,9 +48,9 @@ class SunViewSamplerPt(SamplerPt):
         self.vecs = None
         self.lum = []
 
-    def run(self, point, posidx, vm=None, plotp=False, **kwargs):
+    def run(self, point, posidx, vm=None, plotp=False, log=None, **kwargs):
         vm = ViewMapper(self.sunpos, 0.533, "sunview")
-        return super().run(point, posidx, vm, plotp=plotp, **kwargs)
+        return super().run(point, posidx, vm, plotp=plotp, log=log, **kwargs)
 
     def _offset(self, shape, dim):
         """no jitter on sun view because of very fine resolution and potentially

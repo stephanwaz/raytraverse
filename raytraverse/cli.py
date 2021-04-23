@@ -436,7 +436,7 @@ def sunrun(ctx, plotdview=False, overwrite=False, showsample=True,
 #     scn = ctx.obj['scene']
 #     sns = ctx.obj['suns']
 #     if kwargs['view']:
-#         sampler = SunViewSamplerPt(scn, suns, checkviz=checkviz)
+#         sampler = SunSamplerPtView(scn, suns, checkviz=checkviz)
 #         lumf = f'{scn.outdir}/sunview_kd_data.pickle'
 #         exists = os.path.isfile(lumf) and os.stat(lumf).st_size > 1000
 #         vrun = run and (overwrite or not exists)

@@ -33,5 +33,5 @@ def test_get_detail():
     ans[0:-1, 1:] += ar[1:,1:]
     ans[1:, 0:-1] += ar[1:, 1:]
     ans[(0, 1, -2, -1), (1,0, -1, -2)] += .5
-    d = draw.get_detail(ar, *filterdict['wav3']).reshape(8, 8)
+    d = draw.get_detail(ar, *filterdict['wav']).reshape(8, 8)
     assert np.allclose(ans, d)

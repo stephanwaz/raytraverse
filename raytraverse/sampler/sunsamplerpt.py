@@ -13,7 +13,7 @@ from raytraverse import translate, io
 from raytraverse.lightpoint import LightPointKD
 from raytraverse.mapper import ViewMapper
 from raytraverse.sampler.samplerpt import SamplerPt
-from raytraverse.sampler.sunviewsamplerpt import SunViewSamplerPt
+from raytraverse.sampler.sunsamplerptview import SunSamplerPtView
 from raytraverse.sampler import draw
 
 
@@ -30,34 +30,36 @@ class SunSamplerPt(SamplerPt):
         shape 3, sun position
     sunbin: int
         sun bin
-    ropts: str, optional
-        arguments for engine
     speclevel: int, optional
         at this sampling level, pdf is made from brightness of sky sampling
         rather than progressive variance to look for fine scale specular
         highlights, this should be atleast 1 level from the end and the
         resolution of this level should be smaller than the size of the source
-    keepamb: bool, optional
-        whether to keep ambient files after run, if kept, a successive call
-        will load these ambient files, so care must be taken to not change
-        any parameters
-    ambcache: bool, optional
-        whether the rcopts indicate that the calculation will use ambient
-        caching (and thus should write an -af file argument to the engine)
+    slimit: float, optional
+        the minimum value in the specular guide considered as a potential
+        specular reflection source, in the case of low vlt glazing, this
+        value should be reduced.
+    maxspec: float, optional
+        the maximum value inn the specular guide considered as a specular
+        reflection source. above this value it is assumed that these are direct
+        view rays to the source so are not sampled. in the case of low vlt
+        glazing, this value should be reduced. In mixed (high-low) vlt scenes
+        the specular guide will either over sample (including direct views) or
+        under sample (miss specular reflections) depending on this setting.
     """
 
     def __init__(self, scene, engine, sun, sunbin, speclevel=9, fdres=10,
-                 slimit=0.01, maxspec=0.3, **kwargs):
+                 slimit=0.01, maxspec=0.2, stype='sun', **kwargs):
         self.slimit = slimit
         self.maxspec = maxspec
-        self.specguide = None
-        super().__init__(scene, engine, stype=f"sun_{sunbin:04d}", fdres=fdres,
-                         **kwargs)
+        self._specguide = None
+        super().__init__(scene, engine, stype=f"{stype}_{sunbin:04d}",
+                         fdres=fdres, **kwargs)
         # update parameters post init
         # normalize accuracy for sun source
         self.accuracy = self.accuracy * (1 - np.cos(.533*np.pi/360))
         #: int: index of level at which brightness sampling occurs
-        self.specidx = speclevel - self.idres
+        self.specidx = min(speclevel, fdres) - self.idres
         #: np.array: sun position x,y,z
         self.sunpos = np.asarray(sun).flatten()[0:3]
         self.sunbin = sunbin
@@ -66,16 +68,18 @@ class SunSamplerPt(SamplerPt):
         f = open(srcdef, 'w')
         f.write(scene.formatter.get_sundef(sun, (1, 1, 1)))
         f.close()
-        self.engine.load_source(srcdef)
+        ambfile = f"{scene.outdir}/{stype}_{sunbin:04d}.amb"
+        self.engine.load_source(srcdef, ambfile=ambfile)
         os.remove(srcdef)
 
-    def run(self, point, posidx, vm=None, plotp=False, **kwargs):
+    def run(self, point, posidx, vm=None, plotp=False, specguide=None,
+            **kwargs):
         if vm is None:
             vm = ViewMapper()
         self._levels = self.sampling_scheme(vm.aspect)
-        self._load_specguide(point, posidx, vm)
+        self._load_specguide(specguide, vm)
         if plotp:
-            io.array2hdr(self.specguide, "specguide.hdr")
+            io.array2hdr(self._specguide, "specguide.hdr")
         return super().run(point, posidx, vm, plotp=plotp, **kwargs)
 
     def draw(self, level):
@@ -90,36 +94,47 @@ class SunSamplerPt(SamplerPt):
         """
         pdraws, pa = super().draw(level)
         s = 0
-        if level == self.specidx and self.specguide is not None:
-            shape = self.levels[level]
-            p = translate.resample(self.specguide, shape)
-            s = p.ravel()
+        if level == self.specidx and self._specguide is not None:
+            s = self._specguide.ravel()
             s[pdraws] = 0
             sdraws = draw.from_pdf(s, self.slimit, ub=1)
             pdraws = np.concatenate((pdraws, sdraws))
         return pdraws, pa + s
 
-    def _load_specguide(self, point, posidx, vm):
-        try:
-            skykd = LightPointKD(self.scene, pt=point, posidx=posidx, src='sky')
-        except ValueError:
-            self.specguide = None
+    def _load_specguide(self, specguide, vm):
+        """
+
+        Parameters
+        ----------
+        specguide: raytraverse.lightpoint.LightPointKD
+        vm: raytraverse.mapper.ViewMappper
+        """
+        if specguide is None:
+            self.scene.log(self, "Warning: no specular guide for "
+                                 f"{self.stype} sampling", err=True,
+                           level=self._slevel)
+            self._specguide = None
         else:
-            side = int(np.sqrt(skykd.srcn - 1))
-            skybin = translate.xyz2skybin(self.sunpos, side, tol=.125)
-            shp = self.levels[self.specidx]
-            si = np.stack(np.unravel_index(np.arange(np.product(shp)), shp))
-            uv = (si.T + .5)/shp[1]
-            grid = vm.uv2xyz(uv)
-            i = skykd.query_ray(grid)[0]
-            lumg = np.max(skykd.lum[:, skybin], 1)[i].reshape(shp)
-            self.specguide = np.where(lumg > self.maxspec, 0, lumg)
+            if not hasattr(specguide, '__len__'):
+                specguide = [specguide]
+            details = []
+            for skykd in specguide:
+                side = int(np.sqrt(skykd.srcn - 1))
+                skybin = translate.xyz2skybin(self.sunpos, side, tol=.125)
+                shp = self.levels[self.specidx]
+                si = np.stack(np.unravel_index(np.arange(np.product(shp)), shp))
+                uv = (si.T + .5)/shp[1]
+                grid = vm.uv2xyz(uv)
+                i = skykd.query_ray(grid)[0]
+                lumg = np.max(skykd.lum[:, skybin], 1)[i].reshape(shp)
+                details.append(np.where(lumg > self.maxspec, 0, lumg))
+            self._specguide = np.max(details, 0)
 
     def _run_callback(self, point, posidx, vm, write=True, **kwargs):
         args = self.engine.args
         # temporarily override arguments
         self.engine.set_args(self.engine.directargs)
-        viewsampler = SunViewSamplerPt(self.scene, self.engine, self.sunpos,
+        viewsampler = SunSamplerPtView(self.scene, self.engine, self.sunpos,
                                        self.sunbin)
         sunview = viewsampler.run(point, posidx)
         self.engine.set_args(args)

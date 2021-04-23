@@ -65,28 +65,39 @@ class LightPlaneKD(object):
         """direction vector (N,3)"""
         return self._points
 
+    @property
+    def samplelevel(self):
+        """the level at which the point was sampled (all zero if not provided
+        upon initialization"""
+        return self._samplelevel
+
     @points.setter
     def points(self, pt):
         try:
             pts = np.loadtxt(pt)
         except TypeError:
             pts = pt
-        try:
-            pts = np.reshape(pts, (-1, 4))
-            idx = pts[:, 0].astype(int)
-            if not np.allclose(idx, pts[:, 0], atol=1e-4):
-                raise ValueError
-            pts = pts[:, 1:]
-        except ValueError:
-            pts = np.reshape(pts, (-1, 3))
+        if pts.shape[-1] == 3:
             idx = np.arange(pts.shape[0])
+            samplelevel = np.zeros(pts.shape[0], dtype=int)
+        elif pts.shape[-1] == 4:
+            idx = pts[:, 0].astype(int)
+            samplelevel = np.zeros(pts.shape[0], dtype=int)
+            pts = pts[:, 1:]
+        elif pts.shape[-1] == 5:
+            samplelevel = pts[:, 0].astype(int)
+            idx = pts[:, 1].astype(int)
+            pts = pts[:, 2:]
+        else:
+            raise ValueError(f"points array must have shape (N, [3, 4, or 5]) "
+                             f"not {pts.shape}")
         self._points = pts
         self.lp = idx
-        # self.lp = [f"{self._datadir}/{i:06d}.rytpt" for i in idx]
+        self._samplelevel = samplelevel
 
     @property
     def lp(self):
-        """luminance (N,srcn)"""
+        """LightPointSet"""
         return self._lp
 
     @ lp.setter

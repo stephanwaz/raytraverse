@@ -12,6 +12,7 @@ import sys
 
 from raytraverse.formatter import Formatter
 
+
 class BaseScene(object):
     """container for scene description
 
@@ -32,10 +33,12 @@ class BaseScene(object):
         if True and outdir exists, will overwrite, else raises a FileExistsError
     log: bool, optional
         log progress events to outdir/log.txt
+    loglevel: int, optional
+        maximum sampler level to log
     """
 
     def __init__(self, outdir, scene=None, frozen=True, formatter=Formatter,
-                 reload=True, overwrite=False, log=True):
+                 reload=True, overwrite=False, log=True, loglevel=10, utc=True):
         self.outdir = outdir
         try:
             os.mkdir(outdir)
@@ -51,6 +54,11 @@ class BaseScene(object):
             log = False
         self._logf = f"{self.outdir}/log.txt"
         self._dolog = log
+        if utc:
+            self._tz = timezone.utc
+        else:
+            self._tz = None
+        self._loglevel = loglevel
         self.formatter = formatter
         self._frozen = frozen
         self.reload = reload
@@ -82,10 +90,18 @@ class BaseScene(object):
                                                         self._scene,
                                                         frozen=self._frozen)
 
-    def log(self, instance, message, err=False):
-        if self._dolog:
-            ts = datetime.now(tz=timezone.utc).strftime("%d-%b-%Y %H:%M:%S")
-            message = f"{ts}\t{type(instance).__name__}\t{message}"
+    def log(self, instance, message, err=False, level=0):
+        if self._dolog and level <= self._loglevel:
+            if level < 0:
+                message = f"{type(instance).__name__}\t{message}"
+            else:
+                if level == 0:
+                    tf = "%d-%b-%Y %H:%M:%S"
+                else:
+                    tf = "%H:%M:%S"
+                ts = datetime.now(tz=self._tz).strftime(tf)
+                indent = " | " * level
+                message = f"{indent}{ts}\t{type(instance).__name__}\t{message}"
             f = sys.stderr
             needsclose = False
             if not err:

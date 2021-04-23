@@ -5,6 +5,9 @@
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 # =======================================================================
+import re
+import sys
+
 from raytraverse.renderer.radiancerenderer import RadianceRenderer
 from raytraverse.crenderer import cRtrace
 
@@ -41,6 +44,17 @@ class Rtrace(RadianceRenderer):
         ans = r(vecs)
         # ans.shape -> (vecs.shape[0], 1)
 
+    If rayargs include cache files (ambient cache or photon map) be careful
+    with updating sources. If you are going to swap sources, update the
+    arguments as well with the new paths::
+
+        r = renderer.Rtrace(args, scene)
+        r.set_args(args.replace("temp.amb", "temp2.amb"))
+        r.load_source(srcdef)
+
+    Note that if you are using ambient caching, you must give an ambient file,
+    because without a file ambient values are not shared across processes or
+    successive calls to the instance.
     """
     name = 'rtrace'
     #: raytraverse.crenderer.cRtrace
@@ -62,6 +76,20 @@ class Rtrace(RadianceRenderer):
             return cls.directargs
         else:
             return cls.defaultargs
+
+    @classmethod
+    def set_args(cls, args, nproc=None):
+        """prepare arguments to call engine instance initialization
+
+        Parameters
+        ----------
+        args: str
+            rendering options
+        nproc: int, optional
+            cpu limit
+
+        """
+        super().set_args(args, nproc)
 
     @classmethod
     def update_ospec(cls, vs):
@@ -105,12 +133,12 @@ class Rtrace(RadianceRenderer):
         return outcnt
 
     @classmethod
-    def load_source(cls, srcname, freesrc=-1):
+    def load_source(cls, srcfile, freesrc=-1, ambfile=None):
         """add a source description to the loaded scene
 
         Parameters
         ----------
-        srcname: str
+        srcfile: str
             path to radiance scene file containing sources, these should not
             change the bounding box of the octree and has only been tested with
             the "source" type.
@@ -118,5 +146,29 @@ class Rtrace(RadianceRenderer):
             the number of objects to unload from the end of the rtrace object
             list, if -1 unloads all objects loaded by previous calls to
             load_source
+        ambfile: str, optional
+            path to ambient file. if given, and arguments
         """
-        cls.instance.load_source(srcname, freesrc)
+        cls.instance.load_source(srcfile, freesrc)
+        try:
+            ab = re.findall(r'-ab \d+', cls.args)[-1]
+        except IndexError:
+            hasbounce = False
+        else:
+            hasbounce = int(ab.split()[-1]) > 0
+        try:
+            aa = re.findall(r'-aa \d+', cls.args)[-1]
+        except IndexError:
+            caching = True
+        else:
+            caching = int(aa.split()[-1]) > 0
+        if hasbounce and caching:
+            hasamb = re.findall(r'-af \S+', cls.args)
+            args = re.sub(r' -af \S+', '', cls.args)
+            if ambfile is not None:
+                args += f" -af {ambfile}"
+            elif len(hasamb) > 0:
+                print("Warning: source changed with ambient caching, but "
+                      f"no new ambfile was specified, stripping {hasamb[-1]} "
+                      "from args", file=sys.stderr)
+            cls.set_args(args)

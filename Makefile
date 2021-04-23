@@ -71,7 +71,7 @@ coverage: ## check code coverage quickly with the default Python
 coverall: coverage
 	coveralls
 
-docs: cdocs pdocs## generate Sphinx HTML documentation, including API docs
+docs: cdocs pdocs showdocs## generate Sphinx HTML documentation, including API docs
 
 
 cdocs: ## generate Sphinx HTML documentation, including API docs
@@ -86,6 +86,8 @@ pdocs:
 	# sphinx-apidoc -o docs/ raytraverse
 	$(MAKE) -C docs clean
 	$(MAKE) -C docs html
+
+showdocs:
 	$(BROWSER) docs/_build/html/index.html
 
 servedocs: docs ## compile the docs watching for changes

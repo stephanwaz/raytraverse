@@ -8,6 +8,7 @@ import sys
 
 from raytraverse import renderer
 from raytraverse.sampler import draw
+from raytraverse.formatter import RadianceFormatter
 import numpy as np
 from scipy import stats
 import pytest
@@ -88,7 +89,6 @@ def test_rtrace_call(tmpdir):
     check2 = np.einsum('ij,j->i', check, [47.435/179, 119.93/179, 11.635/179])
     # first load
     r = renderer.Rtrace(args, "sky.oct", default_args=False)
-    print(r.instance)
     vecs = np.loadtxt('rays.txt')
     ans = r(vecs)
     assert np.allclose(check, ans, atol=.03)
@@ -151,6 +151,85 @@ def test_rtrace_call(tmpdir):
     renderer.Rtrace.reset()
 
 
-    # print(r.header)
+def test_ambient_reset(tmpdir):
+
+    formatter = RadianceFormatter()
+    args = "-u- -ab 1 -ar 1000 -ad 4000 -aa .05 -as 2000 -I+"
+    r = renderer.Rtrace(args, "scene.oct", default_args=False)
+    vecs = np.loadtxt('rays2.txt')
+
+    def load_sun(sun, val, af=None):
+        srcdef = f'tmp_sun.rad'
+        f = open(srcdef, 'w')
+        f.write(formatter.get_sundef(sun, (val, val, val)))
+        f.close()
+        r.load_source(srcdef, ambfile=af)
+        os.remove(srcdef)
+
+    load_sun((0, -.5, 1), 1000000, "temp.amb")
+    r(vecs)
+    a1 = r(vecs).ravel()
+    load_sun((0, -.5, 1), 1000000, "temp2.amb")
+    r(vecs)
+    a2 = r(vecs).ravel()
+
+    load_sun((-.5, -.5, 1), 2000000, "temp3.amb")
+    r(vecs)
+    a3 = r(vecs).ravel()
+
+    load_sun((0, -.5, 1), 1000000, "temp.amb")
+    a1a = r(vecs).ravel()
+    load_sun((0, -.5, 1), 1000000, "temp2.amb")
+    a2a = r(vecs).ravel()
+    load_sun((0, -.5, 1), 1000000, "temp4.amb")
+    r(vecs)
+    a4 = r(vecs).ravel()
+    r.set_args(r.defaultargs + " -I+ -ab 1 -c 30")
+    aa0 = r(np.repeat(vecs[0:1], 1000, 0)).ravel()
+    d = stats.norm(loc=np.mean(aa0), scale=np.std(aa0))
+    ks = stats.kstest(aa0, d.cdf)
+    # bm = np.random.default_rng().normal(loc=np.mean(aa0),
+    #                                     scale=np.std(aa0),
+    #                                     size=10000)
+    # ks2 = stats.kstest(bm, d.cdf)
+    assert ks[0] < .06
+    r.set_args(args)
+    load_sun((-.5, -.5, 1), 2000000, "temp3.amb")
+    a3a = r(vecs).ravel()
+    assert(np.allclose(a1, a1a))
+    assert (np.allclose(a2, a2a))
+    assert (np.allclose(a3, a3a))
+    assert 1e-8 < np.sum(np.abs(a2 - a4)) < .5
+    load_sun((-.5, -.5, 1), 2000000)
+    noamb = r(vecs).ravel()
+    assert 1e-8 < np.sum(np.abs(noamb - a3)) < 1
+    renderer.Rtrace.reset()
 
 
+def test_ambient_nostore(tmpdir):
+
+    formatter = RadianceFormatter()
+    args = "-u- -ab 1 -ar 1000 -ad 4000 -aa .05 -as 2000 -I+"
+    r = renderer.Rtrace(args, "scene.oct", default_args=False, nproc=1)
+    vecs = np.loadtxt('rays2.txt')
+
+    def load_sun(sun, val):
+        srcdef = f'tmp_sun.rad'
+        f = open(srcdef, 'w')
+        f.write(formatter.get_sundef(sun, (val, val, val)))
+        f.close()
+        r.load_source(srcdef)
+        os.remove(srcdef)
+
+    load_sun((0, -.5, 1), 1000000)
+
+    # ambient values are not shared
+    r(vecs)
+    an2 = r(vecs).ravel()
+    an3 = r(vecs).ravel()
+    assert 1e-8 < np.sum(np.abs(an2 - an3)) < .5
+
+    # ambient values are shared (vectors repeated, 1 process)
+    an4 = r(np.repeat(vecs, 2, 0)).reshape(-1, 2).T
+    assert (np.allclose(an4[0], an4[1]))
+    renderer.Rtrace.reset()

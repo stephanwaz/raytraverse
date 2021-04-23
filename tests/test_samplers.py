@@ -13,7 +13,7 @@ from raytraverse import io, translate
 from raytraverse.evaluate import MetricSet
 from raytraverse.renderer import Rtrace, Rcontrib
 from raytraverse.scene import Scene
-from raytraverse.sampler import SkySamplerPt, SunSamplerPt, SunViewSamplerPt
+from raytraverse.sampler import SkySamplerPt, SunSamplerPt, SunSamplerPtView
 from raytraverse.mapper import ViewMapper
 
 
@@ -98,7 +98,7 @@ def test_sunviewsample(tmpdir):
     scene = Scene('skysample', "box.rad", frozen=False)
     sun = translate.skybin2xyz([176], 18)[0]
     rtrace = Rtrace(scene=scene.scene, direct=True)
-    sampler = SunViewSamplerPt(scene, rtrace, sun, 176)
+    sampler = SunSamplerPtView(scene, rtrace, sun, 176)
     lf = sampler.run((1.5, 1.5, 1.79), 0, plotp=False)
     lf2 = sampler.run((1.5, 1.5, 1.5), 1, plotp=False)
     assert np.allclose([lf.lum, lf2.lum], 1.0)

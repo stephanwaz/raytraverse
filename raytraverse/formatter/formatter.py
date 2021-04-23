@@ -51,16 +51,6 @@ class Formatter(object):
         pass
 
     @staticmethod
-    def get_contribution_args(render_args, side, name):
-        """prepare arguments for contribution based simulation"""
-        pass
-
-    @staticmethod
-    def get_standard_args(render_args, ambfile=None):
-        """prepare arguments for standard simulations"""
-        pass
-
-    @staticmethod
     def extract_sources(srcdef, accuracy):
         """scan scene file for sun source definitions"""
         return [], accuracy

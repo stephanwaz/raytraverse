@@ -5,17 +5,17 @@
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 # =======================================================================
+from glob import glob
+
 import numpy as np
-from scipy.interpolate import RegularGridInterpolator
-from scipy.spatial import cKDTree
 from clasp.script_tools import try_mkdir
+from scipy.spatial import cKDTree
 
 from raytraverse import io, translate
 from raytraverse.sampler import draw
+from raytraverse.sampler.samplerarea import SamplerArea
 from raytraverse.sampler.basesampler import BaseSampler, filterdict
 from raytraverse.sampler.sunsamplerpt import SunSamplerPt
-from raytraverse.evaluate import SamplingMetrics
-from raytraverse.lightfield import LightPlaneKD
 
 
 class SamplerSuns(BaseSampler):
@@ -54,10 +54,15 @@ class SamplerSuns(BaseSampler):
             areakwargs = {}
         if ptkwargs is None:
             ptkwargs = {}
-        self._areakwargs = areakwargs
+        areakwargs.update(samplerlevel=self._slevel + 1)
+        self._areakwargs = dict(metricset=('avglum', 'loggcr', 'xpeak',
+                                           'ypeak'), metricfunc=np.max)
+        self._areakwargs.update(areakwargs)
         self._ptkwargs = ptkwargs
         self.nlev = nlev
         self.jitter = jitter
+        self._areaweights = None
+        self._specguide = None
         #: raytraverse.mapper.SkyMapper
         self._skymapper = None
         #: raytraverse.mapper.PlanMapper
@@ -71,7 +76,45 @@ class SamplerSuns(BaseSampler):
         """calculate sampling scheme"""
         return np.array([mapper.shape(i) for i in range(self.nlev)])
 
-    def run(self, skymapper, areamapper, name=None, **kwargs):
+    def get_existing_run(self, skymapper, areamapper, name=None, log=True):
+        if name is None:
+            name = areamapper.name
+        vfile = f"{self.scene.outdir}/{name}/{skymapper.name}_{self.stype}.tsv"
+        try:
+            suns = np.loadtxt(vfile)
+        except OSError:
+            suns = None
+        except ValueError:
+            suns = None
+            vfile = None
+        ambfiles = glob(f"{self.scene.outdir}/{skymapper.name}_sun*.amb")
+        ptfiles = glob(f"{self.scene.outdir}/{name}/{skymapper.name}_sun*"
+                       f"points.tsv")
+        conflict = suns is not None or len(ambfiles) > 0 or len(ptfiles) > 0
+        if log:
+            if vfile is not None:
+                if suns is None:
+                    s = 0
+                else:
+                    s = suns.shape[0]
+                self.scene.log(self, f"{vfile} exists and has {s} sun "
+                                     f"positions", err=True, level=-1)
+            if len(ambfiles) > 0:
+                self.scene.log(self, f"there are potentially {len(ambfiles)}"
+                               f"ambfiles conflicting with this run,  starting "
+                               f"with {ambfiles[0]}", err=True, level=-1)
+            if len(ptfiles) > 0:
+                self.scene.log(self, f"there are potentially {len(ptfiles)} "
+                               f"area samples that would be overwritten, "
+                               f"starting with {ptfiles[0]}",
+                               err=True, level=-1)
+            if not conflict:
+                self.scene.log(self, f"directory clean, no file conflict found"
+                               f" with run: {self.scene.outdir}, "
+                               f"{skymapper.name}, {name}", err=True, level=-1)
+        return conflict, (vfile, suns, ambfiles, ptfiles)
+
+    def run(self, skymapper, areamapper, name=None, specguide=None, **kwargs):
         """adapively sample sun positions for an area (also adaptively sampled)
 
         Parameters
@@ -81,6 +124,8 @@ class SamplerSuns(BaseSampler):
         areamapper: raytraverse.mapper.PlanMapper
             the mapping for drawing points
         name: str, optional
+        specguide: raytraverse.lightfield.LightPlaneKD
+            sky source lightfield to use as specular guide for sampling
         kwargs:
             passed to self.run()
 
@@ -88,20 +133,27 @@ class SamplerSuns(BaseSampler):
         -------
         raytraverse.lightlplane.LightPlaneKD
         """
+        conflict, data = self.get_existing_run(skymapper, areamapper, name)
+        # if conflict:
+        #     raise ValueError("run exists!")
         if name is None:
-            name = f"{skymapper.name}_{areamapper.name}"
+            name = areamapper.name
         try_mkdir(f"{self.scene.outdir}/{name}")
         self._name = name
         self._skymapper = skymapper
         self._areamapper = areamapper
+        self._specguide = specguide
+        self._areaweights = None
         levels = self.sampling_scheme(skymapper)
         super().run(skymapper, name, levels, **kwargs)
         # return MultiSourcePlaneKD(self.scene, self.vecs, self._areamapper, self.stype)
 
     def draw(self, level):
-        """draw samples based on detail calculated from weights
-        detail is calculated across direction only as it is the most precise
-        dimension
+        """draw on condition of in_solarbounds from skymapper.
+        In this way all solar positions are presented to the area sampler, but
+        the area sampler is initialized with a weighting to sample only where
+        there is variancee between sun position. this keeps the subsampling of
+        area and solar position independent, escaping dimensional curses.
 
         Returns
         -------
@@ -112,6 +164,26 @@ class SamplerSuns(BaseSampler):
         """
         dres = self.levels[level]
         pdraws = np.arange(int(np.prod(dres)))[self._mask]
+        if level > 0:
+            wvecs = self._skymapper.uv2xyz(self._candidates)
+            d, idx = cKDTree(self.vecs).query(wvecs)
+            weights = self.lum[idx].reshape(*self._wshape(level),
+                                            *self.lum.shape[1:])
+            for i, j in enumerate(self._areakwargs['metricset']):
+                if 'lum' in j:
+                    nmin = np.min(weights[:, :, i, ...])
+                    norm = np.max(weights[:, :, i, ...]) - nmin
+                    if norm > 0:
+                        weights[:, :, i, ...] = (weights[:, :, i,
+                                                 ...] - nmin)/norm
+            det = draw.get_detail(weights.T, *filterdict[self.detailfunc])
+            # mfunc = self._areakwargs['metricfunc']
+            # det = mfunc(det.reshape(weights.T.shape).T, axis=2)
+            det = det.reshape(weights.T.shape).T[:, :, 0, ...]
+            self._areaweights = det.reshape(-1, *self.lum.shape[-2:])[pdraws]
+            np.save("areaweights.npy", self._areaweights)
+            np.save("candidates.npy", self._candidates[pdraws])
+            raise ValueError
         p = np.ones(dres).ravel()
         p[np.logical_not(self._mask)] = 0
         return pdraws, p
@@ -152,30 +224,22 @@ class SamplerSuns(BaseSampler):
             array of shape (N,) to update weights
         """
 
-        # idx = self.slices[-1].indices(self.slices[-1].stop)
-        # lums = []
-        # for suni, sunpos in zip(range(*idx), vecs):
-        #     print(i)
-        #     sunsamp = SunSamplerPt(self.scene, self.engine, sunpos, suni, **self._ptkwargs)
-        #     sunsampler = SamplerArea(self.scene, sunsamp, **self._areakwargs)
-        #     sunsampler.run(pm, log='err')
-        #
-        #
-        #
-        #
-        # lpargs = dict(parent=self._name)
-        # kwargs = dict(metricset=self.metricset, lmin=1e-8)
-        # if hasattr(self.engine, "slimit"):
-        #     kwargs.update(peakthreshold=self.engine.slimit)
-        # for posidx, point in zip(range(*idx), vecs):
-        #     lp = self.engine.run(point, posidx, lpargs=lpargs)
-        #     vol = lp.get_applied_rays(1)
-        #     metric = self.metricclass(*vol, lp.vm,  **kwargs)
-        #     lums.append(metric())
-        # if len(self.lum) == 0:
-        #     self.lum = np.array(lums)
-        # else:
-        #     self.lum = np.concatenate((self.lum, lums), 0)
+        idx = self.slices[-1].indices(self.slices[-1].stop)
+        lums = []
+        for suni, sunpos in zip(range(*idx), vecs):
+            sunsamp = SunSamplerPt(self.scene, self.engine, sunpos, suni,
+                                   stype=f"{self._skymapper.name}_sun",
+                                   **self._ptkwargs)
+            areasampler = SamplerArea(self.scene, sunsamp, **self._areakwargs)
+            # iweight = self._areaweights[suni - idx[0]]
+            lf = areasampler.run(self._areamapper, name=self._name,
+                                 specguide=self._specguide)
+            lf.direct_view()
+            lums.append(areasampler.weights)
+        if len(self.lum) == 0:
+            self.lum = np.array(lums)
+        else:
+            self.lum = np.concatenate((self.lum, lums), 0)
         return np.ones(len(vecs))
 
     def _update_weights(self, si, lum):
@@ -192,7 +256,7 @@ class SamplerSuns(BaseSampler):
                                  shape[0], 1).T
             mask[ij[0], ij[1]] = False
         self._mask = mask.ravel()
-        self.weights = np.ones(self.levels[i])
+        self.weights = np.ones(self._wshape(i))
 
     def _dump_vecs(self, vecs):
         if self.vecs is None:
@@ -202,12 +266,12 @@ class SamplerSuns(BaseSampler):
             self.vecs = np.concatenate((self.vecs, vecs))
             v0 = self.slices[-1].stop
         self.slices.append(slice(v0, v0 + len(vecs)))
-        vfile = f"{self.scene.outdir}/{self._name}/{self.stype}.tsv"
-        idxvecs = np.hstack((np.arange(len(self.vecs))[:, None], self.vecs))
-        np.savetxt(vfile, idxvecs, ("%d", "%.8f", "%.8f", "%.8f"))
-
-    def _wshape(self, level):
-        return np.concatenate(([self.features], self.levels[level]))
+        level = len(self.slices)
+        self.slices.append(slice(v0, v0 + len(vecs)))
+        vfile = f"{self.scene.outdir}/{self._name}/{self._skymapper.name}_{self.stype}.tsv"
+        idx = np.arange(len(self.vecs))[:, None]
+        idxvecs = np.hstack((np.full_like(idx, level), idx, self.vecs))
+        np.savetxt(vfile, idxvecs, ("%d", "%d", "%.4f", "%.4f", "%.4f"))
 
     @staticmethod
     def _plot_dist(ps, vm, outf, fisheye=True):

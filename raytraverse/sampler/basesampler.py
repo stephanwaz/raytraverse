@@ -11,28 +11,30 @@ from raytraverse import translate
 from raytraverse.sampler import draw
 
 
-filterdict = {'prewitt': (np.array([[1, 1, 1], [0, 0, 0], [-1, -1, -1]])/3,
-                           np.array([[1, 0, -1], [1, 0, -1], [1, 0, -1]])/3),
-              'sobel': (np.array([[1, 2, 1], [0, 0, 0], [-1, -2, -1]])/4,
-                         np.array([[1, 0, -1], [2, 0, -2], [1, 0, -1]])/3),
-              'sobelswap': (np.array([[1, 2, -1], [0, 0, 0], [1, -2, -1]])/4,
-                             np.array([[1, 0, 1], [-2, 0, 2], [-1, 0, -1]])/4),
-              'cross': (np.array([[1, 0], [0, -1]])/2,
-                         np.array([[0, 1], [-1, 0]])/2),
-              'point': (np.array([[-1, -1, -1], [-1, 8, -1], [-1, -1, -1]])/3,
-                         np.array([[0, 0, 0], [0, 0, 0], [0, 0, 0]])),
-              'wav': (np.array([[-1, 0, 0], [-1, 4, -1], [0, 0, -1]])/3,
-                       np.array([[0, 0, -1], [-1, 4, -1], [-1, 0, 0]])/3),
-              'wav3': (np.array([[0, 0, 0], [-1, 2, -1], [0, 0, 0]])/2,
-                        np.array([[0, -1, 0], [0, 2, 0], [0, -1, 0]])/2,
-                        np.array([[-1, 0, 0], [0, 2, 0], [0, 0, -1]])/2),
+filterdict = {
+              'wav': (np.array([[-1, 2, -1]])/2, np.array([[-1], [2], [-1]])/2,
+                      np.array([[-1, 0, 0], [0, 2, 0], [0, 0, -1]])/2),
               'haar': (np.array([[1, -1]])/2, np.array([[1], [-1]])/2,
-                        np.array([[1, 0], [0, -1]])/2),
+                       np.array([[1, 0], [0, -1]])/2)
               }
 
 
 class BaseSampler(object):
     """wavelet based sampling class
+    this is a virutal class that holds the shared sampling methods across
+    directional, area, and sunposition samplers. subclasses are named as:
+    {Source}Sampler{SamplingRange}, for instance:
+
+        - SamplerPt: virtual base class for sampling directions from a point
+            - SkySamplerPt: sampling directions from a point with a sky patch
+              source.
+            - SunSamplerPt: sampling directions from a point with a single sun
+              source
+            - SunSamplerPtView: sampling the view from a point of the sun
+            - ImageSampler: (re)sampling a fisheye image, useful for testing
+        - SamplerArea: sampling points on a horizontal planar area with any
+          source type
+        - SamplerSuns: sampling sun positions (with nested area sampler)
 
     Parameters
     ----------
@@ -48,22 +50,34 @@ class BaseSampler(object):
     """
 
     #: initial sampling threshold coefficient
+    #: this value times the accuracy parameter is passed to
+    #: raytraverse.draw.from_pdf() at level 0
     t0 = 2**-8
     #: final sampling threshold coefficient
+    #: this value times the accuracy parameter is passed to
+    #: raytraverse.draw.from_pdf() at final level, intermediate
+    #: sampling levels are thresholded by a linearly interpolated between t0
+    #: and t1
     t1 = .0625
 
     #: lower bound for drawing from pdf
+    #: passed to raytraverse.draw.from_pdf()
     lb = .25
     #: upper bound for drawing from pdf
+    #: passed to raytraverse.draw.from_pdf()
     ub = 8
 
     _includeorigin = False
 
-    def __init__(self, scene, engine, accuracy=1.0, stype='generic'):
+    def __init__(self, scene, engine, accuracy=1.0, stype='generic',
+                 samplerlevel=0):
         self.engine = engine
         #: raytraverse.scene.Scene: scene information
         self.scene = scene
         #: float: accuracy parameter
+        #: some subclassed samplers may apply a scale factor to normalize
+        #: threshold values depending on source brightness (see for instance
+        #: ImageSampler and SunSamplerPt)
         self.accuracy = accuracy
         #: str: sampler type
         self.stype = stype
@@ -73,6 +87,7 @@ class BaseSampler(object):
         self.features = 1
         self.vecs = None
         self.lum = []
+        self._slevel = samplerlevel
 
     @property
     def levels(self):
@@ -88,7 +103,7 @@ class BaseSampler(object):
         """calculate sampling scheme"""
         return np.arange(*args, dtype=int)
 
-    def run(self, mapper, name, levels, plotp=False, log=False, pfish=True,
+    def run(self, mapper, name, levels, plotp=False, log='err', pfish=True,
             **kwargs):
         """sample a single point, poisition index handles file naming
 
@@ -125,11 +140,12 @@ class BaseSampler(object):
         else:
             detaillog = False
         allc = 0
-        self.scene.log(self, f"Started sampling {self.scene.outdir} at {name} "
-                             f"with {self.stype}", logerr)
         if detaillog:
+            self.scene.log(self,
+                           f"Started sampling {self.scene.outdir} at {name} "
+                           f"with {self.stype}", logerr, level=self._slevel)
             hdr = ['level ', '      shape', 'samples', '   rate']
-            self.scene.log(self, '\t'.join(hdr), logerr)
+            self.scene.log(self, '\t'.join(hdr), logerr, level=self._slevel)
         self._levels = levels
         # reset weights
         self.weights = np.full(self._wshape(0), 1, dtype=np.float32)
@@ -146,7 +162,7 @@ class BaseSampler(object):
                     row = (f"{i + 1} of {self.levels.shape[0]}\t"
                            f"{str(shape): >11}\t{si.shape[1]: >7}\t"
                            f"{srate: >7.02%}")
-                    self.scene.log(self, row, logerr)
+                    self.scene.log(self, row, logerr, level=self._slevel)
                 if plotp:
                     self._plot_p(p, i, mapper, name, fisheye=pfish)
                     self._plot_vecs(vecs, i, mapper, name, fisheye=pfish)
@@ -158,8 +174,9 @@ class BaseSampler(object):
                 allc += a
         srate = (allc * self.features /
                  np.prod(self._wshape(self.levels.shape[0] - 1)))
-        row = ['total sampling:', '- ', f"{allc: >7}", f"{srate: >7.02%}"]
-        self.scene.log(self, '\t'.join(row), logerr)
+        if detaillog:
+            row = ['total sampling:', '- ', f"{allc: >7}", f"{srate: >7.02%}"]
+            self.scene.log(self, '\t'.join(row), logerr, level=self._slevel)
 
     def draw(self, level):
         """draw samples based on detail calculated from weights
@@ -181,8 +198,7 @@ class BaseSampler(object):
             if level == 0:
                 p = self.weights.ravel()
             else:
-                p = draw.get_detail(self.weights,
-                                    *filterdict[self.detailfunc])
+                p = draw.get_detail(self.weights, *filterdict[self.detailfunc])
             # draw on pdf
             pdraws = draw.from_pdf(p, self._threshold(level),
                                    lb=self.lb, ub=self.ub)
@@ -233,24 +249,11 @@ class BaseSampler(object):
 
     #: filter banks for calculating detail choices:
     #:
-    #: 'prewitt': [[1 1 1] [0 0 0] [-1 -1 -1]]/3, [[1 0 -1] [1 0 -1] [1 0 -1]]/3
-    #:
-    #: 'sobel': [[1 2 1] [0 0 0] [-1 -2 -1]]/4, [[1 0 -1] [2 0 -2] [1 0 -1]]/3
-    #:
-    #: 'sobelswap': [[1 2 -1] [0 0 0] [1 -2 -1]]/4,
-    #: [[1 0 1] [-2 0 2] [-1 0 -1]]/4
-    #:
-    #: 'cross': [[1 0] [0 -1]]/2, [[0 1] [-1 0]]/2
-    #:
     #: 'haar': [[1 -1]]/2, [[1] [-1]]/2, [[1, 0] [0, -1]]/2
     #:
-    #: 'point': [[-1 -1 -1] [-1 8 -1] [-1 -1 -1]]/3
-    #:
-    #: 'wav': [[-1 0 0] [-1 4 -1] [0 0 -1]]/3, [[0 0 -1] [-1 4 -1] [-1 0 0]]/3
-    #:
-    #: 'wav3': [[0 0 0] [-1 2 -1] [0 0 0]] / 2, [[0 -1 0] [0 2 0] [0 -1 0]] / 2,
+    #: 'wav': [[-1 2 -1]] / 2, [[-1] [2] [-1]] / 2,
     #: [[-1 0 0] [0 2 0] [0 0 -1]] / 2
-    detailfunc = 'wav3'
+    detailfunc = 'wav'
 
     def _update_weights(self, si, lum):
         """update self.weights (which holds values used to calculate pdf)

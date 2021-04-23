@@ -57,10 +57,10 @@ SunSamplerPt
     :undoc-members:
     :show-inheritance:
 
-SunViewSamplerPt
+SunSamplerPtView
 ------------------------------------
 
-.. autoclass:: raytraverse.sampler.SunViewSamplerPt
+.. autoclass:: raytraverse.sampler.SunSamplerPtView
     :members:
     :undoc-members:
     :show-inheritance:

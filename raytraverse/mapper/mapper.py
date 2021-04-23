@@ -120,6 +120,11 @@ class Mapper(object):
         uv = (si.T + offset)/np.asarray(shape)
         return si, uv
 
+    @staticmethod
+    def uv2idx(uv, shape):
+        ij = (uv * np.asarray(shape)).astype(int)
+        return ij[:, 0] * shape[1] + ij[:, 1]
+
     def xyz2vxy(self, xyz):
         """transform from world xyz to view image space (2d)"""
         return self.xyz2uv(xyz)

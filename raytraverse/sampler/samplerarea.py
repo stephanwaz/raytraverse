@@ -58,8 +58,9 @@ class SamplerArea(BaseSampler):
     def __init__(self, scene, engine, accuracy=1.0, nlev=3, jitter=True,
                  edgemode='reflect', metricclass=SamplingMetrics,
                  metricset=('avglum', 'loggcr', 'xpeak', 'ypeak'),
-                 metricfunc=np.max):
-        super().__init__(scene, engine, accuracy, engine.stype)
+                 metricfunc=np.max, **kwargs):
+        super().__init__(scene, engine, accuracy, engine.stype, **kwargs)
+        self.engine._slevel = self._slevel + 1
         self.nlev = nlev
         self.jitter = jitter
         #: raytraverse.mapper.PlanMapper
@@ -69,6 +70,7 @@ class SamplerArea(BaseSampler):
         if edgemode not in modes:
             raise ValueError(f"edgemode={edgemode} not a valid option"
                              " must be one of: {modes}")
+        self._specguide = None
         self._edgemode = edgemode
         self._mask = slice(None)
         self._candidates = None
@@ -86,7 +88,7 @@ class SamplerArea(BaseSampler):
         """calculate sampling scheme"""
         return np.array([mapper.shape(i) for i in range(self.nlev)])
 
-    def run(self, mapper, name=None, **kwargs):
+    def run(self, mapper, name=None, specguide=None, **kwargs):
         """adapively sample an area defined by mapper
 
         Parameters
@@ -95,6 +97,9 @@ class SamplerArea(BaseSampler):
             the pointset to build/run if initialized with points runs a static
             sampler
         name: str, optional
+        specguide: raytraverse.lightfield.LightPlaneKD
+            sky source lightfield to use as specular guide for sampling (used by
+            engine of type raytraverse.sampler.SunSamplerPt)
         kwargs:
             passed to self.run()
 
@@ -107,6 +112,7 @@ class SamplerArea(BaseSampler):
         try_mkdir(f"{self.scene.outdir}/{name}")
         self._mapper = mapper
         self._name = name
+        self._specguide = specguide
         levels = self.sampling_scheme(mapper)
         super().run(mapper, name, levels, **kwargs)
         return LightPlaneKD(self.scene, self.vecs, self._mapper, self.stype)
@@ -185,10 +191,15 @@ class SamplerArea(BaseSampler):
         lums = []
         lpargs = dict(parent=self._name)
         kwargs = dict(metricset=self.metricset, lmin=1e-8)
+        specguide = None
+        sgpt = None
         if hasattr(self.engine, "slimit"):
             kwargs.update(peakthreshold=self.engine.slimit)
+            specguide = self._specguide
         for posidx, point in zip(range(*idx), vecs):
-            lp = self.engine.run(point, posidx, lpargs=lpargs)
+            if specguide is not None:
+                sgpt = self._load_specguide(point)
+            lp = self.engine.run(point, posidx, specguide=sgpt, lpargs=lpargs)
             vol = lp.get_applied_rays(1)
             metric = self.metricclass(*vol, lp.vm,  **kwargs)
             lums.append(metric())
@@ -197,6 +208,15 @@ class SamplerArea(BaseSampler):
         else:
             self.lum = np.concatenate((self.lum, lums), 0)
         return np.array(lums)
+
+    def _load_specguide(self, point):
+        """find the 3 nearest lightpoints in the specular sampling guide"""
+        if self._specguide is not None:
+            d, i = self._specguide.pt_kd.query(point, 3)
+            idxs = i[d < self._mapper.ptres]
+            return [self._specguide.lp[j] for j in idxs]
+        else:
+            return None
 
     def _update_weights(self, si, lum):
         """only used by _plot_weights, weights are recomputed from spatial
@@ -238,11 +258,13 @@ class SamplerArea(BaseSampler):
         else:
             self.vecs = np.concatenate((self.vecs, vecs))
             v0 = self.slices[-1].stop
+        level = len(self.slices)
         self.slices.append(slice(v0, v0 + len(vecs)))
         vfile = (f"{self.scene.outdir}/{self._name}/{self.stype}"
                  f"_points.tsv")
-        idxvecs = np.hstack((np.arange(len(self.vecs))[:, None], self.vecs))
-        np.savetxt(vfile, idxvecs, ("%d", "%.4f", "%.4f", "%.4f"))
+        idx = np.arange(len(self.vecs))[:, None]
+        idxvecs = np.hstack((np.full_like(idx, level), idx, self.vecs))
+        np.savetxt(vfile, idxvecs, ("%d", "%d", "%.4f", "%.4f", "%.4f"))
 
     def _wshape(self, level):
         return np.concatenate(([self.features], self.levels[level]))
