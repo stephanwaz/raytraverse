@@ -160,7 +160,7 @@ class LightPointKD(object):
         """
         vm = self.vm
         if self.vec.shape[0] < 100:
-            omega = None
+            omega = np.full(len(self.vec), 2 * np.pi * vm.aspect/len(self.vec))
         elif vm.aspect == 1:
             # in case of 180 view, cannot use spherical voronoi, instead
             # the method estimates area in square coordinates by intersecting
@@ -312,7 +312,10 @@ class LightPointKD(object):
             vr, vo, vl = zip(*vrs)
             vl = np.array(vl)
             rays = np.concatenate((rays, vr), 0)
-            omega = np.concatenate((omega, vo), 0)
+            try:
+                omega = np.concatenate((omega, vo), 0)
+            except ValueError:
+                omega = np.asarray(vo)
             lum = np.vstack((lum, np.array(vl)))
         return rays, omega, np.squeeze(lum)
 

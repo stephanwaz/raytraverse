@@ -51,13 +51,15 @@ class MaskedPlanMapper(PlanMapper):
         uv = self.xyz2uv(valid)
         self._mask = np.unique(self.uv2idx(uv, self._maskshape))
 
-    def in_view_uv(self, uv, indices=True):
+    def in_view_uv(self, uv, indices=True, usemask=True):
+        if not usemask:
+            return super().in_view_uv(uv, indices)
         path = self._path
         uvs = uv.reshape(-1, 2)
         result = np.empty((len(path), uvs.shape[0]), bool)
         for i, p in enumerate(path):
             result[i] = p.contains_points(uvs)
-        idx = self.uv2idx(uv, self._maskshape)
+        idx = self.uv2idx(uvs, self._maskshape)
         mask = np.logical_and(np.any(result, 0), np.isin(idx, self._mask))
         if indices:
             return np.unravel_index(np.arange(mask.size)[mask],

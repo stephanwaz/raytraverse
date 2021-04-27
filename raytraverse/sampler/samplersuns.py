@@ -12,6 +12,7 @@ from clasp.script_tools import try_mkdir
 from scipy.spatial import cKDTree
 
 from raytraverse import io, translate
+from raytraverse.mapper import MaskedPlanMapper
 from raytraverse.sampler import draw
 from raytraverse.sampler.samplerarea import SamplerArea
 from raytraverse.sampler.basesampler import BaseSampler, filterdict
@@ -38,6 +39,8 @@ class SamplerSuns(BaseSampler):
         kwargs for raytraveerse.sampler.SunSamplerPt initialization
     areakwargs: dict, optional
         kwargs for raytravrse.sampler.SamplerArea initialization
+    metricset: iterable, optional
+        subset of samplerarea.metric set to use for sun detail calculation.
     """
 
     #: initial sampling threshold coefficient
@@ -48,7 +51,8 @@ class SamplerSuns(BaseSampler):
     ub = 100
 
     def __init__(self, scene, engine, accuracy=1.0, nlev=3, jitter=True,
-                 ptkwargs=None, areakwargs=None):
+                 ptkwargs=None, areakwargs=None,
+                 metricset=('avglum', 'loggcr')):
         super().__init__(scene, engine, accuracy, stype='sunpositions')
         if areakwargs is None:
             areakwargs = {}
@@ -61,6 +65,15 @@ class SamplerSuns(BaseSampler):
         self._ptkwargs = ptkwargs
         self.nlev = nlev
         self.jitter = jitter
+        self._metidx = [i for i, j in enumerate(self._areakwargs['metricset'])
+                        if j in metricset]
+        if len(self._metidx) != len(metricset):
+            raise ValueError(f"bad argument metricset={metricset},all items "
+                             f"must be in {self._areakwargs['metricset']}")
+        print(self._metidx)
+        # initialize runtime variables:
+        self._areadraws = None
+        self._areadetail = None
         self._areaweights = None
         self._specguide = None
         #: raytraverse.mapper.SkyMapper
@@ -100,13 +113,13 @@ class SamplerSuns(BaseSampler):
                 self.scene.log(self, f"{vfile} exists and has {s} sun "
                                      f"positions", err=True, level=-1)
             if len(ambfiles) > 0:
-                self.scene.log(self, f"there are potentially {len(ambfiles)}"
-                               f"ambfiles conflicting with this run,  starting "
-                               f"with {ambfiles[0]}", err=True, level=-1)
+                self.scene.log(self, f"there are potentially {len(ambfiles)} "
+                               f"ambfiles conflicting with this run, including "
+                               f"{ambfiles[0]}", err=True, level=-1)
             if len(ptfiles) > 0:
                 self.scene.log(self, f"there are potentially {len(ptfiles)} "
                                f"area samples that would be overwritten, "
-                               f"starting with {ptfiles[0]}",
+                               f"including {ptfiles[0]}",
                                err=True, level=-1)
             if not conflict:
                 self.scene.log(self, f"directory clean, no file conflict found"
@@ -152,7 +165,7 @@ class SamplerSuns(BaseSampler):
         """draw on condition of in_solarbounds from skymapper.
         In this way all solar positions are presented to the area sampler, but
         the area sampler is initialized with a weighting to sample only where
-        there is variancee between sun position. this keeps the subsampling of
+        there is variance between sun position. this keeps the subsampling of
         area and solar position independent, escaping dimensional curses.
 
         Returns
@@ -163,29 +176,41 @@ class SamplerSuns(BaseSampler):
             computed probabilities
         """
         dres = self.levels[level]
+        # draw all sun positions within solar bounds
         pdraws = np.arange(int(np.prod(dres)))[self._mask]
-        if level > 0:
-            wvecs = self._skymapper.uv2xyz(self._candidates)
-            d, idx = cKDTree(self.vecs).query(wvecs)
-            weights = self.lum[idx].reshape(*self._wshape(level),
-                                            *self.lum.shape[1:])
-            for i, j in enumerate(self._areakwargs['metricset']):
-                if 'lum' in j:
-                    nmin = np.min(weights[:, :, i, ...])
-                    norm = np.max(weights[:, :, i, ...]) - nmin
-                    if norm > 0:
-                        weights[:, :, i, ...] = (weights[:, :, i,
-                                                 ...] - nmin)/norm
-            det = draw.get_detail(weights.T, *filterdict[self.detailfunc])
-            # mfunc = self._areakwargs['metricfunc']
-            # det = mfunc(det.reshape(weights.T.shape).T, axis=2)
-            det = det.reshape(weights.T.shape).T[:, :, 0, ...]
-            self._areaweights = det.reshape(-1, *self.lum.shape[-2:])[pdraws]
-            np.save("areaweights.npy", self._areaweights)
-            np.save("candidates.npy", self._candidates[pdraws])
-            raise ValueError
         p = np.ones(dres).ravel()
         p[np.logical_not(self._mask)] = 0
+        if level > 0:
+            # calculate detail over points across sun positions
+            # self._make_area_weights(level, mask=False)
+            nweights = self._normed_weights()
+            det = draw.get_detail(nweights,
+                                  *filterdict[self.detailfunc])
+            mfunc = self._areakwargs['metricfunc']
+            det = np.transpose(det.reshape(self._areaweights.shape),
+                               (3, 4, 0, 1, 2))
+            det = mfunc(det, axis=2)
+            self._areadetail = det
+            adetail = det.reshape(-1, *self.lum.shape[-2:])[pdraws]
+            adraws = []
+            drawmask = []
+            # draw on each plan and store plan candidates in areadraws for
+            # MaskedPlanMapper construction (in self.sample())
+            for ad in adetail:
+                adr = draw.from_pdf(ad.ravel(), self._threshold(level),
+                                    lb=self.lb, ub=self.ub)
+                if len(adr) > 0:
+                    auv = self._areamapper.idx2uv(adr, self.lum.shape[-2:],
+                                                  jitter=False)
+                    adraws.append(self._areamapper.uv2xyz(auv))
+                    drawmask.append(True)
+                else:
+                    drawmask.append(False)
+            self._areadraws = adraws
+            # filter no detail plans
+            pdraws = pdraws[drawmask]
+        else:
+            self._areadraws = [None] * len(pdraws)
         return pdraws, p
 
     def sample_to_uv(self, pdraws, shape):
@@ -226,37 +251,75 @@ class SamplerSuns(BaseSampler):
 
         idx = self.slices[-1].indices(self.slices[-1].stop)
         lums = []
-        for suni, sunpos in zip(range(*idx), vecs):
+        for suni, sunpos, adraws in zip(range(*idx), vecs, self._areadraws):
             sunsamp = SunSamplerPt(self.scene, self.engine, sunpos, suni,
                                    stype=f"{self._skymapper.name}_sun",
                                    **self._ptkwargs)
             areasampler = SamplerArea(self.scene, sunsamp, **self._areakwargs)
-            # iweight = self._areaweights[suni - idx[0]]
-            lf = areasampler.run(self._areamapper, name=self._name,
+            if adraws is not None:
+                amapper = MaskedPlanMapper(self._areamapper, adraws, 0)
+            else:
+                amapper = self._areamapper
+            lf = areasampler.run(amapper, name=self._name,
                                  specguide=self._specguide)
-            lf.direct_view()
-            lums.append(areasampler.weights)
+            # build weights based on final sampling
+            candidates = amapper.point_grid_uv(jitter=False,
+                                               level=areasampler.nlev - 1,
+                                               masked=False)
+            mask = amapper.in_view_uv(candidates, False)
+            wvecs = amapper.uv2xyz(candidates)
+            idx, d = lf.query_pt(wvecs, False)
+            weights = areasampler.lum[idx].reshape(*areasampler.levels[-1],
+                                                   areasampler.features)
+            weights = np.moveaxis(weights, 2, 0)
+            weights = weights[self._metidx]
+            for w in weights:
+                w.flat[np.logical_not(mask)] = -1
+            lums.append(weights)
+        lums = np.array(lums)
+        # initialize areaweights here now that we know the shape
         if len(self.lum) == 0:
-            self.lum = np.array(lums)
+            self.lum = lums
+            self._areaweights = np.zeros((*self.lum.shape[1:],
+                                          *self._wshape(0)))
         else:
             self.lum = np.concatenate((self.lum, lums), 0)
-        return np.ones(len(vecs))
+        return lums
 
     def _update_weights(self, si, lum):
-        pass
+        """only need to update areaweights, base weights are only masked"""
+        lum = np.transpose(lum, (1, 2, 3, 0))
+        update = self._areaweights[..., si[0], si[1]]
+        self._areaweights[..., si[0], si[1]] = np.where(lum > 0, lum, update)
 
     def _lift_weights(self, i):
         self._candidates = self._skymapper.solar_grid_uv(jitter=self.jitter,
                                                          level=i, masked=False)
         shape = self._skymapper.shape(i)
         mask = self._skymapper.in_solarbounds_uv(self._candidates,
-                                                 False).reshape(shape)
+                                                 level=i).reshape(shape)
         if self.vecs is not None:
             ij = translate.uv2ij(self._skymapper.xyz2uv(self.vecs),
                                  shape[0], 1).T
             mask[ij[0], ij[1]] = False
         self._mask = mask.ravel()
+        # at the level of the skysampler, draw all suns, detail happens
+        # at the level of the area sampler
         self.weights = np.ones(self._wshape(i))
+        if i > 0:
+            shp = (*self.lum.shape[1:], *self.weights.shape)
+            self._areaweights = translate.resample(self._areaweights, shp)
+
+    def _normed_weights(self):
+        normi = [i for i, j in
+                 enumerate(self._areakwargs['metricset']) if 'lum' in j]
+        nweights = np.copy(self._areaweights)
+        for i in normi:
+            nmin = np.min(nweights[i])
+            norm = np.max(nweights[i]) - nmin
+            if norm > 0:
+                nweights[i] = (nweights[i] - nmin)/norm
+        return nweights
 
     def _dump_vecs(self, vecs):
         if self.vecs is None:
@@ -266,11 +329,14 @@ class SamplerSuns(BaseSampler):
             self.vecs = np.concatenate((self.vecs, vecs))
             v0 = self.slices[-1].stop
         self.slices.append(slice(v0, v0 + len(vecs)))
-        level = len(self.slices)
-        self.slices.append(slice(v0, v0 + len(vecs)))
-        vfile = f"{self.scene.outdir}/{self._name}/{self._skymapper.name}_{self.stype}.tsv"
+        vfile = (f"{self.scene.outdir}/{self._name}/{self._skymapper.name}_"
+                 f"{self.stype}.tsv")
         idx = np.arange(len(self.vecs))[:, None]
-        idxvecs = np.hstack((np.full_like(idx, level), idx, self.vecs))
+        level = np.zeros_like(idx, dtype=int)
+        for sl in self.slices[1:]:
+            level[sl.start:] += 1
+        idxvecs = np.hstack((level, idx, self.vecs))
+        # file format: level idx sx sy sz
         np.savetxt(vfile, idxvecs, ("%d", "%d", "%.4f", "%.4f", "%.4f"))
 
     @staticmethod
@@ -298,10 +364,20 @@ class SamplerSuns(BaseSampler):
         outp = (f"{self.scene.outdir}_{name}_{self.stype}_detail_"
                 f"{level:02d}{suffix}")
         self._plot_dist(ps, vm, outp, fisheye)
+        if self._areadetail is not None:
+            outp = (f"{self.scene.outdir}_{name}_{self.stype}_areadetail_"
+                    f"{level:02d}{suffix}")
+            self._plot_dist(np.max(self._areadetail, axis=(2, 3)), vm, outp,
+                            fisheye)
 
     def _plot_weights(self, level, vm, name, suffix=".hdr", fisheye=True,
                       **kwargs):
-        pass
+        if self._areaweights is not None:
+            normw = self._normed_weights()
+            for m, w in zip(self._areakwargs['metricset'], normw):
+                outp = (f"{self.scene.outdir}_{name}_{self.stype}_{m}"
+                        f"_{level:02d}{suffix}")
+                self._plot_dist(np.max(w, axis=(0, 1)), vm, outp, fisheye)
 
     def _plot_vecs(self, vecs, level, vm, name, suffix=".hdr", fisheye=True,
                    **kwargs):

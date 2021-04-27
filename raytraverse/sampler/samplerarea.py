@@ -230,8 +230,8 @@ class SamplerArea(BaseSampler):
         will be treated differently from the inside edges. by remapping each
         level with the nearest sample value and then masking after calculating
         the detail we avoid these issues."""
-        self._candidates = self._mapper.point_grid_uv(jitter=self.jitter, level=i,
-                                                      masked=False)
+        self._candidates = self._mapper.point_grid_uv(jitter=self.jitter,
+                                                      level=i, masked=False)
         self._mask = self._mapper.in_view_uv(self._candidates, False)
         if self.vecs is not None:
             wvecs = self._mapper.uv2xyz(self._candidates)
@@ -248,7 +248,11 @@ class SamplerArea(BaseSampler):
             if norm > 0:
                 nweights[i] = (nweights[i] - nmin)/norm
         if mask:
-            nweights.flat[np.logical_not(self._mask)] = -self.t1
+            # when using a maskedplanmapper, we don't want to mask excluded
+            # points before calculating detail
+            mk = self._mapper.in_view_uv(self._candidates, False, usemask=False)
+            for nw in nweights:
+                nw.flat[np.logical_not(mk)] = -self.t1
         return nweights
 
     def _dump_vecs(self, vecs):
@@ -258,12 +262,14 @@ class SamplerArea(BaseSampler):
         else:
             self.vecs = np.concatenate((self.vecs, vecs))
             v0 = self.slices[-1].stop
-        level = len(self.slices)
         self.slices.append(slice(v0, v0 + len(vecs)))
         vfile = (f"{self.scene.outdir}/{self._name}/{self.stype}"
                  f"_points.tsv")
         idx = np.arange(len(self.vecs))[:, None]
-        idxvecs = np.hstack((np.full_like(idx, level), idx, self.vecs))
+        level = np.zeros_like(idx, dtype=int)
+        for sl in self.slices[1:]:
+            level[sl.start:] += 1
+        idxvecs = np.hstack((level, idx, self.vecs))
         np.savetxt(vfile, idxvecs, ("%d", "%d", "%.4f", "%.4f", "%.4f"))
 
     def _wshape(self, level):

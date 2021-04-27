@@ -107,8 +107,6 @@ class Mapper(object):
 
         Returns
         -------
-        si: np.array
-            unraveled index array
         uv: np.array
             uv coordinates
         """
@@ -118,7 +116,7 @@ class Mapper(object):
         else:
             offset = 0.5
         uv = (si.T + offset)/np.asarray(shape)
-        return si, uv
+        return uv
 
     @staticmethod
     def uv2idx(uv, shape):

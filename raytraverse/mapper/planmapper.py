@@ -111,7 +111,7 @@ class PlanMapper(Mapper):
         pt = np.hstack((uv, np.full((len(uv), 1), self._zheight)))
         return self.view2world(pt).reshape(*uvshape[:-1], 3)
 
-    def in_view_uv(self, uv, indices=True):
+    def in_view_uv(self, uv, indices=True, **kwargs):
         path = self._path
         uvs = uv.reshape(-1, 2)
         result = np.empty((len(path), uvs.shape[0]), bool)
@@ -198,7 +198,7 @@ class PlanMapper(Mapper):
         """
         shape = self.shape(level)
         idx = np.arange(np.product(shape))
-        si, uv = self.idx2uv(idx, shape, jitter)
+        uv = self.idx2uv(idx, shape, jitter)
         if masked:
             return uv[self.in_view_uv(uv, False)]
         else:
