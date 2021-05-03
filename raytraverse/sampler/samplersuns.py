@@ -8,8 +8,7 @@
 from glob import glob
 
 import numpy as np
-from clasp.script_tools import try_mkdir
-from scipy.spatial import cKDTree
+from clasp.script_tools import try_mkdir, sglob
 
 from raytraverse import io, translate
 from raytraverse.mapper import MaskedPlanMapper
@@ -70,15 +69,17 @@ class SamplerSuns(BaseSampler):
         if len(self._metidx) != len(metricset):
             raise ValueError(f"bad argument metricset={metricset},all items "
                              f"must be in {self._areakwargs['metricset']}")
-        print(self._metidx)
         # initialize runtime variables:
+        #: extra variables since sampler also needs to track each areasampler
         self._areadraws = None
         self._areadetail = None
         self._areaweights = None
+        #: the LightPlaneKD of the sky sourcee used as a specular sampling guide
+        #: in each sunsamplerpt (set in self.run())
         self._specguide = None
-        #: raytraverse.mapper.SkyMapper
+        #: raytraverse.mapper.SkyMapper (set in self.run())
         self._skymapper = None
-        #: raytraverse.mapper.PlanMapper
+        #: raytraverse.mapper.PlanMapper (set in self.run())
         self._areamapper = None
         self._name = None
         self._mask = slice(None)
@@ -90,6 +91,33 @@ class SamplerSuns(BaseSampler):
         return np.array([mapper.shape(i) for i in range(self.nlev)])
 
     def get_existing_run(self, skymapper, areamapper, name=None, log=True):
+        """check for file conflicts before running/overwriting parameters
+        match call to run
+
+        Parameters
+        ----------
+        skymapper: raytraverse.mapper.SkyMapper
+            the mapping for drawing suns
+        areamapper: raytraverse.mapper.PlanMapper
+            the mapping for drawing points
+        name: str, optional
+        log: bool, optional
+            log to scene stderr the results
+
+        Returns
+        -------
+        conflict: bool
+            True if files will be overwritten or ambient files reused (possibly
+            with new sun positions)
+        conflicts: tuple
+            a tuple of found conflicts (None for each if no conflicts:
+
+                - vfile: existing file path for sun positions
+                - suns: np.array of sun positions in vfile
+                - ambfiles: ambient files matching naming of potential run
+                - ptfiles: existing point files
+
+        """
         if name is None:
             name = areamapper.name
         vfile = f"{self.scene.outdir}/{name}/{skymapper.name}_{self.stype}.tsv"
@@ -97,11 +125,11 @@ class SamplerSuns(BaseSampler):
             suns = np.loadtxt(vfile)
         except OSError:
             suns = None
+            vfile = None
         except ValueError:
             suns = None
-            vfile = None
-        ambfiles = glob(f"{self.scene.outdir}/{skymapper.name}_sun*.amb")
-        ptfiles = glob(f"{self.scene.outdir}/{name}/{skymapper.name}_sun*"
+        ambfiles = sglob(f"{self.scene.outdir}/{skymapper.name}_sun*.amb")
+        ptfiles = sglob(f"{self.scene.outdir}/{name}/{skymapper.name}_sun*"
                        f"points.tsv")
         conflict = suns is not None or len(ambfiles) > 0 or len(ptfiles) > 0
         if log:
@@ -114,12 +142,13 @@ class SamplerSuns(BaseSampler):
                                      f"positions", err=True, level=-1)
             if len(ambfiles) > 0:
                 self.scene.log(self, f"there are potentially {len(ambfiles)} "
-                               f"ambfiles conflicting with this run, including "
-                               f"{ambfiles[0]}", err=True, level=-1)
+                               f"ambfiles conflicting with this run, from "
+                               f"{ambfiles[0]} to {ambfiles[-1]}", err=True,
+                               level=-1)
             if len(ptfiles) > 0:
                 self.scene.log(self, f"there are potentially {len(ptfiles)} "
                                f"area samples that would be overwritten, "
-                               f"including {ptfiles[0]}",
+                               f"from {ptfiles[0]} to {ptfiles[-1]}",
                                err=True, level=-1)
             if not conflict:
                 self.scene.log(self, f"directory clean, no file conflict found"
@@ -152,6 +181,7 @@ class SamplerSuns(BaseSampler):
         if name is None:
             name = areamapper.name
         try_mkdir(f"{self.scene.outdir}/{name}")
+        # reset/initialize runtime properties
         self._name = name
         self._skymapper = skymapper
         self._areamapper = areamapper

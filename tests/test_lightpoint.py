@@ -58,10 +58,10 @@ def test_metric():
     contrast = ['gcr', 'ugp', 'ugr', 'dgp', 'log_gc', 'dgp_t2', 'pwsl2']
     allmets = energy + energy_part + contrast + tree + constants
     assert len(allmets) == len(MetricSet.allmetrics)
-    a1 = MetricSet(*checker.get_applied_rays(2000/179), checker.vm)
-    a2 = MetricSet(*checker.get_applied_rays([3000/179, 1000/179]), checker.vm)
-    a3 = MetricSet(*checker.get_applied_rays([1000/179, 3000/179]), checker.vm)
-    a4 = MetricSet(*checker.get_applied_rays(0), checker.vm)
+    a1 = MetricSet(*checker.evaluate(2000/179), checker.vm)
+    a2 = MetricSet(*checker.evaluate([3000/179, 1000/179]), checker.vm)
+    a3 = MetricSet(*checker.evaluate([1000/179, 3000/179]), checker.vm)
+    a4 = MetricSet(*checker.evaluate(0), checker.vm)
     assert np.alltrue(np.isclose(a4(energy + energy_part), 0))
     assert np.alltrue(np.isnan(a4(contrast[1:-1])))
     assert np.allclose(a2(allmets), a3(allmets))
@@ -76,8 +76,8 @@ def test_add_sources():
     checker1 = make_checker(15, src='c1')
     checker2 = make_checker(45, src='c2')
     checker3 = checker1.add(checker2, write=False)
-    a1 = MetricSet(*checker1.get_applied_rays([3000/179, 0]), checker1.vm)
-    a3 = MetricSet(*checker3.get_applied_rays([3000/179, 0, 0, 0]), checker3.vm)
+    a1 = MetricSet(*checker1.evaluate([3000/179, 0]), checker1.vm)
+    a3 = MetricSet(*checker3.evaluate([3000/179, 0, 0, 0]), checker3.vm)
     assert np.isclose(a1.illum, a3.illum, rtol=.1)
     assert np.isclose(a1.avglum, a3.avglum, rtol=.01)
 
@@ -86,7 +86,7 @@ def test_compress(tmpdir):
     scene = ImageScene('snakesample')
     vm = ViewMapper(viewangle=180)
     lf = LightPointKD(scene, src='image', vm=vm)
-    m1 = MetricSet(*lf.get_applied_rays(1, vm), vm, scale=1000, threshold=500)
+    m1 = MetricSet(*lf.evaluate(1, vm), vm, scale=1000, threshold=500)
     soga1 = np.sum(m1.sources[1])
     slum1 = np.average(m1.sources[2], weights=m1.sources[1])
     boga1 = np.sum(m1.background[1])
@@ -99,7 +99,7 @@ def test_compress(tmpdir):
     mi = MetricSet(*vol, vm, scale=1000, threshold=500)
     assert np.isclose(mi.illum, m1.illum, atol=1e-4, rtol=.001)
 
-    m2 = MetricSet(*lf2.get_applied_rays(1, vm), vm, scale=1000, threshold=500)
+    m2 = MetricSet(*lf2.evaluate(1, vm), vm, scale=1000, threshold=500)
     soga2 = np.sum(m2.sources[1])
     slum2 = np.average(m2.sources[2], weights=m2.sources[1])
     boga2 = np.sum(m2.background[1])

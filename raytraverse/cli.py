@@ -18,11 +18,8 @@ import clasp.click_ext as clk
 
 import raytraverse
 from raytraverse.scene import Scene
-from raytraverse.sky import SunsLoc, Suns, SunsPos, skycalc
-from raytraverse.mapper import PlanMapper
 from raytraverse.renderer import Rtrace, Rcontrib
-from raytraverse.sampler import SkySamplerPt, SunSamplerPt
-from raytraverse.lightpoint import LightPointKD
+from raytraverse.sampler import SkySamplerPt
 
 
 @clk.pretty_name("NPY, TSV, FLOATS,FLOATS")
@@ -118,133 +115,6 @@ def scene(ctx, opts=False, debug=False, version=None, **kwargs):
     ctx.obj['scene'] = s
 
 
-@main.command()
-@click.option('-skyro', default=0.0,
-              help='counter clockwise rotation (in degrees) of the sky to'
-                   ' rotate true North to project North, so if project North'
-                   ' is 10 degrees East of North, skyro=10')
-@click.option('-sunres', default=10.0,
-              help='resolution in degrees of the sky patch grid in which to'
-                   ' stratify sun samples. Suns are randomly located within'
-                   ' the grid, so this corresponds to the average distance'
-                   ' between sources. The average error to a randomly selected'
-                   ' sun position will be on average ~0.4 times this value')
-@click.option('-loc', callback=clk.split_float,
-              help='specify the scene location (if not specified in -wea or to'
-                   ' override. give as "lat lon mer" where lat is + North, lon'
-                   ' is + West and mer is the timezone meridian (full hours are'
-                   ' 15 degree increments)')
-@click.option('-wea',
-              help="path to weather/sun position file. possible formats are:\n"
-                   "\n"
-                   "1. .wea file\n"
-                   "#. .wea file without header (require -loc and "
-                   "--no-usepositions)\n"
-                   "#. .epw file\n"
-                   "#. .epw file without header (require -loc and "
-                   "--no-usepositions)\n"
-                   "#. 3 column tsv file, each row is dx, dy, dz of candidate"
-                   " sun position (requires --usepositions)\n"
-                   "#. 4 column tsv file, each row is altitude, azimuth, direct"
-                   " normal, diff. horizontal of canditate suns (requires "
-                   "--usepositions)\n"
-                   "#. 5 column tsv file, each row is dx, dy, dz, direct "
-                   "normal, diff. horizontal of canditate suns (requires "
-                   "--usepositions)\n\n"
-                   "tsv files are loaded with loadtxt")
-@click.option('--plotdview/--no-plotdview', default=False,
-              help="creates a png showing sun positions on an angular fisheye"
-                   " projection of the sky.")
-@click.option('--reload/--no-reload', default=True,
-              help="if False, regenerates sun positions, because positions may"
-                   " be randomly selected this will make any previous results"
-                   " obsolete")
-@click.option('--printsuns/--no-printsuns', default=False,
-              help="print sun positions to stdout")
-@click.option('--usepositions/--no-usepositions', default=False,
-              help='if True, sun positions will be chosen from the positions'
-                   ' listed in wea. if more than one position is a candidate'
-                   ' for that particular sky patch (as determined by sunres)'
-                   ' than a random choice will be made. by using one of the'
-                   ' tsv format options for wea, and preselecting sun positions'
-                   ' such that there is 1 per patch a deterministic result can'
-                   'be achieved.')
-@clk.shared_decs(clk.command_decs(raytraverse.__version__, wrap=True))
-def suns(ctx, loc=None, wea=None, usepositions=False, plotdview=False,
-         printsuns=False, **kwargs):
-    """the suns command provides a number of options for creating sun positions
-    used by sunrun see wea and usepositions options for details
-
-    Note:
-
-    the wea and skyro parameters are used to reduce the number of suns in cases
-    where a specific site is known. Only suns within the solar transit (or
-    positions if usepositions is True will be selected.
-    """
-    if usepositions:
-        if wea is None:
-            raise ValueError('option -wea is required when use positions is '
-                             'True')
-        s = SunsPos(ctx.obj['out'], wea, **kwargs)
-    elif loc is not None:
-        s = SunsLoc(ctx.obj['out'], loc, **kwargs)
-    elif wea is not None:
-        loc = skycalc.get_loc_epw(wea)
-        s = SunsLoc(ctx.obj['out'], loc, **kwargs)
-    else:
-        s = Suns(ctx.obj['out'], **kwargs)
-    if plotdview:
-        s.direct_view()
-    ctx.obj['suns'] = s
-    if printsuns:
-        for pt in s.suns:
-            print('{}\t{}\t{}'.format(*pt))
-
-
-@main.command()
-@click.option('-ptfile', default=None, callback=np_load,
-              help="points to analyze (use with --static-pos), shape (N, 3)")
-@click.option('-area', default=None, callback=clk.is_file,
-              help="radiance scene geometry defining a plane to sample, if "
-                   "given overrides ptfile")
-@click.option('-ptres', default=1.0,
-              help="resolution for considering points duplicates, border "
-                   "generation (1/2) and add_grid().")
-@click.option('-rotation', default=0.0,
-              help="CCW rotation in degrees for point grid (with --area)")
-@click.option('-precision', default=3,
-              help="digits to round point coordinates")
-@click.option('--reload/--no-reload', default=True,
-              help="include existing points from scene directory")
-@click.option('--mask/--no-mask', default=True,
-              help="mask new points by existing perimeter")
-@click.option('--fill/--no-fill', default=False,
-              help="with -area, generate grid of points position (use True with"
-                   "--static skyrun and sunrun, False with --adaptive")
-@click.option('--jitter/--no-jitter', default=True,
-              help="used with fill, if True jitters point locations within"
-                   "each grid cell")
-@click.option('--printpts/--no-printpts', default=False,
-              help="print positions to stdout")
-@clk.shared_decs(clk.command_decs(raytraverse.__version__, wrap=True))
-def points(ctx, ptfile=None, area=None, mask=True, reload=True, ptres=1.0,
-           rotation=0.0, fill=False, precision=3, jitter=True, **kwargs):
-    if area is not None:
-        ptfile = None
-    pts = PlanMapper(ctx.obj['out'], points=ptfile, area=area, mask=mask,
-                     reload=reload, ptres=ptres, rotation=rotation,
-                     fill=fill and jitter, precision=precision)
-    if fill and not jitter:
-        pts.add_grid(False)
-    ctx.obj['points'] = pts
-    if kwargs['printpts']:
-        if pts.points.size == 0:
-            click.echo('PlanMapper has no points, did you mean to use --fill?',
-                       err=True)
-        for pt in pts.points:
-            print('{}\t{}\t{}'.format(*pt))
-
-
 run_opts = [
  click.option('-accuracy', default=1.0,
               help='a generic accuracy parameter that sets the threshold'
@@ -312,31 +182,28 @@ def skyrun(ctx, plotdview=False, overwrite=False, showsample=True,
     options can be overridden by the -rargs parameter."""
     if 'scene' not in ctx.obj:
         clk.invoke_dependency(ctx, scene)
-    if 'points' not in ctx.obj:
-        clk.invoke_dependency(ctx, points)
     s = ctx.obj['scene']
-    pts = ctx.obj['points']
     skyengine = Rcontrib(rargs, s.scene, skyres=skyres)
     skysamp = SkySamplerPt(s, skyengine, accuracy=accuracy, idres=idres,
                            fdres=fdres)
-    if static:
-        if pts.points.size == 0:
-            raise ValueError("static skyrun requires assigning points, see "
-                             "raytraverse points --help")
-        idx, d = pts.query_pt(pts.points)
-        for i, pt in list(zip(idx, pts.points)):
-            if overwrite or not os.path.isfile(f"{s.outdir}/sky/{i:06d}.rytpt"):
-                lf = skysamp.run(pt, i, log='err')
-                if plotdview:
-                    lf.direct_view(showsample=showsample, srcidx=dviewpatch)
-            else:
-                click.echo(f"skipping point: {i} at {pt}, results exist. use "
-                           f"--overwrite to force rerun", err=True)
-                if plotdview:
-                    lf = LightPointKD(s, pt=pt, posidx=i)
-                    lf.direct_view(showsample=showsample, srcidx=dviewpatch)
-    else:
-        print("--dynamic is not implemented")
+    # if static:
+    #     if pts.points.size == 0:
+    #         raise ValueError("static skyrun requires assigning points, see "
+    #                          "raytraverse points --help")
+    #     idx, d = pts.query_pt(pts.points)
+    #     for i, pt in list(zip(idx, pts.points)):
+    #         if overwrite or not os.path.isfile(f"{s.outdir}/sky/{i:06d}.rytpt"):
+    #             lf = skysamp.run(pt, i, log='err')
+    #             if plotdview:
+    #                 lf.direct_view(showsample=showsample, srcidx=dviewpatch)
+    #         else:
+    #             click.echo(f"skipping point: {i} at {pt}, results exist. use "
+    #                        f"--overwrite to force rerun", err=True)
+    #             if plotdview:
+    #                 lf = LightPointKD(s, pt=pt, posidx=i)
+    #                 lf.direct_view(showsample=showsample, srcidx=dviewpatch)
+    # else:
+    #     print("--dynamic is not implemented")
     skyengine.reset()
 
 
@@ -358,34 +225,28 @@ def sunrun(ctx, plotdview=False, overwrite=False, showsample=True,
     options can be overridden by the -rargs parameter."""
     if 'scene' not in ctx.obj:
         clk.invoke_dependency(ctx, scene)
-    if 'points' not in ctx.obj:
-        clk.invoke_dependency(ctx, points)
-    if 'suns' not in ctx.obj:
-        clk.invoke_dependency(ctx, suns)
     s = ctx.obj['scene']
-    pts = ctx.obj['points']
-    sunpos = ctx.obj['suns']
     sunengine = Rtrace(rargs, s.scene)
-    if static:
-        if pts.points.size == 0:
-            raise ValueError("static skyrun requires assigning points, see "
-                             "raytraverse points --help")
-        idx, d = pts.query_pt(pts.points)
-        for j, sn in zip(sunpos.sbins, sunpos.suns):
-            sunsamp = SunSamplerPt(s, sunengine, sn, j, accuracy=accuracy, idres=idres, fdres=fdres)
-            for i, pt in zip(idx, pts.points):
-                if overwrite or not os.path.isfile(f"{s.outdir}/sun_{j:04d}/{i:06d}.rytpt"):
-                    lf = sunsamp.run(pt, i, log='err')
-                    if plotdview:
-                        lf.direct_view(showsample=showsample, srcidx=dviewpatch)
-                else:
-                    click.echo(f"skipping point: {i} at {pt} for source sun_{j:04d}, results exist. use "
-                               f"--overwrite to force rerun", err=True)
-                    if plotdview:
-                        lf = LightPointKD(s, pt=pt, posidx=i, src=f"sun_{j:04d}")
-                        lf.direct_view(showsample=showsample, srcidx=dviewpatch)
-    else:
-        print("--dynamic is not implemented")
+    # if static:
+    #     if pts.points.size == 0:
+    #         raise ValueError("static skyrun requires assigning points, see "
+    #                          "raytraverse points --help")
+    #     idx, d = pts.query_pt(pts.points)
+    #     for j, sn in zip(sunpos.sbins, sunpos.suns):
+    #         sunsamp = SunSamplerPt(s, sunengine, sn, j, accuracy=accuracy, idres=idres, fdres=fdres)
+    #         for i, pt in zip(idx, pts.points):
+    #             if overwrite or not os.path.isfile(f"{s.outdir}/sun_{j:04d}/{i:06d}.rytpt"):
+    #                 lf = sunsamp.run(pt, i, log='err')
+    #                 if plotdview:
+    #                     lf.direct_view(showsample=showsample, srcidx=dviewpatch)
+    #             else:
+    #                 click.echo(f"skipping point: {i} at {pt} for source sun_{j:04d}, results exist. use "
+    #                            f"--overwrite to force rerun", err=True)
+    #                 if plotdview:
+    #                     lf = LightPointKD(s, pt=pt, posidx=i, src=f"sun_{j:04d}")
+    #                     lf.direct_view(showsample=showsample, srcidx=dviewpatch)
+    # else:
+    #     print("--dynamic is not implemented")
     sunengine.reset()
 
 

@@ -4,11 +4,10 @@
 """Tests for raytraverse.scene"""
 import os
 import shutil
-from matplotlib.testing.compare import compare_images
 import pytest
 import numpy as np
 
-from raytraverse.sky import SunsLoc, SkyData
+from raytraverse.sky import SkyData
 from raytraverse.mapper import SkyMapper
 from raytraverse import translate, io
 
@@ -83,10 +82,7 @@ def test_sunrotation(tmpdir):
 
 def test_skydata(tmpdir):
     loc = (46.25, -6.13, -15)
-    suns = SunsLoc("testsky", loc)
-    skydat = SkyData("geneva.wea", suns, loc=loc)
-    hasmatch = skydat.sunproxy[:, 1] < suns.sunres**2
-    assert np.sum(hasmatch) == skydat.sunproxy[:, 1].size
+    skydat = SkyData("geneva.wea", loc=loc)
     hdr = "LOCATION= lat: {} lon: {} tz: {} ro: 0.0".format(*loc)
     assert hdr == skydat.header()
     wsun = skydat.smtx_patch_sun()

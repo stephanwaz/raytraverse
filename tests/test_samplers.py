@@ -44,7 +44,7 @@ def test_skysample(tmpdir):
 
         coefs = np.zeros(325)
         coefs[sbin] = 1
-        illumm0 = MetricSet(*lf.get_applied_rays(coefs, vm0), vm0, ["illum"])()[0]
+        illumm0 = MetricSet(*lf.evaluate(coefs, vm0), vm0, ["illum"])()[0]
 
         return np.sum(hdr.flatten()*omega*cost)*179, illumm0
 
@@ -61,7 +61,7 @@ def test_skysample(tmpdir):
     illum, illumm = img_illum(lf, vm, 174)
     assert np.isclose(illum, illumm, atol=.2, rtol=.1)
     assert np.isclose(np.average([illum, illumm]), 0.169, atol=.03, rtol=.2)
-    fmetric = MetricSet(*lf.get_applied_rays(np.ones(325), vm), vm, ["illum", "density"])()
+    fmetric = MetricSet(*lf.evaluate(np.ones(325), vm), vm, ["illum", "density"])()
     assert np.isclose(fmetric[0], 352.7, atol=1, rtol=.01)
     assert np.isclose(fmetric[1], 570, atol=30)
     Rcontrib.reset()
@@ -77,7 +77,7 @@ def test_sunsample(tmpdir):
         pxs = vm0.pixels(512).reshape(-1, 2)
         omega = vm0.pixel2omega(pxs, 512)
         cost = vm0.ctheta(vecs)
-        illumm0 = MetricSet(*lf.get_applied_rays(285.32, vm), vm, ["illum"])()[0]
+        illumm0 = MetricSet(*lf.evaluate(285.32, vm), vm, ["illum"])()[0]
 
         return np.sum(hdr.flatten()*omega*cost)*179, illumm0
 

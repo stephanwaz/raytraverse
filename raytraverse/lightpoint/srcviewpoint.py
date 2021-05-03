@@ -12,6 +12,7 @@ from raytraverse import io
 from raytraverse.mapper import ViewMapper
 from scipy.interpolate import LinearNDInterpolator
 from scipy.spatial import ConvexHull
+from scipy.ndimage.filters import gaussian_filter
 from shapely.geometry import Polygon
 
 
@@ -96,28 +97,37 @@ class SrcViewPoint(object):
             omegasp = self.omega / self.raster.shape[0]
             hullpoints = self._smudge(px, cnt, omegap, omegasp)
             clum = coefs * self.lum*cnt*omegasp/omegap
+            i2 = np.zeros(img.shape)
             if hullpoints is not None:
-                interp = LinearNDInterpolator(px, clum, fill_value=0)
-                ppix = vm.ray2pixel(vecs, res)
-                luma = interp(ppix).reshape(img[mask].shape)
+                ppix = vm.ray2pixel(vecs, res, integer=False)
                 pomega = vm.pixel2omega(ppix, res)
-                target = self.omega*self.lum*coefs
-                current = np.sum(pomega*luma)
+
+                # interpolate within original bounds
+                interp = LinearNDInterpolator(px, clum, fill_value=0)
+                luma = interp(ppix).reshape(img[mask].shape)
+                # interpolate within expanded bounds to find perimeter
                 clum = np.concatenate((clum, np.full(len(hullpoints),
                                                      coefs * self.lum)))
                 xy = np.concatenate((px, hullpoints))
-                # apply average luminanace over each pixel
                 interp = LinearNDInterpolator(xy, clum, fill_value=0)
                 lumb = interp(ppix).reshape(img[mask].shape)
+                # isolate perimeter
                 corona = np.logical_and(lumb > 0, luma == 0)
+
+                target = self.omega*self.lum*coefs
+                current = np.sum(pomega*luma)
                 gap = (target - current)/np.sum(pomega[corona])
                 luma[corona] = gap * coefs * self.lum
-                img[mask] += luma
+                i2[mask] = luma
             else:
                 px = tuple(zip(*px))
-                img[px] += clum
+                i2[px] += clum
+            if vm.viewangle >= 10:
+                r = res/vm.viewangle*.0625
+                i2 = gaussian_filter(i2, r, truncate=8)
+            img += i2
 
-    def get_applied_rays(self, sunval, vm=None):
+    def evaluate(self, sunval, vm=None):
         if vm is None or vm.in_view(self.vec, indices=False)[0]:
             svlm = self.lum * sunval/self.blursun
             svo = self.omega * self.blursun

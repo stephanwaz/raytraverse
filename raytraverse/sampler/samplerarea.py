@@ -200,7 +200,7 @@ class SamplerArea(BaseSampler):
             if specguide is not None:
                 sgpt = self._load_specguide(point)
             lp = self.engine.run(point, posidx, specguide=sgpt, lpargs=lpargs)
-            vol = lp.get_applied_rays(1)
+            vol = lp.evaluate(1)
             metric = self.metricclass(*vol, lp.vm,  **kwargs)
             lums.append(metric())
         if len(self.lum) == 0:
@@ -213,10 +213,11 @@ class SamplerArea(BaseSampler):
         """find the 3 nearest lightpoints in the specular sampling guide"""
         if self._specguide is not None:
             d, i = self._specguide.pt_kd.query(point, 3)
-            idxs = i[d < self._mapper.ptres]
-            return [self._specguide.lp[j] for j in idxs]
-        else:
-            return None
+            idxs = i[d <= self._mapper.ptres * np.sqrt(2)]
+            specguide = [self._specguide.lp[j] for j in idxs]
+            if len(specguide) > 0:
+                return specguide
+        return None
 
     def _update_weights(self, si, lum):
         """only used by _plot_weights, weights are recomputed from spatial

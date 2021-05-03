@@ -256,9 +256,9 @@ class LightPointKD(object):
             val = self.omega.reshape(1, -1)
         else:
             val = self.apply_coef(skyvec)
+        if vm is None:
+            vm = self.vm
         if interp:
-            if vm is None:
-                vm = self.vm
             xyp = vm.xyz2vxy(vecs)
             xys = vm.xyz2vxy(self.vec)
             interp = LinearNDInterpolator(xys, val[0], fill_value=-1)
@@ -273,7 +273,7 @@ class LightPointKD(object):
         for srcview in self.srcviews:
             srcview.add_to_img(img, vecs, mask, skyvec[-1], vm)
 
-    def get_applied_rays(self, skyvec, vm=None, idx=None):
+    def evaluate(self, skyvec, vm=None, idx=None, srcvecoverride=None):
         """return rays within view with skyvec applied. this is the
         analog to add_to_img for metric calculations
 
@@ -284,6 +284,12 @@ class LightPointKD(object):
         vm: raytraverse.mapper.ViewMapper, optional
         idx: np.array, optional
             precomputed query_ball result
+        srcvecoverride: np.array, optional
+            replace source vector of any source views with this value. For
+            example, by giving the actual sun position, this will improve
+            irradiance calculations (and yield more consistent results when the
+            sampled sun position over an area varies) compered with using the
+            sampled ray direction directly.
 
         Returns
         -------
@@ -308,9 +314,11 @@ class LightPointKD(object):
             vrs = []
             for srcview in self.srcviews:
                 srcvec = np.atleast_2d(skyvec)[:, -1]
-                vrs.append(srcview.get_applied_rays(srcvec, vm))
+                vrs.append(srcview.evaluate(srcvec, vm))
             vr, vo, vl = zip(*vrs)
             vl = np.array(vl)
+            if srcvecoverride is not None:
+                vr = np.asarray(srcvecoverride).reshape(-1, 3)
             rays = np.concatenate((rays, vr), 0)
             try:
                 omega = np.concatenate((omega, vo), 0)
@@ -381,8 +389,8 @@ class LightPointKD(object):
                 skyvec = np.zeros(self.srcn)
                 skyvec[srcidx] = scalefactor
             else:
-                skyvec = np.full(self.srcn, scalefactor / self.srcn)
-            self.add_to_img(img, pdirs[mask], mask,
+                skyvec = np.full(self.srcn, scalefactor)
+            self.add_to_img(img, pdirs[mask], mask, vm=vm,
                             interp=interp, skyvec=skyvec, omega=omega, rnd=rnd)
             if vm.aspect == 2:
                 self.add_to_img(img[res:], pdirs[res:][mask2], mask2, vm=vm.ivm,

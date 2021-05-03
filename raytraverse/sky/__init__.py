@@ -8,11 +8,7 @@
 
 """scene objects"""
 
-__all__ = ['skycalc', 'SolarBoundary', 'Suns', 'SunsLoc', 'SunsPos', 'SkyData']
+__all__ = ['skycalc', 'SkyData']
 
 
-from raytraverse.sky.solarboundary import SolarBoundary
-from raytraverse.sky.suns import Suns
-from raytraverse.sky.sunsloc import SunsLoc
-from raytraverse.sky.sunspos import SunsPos
 from raytraverse.sky.skydata import SkyData

@@ -65,6 +65,7 @@ col_headers = {'year': 0, 'month': 1, 'day': 2, 'hour': 3, 'minute': 4,
 
 col_indices = dict(zip(col_headers.values(), col_headers.keys()))
 
+
 def read_epw_full(epw, columns=None):
     """
 
@@ -590,7 +591,7 @@ def perez(sxyz, dirdif, md=None, ground_fac=0.2, td=10.9735311509):
     return coefs, solarrad
 
 
-def sky_mtx(sxyz, dirdif, side, jn=4, ground_fac=0.2):
+def sky_mtx(sxyz, dirdif, side, jn=4, **kwargs):
     """generate sky, ground and sun values from sun position and sky values
 
     Parameters
@@ -603,8 +604,8 @@ def sky_mtx(sxyz, dirdif, side, jn=4, ground_fac=0.2):
         sky subdivision
     jn: int
         sky patch subdivision n = jn^2
-    ground_fac: float
-        scaling factor (reflecctance) for ground brightness
+    kwargs: dict, optional
+        passed to perez()
 
     Returns
     -------
@@ -615,7 +616,7 @@ def sky_mtx(sxyz, dirdif, side, jn=4, ground_fac=0.2):
     sunval: np.array
         (N, 4) - sun direction and radiance
     """
-    coefs, solarrad = perez(sxyz, dirdif, ground_fac=ground_fac)
+    coefs, solarrad = perez(sxyz, dirdif, **kwargs)
     uv = translate.bin2uv(np.arange(side*side), side, offset=0.0)
     jitter = translate.bin2uv(np.arange(jn*jn), jn, offset=0.0) + .5/jn
     uvj = uv[:, None, :] + jitter/side

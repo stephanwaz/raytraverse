@@ -8,6 +8,7 @@
 import numpy as np
 from raytraverse import translate
 from raytraverse.sky import skycalc
+from raytraverse.formatter import RadianceFormatter as RadFmt
 
 
 class SkyData(object):
@@ -20,28 +21,22 @@ class SkyData(object):
     ----------
     wea: str np.array
         path to epw, wea, or .npy file or np.array, if loc not set attempts to
-        extract location data (if needed). The Integrator does not need to be
-        initialized with weather data but for convinience can be. However,
-        self.skydata must be initialized (directly or through self.sky) before
-        calling integrate.
-    suns: raytraverse.sky.Suns, optional
+        extract location data (if needed).
     loc: (float, float, int), optional
         location data given as lat, lon, mer with + west of prime meridian
         overrides location data in wea (but not in sunfield)
     skyro: float, optional
         angle in degrees counter-clockwise to rotate sky
         (to correct model north, equivalent to clockwise rotation of scene)
-        does not override rotation in SunField)
     ground_fac: float, optional
         ground reflectance
     skyres: float, optional
         approximate square patch size in degrees
     """
 
-    def __init__(self, wea, suns=None, loc=None, skyro=0.0, ground_fac=0.15,
+    def __init__(self, wea, loc=None, skyro=0.0, ground_fac=0.15,
                  skyres=10.0, minalt=2.0, mindiff=5.0):
         self.skyres = skyres
-        self.suns = suns
         self.ground_fac = ground_fac
         if loc is None and wea is not None:
             try:
@@ -53,9 +48,9 @@ class SkyData(object):
         self._minalt = minalt
         self._mindiff = mindiff
         self._skyro = skyro
+        self._sunproxy = None
         self.skydata = wea
-        self._proxysort = np.argsort(self.sunproxy[:, 1], kind='stable')
-        self._invsort = np.argsort(self.proxysort, kind='stable')
+        self.mask = np.full(np.sum(self.daymask), True)
 
     @property
     def skyres(self):
@@ -76,54 +71,9 @@ class SkyData(object):
         return self._loc
 
     @property
-    def smtx(self):
-        """shape (np.sum(daysteps), skyres**2 + 1) coefficients for each sky
-        patch each row is a timestep, coefficients exclude sun"""
-        return self._smtx
-
-    @property
-    def sun(self):
-        """shape (np.sum(daysteps), 5) sun position (index 0,1,2) and
-        coefficients for sun at each timestep assuming the true solid angle of
-        the sun (index 3) and the weighted value for the sky patch (index 4)."""
-        return self._sun
-
-    @property
-    def daysteps(self):
-        """shape (len(skydata),) boolean array masking timesteps when sun is
-        below horizon"""
-        return self._daysteps
-
-    @property
     def skydata(self):
         """sun position and dirnorm diffhoriz"""
         return self._skydata
-
-    @property
-    def sunproxy(self):
-        """array of sun proxy data
-        shape (len(daysteps), 2). column 0 is the corresponding sky bin
-        (column of smtx), column 1 is the row of self.suns
-        """
-        return self._sunproxy
-
-    @property
-    def proxysort(self):
-        """sorting indices to arange daystep axis by solar proxy
-        this is useful when combining sky/sun kdtrees without writing to disk
-        to only do the interpolation once for a set of sky conditions."""
-        return self._proxysort
-
-    @property
-    def invsort(self):
-        """reverse sorting indices to restore input daystep order"""
-        return self._invsort
-
-    @property
-    def serr(self):
-        """the error (in degrees) between the actual sun position and the
-        applied sunproxy"""
-        return self._serr
 
     @skydata.setter
     def skydata(self, wea):
@@ -139,13 +89,18 @@ class SkyData(object):
             - 5 col: dx, dy, dz, dir, diff
             - 5 col: m, d, h, dir, diff
         """
-        skydata = self._format_skydata(wea)
+        skydata, md, td = self._format_skydata(wea)
         minz = np.sin(self._minalt * np.pi / 180)
-        daysteps = np.logical_and(skydata[:, 2] > minz, skydata[:, 4] > self._mindiff)
-        sxyz = skydata[daysteps, 0:3]
-        dirdif = skydata[daysteps, 3:]
-        smtx, grnd, sun = skycalc.sky_mtx(sxyz, dirdif, self.skyres,
-                                          ground_fac=self.ground_fac)
+        daymask = np.logical_and(skydata[:, 2] > minz,
+                                  skydata[:, 4] > self._mindiff)
+        sxyz = skydata[daymask, 0:3]
+        dirdif = skydata[daymask, 3:]
+        if md is not None:
+            md = md[daymask]
+        if hasattr(td, "__len__"):
+            td = td[daymask]
+        smtx, grnd, sun = skycalc.sky_mtx(sxyz, dirdif, self.skyres, md=md,
+                                          ground_fac=self.ground_fac, td=td)
         # ratio between actual solar disc and patch
         omegar = np.square(0.2665 * np.pi * self.skyres / 180) * .5
         plum = sun[:, -1] * omegar
@@ -153,40 +108,10 @@ class SkyData(object):
         smtx = np.hstack((smtx, grnd[:, None]))
         self._smtx = smtx
         self._sun = sun
-        self._daysteps = daysteps
+        self._daymask = daymask
         self._skydata = skydata
         self.sunproxy = sxyz
-
-    @sunproxy.setter
-    def sunproxy(self, sxyz):
-        sunbins = translate.xyz2skybin(sxyz, self.skyres)
-        try:
-            si, serrs = self.suns.proxy_src(sxyz,
-                                            tol=180*2**.5/self.suns.sunres)
-        except AttributeError:
-            si = [0] * len(sunbins)
-            serrs = sunbins
-        self._serr = serrs
-        self._sunproxy = np.stack((sunbins, si)).T
-
-    def smtx_patch_sun(self):
-        """generate smtx with solar energy applied to proxy patch
-        for directly applying to skysampler data (without direct sun components
-        can also be used in a partial mode (with sun view / without sun
-        reflection."""
-        wsun = np.copy(self.smtx)
-        r = range(wsun.shape[0])
-        wsun[range(wsun.shape[0]), self.sunproxy[:, 0]] += self.sun[r, 4]
-        return wsun
-
-    def header(self):
-        """generate image header string"""
-        try:
-            hdr = "LOCATION= lat: {} lon: {} tz: {} ro: {}".format(*self.loc,
-                                                                   self.skyro)
-        except TypeError:
-            hdr = "LOCATION= None"
-        return hdr
+        self._daysteps = smtx.shape[0]
 
     def _format_skydata(self, dat):
         """process dat argument as skydata
@@ -199,6 +124,8 @@ class SkyData(object):
             dx, dy, dz, dir, diff
         """
         loc = self._loc
+        md = None
+        td = 10.9735311509
         if hasattr(dat, 'shape'):
             skydat = dat
         else:
@@ -208,6 +135,10 @@ class SkyData(object):
                 if loc is None:
                     loc = skycalc.get_loc_epw(dat)
                 skydat = skycalc.read_epw(dat)
+            try:
+                td = skycalc.read_epw_full(dat, ["t_dewpoint", ]).ravel()
+            except (TypeError, IndexError, ValueError):
+                pass
         skydat = np.atleast_2d(skydat)
         if skydat.shape[1] == 4:
             xyz = translate.aa2xyz(skydat[:, 0:2])
@@ -219,34 +150,137 @@ class SkyData(object):
                 times = skycalc.row_2_datetime64(skydat[:, 0:3])
                 xyz = skycalc.sunpos_xyz(times, *loc, ro=self._skyro)
                 skydat = np.hstack((xyz, skydat[:, 3:]))
+                md = skydat[:, 0:2].astype(int)
         else:
             raise ValueError('input data should be one of the following:'
                              '\n4 col: alt, az, dir, diff'
                              '\n5 col: dx, dy, dz, dir, diff'
                              '\n5 col: m, d, h, dir, diff')
-        return skydat
+        return skydat, md, td
 
-    def sky_description(self, i, prefix="skydata", grid=False):
+    @property
+    def daysteps(self):
+        return self._daysteps
+
+    @property
+    def daymask(self):
+        """shape (daysteps,) boolean array masking timesteps when sun is
+        below horizon"""
+        return self._daymask
+
+    @property
+    def mask(self):
+        """an additional mask for smtx data"""
+        return self._mask
+
+    @property
+    def maskindices(self):
+        return self._maskindices
+
+    @mask.setter
+    def mask(self, m):
+        self._mask = m
+        self._fullmask = np.copy(self.daymask)
+        self._fullmask[self.daymask] = m
+        self._maskindices = np.arange(len(self._fullmask))[self._fullmask]
+
+    @property
+    def smtx(self):
+        """shape (np.sum(daymask), skyres**2 + 1) coefficients for each sky
+        patch each row is a timestep, coefficients exclude sun"""
+        return self._smtx[self.mask]
+
+    @property
+    def sun(self):
+        """shape (np.sum(daymask), 5) sun position (index 0,1,2) and
+        coefficients for sun at each timestep assuming the true solid angle of
+        the sun (index 3) and the weighted value for the sky patch (index 4)."""
+        return self._sun[self.mask]
+
+    @property
+    def sunproxy(self):
+        """corresponding sky bin for each sun position in daymask"""
+        return self._sunproxy[self.mask]
+
+    @sunproxy.setter
+    def sunproxy(self, sxyz):
+        self._sunproxy = translate.xyz2skybin(sxyz, self.skyres)
+
+    def smtx_patch_sun(self):
+        """generate smtx with solar energy applied to proxy patch
+        for directly applying to skysampler data (without direct sun components
+        can also be used in a partial mode (with sun view / without sun
+        reflection."""
+        wsun = np.copy(self.smtx)
+        r = range(wsun.shape[0])
+        wsun[range(wsun.shape[0]), self.sunproxy] += self.sun[r, 4]
+        return wsun
+
+    def header(self):
+        """generate image header string"""
+        try:
+            hdr = "LOCATION= lat: {} lon: {} tz: {} ro: {}".format(*self.loc,
+                                                                   self.skyro)
+        except TypeError:
+            hdr = "LOCATION= None"
+        return hdr
+
+    def fill_data(self, x, fill_value=0):
+        """
+        Parameters
+        ----------
+        x: np.array
+            first axis size = len(self.daymask[self.mask])
+        fill_value: Union[int, float], optional
+            value in padded array
+
+        Returns
+        -------
+        np.array
+            data in x padded with fill value to original shape of skydata
+        """
+        mask = np.copy(self.daymask)
+        mask[self.daymask] = self.mask
+        px = np.full((self.skydata.shape[0], *x.shape[1:]), fill_value)
+        px[mask] = x
+        return px
+
+    def masked_idx(self, i):
+        j = np.searchsorted(self._maskindices, i)
+        if self._maskindices[j] == i:
+            return j
+        else:
+            raise IndexError(f"index {i} is not in masked data")
+
+    def sky_description(self, i, prefix="skydata", grid=False, sun=True):
         """generate radiance scene files to directly render sky data at index i
 
         Parameters
         ----------
         i: int
-            index of sky vector to generate
+            index of sky vector to generate (indexed from skydata, not daymask)
         prefix: str, optional
             name/path for output files
         grid: bool, optional
             render sky patches with grid lines
+        sun: bool, optional
+            include sun source in rad file
 
         Returns
         -------
-        None
-            write 3 files: prefix_i (.rad, .cal, and .dat) .cal and .dat must
-            be located in RAYPATH (which can include .) or else edit the .rad
-            file to explicitly point to their locations.
+        str
+            basename of 3 files written: prefix_i (.rad, .cal, and .dat)
+            .cal and .dat must be located in RAYPATH (which can include .)
+            or else edit the .rad file to explicitly point to their locations.
             note that if grid is True, the sky will not be accurate, so only
             use this for illustrative purposes.
+
+        Raises
+        ------
+        IndexError
+            if i is not in masked indices
         """
+        mi = self.masked_idx(i)
         outf = f"{prefix}_{i:04d}"
         f = open(f"{outf}.rad", 'w')
         if grid:
@@ -255,13 +289,17 @@ class SkyData(object):
             fun = "noop"
         f.write(f"void brightdata skyfunc 4 {fun} {outf}.dat {outf}.cal bin 0 "
                 "0\nskyfunc glow skyglow 0 0 4 1 1 1 0\n"
-                "skyglow source sky 0 0 4 0 0 1 180")
+                "skyglow source sky 0 0 4 0 0 1 180\n")
+        if sun:
+            c = (self.sun[mi, 3], self.sun[mi, 3], self.sun[mi, 3])
+            f.write(RadFmt.get_sundef(self.sun[mi, 0:3], c))
         f.close()
         f = open(f"{outf}.cal", 'w')
         f.write(f"side:{self.skyres};\n{translate.scbinscal}")
         f.close()
-        data = self.smtx[i]
+        data = self.smtx[mi]
         nrbins = data.size
         header = "1\n0 {} {}\n".format(nrbins - 1, nrbins)
         np.savetxt(f"{outf}.dat", data, delimiter="\n", header=header,
                    comments="")
+        return outf
