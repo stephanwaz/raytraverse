@@ -133,5 +133,5 @@ class LightField(object):
         """
         return self.kd.query_ball_point(pts, dist)
 
-    def evaluate(self, skyvec, **kwargs):
+    def evaluate(self, *args, **kwargs):
         pass

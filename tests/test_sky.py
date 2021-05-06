@@ -93,3 +93,7 @@ def test_skydata(tmpdir):
     # print(skydat.sunproxy.shape, np.percentile(skydat.sunproxy, (0, 100), 0))
     # print(skydat.smtx.shape, skydat.sunproxy.shape, skydat.suns.suns.shape)
 
+
+# def test_skydata_mask(tmpdir):
+#     loc = (46.25, -6.13, -15)
+#     skydat = SkyData("geneva.wea", loc=loc)

@@ -288,7 +288,7 @@ class LightPointKD(object):
             replace source vector of any source views with this value. For
             example, by giving the actual sun position, this will improve
             irradiance calculations (and yield more consistent results when the
-            sampled sun position over an area varies) compered with using the
+            sampled sun position over an area varies) compared with using the
             sampled ray direction directly.
 
         Returns
@@ -304,6 +304,7 @@ class LightPointKD(object):
             rays = self.vec
             omega = np.squeeze(self.omega)
             lum = self.apply_coef(skyvec).T
+            vm = self.vm
         else:
             if idx is None:
                 idx = self.query_ball(vm.dxyz, vm.viewangle * vm.aspect)[0]

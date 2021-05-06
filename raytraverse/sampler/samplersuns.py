@@ -298,7 +298,7 @@ class SamplerSuns(BaseSampler):
                                                masked=False)
             mask = amapper.in_view_uv(candidates, False)
             wvecs = amapper.uv2xyz(candidates)
-            idx, d = lf.query_pt(wvecs, False)
+            idx, d = lf.query(wvecs)
             weights = areasampler.lum[idx].reshape(*areasampler.levels[-1],
                                                    areasampler.features)
             weights = np.moveaxis(weights, 2, 0)

@@ -212,9 +212,9 @@ class SamplerArea(BaseSampler):
     def _load_specguide(self, point):
         """find the 3 nearest lightpoints in the specular sampling guide"""
         if self._specguide is not None:
-            d, i = self._specguide.pt_kd.query(point, 3)
+            d, i = self._specguide.kd.query(point, 3)
             idxs = i[d <= self._mapper.ptres * np.sqrt(2)]
-            specguide = [self._specguide.lp[j] for j in idxs]
+            specguide = [self._specguide.data[j] for j in idxs]
             if len(specguide) > 0:
                 return specguide
         return None

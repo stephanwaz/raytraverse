@@ -61,9 +61,10 @@ class MetricSet(BaseMetricSet):
                                              "srcillum"]
 
     def __init__(self, vec, omega, lum, vm, metricset=None, scale=179.,
-                 threshold=2000., guth=True, tradius=30.0, **kwargs):
+                 threshold=2000., guth=True, tradius=30.0,
+                 omega_as_view_area=False, **kwargs):
         super().__init__(vec, omega, lum, vm, metricset=metricset, scale=scale,
-                         **kwargs)
+                         omega_as_view_area=omega_as_view_area, **kwargs)
         self._threshold = threshold
         self.guth = guth
         self.tradius = tradius

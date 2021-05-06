@@ -17,8 +17,7 @@ from raytraverse.lightfield.lightfield import LightField
 
 
 class LightPlaneKD(LightField):
-    """collection of lightpoints with KDtree structure for positional query
-    query"""
+    """collection of lightpoints with KDtree structure for positional query"""
 
     @property
     def data(self):
@@ -139,7 +138,7 @@ class LightPlaneKD(LightField):
                 self.make_image(outf, r, res=res, showsample=showsample,
                                 interp=interp)
 
-    def add(self, lf2, src=None, calcomega=True, write=False):
+    def add(self, lf2, src=None, calcomega=True, write=False, compress=False):
         """add light planes of distinct sources together
         """
         pass

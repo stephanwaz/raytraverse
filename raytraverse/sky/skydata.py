@@ -5,6 +5,8 @@
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 # =======================================================================
+import re
+
 import numpy as np
 from raytraverse import translate
 from raytraverse.sky import skycalc
@@ -22,7 +24,7 @@ class SkyData(object):
     wea: str np.array
         path to epw, wea, or .npy file or np.array, if loc not set attempts to
         extract location data (if needed).
-    loc: (float, float, int), optional
+    loc: tuple, optional
         location data given as lat, lon, mer with + west of prime meridian
         overrides location data in wea (but not in sunfield)
     skyro: float, optional
@@ -92,7 +94,7 @@ class SkyData(object):
         skydata, md, td = self._format_skydata(wea)
         minz = np.sin(self._minalt * np.pi / 180)
         daymask = np.logical_and(skydata[:, 2] > minz,
-                                  skydata[:, 4] > self._mindiff)
+                                 skydata[:, 4] > self._mindiff)
         sxyz = skydata[daymask, 0:3]
         dirdif = skydata[daymask, 3:]
         if md is not None:
@@ -164,7 +166,7 @@ class SkyData(object):
 
     @property
     def daymask(self):
-        """shape (daysteps,) boolean array masking timesteps when sun is
+        """shape (len(skydata),) boolean array masking timesteps when sun is
         below horizon"""
         return self._daymask
 
@@ -174,14 +176,29 @@ class SkyData(object):
         return self._mask
 
     @property
+    def fullmask(self):
+        return self._fullmask
+
+    @property
     def maskindices(self):
         return self._maskindices
 
     @mask.setter
     def mask(self, m):
-        self._mask = m
+        """if m has length = daysteps, sets mask directly as bool array. if
+        m has length = skydata, sets mask from daysteps of m as bool array.
+        otherwise, assumes m is an index array (indexed by row of skydata) and
+        sets all indices of m withing daysteps to True.
+        """
+        if len(m) == self.daysteps:
+            self._mask = np.asarray(m, bool)
+        elif len(m) == len(self.skydata):
+            self._mask = np.asarray(m, bool)[self.daymask]
+        else:
+            self._mask = np.full(self.daysteps, False)
+            self._mask[self.masked_idx(m)] = True
         self._fullmask = np.copy(self.daymask)
-        self._fullmask[self.daymask] = m
+        self._fullmask[self.daymask] = self._mask
         self._maskindices = np.arange(len(self._fullmask))[self._fullmask]
 
     @property
@@ -225,7 +242,7 @@ class SkyData(object):
             hdr = "LOCATION= None"
         return hdr
 
-    def fill_data(self, x, fill_value=0):
+    def fill_data(self, x, fill_value=0.0):
         """
         Parameters
         ----------
@@ -241,16 +258,14 @@ class SkyData(object):
         """
         mask = np.copy(self.daymask)
         mask[self.daymask] = self.mask
-        px = np.full((self.skydata.shape[0], *x.shape[1:]), fill_value)
+        px = np.full((self.skydata.shape[0], *x.shape[1:]), fill_value,
+                     dtype=float)
         px[mask] = x
         return px
 
     def masked_idx(self, i):
         j = np.searchsorted(self._maskindices, i)
-        if self._maskindices[j] == i:
-            return j
-        else:
-            raise IndexError(f"index {i} is not in masked data")
+        return j[self._maskindices[j] == i]
 
     def sky_description(self, i, prefix="skydata", grid=False, sun=True):
         """generate radiance scene files to directly render sky data at index i
@@ -280,7 +295,7 @@ class SkyData(object):
         IndexError
             if i is not in masked indices
         """
-        mi = self.masked_idx(i)
+        mi = self.masked_idx(i).item()
         outf = f"{prefix}_{i:04d}"
         f = open(f"{outf}.rad", 'w')
         if grid:

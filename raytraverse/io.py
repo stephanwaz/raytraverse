@@ -8,7 +8,6 @@
 # =======================================================================
 
 """functions for reading and writing"""
-import tempfile
 from datetime import datetime, timezone
 import shlex
 import os
@@ -16,10 +15,7 @@ from subprocess import Popen, PIPE
 
 import numpy as np
 
-import clasp.script_tools as cst
-
 import raytraverse
-from raytraverse import translate
 from raytraverse.crenderer import cRtrace
 
 

@@ -28,3 +28,12 @@ DayLightPlaneKD
     :undoc-members:
     :show-inheritance:
     :private-members:
+
+LightResult
+---------------------------------
+
+.. autoclass:: raytraverse.lightfield.LightResult
+    :members:
+    :undoc-members:
+    :show-inheritance:
+    :private-members:

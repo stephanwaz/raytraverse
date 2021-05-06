@@ -52,11 +52,8 @@ class BaseMetricSet(object):
             self.check_metrics(metricset, True)
             self.defaultmetrics = metricset
         self.vm = vm
-        if omega_as_view_area:
-            self.view_area = np.sum(omega)
-            self._correct_omega = False
-        else:
-            self.view_area = vm.area
+        self.view_area = vm.area
+        self._correct_omega = not omega_as_view_area
         v = translate.norm(vec)
         if self.vm.aspect == 2:
             self._vec = v
@@ -134,6 +131,7 @@ class BaseMetricSet(object):
             self._omega[onedge] = og[onedge] * adjust
         else:
             self._omega = og
+            self.view_area = np.sum(og)
 
     # -------------------metric dependencies (return array)--------------------
 
