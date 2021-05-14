@@ -9,7 +9,12 @@ from datetime import datetime, timezone
 import os
 import shutil
 import sys
+from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor
+import contextlib
 
+from tqdm import tqdm
+
+from raytraverse import io
 from raytraverse.formatter import Formatter
 
 
@@ -38,7 +43,8 @@ class BaseScene(object):
     """
 
     def __init__(self, outdir, scene=None, frozen=True, formatter=Formatter,
-                 reload=True, overwrite=False, log=True, loglevel=10, utc=True):
+                 reload=True, overwrite=False, log=True, loglevel=10,
+                 utc=False):
         self.outdir = outdir
         try:
             os.mkdir(outdir)
@@ -115,3 +121,22 @@ class BaseScene(object):
             print(message, file=f)
             if needsclose:
                 f.close()
+
+    @contextlib.contextmanager
+    def progress_bar(self, instance, message, total, level=0, workers=False):
+        if level == 0:
+            tf = "%H:%M:%S"
+            ts = datetime.now(tz=self._tz).strftime(tf)
+            message = f"{ts} {type(instance).__name__} {message}"
+        else:
+            message = f"{type(instance).__name__}\t{message}"
+        pbar = tqdm(total=total, desc=message, mininterval=1.0, leave=None,
+                    position=level)
+        if str(workers).lower() in ('thread', 't', 'threads'):
+            yield ThreadPoolExecutor(), pbar
+        elif workers:
+            nproc = io.get_nproc()
+            yield ProcessPoolExecutor(nproc), pbar
+        else:
+            yield pbar
+

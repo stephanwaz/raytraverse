@@ -5,14 +5,16 @@
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 # =======================================================================
-import numpy as np
+from concurrent.futures import wait, FIRST_COMPLETED
 
-from clasp.script_tools import pool_call
+
+import numpy as np
+from scipy.spatial import cKDTree, distance_matrix
 
 from raytraverse import translate
 from raytraverse.evaluate import MetricSet
 from raytraverse.lightfield.lightplanekd import LightPlaneKD
-from raytraverse.lightfield.sets import LightPlaneSet
+from raytraverse.lightfield.sets import MultiLightPointSet
 from raytraverse.lightfield.lightfield import LightField
 from raytraverse.lightfield.lightresult import ResultAxis, LightResult
 from raytraverse.mapper import ViewMapper, SkyMapper
@@ -37,21 +39,67 @@ class DayLightPlaneKD(LightField):
         self._skyplane = LightPlaneKD(self.scene, pts, self.pm, "sky")
 
     @property
+    def vecs(self):
+        """indexing vectors (such as position, sun positions, etc.)"""
+        return self._vecs
+
+    @property
+    def samplelevel(self):
+        """the level at which the vec was sampled (all zero if not provided
+        upon initialization"""
+        return self._samplelevel
+
+    @vecs.setter
+    def vecs(self, pt):
+        pts, idx, samplelevel = self._load_vecs(pt)
+        # calculate sun sampling resolution for weighting query vecs
+        s0 = pts[samplelevel == 0]
+        dm = distance_matrix(s0, s0)
+        cm = np.ma.MaskedArray(dm, np.eye(dm.shape[0]))
+        sund = np.average(np.min(cm, axis=0).data)
+        self._normalization = sund / self.pm.ptres * 2 * 2**.5
+        s_pts = []
+        s_idx = []
+        s_lev = []
+        for i, pt, sl in zip(idx, pts, samplelevel):
+            source = f"{self.src}_{i:04d}"
+            ptf = f"{self.scene.outdir}/{self.pm.name}/{source}_points.tsv"
+            spt, sidx, slev = self._load_vecs(ptf)
+            s_pts.append(np.hstack((np.broadcast_to(pt[None], spt.shape), spt)))
+            s_idx.append(np.stack((np.broadcast_to([i], sidx.shape), sidx)).T)
+            s_lev.append(np.stack((np.broadcast_to([sl], slev.shape), slev)).T)
+        self._vecs = np.concatenate(s_pts)
+        self._kd = None
+        self._samplelevel = np.concatenate(s_lev)
+        self.omega = None
+        self.data = np.concatenate(s_idx)
+
+    @property
     def data(self):
         """LightPlaneSet"""
         return self._data
 
-    @property
-    def skyplane(self):
-        return self._skyplane
-
     @data.setter
     def data(self, idx):
-        self._data = LightPlaneSet(LightPlaneKD, self.scene, self.pm, idx,
-                                   self.src)
+        self._data = MultiLightPointSet(self.scene, self.vecs, idx, self.src,
+                                        self.pm.name)
+
+    @property
+    def kd(self):
+        """kdtree for spatial queries built on demand"""
+        if self._kd is None:
+            weighted_vecs = np.copy(self.vecs)
+            weighted_vecs[:, 3:] *= self._normalization
+            self._kd = cKDTree(weighted_vecs)
+        return self._kd
+
+    @property
+    def skyplane(self):
+        """LightPlaneKD of sky results"""
+        return self._skyplane
 
     def query(self, vecs):
-        """return the index and distance of the nearest point to each of points
+        """return the index and distance of the nearest vec to each of vecs
 
         Parameters
         ----------
@@ -63,31 +111,14 @@ class DayLightPlaneKD(LightField):
         i: np.array
             integer indices of closest ray to each query
         d: np.array
-            distance from query to point in spacemapper.
+            distance from query to point, positional distance is normalized
+            by the average chord-length between leveel 0 sun samples divided by
+            the PlanMapper ptres * sqrt(2).
         """
-        d, i = self.kd.query(vecs)
-        d = translate.chord2theta(d) * 180/np.pi
+        weighted_vecs = np.copy(np.atleast_2d(vecs))
+        weighted_vecs[:, 3:] *= self._normalization
+        d, i = self.kd.query(weighted_vecs)
         return i, d
-
-    def query_ball(self, vecs, viewangle=10):
-        """return set of rays within a view cone
-
-        Parameters
-        ----------
-        vecs: np.array
-            shape (N, 3) vectors to query.
-        viewangle: int float
-            opening angle of view cone
-
-        Returns
-        -------
-        i: list np.array
-            if vecs is a single vector, a list of indices within radius.
-            if vecs is a set of points an array of lists, one
-            for each is returned.
-        """
-        vs = translate.theta2chord(viewangle/360*np.pi)
-        return self.kd.query_ball_point(translate.norm(vecs), vs)
 
     def evaluate(self, skydata, points, vm, metricclass=MetricSet,
                  metrics=None, logerr=True, datainfo=False, **kwargs):
@@ -110,175 +141,170 @@ class DayLightPlaneKD(LightField):
             order is ignored, info is always in order listed above after the
             last metric.
 
-
         Returns
         -------
         raytraverse.lightfield.LightResult
         """
-        dinfo = ["sun_pt_err", "sun_pt_bin", "sky_pt_err", "sky_pt_bin",
-                 "sun_err", "sun_bin"]
-        if not datainfo:
-            dinfo = []
-        elif hasattr(datainfo, "__len__"):
-            dinfo = [i for i in dinfo if i in datainfo]
         if hasattr(vm, "dxyz"):
             vms = [vm]
         else:
             dxyz = np.asarray(vm).reshape(-1, 3)
             vm = ViewMapper()
             vms = [ViewMapper(d, 180) for d in dxyz]
+        if metrics is None:
+            metrics = metricclass.defaultmetrics
 
+        oshape = (len(skydata.maskindices), len(points), len(vms), len(metrics))
+        self.scene.log(self, f"Evaluating {oshape[3]} metrics for {oshape[2]}"
+                             f" view directions at {oshape[1]} points under "
+                             f"{oshape[0]} skies", logerr)
+
+        # query and group sun positions
+        suns = skydata.sun[:, None, 0:3]
+        pts = np.atleast_2d(points)[None, :]
+        vecs = np.concatenate(np.broadcast_arrays(suns, pts), -1).reshape(-1, 6)
+        # order: (suns, pts) row-major
+        sidx, sun_err = self.query(vecs)
+        # query sky simulation data
+        skp_idx, sk_pt_err = self.skyplane.query(points)
+
+        # use parallel processing
+        fields = self._eval_mgr(skp_idx, sidx, skydata, oshape,
+                                vm=vm, vms=vms, metricclass=metricclass,
+                                metrics=metrics, **kwargs)
+        sinfo, dinfo = self._sinfo(datainfo, vecs, sidx, points, skp_idx,
+                                   oshape)
+        if sinfo is not None:
+            fields = np.concatenate((fields, sinfo), axis=-1)
         # compose axes
         skyaxis = ResultAxis(skydata.maskindices, f"sky")
         ptaxis = ResultAxis(points, "point")
         viewaxis = ResultAxis([v.dxyz for v in vms], "view")
-        if metrics is None:
-            metrics = metricclass.defaultmetrics
         metricaxis = ResultAxis(list(metrics) + dinfo, "metric")
-        axes = (skyaxis, ptaxis, viewaxis, metricaxis)
-
-        self.scene.log(self, f"Evaluating {len(metrics)} metrics for {len(vms)}"
-                             f" view directions at {len(points)} points under "
-                             f"{len(skydata.maskindices)} skies", logerr)
-        # query and group sun positions
-        np.set_printoptions(linewidth=200)
-        sidx, sun_err = self.query(skydata.sun[:, 0:3])
-        # get sort order to match evaluation order and inverse
-        sun_sort = np.argsort(sidx, kind='stable')
-        sun_isort = np.argsort(sun_sort, kind='stable')
-        # unique returns sorted values
-        dp_qidx = np.unique(sidx)
-        # query sky simulation data
-        skp_idx, sk_pt_err = self.skyplane.query(points)
-        # decide whether to split processors by sun positions or points
-        pool_suns = len(dp_qidx) > len(points)
-        plkwargs = dict(skp=self.skyplane.data, skp_idx=skp_idx, points=points,
-                        vm=vm, vms=vms, sp=pool_suns, dinfo=dinfo,
-                        metricclass=metricclass, metrics=metrics, **kwargs)
-        args = []
-        # iterate through suns
-        for qi in dp_qidx:
-            mask = sidx == qi
-            args.append((self.data[qi], skydata.smtx[mask], skydata.sun[mask]))
-        fields = pool_call(_evaluate_pls, args, kwargs=plkwargs, expand=True,
-                           test=not pool_suns)
-        fields = np.concatenate(fields)[sun_isort]
-
-        # add globally consistent info
-        sinfo = []
-        if "sky_pt_err" in dinfo:
-            sinfo.append(np.broadcast_to(sk_pt_err[None, :, None, None],
-                                         fields.shape[:-1] + (1,)))
-        if "sky_pt_bin" in dinfo:
-            ptbin = self.pm.uv2idx(self.pm.xyz2uv(self.skyplane.vecs[skp_idx]),
-                                   self.pm.framesize(500))
-            sinfo.append(np.broadcast_to(ptbin[None, :, None, None],
-                                         fields.shape[:-1] + (1,)))
-        if "sun_err" in dinfo:
-            sinfo.append(np.broadcast_to(sun_err[:, None, None, None],
-                                         fields.shape[:-1] + (1,)))
-        if "sun_bin" in dinfo:
-            sm = SkyMapper(sunres=1)
-            sun_bin = sm.uv2idx(sm.xyz2uv(self.vecs[sidx]), (500, 500))
-            sinfo.append(np.broadcast_to(sun_bin[:, None, None, None],
-                                         fields.shape[:-1] + (1,)))
-        if len(sinfo) > 0:
-            fields = np.concatenate((fields, *sinfo), axis=-1)
-
-
-        # inverse sort fields to match input order
-        lr = LightResult(fields, *axes)
-        ev = int(lr.data.size * (len(metrics) / lr.data.shape[-1]))
-        self.scene.log(self, f"Completed Evaluation for {ev} items",
+        lr = LightResult(fields, skyaxis, ptaxis, viewaxis, metricaxis)
+        self.scene.log(self, f"Completed evaluation for {fields.size} values",
                        logerr)
         return lr
 
+    def _eval_mgr(self, skp_idx, sidx, skydata, oshape, srconly=False, **kwargs):
+        """sort and submit queries to process pool"""
+        ski = np.broadcast_to(skp_idx, oshape[0:2]).reshape(-1, 1)
+        # tuples of all combinations: order: (suns, pts) row-major
+        idx_tup = np.hstack((self.data.idx[sidx], ski))
+        tup_sort = np.lexsort(idx_tup.T[::-1])
+        # make an inverse sort to undo evaluation order
+        tup_isort = np.argsort(tup_sort, kind='stable')
 
-def _evaluate_pls(snplane, skyvecs, suns, skp=None, skp_idx=None, points=None,
-                  sp=False, dinfo=None, **kwargs):
-    """plane by plane evaluation suitable for submitting to ProcessPool
+        # unique returns sorted values (evaluation order)
+        qtup, qidx = np.unique(idx_tup, axis=0, return_index=True)
+        # broadcast skydata to match full indexing
+        s = (*oshape[0:2], skydata.smtx.shape[1])
+        smtx = np.broadcast_to(skydata.smtx[:, None, :], s).reshape(-1, s[-1])
+        s = (*oshape[0:2], skydata.sun.shape[1])
+        dsns = np.broadcast_to(skydata.sun[:, None, :], s).reshape(-1, s[-1])
 
-    Parameters
-    ----------
-    snplane
-    skyvecs
-    suns
-    skp
-    skp_idx
-    points
-    sp
-    dinfo
-    kwargs
+        fields = []
+        if srconly:
+            workers = "threads"
+        else:
+            workers = True
+        with self.scene.progress_bar(self, "Evaluating Points", len(qtup),
+                                     workers=workers) as (exc, pbar):
+            pbar.write(f"Calculating {len(qidx)} sun/sky/pt combinations")
+            futures = []
+            done = set()
+            not_done = set()
+            cnt = 0
+            pbar_t = 0
+            # submit asynchronous to process pool
+            for qi, skp_qi in zip(sidx[qidx], qtup):
+                skp = self.skyplane.data[skp_qi[2]]
+                snp = self.data[qi]
+                mask = np.all(idx_tup == skp_qi, -1)
+                # manage to queue to avoid loading too many points in memory
+                # and update progress bar as completed
+                if cnt > exc._max_workers*3:
+                    wait_r = wait(not_done, return_when=FIRST_COMPLETED)
+                    not_done = wait_r.not_done
+                    done.update(wait_r.done)
+                    pbar.update(len(done) - pbar_t)
+                    pbar_t = len(done)
+                fu = exc.submit(_evaluate_pt, skp, snp, smtx[mask],
+                                dsns[mask], srconly=srconly, **kwargs)
+                futures.append(fu)
+                not_done.add(fu)
+                cnt += 1
+            # gather results (in order)
+            for future in futures:
+                fields.append(future.result())
+                if future in not_done:
+                    pbar.update(1)
+        # sort back to original order and reshape
+        fields = np.concatenate(fields, axis=0)[tup_isort].reshape(oshape)
+        return fields
 
-    Returns
-    -------
+    def _sinfo(self, datainfo, vecs, sidx, points, skp_idx, oshape):
+        """error and bin information for evaluate queries"""
+        dinfo = ["sun_pt_err", "sun_pt_bin", "sky_pt_err", "sky_pt_bin",
+                 "sun_err", "sun_bin"]
+        if not datainfo:
+            dinfo = []
+        elif hasattr(datainfo, "__len__"):
+            dinfo = [i for i in dinfo if i in datainfo]
+        if len(dinfo) == 0:
+            return None, dinfo
+        sinfo = []
+        if "sun_pt_err" in dinfo:
+            pterr = np.linalg.norm(vecs[:, 3:] - self.vecs[sidx, 3:],
+                                   axis=-1)
+            sinfo.append(pterr)
+        if "sun_pt_bin" in dinfo:
+            ptbin = self.pm.uv2idx(self.pm.xyz2uv(self.vecs[sidx, 3:]),
+                                   self.pm.framesize(500))
+            sinfo.append(ptbin)
+        if "sky_pt_err" in dinfo:
+            skerr = np.linalg.norm(points - self.skyplane.vecs[skp_idx],
+                                   axis=-1)
+            sinfo.append(np.tile(skerr, oshape[0]))
+        if "sky_pt_bin" in dinfo:
+            ptbin = self.pm.uv2idx(self.pm.xyz2uv(
+                self.skyplane.vecs[skp_idx]),
+                self.pm.framesize(500))
+            sinfo.append(np.tile(ptbin, oshape[0]))
+        if "sun_err" in dinfo:
+            snerr = np.linalg.norm(vecs[:, :3] - self.vecs[sidx, :3],
+                                   axis=-1)
+            sinfo.append(translate.chord2theta(snerr)*(180/np.pi))
+        if "sun_bin" in dinfo:
+            sm = SkyMapper()
+            sun_bin = sm.uv2idx(sm.xyz2uv(self.vecs[sidx, :3]), (500, 500))
+            sinfo.append(sun_bin)
+        return np.array(sinfo).T.reshape(*oshape[:-2], 1, -1), dinfo
 
-    """
-    # query sun simulation data
-    snp_idx, sn_pt_err = snplane.query(points)
-    # find unique combinations
-    idx_pair = np.stack((skp_idx, snp_idx))
-    # unique returns sorted values
-    sn_qidx, sn_midx = np.unique(idx_pair.T, axis=0, return_inverse=True)
-    pkwargs = dict(skyvecs=skyvecs, suns=suns, **kwargs)
-    # iterate through points
-    args = [(skp[sk_qi], snplane.data[sn_qi]) for sk_qi, sn_qi
-            in sn_qidx]
-    planes = pool_call(_evaluate_pts, args, kwargs=pkwargs, expand=True,
-                       test=sp)
-    planes = np.stack(planes, axis=1)
-    planes = planes[:, sn_midx]
 
-    # add sunplane unique info
-    sinfo = []
-    if "sun_pt_err" in dinfo:
-        sinfo.append(np.broadcast_to(sn_pt_err[None, :, None, None],
-                                     planes.shape[:-1] + (1,)))
-    if "sun_pt_bin" in dinfo:
-        ptbin = snplane.pm.uv2idx(snplane.pm.xyz2uv(snplane.vecs[snp_idx]),
-                                  snplane.pm.framesize(500))
-        sinfo.append(np.broadcast_to(ptbin[None, :, None, None],
-                                     planes.shape[:-1] + (1,)))
-    if len(sinfo) > 0:
-        planes = np.concatenate((planes, *sinfo), axis=-1)
-    return planes
-
-
-def _evaluate_pts(skpoint, snpoint, vm=None, vms=None, skyvecs=None, suns=None,
-                  metricclass=None, metrics=None, **kwargs):
-    """point by point evaluation suitable for submitting to ProcessPool
-
-    Parameters
-    ----------
-    skpoint
-    snpoint
-    vm
-    vms
-    skyvecs
-    suns
-    metricclass
-    metrics
-    kwargs
-
-    Returns
-    -------
-
-    """
-    sunskypt = skpoint.add(snpoint)
+def _evaluate_pt(skpoint, snpoint, skyvecs, suns, vm=None, vms=None,
+                 metricclass=None, metrics=None, srconly=False, **kwargs):
+    """point by point evaluation suitable for submitting to ProcessPool"""
+    if srconly:
+        sunskypt = snpoint
+        smtx = suns[:, 3]
+    else:
+        sunskypt = skpoint.add(snpoint)
+        smtx = np.hstack((skyvecs, suns[:, 3:4]))
     if len(vms) == 1:
         didx = sunskypt.query_ball(vms[0].dxyz,
                                    vms[0].viewangle * vms[0].aspect)[0]
     else:
         didx = None
     pts = []
-    for skyvec, sun in zip(skyvecs, suns):
-        avec = np.concatenate((skyvec, sun[3:4]))
-        vol = sunskypt.evaluate(avec, vm=vm, idx=didx,
-                                srcvecoverride=sun[0:3])
+    for skyvec, sun in zip(smtx, suns):
+        vol = sunskypt.evaluate(skyvec, vm=vm, idx=didx,
+                                srcvecoverride=sun[0:3], srconly=srconly)
         views = []
         for v in vms:
             views.append(metricclass(*vol, v, metricset=metrics,
                                      **kwargs)())
         views = np.stack(views)
         pts.append(views)
-    return np.stack(pts)
+    pts = np.stack(pts)
+    return pts

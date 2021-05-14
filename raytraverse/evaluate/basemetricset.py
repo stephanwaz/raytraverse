@@ -62,7 +62,11 @@ class BaseMetricSet(object):
         else:
             mask = self.vm.in_view(v)
             self._vec = v[mask]
-            self._lum = lum[mask]
+            try:
+                self._lum = lum[mask]
+            except IndexError:
+                print(v, lum, omega)
+                self._lum = np.zeros(len(self._vec))
             self.omega = omega[mask]
         self.scale = scale
         self.kwargs = kwargs
@@ -107,7 +111,7 @@ class BaseMetricSet(object):
     @omega.setter
     def omega(self, og):
         """correct omega of rays at edge of view to normalize view size"""
-        if self._correct_omega:
+        if self._correct_omega and len(self.vec) > 100:
             self._omega = np.copy(og)
             # square appoximation of ray area
             ray_side = np.sqrt(self._omega)

@@ -46,24 +46,7 @@ class LightField(object):
 
     @vecs.setter
     def vecs(self, pt):
-        try:
-            pts = np.atleast_2d(np.loadtxt(pt))
-        except TypeError:
-            pts = pt
-        if pts.shape[-1] == 3:
-            idx = np.arange(pts.shape[0])
-            samplelevel = np.zeros(pts.shape[0], dtype=int)
-        elif pts.shape[-1] == 4:
-            idx = pts[:, 0].astype(int)
-            samplelevel = np.zeros(pts.shape[0], dtype=int)
-            pts = pts[:, 1:]
-        elif pts.shape[-1] == 5:
-            samplelevel = pts[:, 0].astype(int)
-            idx = pts[:, 1].astype(int)
-            pts = pts[:, 2:]
-        else:
-            raise ValueError(f"vector array must have shape (N, [3, 4, or 5]) "
-                             f"not {pts.shape}")
+        pts, idx, samplelevel = self._load_vecs(pt)
         self._vecs = pts
         self.data = idx
         self._kd = None
@@ -135,3 +118,25 @@ class LightField(object):
 
     def evaluate(self, *args, **kwargs):
         pass
+
+    @staticmethod
+    def _load_vecs(pt):
+        try:
+            pts = np.atleast_2d(np.loadtxt(pt))
+        except TypeError:
+            pts = pt
+        if pts.shape[-1] == 3:
+            idx = np.arange(pts.shape[0])
+            samplelevel = np.zeros(pts.shape[0], dtype=int)
+        elif pts.shape[-1] == 4:
+            idx = pts[:, 0].astype(int)
+            samplelevel = np.zeros(pts.shape[0], dtype=int)
+            pts = pts[:, 1:]
+        elif pts.shape[-1] == 5:
+            samplelevel = pts[:, 0].astype(int)
+            idx = pts[:, 1].astype(int)
+            pts = pts[:, 2:]
+        else:
+            raise ValueError(f"vector array must have shape (N, [3, 4, or 5]) "
+                             f"not {pts.shape}")
+        return pts, idx, samplelevel

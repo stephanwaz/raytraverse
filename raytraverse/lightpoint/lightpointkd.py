@@ -273,7 +273,8 @@ class LightPointKD(object):
         for srcview in self.srcviews:
             srcview.add_to_img(img, vecs, mask, skyvec[-1], vm)
 
-    def evaluate(self, skyvec, vm=None, idx=None, srcvecoverride=None):
+    def evaluate(self, skyvec, vm=None, idx=None, srcvecoverride=None,
+                 srconly=False):
         """return rays within view with skyvec applied. this is the
         analog to add_to_img for metric calculations
 
@@ -300,15 +301,19 @@ class LightPointKD(object):
         lum: np.array
             shape (N,) associated luminances
         """
-        if vm is None:
+        if srconly:
+            rays = np.array([[0, 0, 1]])
+            omega = np.atleast_1d(np.pi*2)
+            lum = np.zeros((1, 1))
+        elif vm is None:
             rays = self.vec
-            omega = np.squeeze(self.omega)
+            omega = np.atleast_1d(np.squeeze(self.omega))
             lum = self.apply_coef(skyvec).T
             vm = self.vm
         else:
             if idx is None:
                 idx = self.query_ball(vm.dxyz, vm.viewangle * vm.aspect)[0]
-            omega = np.squeeze(self.omega[idx])
+            omega = np.atleast_1d(np.squeeze(self.omega[idx]))
             rays = self.vec[idx]
             lum = self.apply_coef(skyvec)[:, idx].T
         if len(self.srcviews) > 0:
@@ -326,7 +331,7 @@ class LightPointKD(object):
             except ValueError:
                 omega = np.asarray(vo)
             lum = np.vstack((lum, np.array(vl)))
-        return rays, omega, np.squeeze(lum)
+        return rays, omega, np.atleast_1d(np.squeeze(lum))
 
     def query_ray(self, vecs):
         """return the index and distance of the nearest ray to each of vecs

@@ -212,7 +212,6 @@ class SamplerSuns(BaseSampler):
         p[np.logical_not(self._mask)] = 0
         if level > 0:
             # calculate detail over points across sun positions
-            # self._make_area_weights(level, mask=False)
             nweights = self._normed_weights()
             det = draw.get_detail(nweights,
                                   *filterdict[self.detailfunc])

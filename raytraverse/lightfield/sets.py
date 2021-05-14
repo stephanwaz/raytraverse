@@ -41,6 +41,20 @@ class LightPointSet(LightSet):
                               posidx=self.idx[item], **self.kwargs)
 
 
+class MultiLightPointSet(LightSet):
+    def __init__(self, scene, points, idx, src, parent):
+        super().__init__(LightPointKD, scene, points, idx, src=src,
+                         parent=parent)
+        self.src = self.kwargs.pop("src")
+
+    @functools.lru_cache(5)
+    def __getitem__(self, item):
+        source = f"{self.src}_{self.idx[item, 0]:04d}"
+        return self.dataclass(self.scene, pt=self.points[item, 3:],
+                              posidx=self.idx[item, 1], src=source,
+                              srcdir=self.points[item, 0:3], **self.kwargs)
+
+
 class LightPlaneSet(LightSet):
     """a collection of LightPlanes, initialized by getitem"""
 

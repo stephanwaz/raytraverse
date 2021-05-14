@@ -19,7 +19,7 @@ with open('README.rst') as readme_file:
 with open('HISTORY.rst') as history_file:
     history = history_file.read()
 
-requirements = ['clasp', 'numpy', 'scipy', 'matplotlib',
+requirements = ['clasp', 'numpy', 'scipy', 'matplotlib', 'tqdm',
                 'skyfield', 'clipt', 'pybind11', 'shapely', 'sklearn']
 
 setup_requirements = ["setuptools", "wheel", "scikit-build", "cmake", "ninja"]
