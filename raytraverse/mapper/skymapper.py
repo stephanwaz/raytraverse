@@ -96,8 +96,8 @@ class SkyMapper(AngularMixin, Mapper):
             self._load_sun_data(location)
             self.in_solarbounds_uv = self._test_uv_candidates
             self.solar_grid_uv = self._solar_grid_uv_candidates
-        elif np.asarray(location).size > 3:
-            self._norm_input_data(location)
+        elif np.asarray(location).size > 3 or len(np.asarray(location).shape) == 2:
+            self._norm_input_data(np.asarray(location))
             self.in_solarbounds_uv = self._test_uv_candidates
             self.solar_grid_uv = self._solar_grid_uv_candidates
         else:

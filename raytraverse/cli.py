@@ -42,9 +42,19 @@ def np_load(ctx, param, s):
     else:
         return np.array([[float(i) for i in j.split(',')] for j in s.split()])
 
+@clk.pretty_name("NPY, TSV, FLOATS,FLOATS, FILE")
+def np_load_safe(ctx, param, s):
+    try:
+        return np_load(ctx, param, s)
+    except ValueError as ex:
+        if os.path.exists(s):
+            return s
+        else:
+            raise ex
+
 
 @click.group(chain=True, invoke_without_command=True)
-@click.argument('out')
+@click.option('-out', type=click.Path(file_okay=False))
 @click.option('--config', '-c', type=click.Path(exists=True),
               help="path of config file to load")
 @click.option('--template/--no-template', is_eager=True,
@@ -59,7 +69,7 @@ def np_load(ctx, param, s):
               help="show traceback on exceptions")
 @click.version_option(version=raytraverse.__version__)
 @click.pass_context
-def main(ctx, out, config, n=None,  **kwargs):
+def main(ctx, out=None, config=None, n=None,  **kwargs):
     """the raytraverse executable is a command line interface to the raytraverse
     python package for running and evaluating climate based daylight models.
     sub commands of raytraverse can be chained but should be invoked in the
@@ -91,6 +101,7 @@ def main(ctx, out, config, n=None,  **kwargs):
 
 
 @main.command()
+@click.option('-out', type=click.Path(file_okay=False))
 @click.option('-scene',
               help='space separated list of radiance scene files (no sky) or '
                    'precompiled octree')
@@ -101,21 +112,21 @@ def main(ctx, out, config, n=None,  **kwargs):
 @click.option('--overwrite/--no-overwrite', default=False,
               help='Warning! if set to True all files in'
                    'OUT will be deleted')
-@click.option('--frozen/--no-frozen', default=True,
-              help='create frozen octree from scene files')
 @click.option('--log/--no-log', default=True,
               help='log progress to <out>/log.txt')
 @clk.shared_decs(clk.command_decs(raytraverse.__version__, wrap=True))
-def scene(ctx, opts=False, debug=False, version=None, **kwargs):
+def scene(ctx, out=None, opts=False, debug=False, version=None, **kwargs):
     """The scene commands creates a Scene object which holds geometric
     information about the model including object geometry (and defined
     materials), the analysis plane and the desired resolutions for sky and
     analysis plane subdivision"""
+    if out is not None:
+        ctx.obj['out'] = out
     s = Scene(ctx.obj['out'], **kwargs)
     ctx.obj['scene'] = s
 
 
-run_opts = [
+engine_opts = [
  click.option('-accuracy', default=1.0,
               help='a generic accuracy parameter that sets the threshold'
                    ' variance to sample. A value of 1 will have a sample count'
@@ -129,63 +140,132 @@ run_opts = [
                    ' value should be smaller than 1/2 the size of the smallest'
                    ' view to an aperture that should be captured with 100%'
                    ' certainty'),
- click.option('-rargs', default="",
-              help='additional arguments to pass to the  rendering engine, '
-                   'appended to engine defaults'),
- click.option('--plotp/--no-plotp', default=False,
-              help='for diagnostics only, plots the pdf, weights and vectors'
-                   ' throughout the sampling process. This will generate a '
-                   'large number of images, so do not use when sampling more '
-                   'than a few points at a time.'),
- click.option('--plotdview/--no-plotdview', default=False,
-              help='plot a direct view of the sky field (as a .hdr file),'
-                   ' this is equivalent to integrating with a value of 1 for'
-                   ' all sky patches with no interpolation, with --showsample '
-                   'plots pixels of actualsample vectors in red'),
- click.option('--overwrite/--no-overwrite', default=False,
-              help='execute run even if simulations exist'),
- click.option('--showsample/--no-showsample', default=True,
-              help='show samples on dviews'),
- click.option('--static/--dynamic', default=True,
-              help='--static will sample predefined point locations '
-                   '(set by raytraverse points). --dynamic will adaptively '
-                   'select sampling positions, use "raytraverse points" w/ '
-                   '-area')
+ click.option('-rayargs',
+              help='additional arguments to pass to the  rendering engine'),
+ click.option('--default-args/--no-default-args', default=True,
+              help='use raytraverse defaults before -rayargs, if False, uses'
+                   ' radiance defaults'),
     ]
 
 
 @main.command()
+@clk.shared_decs(engine_opts)
+@click.option("-skyres", default=10.0,
+              help="approximate resolution for skypatch subdivision (in "
+                   "degrees). Patches will have (rounded) size skyres x skyres."
+                   " So if skyres=10, each patch will be 100 sq. degrees "
+                   "(0.03046174197 steradians) and there will be 18 * 18 = "
+                   "324 sky patches.")
 @click.option('-fdres', default=9,
               help='the final directional sampling resolution, yielding a'
                    ' grid of potential samples at 2^fdres x 2^fdres per'
                    ' hemisphere')
-@click.option('-dviewpatch',
-              callback=clk.split_float,
-              help="to plot direct view for a single patch,"
-                   "give an x,y,z direction")
-@click.option('-skyres', default=10.0,
-              help='approximate resolution for skypatch subdivision '
-                   '(in degrees). Patches will have (rounded) size skyres x '
-                   'skyres. So if skyres=10, each patch will be 100 sq. '
-                   'degrees (0.03046174197 steradians) and there will be 18 * '
-                   '18 = 324 sky patches.')
-@clk.shared_decs(run_opts)
 @clk.shared_decs(clk.command_decs(raytraverse.__version__, wrap=True))
-def skyrun(ctx, plotdview=False, overwrite=False, showsample=True,
-           dviewpatch=None, static=True, rargs="", skyres=10.0, accuracy=1.0,
-           idres=5, fdres=9, **kwargs):
-    """The skyrun command will run a fixed sampling a set of a set of points
-    or run an adaptive area sampler depending on the options given. Rendering
-    is done with the raytraverse.renderer.Rcontrib renderer. In addition to
-    the default options of rcontrib (see rcontrib -defaults), the raytraverse
-    defaults are: -ab 7 -ad 10 -as 0 -lw 1e-5 -st 0 -ss 16 -c nrbins*10. These
-    options can be overridden by the -rargs parameter."""
+def skyengine(ctx, accuracy=1.0, idres=5, rayargs=None, default_args=True,
+              skyres=10.0, fdres=9, opts=False, debug=False, version=None,
+              **kwargs):
+    """The scene commands creates a Scene object which holds geometric
+    information about the model including object geometry (and defined
+    materials), the analysis plane and the desired resolutions for sky and
+    analysis plane subdivision"""
     if 'scene' not in ctx.obj:
         clk.invoke_dependency(ctx, scene)
-    s = ctx.obj['scene']
-    skyengine = Rcontrib(rargs, s.scene, skyres=skyres)
-    skysamp = SkySamplerPt(s, skyengine, accuracy=accuracy, idres=idres,
-                           fdres=fdres)
+    scn = ctx.obj['scene']
+    rcontrib = Rcontrib(rayargs=rayargs, scene=scn.scene, skyres=skyres,
+                        default_args=default_args)
+    ctx.obj['skengine'] = SkySamplerPt(scn, rcontrib, accuracy=accuracy,
+                                       idres=idres, fdres=fdres)
+
+
+@main.command()
+@clk.shared_decs(engine_opts)
+@click.option('-fdres', default=10,
+              help='the final directional sampling resolution, yielding a'
+                   ' grid of potential samples at 2^fdres x 2^fdres per'
+                   ' hemisphere')
+@click.option('-speclevel', default=9,
+              help="at this sampling level, pdf is made from brightness of sky "
+                   "sampling rather than progressive variance to look for fine "
+                   "scale specular highlights, this should be atleast 1 level "
+                   "from the end and the resolution of this level should be "
+                   "smaller than the size of the source")
+@click.option('-slimit', default=0.01,
+              help="the minimum value in the specular guide considered as a "
+                   "potential specular reflection source, in the case of low "
+                   "vlt glazing, this value should be reduced.")
+@click.option('-maxspec', default=0.2,
+              help="the maximum value in the specular guide considered as a "
+                   "specular reflection source. Above this value it is "
+                   "assumed that these are direct view rays to the source so "
+                   "are not sampled. in the case of low vlt glazing, this "
+                   "value should be reduced. In mixed (high-low) vlt scenes "
+                   "the specular guide will either over sample (including "
+                   "direct views) or under sample (miss specular reflections) "
+                   "depending on this setting.")
+@clk.shared_decs(clk.command_decs(raytraverse.__version__, wrap=True))
+def sunengine(ctx, accuracy=1.0, idres=5, rayargs=None, default_args=True,
+              fdres=10, slimit=0.01, maxspec=0.2, opts=False, debug=False,
+              version=None, **kwargs):
+    """The scene commands creates a Scene object which holds geometric
+    information about the model including object geometry (and defined
+    materials), the analysis plane and the desired resolutions for sky and
+    analysis plane subdivision"""
+    if 'scene' not in ctx.obj:
+        clk.invoke_dependency(ctx, scene)
+    scn = ctx.obj['scene']
+    rtrace = Rtrace(rayargs=rayargs, scene=scn.scene, default_args=default_args)
+    ptkwargs = dict(slimit=slimit, maxspec=maxspec, accuracy=accuracy,
+                    idres=idres, fdres=fdres)
+    ctx.obj['snengine'] = dict(engine=rtrace, ptkwargs=ptkwargs)
+
+
+# @main.command()
+# @click.option("-static points", callback=np_load,
+#               help="points to simulate, this can be a .npy file, a whitespace "
+#                    "seperated text file or entered as a string with commas "
+#                    "between components of a point and spaces between points. "
+#                    "points should either all be 3 componnent (x,y,z) or 6"
+#                    " component (x,y,z,dx,dy,dz) to override -viewdir when used"
+#                    "with a -viewangle option")
+# @click.option("-zone")
+# @clk.shared_decs(clk.command_decs(raytraverse.__version__, wrap=True))
+# def skyrun(opts=False, debug=False, version=None, **kwargs):
+
+
+
+
+# @main.command()
+# @click.option('-fdres', default=9,
+#               help='the final directional sampling resolution, yielding a'
+#                    ' grid of potential samples at 2^fdres x 2^fdres per'
+#                    ' hemisphere')
+# @click.option('-dviewpatch',
+#               callback=clk.split_float,
+#               help="to plot direct view for a single patch,"
+#                    "give an x,y,z direction")
+# @click.option('-skyres', default=10.0,
+#               help='approximate resolution for skypatch subdivision '
+#                    '(in degrees). Patches will have (rounded) size skyres x '
+#                    'skyres. So if skyres=10, each patch will be 100 sq. '
+#                    'degrees (0.03046174197 steradians) and there will be 18 * '
+#                    '18 = 324 sky patches.')
+# @clk.shared_decs(run_opts)
+# @clk.shared_decs(clk.command_decs(raytraverse.__version__, wrap=True))
+# def skyrun(ctx, plotdview=False, overwrite=False, showsample=True,
+#            dviewpatch=None, static=True, rargs="", skyres=10.0, accuracy=1.0,
+#            idres=5, fdres=9, **kwargs):
+#     """The skyrun command will run a fixed sampling a set of a set of points
+#     or run an adaptive area sampler depending on the options given. Rendering
+#     is done with the raytraverse.renderer.Rcontrib renderer. In addition to
+#     the default options of rcontrib (see rcontrib -defaults), the raytraverse
+#     defaults are: -ab 7 -ad 10 -as 0 -lw 1e-5 -st 0 -ss 16 -c nrbins*10. These
+#     options can be overridden by the -rargs parameter."""
+#     if 'scene' not in ctx.obj:
+#         clk.invoke_dependency(ctx, scene)
+#     s = ctx.obj['scene']
+#     skyengine = Rcontrib(rargs, s.scene, skyres=skyres)
+#     skysamp = SkySamplerPt(s, skyengine, accuracy=accuracy, idres=idres,
+#                            fdres=fdres)
     # if static:
     #     if pts.points.size == 0:
     #         raise ValueError("static skyrun requires assigning points, see "
@@ -204,50 +284,50 @@ def skyrun(ctx, plotdview=False, overwrite=False, showsample=True,
     #                 lf.direct_view(showsample=showsample, srcidx=dviewpatch)
     # else:
     #     print("--dynamic is not implemented")
-    skyengine.reset()
+    # skyengine.reset()
 
 
-@main.command()
-@click.option('-fdres', default=10,
-              help='the final directional sampling resolution, yielding a'
-                   ' grid of potential samples at 2^fdres x 2^fdres per'
-                   ' hemisphere')
-@clk.shared_decs(run_opts)
-@clk.shared_decs(clk.command_decs(raytraverse.__version__, wrap=True))
-def sunrun(ctx, plotdview=False, overwrite=False, showsample=True,
-           dviewpatch=None, static=True, rargs="", accuracy=1.0,
-           idres=5, fdres=9, **kwargs):
-    """The skyrun command will run a fixed sampling a set of a set of points
-    or run an adaptive area sampler depending on the options given. Rendering
-    is done with the raytraverse.renderer.Rcontrib renderer. In addition to
-    the default options of rcontrib (see rcontrib -defaults), the raytraverse
-    defaults are: -ab 7 -ad 10 -as 0 -lw 1e-5 -st 0 -ss 16 -c nrbins*10. These
-    options can be overridden by the -rargs parameter."""
-    if 'scene' not in ctx.obj:
-        clk.invoke_dependency(ctx, scene)
-    s = ctx.obj['scene']
-    sunengine = Rtrace(rargs, s.scene)
-    # if static:
-    #     if pts.points.size == 0:
-    #         raise ValueError("static skyrun requires assigning points, see "
-    #                          "raytraverse points --help")
-    #     idx, d = pts.query_pt(pts.points)
-    #     for j, sn in zip(sunpos.sbins, sunpos.suns):
-    #         sunsamp = SunSamplerPt(s, sunengine, sn, j, accuracy=accuracy, idres=idres, fdres=fdres)
-    #         for i, pt in zip(idx, pts.points):
-    #             if overwrite or not os.path.isfile(f"{s.outdir}/sun_{j:04d}/{i:06d}.rytpt"):
-    #                 lf = sunsamp.run(pt, i, log='err')
-    #                 if plotdview:
-    #                     lf.direct_view(showsample=showsample, srcidx=dviewpatch)
-    #             else:
-    #                 click.echo(f"skipping point: {i} at {pt} for source sun_{j:04d}, results exist. use "
-    #                            f"--overwrite to force rerun", err=True)
-    #                 if plotdview:
-    #                     lf = LightPointKD(s, pt=pt, posidx=i, src=f"sun_{j:04d}")
-    #                     lf.direct_view(showsample=showsample, srcidx=dviewpatch)
-    # else:
-    #     print("--dynamic is not implemented")
-    sunengine.reset()
+# @main.command()
+# @click.option('-fdres', default=10,
+#               help='the final directional sampling resolution, yielding a'
+#                    ' grid of potential samples at 2^fdres x 2^fdres per'
+#                    ' hemisphere')
+# @clk.shared_decs(run_opts)
+# @clk.shared_decs(clk.command_decs(raytraverse.__version__, wrap=True))
+# def sunrun(ctx, plotdview=False, overwrite=False, showsample=True,
+#            dviewpatch=None, static=True, rargs="", accuracy=1.0,
+#            idres=5, fdres=9, **kwargs):
+#     """The skyrun command will run a fixed sampling a set of a set of points
+#     or run an adaptive area sampler depending on the options given. Rendering
+#     is done with the raytraverse.renderer.Rcontrib renderer. In addition to
+#     the default options of rcontrib (see rcontrib -defaults), the raytraverse
+#     defaults are: -ab 7 -ad 10 -as 0 -lw 1e-5 -st 0 -ss 16 -c nrbins*10. These
+#     options can be overridden by the -rargs parameter."""
+#     if 'scene' not in ctx.obj:
+#         clk.invoke_dependency(ctx, scene)
+#     s = ctx.obj['scene']
+#     sunengine = Rtrace(rargs, s.scene)
+#     # if static:
+#     #     if pts.points.size == 0:
+#     #         raise ValueError("static skyrun requires assigning points, see "
+#     #                          "raytraverse points --help")
+#     #     idx, d = pts.query_pt(pts.points)
+#     #     for j, sn in zip(sunpos.sbins, sunpos.suns):
+#     #         sunsamp = SunSamplerPt(s, sunengine, sn, j, accuracy=accuracy, idres=idres, fdres=fdres)
+#     #         for i, pt in zip(idx, pts.points):
+#     #             if overwrite or not os.path.isfile(f"{s.outdir}/sun_{j:04d}/{i:06d}.rytpt"):
+#     #                 lf = sunsamp.run(pt, i, log='err')
+#     #                 if plotdview:
+#     #                     lf.direct_view(showsample=showsample, srcidx=dviewpatch)
+#     #             else:
+#     #                 click.echo(f"skipping point: {i} at {pt} for source sun_{j:04d}, results exist. use "
+#     #                            f"--overwrite to force rerun", err=True)
+#     #                 if plotdview:
+#     #                     lf = LightPointKD(s, pt=pt, posidx=i, src=f"sun_{j:04d}")
+#     #                     lf.direct_view(showsample=showsample, srcidx=dviewpatch)
+#     # else:
+#     #     print("--dynamic is not implemented")
+#     sunengine.reset()
 
 
 
@@ -770,36 +850,7 @@ def sunrun(ctx, plotdview=False, overwrite=False, showsample=True,
 @main.resultcallback()
 @click.pass_context
 def printconfig(ctx, returnvalue, **kwargs):
-    """callback to print additional info and cleanup any temp files"""
-    rv = dict([i[0:2] for i in returnvalue])
-    try:
-        if 'scene' in rv:
-            info = rv['scene']['info']
-        else:
-            info = (ctx.command.commands['scene'].
-                    context_settings['default_map']['info'])
-        if str(info).lower() in ('1', 'yes', 'y', 't', 'true'):
-            s = ctx.obj['scene']
-            print('\nCallback Scene Info:', file=sys.stderr)
-            print('='*60 + '\n', file=sys.stderr)
-            try:
-                suncount = ctx.obj['suns'].suns.shape[0]
-                print(f'scene has {suncount} suns', file=sys.stderr)
-            except KeyError:
-                print('sun setter not initialized', file=sys.stderr)
-            print('\n Lightfield Data:', file=sys.stderr)
-            print('-'*60, file=sys.stderr)
-            print('Has sky lightfield data:',
-                  os.path.isfile(f'{s.outdir}/sky_kd_data.pickle'),
-                  file=sys.stderr)
-            print('Has sunview lightfield data:',
-                  os.path.isfile(f'{s.outdir}/sunview_kd_data.pickle'),
-                  file=sys.stderr)
-            for lf in ctx.obj['initlf']:
-                print(f"lightfield \"{lf.prefix}\" covers {lf.size['lfang']:.02f} "
-                      f"steradians with {lf.size['lfcnt']} rays", file=sys.stderr)
-    except KeyError:
-        pass
+    """callback to cleanup any temp files"""
     try:
         clk.tmp_clean(ctx)
     except Exception:

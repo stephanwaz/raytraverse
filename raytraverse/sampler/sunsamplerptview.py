@@ -15,21 +15,16 @@ from raytraverse.lightpoint import LightPointKD, SrcViewPoint
 
 
 class SunSamplerPtView(SamplerPt):
-    """sample view rays to direct suns.
-
-    here idres and fdres are sampled on a per sun basis for a view centered
-    on each sun direction with a view angle of .533 degrees (hardcoded in
-    sunmapper class).
+    """sample view rays to a source.
 
     Parameters
     ----------
     scene: raytraverse.scene.Scene
         scene class containing geometry, location and analysis plane
-    suns: raytraverse.sunsetter.SunSetter
-        sun class containing sun locations.
-    loadsrc: bool
-        include suns.rad in base scene initialization. if False,
-        self.engine.load_source must be invoked before call.
+    sun: np.array
+        the direction to the source
+    sunbin: int
+        index for naming
     """
     #: deterministic sample draws
     ub = 1

@@ -28,7 +28,6 @@ Command Line Interface
    craytraverse
 
    io
-   plot
    translate
 
 Tutorials

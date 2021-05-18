@@ -182,8 +182,6 @@ class DayLightPlaneKD(LightField):
         viewaxis = ResultAxis([v.dxyz for v in vms], "view")
         metricaxis = ResultAxis(list(metrics) + dinfo, "metric")
         lr = LightResult(fields, skyaxis, ptaxis, viewaxis, metricaxis)
-        self.scene.log(self, f"Completed evaluation for {fields.size} values",
-                       logerr)
         return lr
 
     def _eval_mgr(self, skp_idx, sidx, skydata, oshape, srconly=False, **kwargs):
@@ -208,8 +206,9 @@ class DayLightPlaneKD(LightField):
             workers = "threads"
         else:
             workers = True
-        with self.scene.progress_bar(self, "Evaluating Points", len(qtup),
-                                     workers=workers) as (exc, pbar):
+        with self.scene.progress_bar(self, message="Evaluating Points",
+                                     total=len(qtup), workers=workers) as pbar:
+            exc = pbar.pool
             pbar.write(f"Calculating {len(qidx)} sun/sky/pt combinations")
             futures = []
             done = set()
@@ -223,7 +222,7 @@ class DayLightPlaneKD(LightField):
                 mask = np.all(idx_tup == skp_qi, -1)
                 # manage to queue to avoid loading too many points in memory
                 # and update progress bar as completed
-                if cnt > exc._max_workers*3:
+                if cnt > pbar.nworkers*3:
                     wait_r = wait(not_done, return_when=FIRST_COMPLETED)
                     not_done = wait_r.not_done
                     done.update(wait_r.done)
@@ -239,14 +238,15 @@ class DayLightPlaneKD(LightField):
                 fields.append(future.result())
                 if future in not_done:
                     pbar.update(1)
-        # sort back to original order and reshape
-        fields = np.concatenate(fields, axis=0)[tup_isort].reshape(oshape)
+            # sort back to original order and reshape
+            fields = np.concatenate(fields, axis=0)[tup_isort].reshape(oshape)
+            pbar.write(f"Completed evaluation for {fields.size} values")
         return fields
 
     def _sinfo(self, datainfo, vecs, sidx, points, skp_idx, oshape):
         """error and bin information for evaluate queries"""
-        dinfo = ["sun_pt_err", "sun_pt_bin", "sky_pt_err", "sky_pt_bin",
-                 "sun_err", "sun_bin"]
+        dinfo = ["sun_err", "sun_pt_err", "sun_pt_idx", "sky_pt_err",
+                 "sky_pt_idx"]
         if not datainfo:
             dinfo = []
         elif hasattr(datainfo, "__len__"):
@@ -254,31 +254,22 @@ class DayLightPlaneKD(LightField):
         if len(dinfo) == 0:
             return None, dinfo
         sinfo = []
-        if "sun_pt_err" in dinfo:
-            pterr = np.linalg.norm(vecs[:, 3:] - self.vecs[sidx, 3:],
-                                   axis=-1)
-            sinfo.append(pterr)
-        if "sun_pt_bin" in dinfo:
-            ptbin = self.pm.uv2idx(self.pm.xyz2uv(self.vecs[sidx, 3:]),
-                                   self.pm.framesize(500))
-            sinfo.append(ptbin)
-        if "sky_pt_err" in dinfo:
-            skerr = np.linalg.norm(points - self.skyplane.vecs[skp_idx],
-                                   axis=-1)
-            sinfo.append(np.tile(skerr, oshape[0]))
-        if "sky_pt_bin" in dinfo:
-            ptbin = self.pm.uv2idx(self.pm.xyz2uv(
-                self.skyplane.vecs[skp_idx]),
-                self.pm.framesize(500))
-            sinfo.append(np.tile(ptbin, oshape[0]))
         if "sun_err" in dinfo:
             snerr = np.linalg.norm(vecs[:, :3] - self.vecs[sidx, :3],
                                    axis=-1)
             sinfo.append(translate.chord2theta(snerr)*(180/np.pi))
-        if "sun_bin" in dinfo:
-            sm = SkyMapper()
-            sun_bin = sm.uv2idx(sm.xyz2uv(self.vecs[sidx, :3]), (500, 500))
-            sinfo.append(sun_bin)
+        if "sun_pt_err" in dinfo:
+            pterr = np.linalg.norm(vecs[:, 3:] - self.vecs[sidx, 3:],
+                                   axis=-1)
+            sinfo.append(pterr)
+        if "sun_pt_idx" in dinfo:
+            sinfo.append(sidx)
+        if "sky_pt_err" in dinfo:
+            skerr = np.linalg.norm(points - self.skyplane.vecs[skp_idx],
+                                   axis=-1)
+            sinfo.append(np.tile(skerr, oshape[0]))
+        if "sky_pt_idx" in dinfo:
+            sinfo.append(np.tile(skp_idx, oshape[0]))
         return np.array(sinfo).T.reshape(*oshape[:-2], 1, -1), dinfo
 
 

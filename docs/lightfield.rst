@@ -8,7 +8,6 @@ LightField
     :members:
     :undoc-members:
     :show-inheritance:
-    :private-members:
 
 
 LightPlaneKD
@@ -18,7 +17,6 @@ LightPlaneKD
     :members:
     :undoc-members:
     :show-inheritance:
-    :private-members:
 
 DayLightPlaneKD
 ---------------------------------
@@ -27,7 +25,6 @@ DayLightPlaneKD
     :members:
     :undoc-members:
     :show-inheritance:
-    :private-members:
 
 LightResult
 ---------------------------------
@@ -36,4 +33,3 @@ LightResult
     :members:
     :undoc-members:
     :show-inheritance:
-    :private-members:

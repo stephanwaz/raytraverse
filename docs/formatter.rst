@@ -8,7 +8,6 @@ Formatter
     :members:
     :undoc-members:
     :show-inheritance:
-    :private-members:
 
 RadianceFormatter
 ---------------------------
@@ -17,5 +16,4 @@ RadianceFormatter
     :members:
     :undoc-members:
     :show-inheritance:
-    :private-members:
 

@@ -196,10 +196,13 @@ class SamplerArea(BaseSampler):
         if hasattr(self.engine, "slimit"):
             kwargs.update(peakthreshold=self.engine.slimit)
             specguide = self._specguide
-        for posidx, point in zip(range(*idx), vecs):
+        for posidx, point in self.scene.progress_bar(self,
+                                                     list(zip(range(*idx), vecs)),
+                                                     level=self._slevel):
             if specguide is not None:
                 sgpt = self._load_specguide(point)
-            lp = self.engine.run(point, posidx, specguide=sgpt, lpargs=lpargs)
+            lp = self.engine.run(point, posidx, specguide=sgpt, lpargs=lpargs,
+                                 log=None)
             vol = lp.evaluate(1)
             metric = self.metricclass(*vol, lp.vm,  **kwargs)
             lums.append(metric())

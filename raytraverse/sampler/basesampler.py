@@ -105,7 +105,9 @@ class BaseSampler(object):
 
     def run(self, mapper, name, levels, plotp=False, log='err', pfish=True,
             **kwargs):
-        """sample a single point, poisition index handles file naming
+        """trigger a sampling run. subclasses should return a
+        LightPoint/LightField from the executed object state (first call this
+        method with super().run(...)
 
         Parameters
         ----------
@@ -129,8 +131,6 @@ class BaseSampler(object):
         kwargs:
             unused
         """
-        self.vecs = None
-        self.lum = []
         detaillog = True
         logerr = False
         if log == 'scene':
@@ -139,44 +139,60 @@ class BaseSampler(object):
             logerr = True
         else:
             detaillog = False
-        allc = 0
         if detaillog:
             self.scene.log(self,
                            f"Started sampling {self.scene.outdir} at {name} "
                            f"with {self.stype}", logerr, level=self._slevel)
             hdr = ['level ', '      shape', 'samples', '   rate']
             self.scene.log(self, '\t'.join(hdr), logerr, level=self._slevel)
-        self._levels = levels
-        # reset weights
-        self.weights = np.full(self._wshape(0), 1, dtype=np.float32)
-        for i in range(self.levels.shape[0]):
-            shape = self.levels[i]
-            self._lift_weights(i)
-            draws, p = self.draw(i)
-            si, uv = self.sample_to_uv(draws, shape)
-            if si.size > 0:
-                vecs = mapper.uv2xyz(uv, stackorigin=self._includeorigin)
-                srate = si.shape[1]/np.prod(shape)
-                self._dump_vecs(vecs)
-                if detaillog:
-                    row = (f"{i + 1} of {self.levels.shape[0]}\t"
-                           f"{str(shape): >11}\t{si.shape[1]: >7}\t"
-                           f"{srate: >7.02%}")
-                    self.scene.log(self, row, logerr, level=self._slevel)
-                if plotp:
-                    self._plot_p(p, i, mapper, name, fisheye=pfish)
-                    self._plot_vecs(vecs, i, mapper, name, fisheye=pfish)
-                lum = self.sample(vecs)
-                self._update_weights(si, lum)
-                if plotp:
-                    self._plot_weights(i, mapper, name, fisheye=pfish)
-                a = lum.shape[0]
-                allc += a
+        allc = 0
+        for i in self._init4run(levels):
+            allc += self._run_level(mapper, name, i, plotp, detaillog, logerr,
+                                    pfish)
         srate = (allc * self.features /
                  np.prod(self._wshape(self.levels.shape[0] - 1)))
         if detaillog:
             row = ['total sampling:', '- ', f"{allc: >7}", f"{srate: >7.02%}"]
             self.scene.log(self, '\t'.join(row), logerr, level=self._slevel)
+
+    def _init4run(self, levels):
+        """(re)initialize object for new run, ensuring properties are cleared
+        prior to executing sampling loop"""
+        self.vecs = None
+        self.lum = []
+        self._levels = levels
+        # reset weights
+        self.weights = np.full(self._wshape(0), 1, dtype=np.float32)
+        leveliter = range(self.levels.shape[0])
+        return leveliter
+
+    def _run_level(self, mapper, name, i, plotp=False, detaillog=True,
+                   logerr=False, pfish=True):
+        """the main execution at a sampling level"""
+        shape = self.levels[i]
+        self._lift_weights(i)
+        draws, p = self.draw(i)
+        si, uv = self.sample_to_uv(draws, shape)
+        if si.size > 0:
+            vecs = mapper.uv2xyz(uv, stackorigin=self._includeorigin)
+            srate = si.shape[1]/np.prod(shape)
+            self._dump_vecs(vecs)
+            if detaillog:
+                row = (f"{i + 1} of {self.levels.shape[0]}\t"
+                       f"{str(shape): >11}\t{si.shape[1]: >7}\t"
+                       f"{srate: >7.02%}")
+                self.scene.log(self, row, logerr, level=self._slevel)
+            if plotp:
+                self._plot_p(p, i, mapper, name, fisheye=pfish)
+                self._plot_vecs(vecs, i, mapper, name, fisheye=pfish)
+            lum = self.sample(vecs)
+            self._update_weights(si, lum)
+            if plotp:
+                self._plot_weights(i, mapper, name, fisheye=pfish)
+            a = lum.shape[0]
+        else:
+            a = 0
+        return a
 
     def draw(self, level):
         """draw samples based on detail calculated from weights

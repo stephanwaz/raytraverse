@@ -10,7 +10,6 @@ import os
 import shutil
 import sys
 from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor
-import contextlib
 
 from tqdm import tqdm
 
@@ -97,6 +96,19 @@ class BaseScene(object):
                                                         frozen=self._frozen)
 
     def log(self, instance, message, err=False, level=0):
+        """print a message to the log file or stderr
+
+        Parameters
+        ----------
+        instance: Any
+            the parent class for the progress bar
+        message: str, optional
+            the message contents
+        err: bool, optional
+            print to stderr instead of self._logf
+        level: int, optional
+            the nested level of the message
+        """
         if self._dolog and level <= self._loglevel:
             if level < 0:
                 message = f"{type(instance).__name__}\t{message}"
@@ -122,21 +134,87 @@ class BaseScene(object):
             if needsclose:
                 f.close()
 
-    @contextlib.contextmanager
-    def progress_bar(self, instance, message, total, level=0, workers=False):
-        if level == 0:
-            tf = "%H:%M:%S"
-            ts = datetime.now(tz=self._tz).strftime(tf)
-            message = f"{ts} {type(instance).__name__} {message}"
-        else:
-            message = f"{type(instance).__name__}\t{message}"
-        pbar = tqdm(total=total, desc=message, mininterval=1.0, leave=None,
-                    position=level)
+    def progress_bar(self, instance, iterable=None, message=None,
+                     total=None, level=0, workers=False):
+        """generate a tqdm progress bar and concurrent.futures Executor class
+
+        Parameters
+        ----------
+        instance: Any
+            the parent class for the progress bar
+        iterable: Sequence, optional
+            passed to tqdm, the sequence to loop over
+        message: str, optional
+            the prefix message for the progress bar
+        total: int, optional
+            the number of expected iterations (when interable is none)
+        level: int, optional
+            the nested level of the progress bar
+        workers: Union[bool, str], optional
+            if "thread/threads/t" returns a ThreadPoolExecutor, else if True
+            returns a ProcessPoolExecutor.
+
+
+        Returns
+        -------
+        _TStqdm:
+            a subclass of tqdm that decorates messages and has a pool
+            property for multiprocessing.
+
+        Examples
+        --------
+
+        with an iterable::
+
+            for i in self.scene.progress_bar(self, np.arange(10)):
+                do stuff...
+
+        with workers=True:
+
+            with self.scene.progress_bar(self, total=len(jobs) workers=True) as pbar:
+                exc = pbar.pool
+                do stuff...
+                pbar.update(1)
+
+        """
         if str(workers).lower() in ('thread', 't', 'threads'):
-            yield ThreadPoolExecutor(), pbar
+            pool = ThreadPoolExecutor()
         elif workers:
             nproc = io.get_nproc()
-            yield ProcessPoolExecutor(nproc), pbar
+            pool = ProcessPoolExecutor(nproc)
         else:
-            yield pbar
+            pool = None
+        return _TStqdm(instance, self._tz, pool=pool, iterable=iterable,
+                       total=total, desc=message, mininterval=1.0,
+                       leave=None, position=level, dynamic_ncols=True)
 
+
+class _TStqdm(tqdm):
+
+    def __init__(self, instance, tz=None, pool=None, position=0, desc=None,
+                 **kwargs):
+        self._instance = instance
+        self.pos = position
+        tf = "%H:%M:%S"
+        self.ts = datetime.now(tz=tz).strftime(tf)
+        self.pool = pool
+        if pool is None:
+            self.nworkers = 0
+        else:
+            self.nworkers = pool._max_workers
+        super().__init__(desc=self.ts_message(desc), position=position,
+                         **kwargs)
+
+    def ts_message(self, s):
+        if s is None:
+            s = f"{type(self._instance).__name__}"
+        else:
+            s = f"{type(self._instance).__name__} {s}"
+        s = f"{' | ' * self.pos}{self.ts} {s}"
+        return s
+
+    def write(self, s, file=None, end="\n", nolock=False):
+        super().write(self.ts_message(s), file, end, nolock)
+
+    def set_description(self, desc=None, refresh=True):
+        super().set_description(desc=self.ts_message(desc), refresh=refresh)

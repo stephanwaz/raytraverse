@@ -8,7 +8,6 @@ BaseMetricSet
     :members:
     :undoc-members:
     :show-inheritance:
-    :private-members:
 
 MultiLumMetricSet
 ---------------------------------
@@ -17,7 +16,6 @@ MultiLumMetricSet
     :members:
     :undoc-members:
     :show-inheritance:
-    :private-members:
 
 MetricSet
 ---------------------------------
@@ -26,7 +24,6 @@ MetricSet
     :members:
     :undoc-members:
     :show-inheritance:
-    :private-members:
 
 FieldMetric
 ---------------------------------
@@ -35,7 +32,6 @@ FieldMetric
     :members:
     :undoc-members:
     :show-inheritance:
-    :private-members:
 
 SamplingMetrics
 ---------------------------------
@@ -44,7 +40,6 @@ SamplingMetrics
     :members:
     :undoc-members:
     :show-inheritance:
-    :private-members:
 
 PositionIndex
 ---------------------------------
@@ -53,7 +48,6 @@ PositionIndex
     :members:
     :undoc-members:
     :show-inheritance:
-    :private-members:
 
 retina
 -------

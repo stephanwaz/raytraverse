@@ -187,7 +187,10 @@ class BaseMetricSet(object):
         the squared luminances divided by the average luminance squared"""
         a2lum = (np.einsum('i,i,i->', self.lum, self.lum, self.omega) *
                  self.scale**2/self.view_area)
-        return a2lum/self.avglum**2
+        if self.avglum > 0:
+            return a2lum/self.avglum**2
+        else:
+            return 1.0
 
     @property
     @functools.lru_cache(1)

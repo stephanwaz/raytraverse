@@ -16,6 +16,8 @@ from raytraverse.sampler import draw
 from raytraverse.sampler.samplerarea import SamplerArea
 from raytraverse.sampler.basesampler import BaseSampler, filterdict
 from raytraverse.sampler.sunsamplerpt import SunSamplerPt
+from raytraverse.lightfield import DayLightPlaneKD, LightPlaneKD
+from raytraverse.evaluate import SamplingMetrics
 
 
 class SamplerSuns(BaseSampler):
@@ -81,16 +83,16 @@ class SamplerSuns(BaseSampler):
         self._skymapper = None
         #: raytraverse.mapper.PlanMapper (set in self.run())
         self._areamapper = None
-        self._name = None
         self._mask = slice(None)
         self._candidates = None
         self.slices = []
+        self._recovery_data = None
 
     def sampling_scheme(self, mapper):
         """calculate sampling scheme"""
         return np.array([mapper.shape(i) for i in range(self.nlev)])
 
-    def get_existing_run(self, skymapper, areamapper, name=None, log=True):
+    def get_existing_run(self, skymapper, areamapper):
         """check for file conflicts before running/overwriting parameters
         match call to run
 
@@ -100,63 +102,30 @@ class SamplerSuns(BaseSampler):
             the mapping for drawing suns
         areamapper: raytraverse.mapper.PlanMapper
             the mapping for drawing points
-        name: str, optional
-        log: bool, optional
-            log to scene stderr the results
 
         Returns
         -------
-        conflict: bool
-            True if files will be overwritten or ambient files reused (possibly
-            with new sun positions)
         conflicts: tuple
             a tuple of found conflicts (None for each if no conflicts:
 
-                - vfile: existing file path for sun positions
                 - suns: np.array of sun positions in vfile
-                - ambfiles: ambient files matching naming of potential run
                 - ptfiles: existing point files
 
         """
-        if name is None:
-            name = areamapper.name
-        vfile = f"{self.scene.outdir}/{name}/{skymapper.name}_{self.stype}.tsv"
+        vfile = (f"{self.scene.outdir}/{areamapper.name}/{skymapper.name}_"
+                 f"{self.stype}.tsv")
         try:
             suns = np.loadtxt(vfile)
         except OSError:
             suns = None
-            vfile = None
         except ValueError:
             suns = None
-        ambfiles = sglob(f"{self.scene.outdir}/{skymapper.name}_sun*.amb")
-        ptfiles = sglob(f"{self.scene.outdir}/{name}/{skymapper.name}_sun*"
-                       f"points.tsv")
-        conflict = suns is not None or len(ambfiles) > 0 or len(ptfiles) > 0
-        if log:
-            if vfile is not None:
-                if suns is None:
-                    s = 0
-                else:
-                    s = suns.shape[0]
-                self.scene.log(self, f"{vfile} exists and has {s} sun "
-                                     f"positions", err=True, level=-1)
-            if len(ambfiles) > 0:
-                self.scene.log(self, f"there are potentially {len(ambfiles)} "
-                               f"ambfiles conflicting with this run, from "
-                               f"{ambfiles[0]} to {ambfiles[-1]}", err=True,
-                               level=-1)
-            if len(ptfiles) > 0:
-                self.scene.log(self, f"there are potentially {len(ptfiles)} "
-                               f"area samples that would be overwritten, "
-                               f"from {ptfiles[0]} to {ptfiles[-1]}",
-                               err=True, level=-1)
-            if not conflict:
-                self.scene.log(self, f"directory clean, no file conflict found"
-                               f" with run: {self.scene.outdir}, "
-                               f"{skymapper.name}, {name}", err=True, level=-1)
-        return conflict, (vfile, suns, ambfiles, ptfiles)
+        ptfiles = sglob(f"{self.scene.outdir}/{areamapper.name}/"
+                        f"{skymapper.name}_sun*points.tsv")
+        return suns, ptfiles
 
-    def run(self, skymapper, areamapper, name=None, specguide=None, **kwargs):
+    def run(self, skymapper, areamapper, specguide=None,
+            recover=True, **kwargs):
         """adapively sample sun positions for an area (also adaptively sampled)
 
         Parameters
@@ -165,9 +134,10 @@ class SamplerSuns(BaseSampler):
             the mapping for drawing suns
         areamapper: raytraverse.mapper.PlanMapper
             the mapping for drawing points
-        name: str, optional
         specguide: raytraverse.lightfield.LightPlaneKD
             sky source lightfield to use as specular guide for sampling
+        recover: continue run on top of existing files, if false, overwrites
+            previous run.
         kwargs:
             passed to self.run()
 
@@ -175,21 +145,57 @@ class SamplerSuns(BaseSampler):
         -------
         raytraverse.lightlplane.LightPlaneKD
         """
-        conflict, data = self.get_existing_run(skymapper, areamapper, name)
-        # if conflict:
-        #     raise ValueError("run exists!")
-        if name is None:
-            name = areamapper.name
-        try_mkdir(f"{self.scene.outdir}/{name}")
+        sun_conflict, pt_conflict = self.get_existing_run(skymapper, areamapper)
+        if sun_conflict is not None and recover:
+            self._recovery_data = sun_conflict, pt_conflict
+        else:
+            self._recovery_data = None
+        try_mkdir(f"{self.scene.outdir}/{areamapper.name}")
         # reset/initialize runtime properties
-        self._name = name
         self._skymapper = skymapper
         self._areamapper = areamapper
         self._specguide = specguide
         self._areaweights = None
         levels = self.sampling_scheme(skymapper)
-        super().run(skymapper, name, levels, **kwargs)
-        # return MultiSourcePlaneKD(self.scene, self.vecs, self._areamapper, self.stype)
+        kwargs.update(log=False)
+        super().run(skymapper, areamapper.name, levels, **kwargs)
+        return DayLightPlaneKD(self.scene, self.vecs, self._areamapper,
+                               f"{self._skymapper.name}_sun")
+
+    def _init4run(self, levels):
+        """(re)initialize object for new run, ensuring properties are cleared
+        prior to executing sampling loop"""
+        leveliter = super()._init4run(levels)
+        if self._recovery_data is None:
+            return leveliter
+        levels2run = []
+        suns = self._recovery_data[0]
+        pts = self._recovery_data[1]
+        pt_cnt = len(pts)
+        for i in leveliter:
+            levelsuns = suns[suns[:, 0] == i]
+            if pt_cnt > 0:
+                self._recover_level(levelsuns[:, 2:], i)
+                pt_cnt -= len(levelsuns)
+            else:
+                levels2run.append(i)
+        return levels2run
+
+    def _recover_level(self, vecs, i):
+        """use existing drawn sun positions to rerun, trying to load LightFields
+        before running"""
+        shape = self.levels[i]
+        uv = self._skymapper.xyz2uv(vecs)
+        idx = self._skymapper.uv2idx(uv, shape)
+        candidates = np.full((np.prod(shape), 2), 3.0)
+        candidates[idx] = uv
+        self._lift_weights(i, candidates=candidates)
+        draws, p = self.draw(i)
+        si, uv = self.sample_to_uv(draws, shape)
+        if si.size > 0:
+            self._dump_vecs(vecs)
+            lum = self.sample(vecs)
+            self._update_weights(si, lum)
 
     def draw(self, level):
         """draw on condition of in_solarbounds from skymapper.
@@ -280,7 +286,11 @@ class SamplerSuns(BaseSampler):
 
         idx = self.slices[-1].indices(self.slices[-1].stop)
         lums = []
-        for suni, sunpos, adraws in zip(range(*idx), vecs, self._areadraws):
+
+        pbar = self.scene.progress_bar(self, list(zip(range(*idx), vecs,
+                                                      self._areadraws)),
+                                       level=self._slevel)
+        for suni, sunpos, adraws in pbar:
             sunsamp = SunSamplerPt(self.scene, self.engine, sunpos, suni,
                                    stype=f"{self._skymapper.name}_sun",
                                    **self._ptkwargs)
@@ -289,8 +299,32 @@ class SamplerSuns(BaseSampler):
                 amapper = MaskedPlanMapper(self._areamapper, adraws, 0)
             else:
                 amapper = self._areamapper
-            lf = areasampler.run(amapper, name=self._name,
-                                 specguide=self._specguide)
+            needs_sampling = True
+            if self._recovery_data is not None:
+                try:
+                    src = f"{self._skymapper.name}_sun_{suni:04d}"
+                    pts = (f"{self.scene.outdir}/{self._areamapper.name}/"
+                           f"{src}_points.tsv")
+                    lf = LightPlaneKD(self.scene, pts, self._areamapper, src)
+                    pbar.set_description("Recovering")
+                    metrics = self._areakwargs['metricset']
+                    try:
+                        mc = self._areakwargs['metricclass']
+                    except KeyError:
+                        mc = SamplingMetrics
+                    areasampler.lum = lf.evaluate(1, metrics=metrics,
+                                                  metricclass=mc)
+                    shp = (*areasampler.sampling_scheme(amapper)[-1],
+                           areasampler.features)
+                except (ValueError, OSError):
+                    pass
+                else:
+                    needs_sampling = False
+            if needs_sampling:
+                pbar.set_description("Sampling")
+                lf = areasampler.run(amapper, specguide=self._specguide,
+                                     log=False)
+                shp = (*areasampler.levels[-1], areasampler.features)
             # build weights based on final sampling
             candidates = amapper.point_grid_uv(jitter=False,
                                                level=areasampler.nlev - 1,
@@ -298,8 +332,7 @@ class SamplerSuns(BaseSampler):
             mask = amapper.in_view_uv(candidates, False)
             wvecs = amapper.uv2xyz(candidates)
             idx, d = lf.query(wvecs)
-            weights = areasampler.lum[idx].reshape(*areasampler.levels[-1],
-                                                   areasampler.features)
+            weights = areasampler.lum[idx].reshape(shp)
             weights = np.moveaxis(weights, 2, 0)
             weights = weights[self._metidx]
             for w in weights:
@@ -321,9 +354,11 @@ class SamplerSuns(BaseSampler):
         update = self._areaweights[..., si[0], si[1]]
         self._areaweights[..., si[0], si[1]] = np.where(lum > 0, lum, update)
 
-    def _lift_weights(self, i):
-        self._candidates = self._skymapper.solar_grid_uv(jitter=self.jitter,
-                                                         level=i, masked=False)
+    def _lift_weights(self, i, candidates=None):
+        if candidates is None:
+            candidates = self._skymapper.solar_grid_uv(jitter=self.jitter,
+                                                       level=i, masked=False)
+        self._candidates = candidates
         shape = self._skymapper.shape(i)
         mask = self._skymapper.in_solarbounds_uv(self._candidates,
                                                  level=i).reshape(shape)
@@ -358,8 +393,8 @@ class SamplerSuns(BaseSampler):
             self.vecs = np.concatenate((self.vecs, vecs))
             v0 = self.slices[-1].stop
         self.slices.append(slice(v0, v0 + len(vecs)))
-        vfile = (f"{self.scene.outdir}/{self._name}/{self._skymapper.name}_"
-                 f"{self.stype}.tsv")
+        vfile = (f"{self.scene.outdir}/{self._areamapper.name}/"
+                 f"{self._skymapper.name}_{self.stype}.tsv")
         idx = np.arange(len(self.vecs))[:, None]
         level = np.zeros_like(idx, dtype=int)
         for sl in self.slices[1:]:

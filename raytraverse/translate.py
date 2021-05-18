@@ -20,7 +20,10 @@ def norm(v):
 
 def norm1(v):
     """normalize flat vector"""
-    return v/np.sqrt(np.sum(np.square(v)))
+    n = np.sqrt(np.sum(np.square(v)))
+    if n == 0:
+        n = 1
+    return v/n
 
 
 ###############################################

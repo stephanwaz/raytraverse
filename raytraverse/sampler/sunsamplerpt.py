@@ -84,8 +84,6 @@ class SunSamplerPt(SamplerPt):
 
     def draw(self, level):
         """draw samples based on detail calculated from weights
-        detail is calculated across direction only as it is the most precise
-        dimension
 
         Returns
         -------

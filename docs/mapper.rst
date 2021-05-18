@@ -8,7 +8,6 @@ Mapper
     :members:
     :undoc-members:
     :show-inheritance:
-    :private-members:
 
 AngularMixin
 ------------------------------
@@ -17,7 +16,6 @@ AngularMixin
     :members:
     :undoc-members:
     :show-inheritance:
-    :private-members:
 
 ViewMapper
 ------------------------------
@@ -26,7 +24,6 @@ ViewMapper
     :members:
     :undoc-members:
     :show-inheritance:
-    :private-members:
 
 SkyMapper
 ------------------------------
@@ -35,7 +32,6 @@ SkyMapper
     :members:
     :undoc-members:
     :show-inheritance:
-    :private-members:
 
 PlanMapper
 ------------------------------
@@ -44,4 +40,3 @@ PlanMapper
     :members:
     :undoc-members:
     :show-inheritance:
-    :private-members:

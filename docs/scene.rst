@@ -8,7 +8,6 @@ BaseScene
     :members:
     :undoc-members:
     :show-inheritance:
-    :private-members:
 
 
 Scene
@@ -18,7 +17,6 @@ Scene
     :members:
     :undoc-members:
     :show-inheritance:
-    :private-members:
 
 ImageScene
 -----------------------
@@ -27,4 +25,3 @@ ImageScene
     :members:
     :undoc-members:
     :show-inheritance:
-    :private-members:

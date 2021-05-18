@@ -8,7 +8,6 @@ Renderer
     :members:
     :undoc-members:
     :show-inheritance:
-    :private-members:
 
 RadianceRenderer
 ---------------------------
@@ -17,7 +16,6 @@ RadianceRenderer
     :members:
     :undoc-members:
     :show-inheritance:
-    :private-members:
 
 Rtrace
 --------------------------------
@@ -26,7 +24,6 @@ Rtrace
     :members:
     :undoc-members:
     :show-inheritance:
-    :private-members:
 
 Rcontrib
 --------------------------------
@@ -35,7 +32,6 @@ Rcontrib
     :members:
     :undoc-members:
     :show-inheritance:
-    :private-members:
 
 ImageRenderer
 --------------------------------
@@ -44,4 +40,3 @@ ImageRenderer
     :members:
     :undoc-members:
     :show-inheritance:
-    :private-members:

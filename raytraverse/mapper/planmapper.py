@@ -246,14 +246,15 @@ class PlanMapper(Mapper):
     def _calc_border(self, points, level=0):
         """generate a border from convex hull of points"""
         o = self.ptres/2**(level + 1)
-        if len(points) > 2:
+        try:
             hull = ConvexHull(points[:, 0:2])
+        except RuntimeError:
+            offset = np.array([[o, o], [o, -o], [-o, -o], [-o, o]])
+            pts = (points[:, 0:2] + offset[:, None]).reshape(-1, 2)
+        else:
             p = Polygon(hull.points[hull.vertices])
             b = p.boundary.parallel_offset(o, join_style=2)
             pts = np.array(b.xy).T
-        else:
-            offset = np.array([[o, o], [o, -o], [-o, -o], [-o, o]])
-            pts = (points[:, 0:2] + offset[:, None]).reshape(-1, 2)
         z = np.max(points[:, 2])
         hull = ConvexHull(pts)
         pt = hull.points[hull.vertices]

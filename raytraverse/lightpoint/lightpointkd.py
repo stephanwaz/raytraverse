@@ -373,6 +373,27 @@ class LightPointKD(object):
         vs = translate.theta2chord(viewangle/360*np.pi)
         return self.d_kd.query_ball_point(translate.norm(vecs), vs)
 
+    def make_image(self, outf, skyvec, vm=None, res=1024, interp=False,
+                   showsample=False):
+        if vm is None:
+            vm = self.vm
+        img, pdirs, mask, mask2, header = vm.init_img(res, self.pt)
+        header = [header]
+        self.add_to_img(img, pdirs[mask], mask, vm=vm,
+                        interp=interp, skyvec=skyvec)
+        if vm.aspect == 2:
+            self.add_to_img(img[res:], pdirs[res:][mask2], mask2, vm=vm.ivm,
+                            interp=interp, skyvec=skyvec)
+        if showsample:
+            img = np.repeat(img[None, ...], 3, 0)
+            vi = self.query_ball(vm.dxyz, vm.viewangle * vm.aspect)
+            v = self.vec[vi[0]]
+            img = vm.add_vecs_to_img(img, v)
+            io.carray2hdr(img, outf, header)
+        else:
+            io.array2hdr(img, outf, header)
+        return outf
+
     def direct_view(self, res=512, showsample=False, showweight=True, rnd=False,
                     srcidx=None, interp=False, omega=False, scalefactor=1,
                     vm=None, fisheye=True):

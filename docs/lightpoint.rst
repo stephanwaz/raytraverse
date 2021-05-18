@@ -8,7 +8,6 @@ LightPointKD
     :members:
     :undoc-members:
     :show-inheritance:
-    :private-members:
 
 SrcViewPoint
 ---------------------------------
@@ -17,7 +16,6 @@ SrcViewPoint
     :members:
     :undoc-members:
     :show-inheritance:
-    :private-members:
 
 CompressedPointKD
 ---------------------------------
@@ -26,4 +24,3 @@ CompressedPointKD
     :members:
     :undoc-members:
     :show-inheritance:
-    :private-members:
