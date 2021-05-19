@@ -291,6 +291,8 @@ class LightPointKD(object):
             irradiance calculations (and yield more consistent results when the
             sampled sun position over an area varies) compared with using the
             sampled ray direction directly.
+        srconly: bool, optional
+            only evaluate direct sources (stored in self.srcviews)
 
         Returns
         -------

@@ -45,7 +45,7 @@ class SamplerSuns(BaseSampler):
     """
 
     #: initial sampling threshold coefficient
-    t0 = .1
+    t0 = .05
     #: final sampling threshold coefficient
     t1 = .9
     #: upper bound for drawing from pdf
@@ -157,12 +157,11 @@ class SamplerSuns(BaseSampler):
         self._specguide = specguide
         self._areaweights = None
         levels = self.sampling_scheme(skymapper)
-        kwargs.update(log=False)
         super().run(skymapper, areamapper.name, levels, **kwargs)
         return DayLightPlaneKD(self.scene, self.vecs, self._areamapper,
                                f"{self._skymapper.name}_sun")
 
-    def _init4run(self, levels):
+    def _init4run(self, levels, **kwargs):
         """(re)initialize object for new run, ensuring properties are cleared
         prior to executing sampling loop"""
         leveliter = super()._init4run(levels)
@@ -175,15 +174,17 @@ class SamplerSuns(BaseSampler):
         for i in leveliter:
             levelsuns = suns[suns[:, 0] == i]
             if pt_cnt > 0:
-                self._recover_level(levelsuns[:, 2:], i)
+                self._recover_level(levelsuns[:, 2:], i, **kwargs)
                 pt_cnt -= len(levelsuns)
             else:
                 levels2run.append(i)
         return levels2run
 
-    def _recover_level(self, vecs, i):
+    def _recover_level(self, vecs, i, plotp=False, pfish=True):
         """use existing drawn sun positions to rerun, trying to load LightFields
         before running"""
+        mapper = self._skymapper
+        name = self._areamapper.name
         shape = self.levels[i]
         uv = self._skymapper.xyz2uv(vecs)
         idx = self._skymapper.uv2idx(uv, shape)
@@ -194,8 +195,13 @@ class SamplerSuns(BaseSampler):
         si, uv = self.sample_to_uv(draws, shape)
         if si.size > 0:
             self._dump_vecs(vecs)
+            if plotp:
+                self._plot_p(p, i, mapper, name, fisheye=pfish)
+                self._plot_vecs(vecs, i, mapper, name, fisheye=pfish)
             lum = self.sample(vecs)
             self._update_weights(si, lum)
+            if plotp:
+                self._plot_weights(i, mapper, name, fisheye=pfish)
 
     def draw(self, level):
         """draw on condition of in_solarbounds from skymapper.
@@ -220,7 +226,7 @@ class SamplerSuns(BaseSampler):
             # calculate detail over points across sun positions
             nweights = self._normed_weights()
             det = draw.get_detail(nweights,
-                                  *filterdict[self.detailfunc])
+                                  *filterdict[self.detailfunc], mode='constant')
             mfunc = self._areakwargs['metricfunc']
             det = np.transpose(det.reshape(self._areaweights.shape),
                                (3, 4, 0, 1, 2))

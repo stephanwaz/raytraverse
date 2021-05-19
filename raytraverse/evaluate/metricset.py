@@ -58,7 +58,7 @@ class MetricSet(BaseMetricSet):
                                              "dgp_t1", "log_gc", "dgp_t2",
                                              "ugr", "threshold", "pwsl2",
                                              "view_area", "backlum_true",
-                                             "srcillum"]
+                                             "srcillum", "srcarea", "maxlum"]
 
     def __init__(self, vec, omega, lum, vm, metricset=None, scale=179.,
                  threshold=2000., guth=True, tradius=30.0,
@@ -132,10 +132,26 @@ class MetricSet(BaseMetricSet):
     @property
     @functools.lru_cache(1)
     def srcillum(self):
-        """average background luminance"""
+        """source illuminance"""
         svec, soga, slum = self.sources
         return np.einsum('i,i,i->', self.vm.ctheta(svec), slum,
                          soga) * self.scale
+
+    @property
+    @functools.lru_cache(1)
+    def srcarea(self):
+        """total source area"""
+        _, soga, _ = self.sources
+        return np.sum(soga)
+
+    @property
+    @functools.lru_cache(1)
+    def maxlum(self):
+        """peak luminance"""
+        if self.lum.size > 0:
+            return np.max(self.lum)*self.scale
+        else:
+            return 0.0
 
     @property
     @functools.lru_cache(1)

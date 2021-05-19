@@ -34,7 +34,7 @@ class SamplerArea(BaseSampler):
     jitter: bool, optional
         jitter samples
     edgemode: {‘reflect’, ‘constant’, ‘nearest’, ‘mirror’, ‘wrap’}, optional
-        default: 'reflect', if 'constant' value is set to -self.t1, so edge is
+        default: 'constant', if 'constant' value is set to -self.t1, so edge is
         always seen as detail. Internal edges (resulting from PlanMapper
         borders) will behave like 'nearest' for all options except 'constant'
     metricclass: raytraverse.evaluate.BaseMetricSet, optional
@@ -56,7 +56,7 @@ class SamplerArea(BaseSampler):
     ub = 100
 
     def __init__(self, scene, engine, accuracy=1.0, nlev=3, jitter=True,
-                 edgemode='reflect', metricclass=SamplingMetrics,
+                 edgemode='constant', metricclass=SamplingMetrics,
                  metricset=('avglum', 'loggcr', 'xpeak', 'ypeak'),
                  metricfunc=np.max, **kwargs):
         super().__init__(scene, engine, accuracy, engine.stype, **kwargs)

@@ -146,7 +146,7 @@ class BaseSampler(object):
             hdr = ['level ', '      shape', 'samples', '   rate']
             self.scene.log(self, '\t'.join(hdr), logerr, level=self._slevel)
         allc = 0
-        for i in self._init4run(levels):
+        for i in self._init4run(levels, plotp=plotp, pfish=pfish):
             allc += self._run_level(mapper, name, i, plotp, detaillog, logerr,
                                     pfish)
         srate = (allc * self.features /
@@ -155,7 +155,7 @@ class BaseSampler(object):
             row = ['total sampling:', '- ', f"{allc: >7}", f"{srate: >7.02%}"]
             self.scene.log(self, '\t'.join(row), logerr, level=self._slevel)
 
-    def _init4run(self, levels):
+    def _init4run(self, levels, **kwargs):
         """(re)initialize object for new run, ensuring properties are cleared
         prior to executing sampling loop"""
         self.vecs = None
