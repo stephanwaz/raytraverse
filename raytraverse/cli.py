@@ -17,9 +17,12 @@ from clasp import click
 import clasp.click_ext as clk
 
 import raytraverse
+from raytraverse.lightfield import LightPlaneKD, DayLightPlaneKD
+from raytraverse.mapper import PlanMapper, SkyMapper, ViewMapper
 from raytraverse.scene import Scene
 from raytraverse.renderer import Rtrace, Rcontrib
-from raytraverse.sampler import SkySamplerPt
+from raytraverse.sampler import SkySamplerPt, SamplerArea, SamplerSuns
+from raytraverse.sky import SkyData, skycalc
 
 
 @clk.pretty_name("NPY, TSV, FLOATS,FLOATS")
@@ -42,6 +45,7 @@ def np_load(ctx, param, s):
     else:
         return np.array([[float(i) for i in j.split(',')] for j in s.split()])
 
+
 @clk.pretty_name("NPY, TSV, FLOATS,FLOATS, FILE")
 def np_load_safe(ctx, param, s):
     try:
@@ -55,14 +59,14 @@ def np_load_safe(ctx, param, s):
 
 @click.group(chain=True, invoke_without_command=True)
 @click.option('-out', type=click.Path(file_okay=False))
-@click.option('--config', '-c', type=click.Path(exists=True),
+@click.option('-config', '-c', type=click.Path(exists=True),
               help="path of config file to load")
 @click.option('--template/--no-template', is_eager=True,
               callback=clk.printconfigs,
               help="write default options to std out as config")
 @click.option('-n', default=None, type=int,
               help='sets the environment variable RAYTRAVERSE_PROC_CAP set to'
-                   '0 to clear (parallel processes will use cpu_limit)')
+                   ' 0 to clear (parallel processes will use cpu_limit)')
 @click.option('--opts', '-opts', is_flag=True,
               help="check parsed options")
 @click.option('--debug', is_flag=True,
@@ -75,8 +79,8 @@ def main(ctx, out=None, config=None, n=None,  **kwargs):
     sub commands of raytraverse can be chained but should be invoked in the
     order given.
 
-    the easiest way to manage options and sure that Scene and SunSetter classes
-    are properly reloaded is to use a configuration file, to make a template::
+    the easiest way to manage options is to use a configuration file,
+    to make a template::
 
         raytraverse --template > run.cfg
 
@@ -84,15 +88,9 @@ def main(ctx, out=None, config=None, n=None,  **kwargs):
     any dependencies will be loaded with the correct options, a complete run
     and evaluation can then be called by::
 
-        raytraverse -c run.cfg OUT skyrun sunrun evaluate
+        raytraverse -c run.cfg skyrun sunrun
 
-    as both scene and sun will be invoked automatically as needed.
-
-    Arguments:
-        * ctx: click.Context
-        * out: path to new or existing directory for raytraverse run
-        * config: path to config file
-        * n: max number of processes to spawn
+    as all required precursor commands will be invoked automatically as needed.
     """
     raytraverse.io.set_nproc(n)
     ctx.info_name = 'raytraverse'
@@ -107,19 +105,21 @@ def main(ctx, out=None, config=None, n=None,  **kwargs):
                    'precompiled octree')
 @click.option('--reload/--no-reload', default=True,
               help='if a scene already exists at OUT reload it, note that if'
-                   'this is False and overwrite is False, the program will'
-                   'abort')
+                   ' this is False and overwrite is False, the program will'
+                   ' abort')
 @click.option('--overwrite/--no-overwrite', default=False,
               help='Warning! if set to True all files in'
                    'OUT will be deleted')
 @click.option('--log/--no-log', default=True,
-              help='log progress to <out>/log.txt')
+              help='log progress to stderr')
 @clk.shared_decs(clk.command_decs(raytraverse.__version__, wrap=True))
 def scene(ctx, out=None, opts=False, debug=False, version=None, **kwargs):
-    """The scene commands creates a Scene object which holds geometric
-    information about the model including object geometry (and defined
-    materials), the analysis plane and the desired resolutions for sky and
-    analysis plane subdivision"""
+    """define scene files for renderer and output directory
+
+    Effects
+    ~~~~~~~
+        - creates outdir and outdir/scene.oct
+    """
     if out is not None:
         ctx.obj['out'] = out
     s = Scene(ctx.obj['out'], **kwargs)
@@ -149,13 +149,164 @@ engine_opts = [
 
 
 @main.command()
+@click.option("-static_points", callback=np_load,
+              help="points to simulate, this can be a .npy file, a whitespace "
+                   "seperated text file or entered as a string with commas "
+                   "between components of a point and spaces between points. "
+                   "points should either all be 3 componnent (x,y,z) or 6"
+                   " component (x,y,z,dx,dy,dz) but the dx,dy,dz is ignored")
+@click.option("-zone", callback=np_load_safe,
+              help="zone boundary to dynamically sample. can either be a "
+                   "radiance scene file defining a plane to sample or an array "
+                   "of points (same input options as -static_points). Points"
+                   "are used to define a convex hull with an offset of "
+                   "1/2*ptres in which to sample. Note that if static_points"
+                   "and zone are both give, static_points is silently ignored")
+@click.option("-ptres", default=1.0,
+              help="initial sampling resolution for points")
+@click.option("-rotation", default=0.0,
+              help="positive Z rotation for point grid alignment")
+@click.option("-zheight", type=float, default=None,
+              help="replaces z in points or zone")
+@click.option("-name", default="plan",
+              help="name for zone/point group (impacts file naming)")
+@clk.shared_decs(clk.command_decs(raytraverse.__version__, wrap=True))
+def area(ctx, static_points=None, zone=None, opts=False, debug=False,
+         version=None, **kwargs):
+    """define sampling area
+
+    Effects
+    ~~~~~~~
+        - None
+
+    """
+    if zone is None:
+        zone = static_points
+        # used to override jitter and sampling levels in samplers
+        ctx.obj['static_points'] = True
+    else:
+        ctx.obj['static_points'] = False
+    if zone is None:
+        raise ValueError("one of 'static_points' or 'zone' must be defined")
+    ctx.obj['planmapper'] = PlanMapper(zone, **kwargs)
+
+
+@main.command()
+@click.option("-loc", callback=np_load_safe,
+              help="""can be a number of formats:
+
+    1. a string of 3 space seperated values (lat lon mer)
+       where lat is +west and mer is tz*15 (matching gendaylit).
+    2. a string of comma seperated sun positions with multiple items
+       seperated by spaces: "0,-.7,.7 .7,0,.7" following the shape
+       requirements of 3.
+    3. a file loadable with np.loadtxt) of shape
+       (N, 2), (N,3), (N,4), or (N,5):
+
+            a. 2 elements: alt, azm (angles in degrees)
+            b. 3 elements: dx,dy,dz of sun positions
+            c. 4 elements: alt, azm, dirnorm, diffhoriz (angles in degrees)
+            d. 5 elements: dx, dy, dz, dirnorm, diffhoriz.
+
+    4. path to an epw or wea formatted file: solar positions are generated
+       and used as candidates unless --epwloc is True.
+    5. None (default) all possible sun positions are considered
+
+in the case of a location, sun positions are considered valid when
+in the solar transit for that location. for candidate options (2., 3., 4.),
+sun positions are drawn from this set (with one randomly chosen from all
+candidates within adaptive grid.""")
+@click.option("-skyro", default=0.0,
+              help="counterclockwise sky-rotation in degrees (equivalent to "
+                   "clockwise project north rotation)")
+@click.option("-sunres", default=30.0,
+              help="initial sampling resolution for suns")
+@click.option("-name", default="suns",
+              help="name for solar sourcee group (impacts file naming)")
+@click.option("--epwloc/--no-epwloc", default=False,
+              help="if True, use location from epw/wea argument to -loc as a"
+                   " transit mask (like -loc option 1.) instead of as a list"
+                   " of candidate sun positions.")
+@clk.shared_decs(clk.command_decs(raytraverse.__version__, wrap=True))
+def suns(ctx, loc=None, opts=False, debug=False, version=False, epwloc=False,
+         **kwargs):
+    """define solar sampling space
+
+    Effects
+    ~~~~~~~
+        - None
+    """
+    if hasattr(loc, "shape"):
+        if loc.shape[1] == 1:
+            loc = loc.ravel()[0:3]
+            loc = (loc[0], loc[1], int(loc[2]))
+    if epwloc:
+        try:
+            loc = skycalc.get_loc_epw(loc)
+        except ValueError:
+            pass
+    ctx.obj['skymapper'] = SkyMapper(loc=loc, **kwargs)
+
+
+@main.command()
+@click.option("-wea", callback=np_load_safe,
+              help="path to epw, wea, .npy file or np.array, or .npz file,"
+                   "if loc not set attempts to extract location data "
+                   "(if needed).")
+@click.option("-loc", default=None, callback=clk.split_float,
+              help="location data given as 'lat lon mer' with + west of prime "
+                   "meridian overrides location data in wea")
+@click.option("-skyro", default=0.0,
+              help="angle in degrees counter-clockwise to rotate sky (to "
+                   "correct model north, equivalent to clockwise rotation of "
+                   "scene)")
+@click.option("-ground_fac", default=0.15, help="ground reflectance")
+@click.option("-skyres", default=10.0,
+              help="approximate square patch size in degrees (must match "
+                   "argument given to skyengine)")
+@click.option("-minalt", default=2.0,
+              help="minimum solar altitude for daylight masking")
+@click.option("-mindiff", default=5.0,
+              help="minumum diffuse horizontal irradiance for daylight masking")
+@click.option("--reload/--no-reload", default=True,
+              help="reload saved skydata if it exists in scene directory")
+@click.option("-name", default="skydata",
+              help="output file name for skydata")
+@clk.shared_decs(clk.command_decs(raytraverse.__version__, wrap=True))
+def skydata(ctx, wea=None, name="skydata", loc=None, reload=True, opts=False,
+            debug=False, version=None, **kwargs):
+    """define sky conditions for evaluation
+
+    Effects
+    ~~~~~~~
+        - Invokes scene
+        - write outdir/name.npz (SkyData initialization object)
+    """
+    if 'scene' not in ctx.obj:
+        clk.invoke_dependency(ctx, scene, reload=True, overwrite=False)
+    scn = ctx.obj['scene']
+    file = f"{scn.outdir}/{name}.npz"
+    reloaded = reload and os.path.isfile(file)
+    if reloaded:
+        wea = file
+    if wea is None:
+        raise ValueError(f"'wea' must be given if {file} does not exist")
+    if loc is not None:
+        loc = (loc[0], loc[1], int(loc[2]))
+    sd = SkyData(wea, loc=loc, **kwargs)
+    if not reloaded:
+        sd.write(name, scn)
+    ctx.obj['skydata'] = sd
+
+
+@main.command()
 @clk.shared_decs(engine_opts)
 @click.option("-skyres", default=10.0,
               help="approximate resolution for skypatch subdivision (in "
                    "degrees). Patches will have (rounded) size skyres x skyres."
                    " So if skyres=10, each patch will be 100 sq. degrees "
                    "(0.03046174197 steradians) and there will be 18 * 18 = "
-                   "324 sky patches.")
+                   "324 sky patches. Must match argument givein to skydata")
 @click.option('-fdres', default=9,
               help='the final directional sampling resolution, yielding a'
                    ' grid of potential samples at 2^fdres x 2^fdres per'
@@ -164,17 +315,20 @@ engine_opts = [
 def skyengine(ctx, accuracy=1.0, idres=5, rayargs=None, default_args=True,
               skyres=10.0, fdres=9, opts=False, debug=False, version=None,
               **kwargs):
-    """The scene commands creates a Scene object which holds geometric
-    information about the model including object geometry (and defined
-    materials), the analysis plane and the desired resolutions for sky and
-    analysis plane subdivision"""
+    """initialize engine for skyrun
+
+    Effects
+    ~~~~~~~
+        - Invokes scene
+        - creates outdir/scene_sky.oct
+    """
     if 'scene' not in ctx.obj:
-        clk.invoke_dependency(ctx, scene)
+        clk.invoke_dependency(ctx, scene, reload=True, overwrite=False)
     scn = ctx.obj['scene']
     rcontrib = Rcontrib(rayargs=rayargs, scene=scn.scene, skyres=skyres,
                         default_args=default_args)
-    ctx.obj['skengine'] = SkySamplerPt(scn, rcontrib, accuracy=accuracy,
-                                       idres=idres, fdres=fdres)
+    ctx.obj['skyengine'] = SkySamplerPt(scn, rcontrib, accuracy=accuracy,
+                                        idres=idres, fdres=fdres)
 
 
 @main.command()
@@ -206,645 +360,240 @@ def skyengine(ctx, accuracy=1.0, idres=5, rayargs=None, default_args=True,
 def sunengine(ctx, accuracy=1.0, idres=5, rayargs=None, default_args=True,
               fdres=10, slimit=0.01, maxspec=0.2, opts=False, debug=False,
               version=None, **kwargs):
-    """The scene commands creates a Scene object which holds geometric
-    information about the model including object geometry (and defined
-    materials), the analysis plane and the desired resolutions for sky and
-    analysis plane subdivision"""
+    """initialize engine for sunrun
+
+    Effects
+    ~~~~~~~
+        - Invokes scene
+    """
     if 'scene' not in ctx.obj:
-        clk.invoke_dependency(ctx, scene)
+        clk.invoke_dependency(ctx, scene, reload=True, overwrite=False)
     scn = ctx.obj['scene']
     rtrace = Rtrace(rayargs=rayargs, scene=scn.scene, default_args=default_args)
     ptkwargs = dict(slimit=slimit, maxspec=maxspec, accuracy=accuracy,
                     idres=idres, fdres=fdres)
-    ctx.obj['snengine'] = dict(engine=rtrace, ptkwargs=ptkwargs)
+    ctx.obj['sunengine'] = dict(engine=rtrace, ptkwargs=ptkwargs)
 
 
-# @main.command()
-# @click.option("-static points", callback=np_load,
-#               help="points to simulate, this can be a .npy file, a whitespace "
-#                    "seperated text file or entered as a string with commas "
-#                    "between components of a point and spaces between points. "
-#                    "points should either all be 3 componnent (x,y,z) or 6"
-#                    " component (x,y,z,dx,dy,dz) to override -viewdir when used"
-#                    "with a -viewangle option")
-# @click.option("-zone")
-# @clk.shared_decs(clk.command_decs(raytraverse.__version__, wrap=True))
-# def skyrun(opts=False, debug=False, version=None, **kwargs):
+sample_opts = [
+ click.option("-accuracy", default=1.0,
+              help="parameter to set threshold at sampling level relative to "
+                   "final level threshold (smaller number will increase "
+                   "sampling)"),
+ click.option("-nlev", default=3,
+              help="number of levels to sample (final resolution will be "
+                   "ptres/2^(nlev-1))"),
+ click.option("--jitter/--no-jitter", default=True,
+              help="jitter samples on plane within adaptive sampling grid")
+    ]
+
+
+@main.command()
+@clk.shared_decs(sample_opts)
+@click.option("--overwrite/--no-overwrite", default=False,
+              help="If True, reruns sampler when invoked, otherwise will first"
+                   " attempt to load results")
+@clk.shared_decs(clk.command_decs(raytraverse.__version__, wrap=True))
+def skyrun(ctx, accuracy=1.0, nlev=3, jitter=True, overwrite=False, opts=False,
+           debug=False, version=None):
+    """run scene under sky for a set of points (defined by area)
+
+    Effects
+    ~~~~~~~
+        - Invokes scene
+        - Invokes area (no effects)
+        - Invokes skyengine
+        - creates outdir/area.name/sky_points.tsv
+            - contents: 5cols x N rows: [sample_level idx x y z]
+        - creates outdir/area.name/sky/######.rytpt
+            - each file is a LightPointKD initialization object
+    """
+    if 'scene' not in ctx.obj:
+        clk.invoke_dependency(ctx, scene, reload=True, overwrite=False)
+    scn = ctx.obj['scene']
+    if 'planmapper' not in ctx.obj:
+        clk.invoke_dependency(ctx, area)
+    pm = ctx.obj['planmapper']
+    if 'skyengine' not in ctx.obj:
+        clk.invoke_dependency(ctx, skyengine)
+    if ctx.obj['static_points']:
+        nlev = 1
+        jitter = False
+    skengine = ctx.obj['skyengine']
+    skysampler = SamplerArea(scn, skengine, accuracy=accuracy, nlev=nlev,
+                             jitter=jitter)
+    try:
+        if overwrite:
+            raise OSError
+        skyfield = LightPlaneKD(scn, f"{scn.outdir}/{pm.name}/sky_points"
+                                f".tsv", pm, "sky")
+    except OSError:
+        skyfield = skysampler.run(pm)
+    else:
+        click.echo(f"Sky Lightfield reloaded from {scn.outdir}/{pm.name} "
+                   f"use --overwrite to rerun", err=True)
+    ctx.obj['skyfield'] = skyfield
+
+
+@main.command()
+@clk.shared_decs(sample_opts)
+@click.option("-srcaccuracy", default=1.0,
+              help="parameter to set threshold at sampling level relative to "
+                   "final level threshold (smaller number will increase "
+                   "sampling)")
+@click.option("-srcnlev", default=3,
+              help="number of levels to sample (final resolution will be "
+                   "sunres/2^(nlev-1))")
+@click.option("--srcjitter/--no-srcjitter", default=True,
+              help="jitter solar source within adaptive sampling grid for "
+                   "candidate SkyMappers, only affects weighting of selecting"
+                   " candidates in the same grid true positions are still "
+                   "used")
+@click.option("--recover/--no-recover", default=False,
+              help="If True, recovers existing sampling")
+@click.option("--guided/--no-guided", default=True,
+              help="If True, uses skysampling results to guide sun sampling "
+                   "this is necessary if the model has any specular "
+                   "reflections, will raise an error if skyrun has not been"
+                   " called yet.")
+@clk.shared_decs(clk.command_decs(raytraverse.__version__, wrap=True))
+def sunrun(ctx, srcaccuracy=1.0, srcnlev=3, srcjitter=True, recover=False,
+           guided=True, opts=False, debug=False, version=None, **kwargs):
+    """run scene for a set of suns (defined by suns) for a set of points
+    (defined by area)
+
+    Effects
+    ~~~~~~~
+        - Invokes scene
+        - Invokes area (no effects)
+        - Invokes sunengine (no effects)
+        - invokes skyrun (if guided=True)
+        - creates outdir/area.name/sun_####_points.tsv
+            - contents: 5cols x N rows: [sample_level idx x y z]
+        - creates outdir/area.name/sky/sun_####/######.rytpt
+            - each file is a LightPointKD initialization object
+    """
+    if 'scene' not in ctx.obj:
+        clk.invoke_dependency(ctx, scene, reload=True, overwrite=False)
+    scn = ctx.obj['scene']
+    if 'planmapper' not in ctx.obj:
+        clk.invoke_dependency(ctx, area)
+    pm = ctx.obj['planmapper']
+    if 'sunengine' not in ctx.obj:
+        clk.invoke_dependency(ctx, sunengine)
+    snengine = ctx.obj['sunengine']['engine']
+    ptkwargs = ctx.obj['sunengine']['ptkwargs']
+    if 'skymapper' not in ctx.obj:
+        clk.invoke_dependency(ctx, suns)
+    skmapper = ctx.obj['skymapper']
+
+    if guided and 'skyfield' not in ctx.obj:
+        clk.invoke_dependency(ctx, skyrun, overwrite=False)
+    if guided:
+        specguide = ctx.obj['skyfield']
+    else:
+        specguide = None
+    if ctx.obj['static_points']:
+        kwargs.update(nlev=1, jitter=False)
+    sunsampler = SamplerSuns(scn, snengine, accuracy=srcaccuracy, nlev=srcnlev,
+                             jitter=srcjitter, ptkwargs=ptkwargs,
+                             areakwargs=kwargs)
+    dfield = sunsampler.run(skmapper, pm, specguide=specguide, recover=recover)
+    ctx.obj['daylightfield'] = dfield
+
+
+@main.command()
+@click.option("-sensor", callback=clk.split_float,
+              help="the sensor location (6 component vector 'x y z dx dy dz')")
+@click.option("-skymask", callback=clk.split_int,
+              help="""mask to reduce output from full SkyData, enter as index
+rows in wea/epw file using space seperated list or python range notation:
+
+    - 370 371 372 (10AM-12PM on jan. 16th)
+    - 12:8760:24 (everyday at Noon)
+
+""")
+@click.option("-metrics", callback=clk.split_str, default="illum dgp ugp",
+              help='metrics to compute, choices: ["illum", '
+                   '"avglum", "gcr", "ugp", "dgp", "tasklum", "backlum", '
+                   '"dgp_t1", "log_gc", "dgp_t2", "ugr", "threshold", "pwsl2", '
+                   '"view_area", "backlum_true", "srcillum", "srcarea", '
+                   '"maxlum"]')
+@click.option("--hdr/--no-hdr", default=False,
+              help="make an image for every unmasked item in skydata")
+@click.option("--metric/--no-metric", default=True,
+              help="calculate metrics")
+@click.option("-res", default=800, help="image resolution")
+@click.option("--interpolate/--no-interpolate", default=False,
+              help="use linear iinterpolation in image output")
+@click.option("-viewangle", default=180.0,
+              help='applies to both image and metrics, should be <= 180 or 360')
+@click.option("-basename", default="results",
+              help="basename for hdr outputs will write: <basename>_#####.hdr"
+                   " for each value in skymask (or range(len(skydata)) if "
+                   "skymask is None).")
+@clk.shared_decs(clk.command_decs(raytraverse.__version__, wrap=True))
+def evaluate(ctx, sensor=None, skymask=None, metrics=None, hdr=False,
+             metric=True, res=800, interpolate=False, viewangle=180.0,
+             basename="results", **kwargs):
+    """evaluate metrics and/or make hdr for a single sensor location
+
+    Prequisites
+    ~~~~~~~~~~~
+        - skyrun and sunrun must be manually invoked prior to this
+
+    Effects
+    ~~~~~~~
+        - Invokes scene
+        - Invokes skydata
+        - invokes area (no effects)
+        - invokes suns (no effects)
+        - if hdr=True, writes: <basename>_#####.hdr
+        - if metric=True, writes: <basename>.tsv
+
+    """
+    if 'scene' not in ctx.obj:
+        clk.invoke_dependency(ctx, scene, reload=True, overwrite=False)
+    scn = ctx.obj['scene']
+    if 'skydata' not in ctx.obj:
+        clk.invoke_dependency(ctx, skydata, reload=True)
+    sd = ctx.obj['skydata']
+    if 'planmapper' not in ctx.obj:
+        clk.invoke_dependency(ctx, area)
+    pm = ctx.obj['planmapper']
+    if 'skymapper' not in ctx.obj:
+        clk.invoke_dependency(ctx, suns)
+    skmapper = ctx.obj['skymapper']
+    if 'daylightfield' in ctx.obj:
+        df = ctx.obj['daylightfiield']
+    else:
+        df = DayLightPlaneKD(scn, f"{scn.outdir}/{pm.name}/{skmapper.name}_"
+                                  f"sunpositions.tsv",
+                             pm, f"{skmapper.name}_sun")
+    point = sensor[0:3]
+    vm = ViewMapper(sensor[3:6], viewangle)
+    if skymask is not None:
+        sd.mask = skymask
+    if metric:
+        result = df.evaluate(sd, point, vm, metrics=metrics)
+        data, axes, names = result.pull("sky", "metric")
+        header = "\t".join([names[1]] + list(axes[2]))
+        data = np.hstack((axes[1][:, None], data[0]))
+        fmt = ["%d"] + ["%.4f"]*len(axes[2])
+        np.savetxt(f"{basename}.tsv", data, fmt, header=header, delimiter="\t")
+    if hdr:
+        print("no implemented yet...")
 
 
 
 
-# @main.command()
-# @click.option('-fdres', default=9,
-#               help='the final directional sampling resolution, yielding a'
-#                    ' grid of potential samples at 2^fdres x 2^fdres per'
-#                    ' hemisphere')
-# @click.option('-dviewpatch',
-#               callback=clk.split_float,
-#               help="to plot direct view for a single patch,"
-#                    "give an x,y,z direction")
-# @click.option('-skyres', default=10.0,
-#               help='approximate resolution for skypatch subdivision '
-#                    '(in degrees). Patches will have (rounded) size skyres x '
-#                    'skyres. So if skyres=10, each patch will be 100 sq. '
-#                    'degrees (0.03046174197 steradians) and there will be 18 * '
-#                    '18 = 324 sky patches.')
-# @clk.shared_decs(run_opts)
-# @clk.shared_decs(clk.command_decs(raytraverse.__version__, wrap=True))
-# def skyrun(ctx, plotdview=False, overwrite=False, showsample=True,
-#            dviewpatch=None, static=True, rargs="", skyres=10.0, accuracy=1.0,
-#            idres=5, fdres=9, **kwargs):
-#     """The skyrun command will run a fixed sampling a set of a set of points
-#     or run an adaptive area sampler depending on the options given. Rendering
-#     is done with the raytraverse.renderer.Rcontrib renderer. In addition to
-#     the default options of rcontrib (see rcontrib -defaults), the raytraverse
-#     defaults are: -ab 7 -ad 10 -as 0 -lw 1e-5 -st 0 -ss 16 -c nrbins*10. These
-#     options can be overridden by the -rargs parameter."""
-#     if 'scene' not in ctx.obj:
-#         clk.invoke_dependency(ctx, scene)
-#     s = ctx.obj['scene']
-#     skyengine = Rcontrib(rargs, s.scene, skyres=skyres)
-#     skysamp = SkySamplerPt(s, skyengine, accuracy=accuracy, idres=idres,
-#                            fdres=fdres)
-    # if static:
-    #     if pts.points.size == 0:
-    #         raise ValueError("static skyrun requires assigning points, see "
-    #                          "raytraverse points --help")
-    #     idx, d = pts.query_pt(pts.points)
-    #     for i, pt in list(zip(idx, pts.points)):
-    #         if overwrite or not os.path.isfile(f"{s.outdir}/sky/{i:06d}.rytpt"):
-    #             lf = skysamp.run(pt, i, log='err')
-    #             if plotdview:
-    #                 lf.direct_view(showsample=showsample, srcidx=dviewpatch)
-    #         else:
-    #             click.echo(f"skipping point: {i} at {pt}, results exist. use "
-    #                        f"--overwrite to force rerun", err=True)
-    #             if plotdview:
-    #                 lf = LightPointKD(s, pt=pt, posidx=i)
-    #                 lf.direct_view(showsample=showsample, srcidx=dviewpatch)
-    # else:
-    #     print("--dynamic is not implemented")
-    # skyengine.reset()
-
-
-# @main.command()
-# @click.option('-fdres', default=10,
-#               help='the final directional sampling resolution, yielding a'
-#                    ' grid of potential samples at 2^fdres x 2^fdres per'
-#                    ' hemisphere')
-# @clk.shared_decs(run_opts)
-# @clk.shared_decs(clk.command_decs(raytraverse.__version__, wrap=True))
-# def sunrun(ctx, plotdview=False, overwrite=False, showsample=True,
-#            dviewpatch=None, static=True, rargs="", accuracy=1.0,
-#            idres=5, fdres=9, **kwargs):
-#     """The skyrun command will run a fixed sampling a set of a set of points
-#     or run an adaptive area sampler depending on the options given. Rendering
-#     is done with the raytraverse.renderer.Rcontrib renderer. In addition to
-#     the default options of rcontrib (see rcontrib -defaults), the raytraverse
-#     defaults are: -ab 7 -ad 10 -as 0 -lw 1e-5 -st 0 -ss 16 -c nrbins*10. These
-#     options can be overridden by the -rargs parameter."""
-#     if 'scene' not in ctx.obj:
-#         clk.invoke_dependency(ctx, scene)
-#     s = ctx.obj['scene']
-#     sunengine = Rtrace(rargs, s.scene)
-#     # if static:
-#     #     if pts.points.size == 0:
-#     #         raise ValueError("static skyrun requires assigning points, see "
-#     #                          "raytraverse points --help")
-#     #     idx, d = pts.query_pt(pts.points)
-#     #     for j, sn in zip(sunpos.sbins, sunpos.suns):
-#     #         sunsamp = SunSamplerPt(s, sunengine, sn, j, accuracy=accuracy, idres=idres, fdres=fdres)
-#     #         for i, pt in zip(idx, pts.points):
-#     #             if overwrite or not os.path.isfile(f"{s.outdir}/sun_{j:04d}/{i:06d}.rytpt"):
-#     #                 lf = sunsamp.run(pt, i, log='err')
-#     #                 if plotdview:
-#     #                     lf.direct_view(showsample=showsample, srcidx=dviewpatch)
-#     #             else:
-#     #                 click.echo(f"skipping point: {i} at {pt} for source sun_{j:04d}, results exist. use "
-#     #                            f"--overwrite to force rerun", err=True)
-#     #                 if plotdview:
-#     #                     lf = LightPointKD(s, pt=pt, posidx=i, src=f"sun_{j:04d}")
-#     #                     lf.direct_view(showsample=showsample, srcidx=dviewpatch)
-#     # else:
-#     #     print("--dynamic is not implemented")
-#     sunengine.reset()
-
-
-
-#
-# @main.command()
-# @click.option('-fdres', default=10,
-#               help='the final directional sampling resolution, yielding a'
-#                    ' grid of potential samples at 2^fdres x 2^fdres per'
-#                    ' hemisphere')
-# @click.option('-speclevel', default=9,
-#               help='at this sampling level, pdf is made from brightness of sky '
-#                    'sampling rather than progressive variance to look for fine '
-#                    'scale specular highlights, this should be atleast 1 level '
-#                    'from the end and the resolution of this level should be '
-#                    'smaller than the size of the source')
-# @click.option('-rcopts',
-#               default='-ab 6 -ad 3000 -as 1500 -st 0 -ss 16 -aa .1',
-#               help='rtrace options for sun reflection runs'
-#                    ' see the man pages for rtrace, and '
-#                    ' rtrace -defaults for more information')
-# @click.option('--view/--no-view', default=True,
-#               help="run/build/plot direct sun views")
-# @click.option('--sunviewstats/--no-sunviewstats', default=False,
-#               help="run/build/plot direct sun views")
-# @click.option('--ambcache/--no-ambcache', default=True,
-#               help='whether the rcopts indicate that the calculation will use '
-#                    'ambient caching (and thus should write an -af file argument'
-#                    ' to the engine)')
-# @click.option('--keepamb/--no-keepamb', default=False,
-#               help='whether to keep ambient files after run, if kept, a '
-#                    'successive call will load these ambient files, so care '
-#                    'must be taken to not change any parameters')
-# @click.option('--reflection/--no-reflection', default=True,
-#               help="run/build/plot reflected sun components")
-# @click.option('--checkviz/--no-checkviz', default=True,
-#               help="precheck for visable sun based on sky run for sunview "
-#                    "sampler")
-# @clk.shared_decs(run_opts)
-# @clk.shared_decs(clk.command_decs(raytraverse.__version__, wrap=True))
-# def sunrun(ctx, plotdview=False, run=True, rmraw=False, overwrite=False,
-#            rebuild=False, showsample=True, showweight=True, dpts=None,
-#            sunviewstats=False, checkviz=True, **kwargs):
-#     """the sunrun command intitializes and runs a sun sampler and then readies
-#     the results for integration by building a SunField."""
-#     if 'suns' not in ctx.obj:
-#         clk.invoke_dependency(ctx, suns)
-#     scn = ctx.obj['scene']
-#     sns = ctx.obj['suns']
-#     if kwargs['view']:
-#         sampler = SunSamplerPtView(scn, suns, checkviz=checkviz)
-#         lumf = f'{scn.outdir}/sunview_kd_data.pickle'
-#         exists = os.path.isfile(lumf) and os.stat(lumf).st_size > 1000
-#         vrun = run and (overwrite or not exists)
-#         if vrun:
-#             sampler.run()
-#         try:
-#             sv = SunViewField(scn, sns, rebuild=vrun or rebuild, rmraw=rmraw)
-#         except FileNotFoundError as ex:
-#             print(f'Warning: {ex}', file=sys.stderr)
-#         else:
-#             ctx.obj['initlf'].append(sv)
-#             if sunviewstats:
-#                 vs = sv.point_stats()
-#                 print(f"# Visibility of {sns.suns.shape[0]} suns from "
-#                       f"{scn.area.npts} points", file=sys.stderr)
-#                 print("x y z n-suns min-tvis max-tvis min-vis max-vis",
-#                       file=sys.stderr)
-#                 for v in vs:
-#                     print(" ".join([f"{i:.03f}" for i in v]))
-#             if plotdview:
-#                 sv.direct_view()
-#     if kwargs['reflection']:
-#         sampler = SunSamplerPt(scn, sns, **kwargs)
-#         lumf = f'{scn.outdir}/sun_kd_lum.dat'
-#         exists = os.path.isfile(lumf) and os.stat(lumf).st_size > 1000
-#         rrun = run and (overwrite or not exists)
-#         if rrun:
-#             sampler.run(replace=overwrite)
-#         # try:
-#         #     su = SunField(scn, sns, rebuild=rrun or rebuild, rmraw=rmraw)
-#         # except FileNotFoundError as ex:
-#         #     print(f'Warning: {ex}', file=sys.stderr)
-#         # else:
-#         #     ctx.obj['initlf'].append(su)
-#         #     if plotdview:
-#         #         items = list(su.items())
-#         #         if len(items) >= 20:
-#         #             items = None
-#         #         su.direct_view(items=items, showsample=showsample,
-#         #                        showweight=showweight, dpts=dpts, res=1024)
-#
-#
-# @main.command()
-# @clk.shared_decs(run_opts)
-# @click.option('-skydef', help='sky scene file (.rad)',
-#               type=click.Path(exists=True, dir_okay=False))
-# @click.option('-skyname',
-#               help='basename for result files')
-# @click.option('-fdres', default=10,
-#               help='the final directional sampling resolution, yielding a'
-#                    ' grid of potential samples at 2^fdres x 2^fdres per'
-#                    ' hemisphere')
-# @click.option('-rcopts',
-#               default='-ab 6 -ad 3000 -as 1500 -st 0 -ss 16 -aa .1',
-#               help='rtrace options for sun reflection runs'
-#                    ' see the man pages for rtrace, and '
-#                    ' rtrace -defaults for more information')
-# @click.option('--ambcache/--no-ambcache', default=True,
-#               help='whether the rcopts indicate that the calculation will use '
-#                    'ambient caching (and thus should write an -af file argument'
-#                    ' to the engine)')
-# @click.option('--keepamb/--no-keepamb', default=False,
-#               help='whether to keep ambient files after run, if kept, a '
-#                    'successive call will load these ambient files, so care '
-#                    'must be taken to not change any parameters')
-# @clk.shared_decs(clk.command_decs(raytraverse.__version__, wrap=True))
-# def onesky(ctx, skydef=None, skyname=None, plotdview=False, run=True,
-#            rmraw=False, overwrite=False, rebuild=False, showsample=True,
-#            showweight=True, dpts=None, **kwargs):
-#     """the onesky command is for running one off sky definitions."""
-#     if skydef is None:
-#         print("Error: '-skydef' is required", file=sys.stderr)
-#         raise click.Abort
-#     if 'scene' not in ctx.obj:
-#         clk.invoke_dependency(ctx, scene)
-#     scn = ctx.obj['scene']
-#     if skyname is None:
-#         skyname = re.split(r"[/.]", skydef)[-2]
-#     sampler = SkySamplerPt(scn, skydef, skyname, **kwargs)
-#     lumf = f'{scn.outdir}/{skyname}_kd_lum.dat'
-#     exists = os.path.isfile(lumf) and os.stat(lumf).st_size > 1000
-#     rrun = run and (overwrite or not exists)
-#     if rrun:
-#         sampler.run()
-#     try:
-#         su = StaticField(scn, sampler.sources, prefix=skyname,
-#                          rebuild=rrun or rebuild, rmraw=rmraw)
-#     except FileNotFoundError as ex:
-#         print(f'Warning: {ex}', file=sys.stderr)
-#     else:
-#         ctx.obj['initlf'].append(su)
-#         if plotdview:
-#             items = list(su.items())
-#             if len(items) >= 20:
-#                 items = None
-#             su.direct_view(items=items, showsample=showsample,
-#                            showweight=showweight, dpts=dpts, res=1024)
-#             if su.view is not None:
-#                 su.view.direct_view()
-#
-#
-# allmetrics = ["illum", "avglum", "gcr", "ugr", "dgp", "tasklum",
-#               "backlum", "dgp_t1", "dgp_t2", "threshold", "pwsl2",
-#               "view_area", "density", "reldensity", "lumcenter"]
-#
-#
-# @main.command()
-# @click.option('-loc', callback=clk.split_float,
-#               help='specify the scene location (if not specified in -wea or to'
-#                    ' override. give as "lat lon mer" where lat is + North, lon'
-#                    ' is + West and mer is the timezone meridian (full hours are'
-#                    ' 15 degree increments)')
-# @click.option('-wea',
-#               help="path to weather/sun position file. possible formats are:\n"
-#                    "\n"
-#                    "1. .wea file\n"
-#                    "#. .wea file without header (requires -loc)\n"
-#                    "#. .epw file\n"
-#                    "#. .epw file without header (requires -loc)\n"
-#                    "#. 4 column tsv file, each row is altitude, azimuth, direct"
-#                    " normal, diff. horizontal of canditate suns (requires "
-#                    "--usepositions)\n"
-#                    "#. 5 column tsv file, each row is dx, dy, dz, direct "
-#                    "normal, diff. horizontal of canditate suns (requires "
-#                    "--usepositions)\n\n"
-#                    "tsv files are loaded with loadtxt"
-#               )
-# @click.option('-pts', default='0,0,0,0,-1,0', callback=np_load,
-#               help="points to evaluate, this can be a .npy file, a whitespace "
-#                    "seperated text file or entered as a string with commas "
-#                    "between components of a point and spaces between points. "
-#                    "in all cases each point requires 6 numbers x,y,z,dx,dy,dz "
-#                    "so the shape of the array will be (N, 6)")
-# @click.option('-res', default=800,
-#               help="the resolution of hdr output in pixels")
-# @click.option('-interp', default=12,
-#               help='number of nearby rays to use for interpolation of hdr'
-#                    'output (weighted by a gaussian filter). this does'
-#                    'not apply to metric calculations')
-# @click.option('-blursun', default=1,
-#               help='spread sun to mimic camera or human eye, 1 is no blur'
-#                    ' a value of 4 will double the apparent radius')
-# @click.option('-vname', default='view',
-#               help='name to include with hdr outputs')
-# @click.option('-static',
-#               help='name of static field to integrate (overrides other opts)')
-# @click.option('-skyro', default=0.0,
-#               help='counter clockwise rotation (in degrees) of the sky to'
-#                    ' rotate true North to project North, so if project North'
-#                    ' is 10 degrees East of North, skyro=10')
-# @click.option('-ground_fac', default=0.15,
-#               help='ground reflectance')
-# @click.option('--skyonly/--no-skyonly', default=False,
-#               help="if True, only integrate on Sky Field, useful for "
-#                    "diagnostics")
-# @click.option('--sunonly/--no-sunonly', default=False,
-#               help="if True, only integrate on Sun Field, useful for "
-#                    "diagnostics. Note: only runs if --skyonly is False")
-# @click.option('--hdr/--no-hdr', default=True,
-#               help="produce an hdr output for each point and line in wea")
-# @click.option('--metric/--no-metric', default=True,
-#               help="calculate metrics for each point and wea file output"
-#                    " is ordered by point than sky")
-# @click.option('-metricset', default="illum avglum gcr dgp ugr",
-#               callback=clk.split_str,
-#               help='which metrics to return items must be in: '
-#                    f'{", ".join(allmetrics)}')
-# @click.option('-threshold', default=2000.0,
-#               help='Threshold factor; if factor is larger than 100, it is used '
-#                    'as constant threshold in cd/m2. If factor is less or equal '
-#                    'than 100,  this  factor  multiplied  by the average task '
-#                    'luminance will be used as  threshold for detecting the '
-#                    'glare sources. task luminance is taken from the center'
-#                    'of the view and encompasses tradius (see parameter '
-#                    '-tradius)')
-# @click.option('-tradius', default=30.0,
-#               help='task radius in degrees for calculating task luminance')
-# @click.option('--header/--no-header', default=False,
-#               help='print column headings on metric output')
-# @click.option('--statidx/--no-statidx', default=False,
-#               help='print index columns on metric output')
-# @click.option('--statsensor/--no-statsensor', default=False,
-#               help='print sensor position and direction columns on metric '
-#                    'output')
-# @click.option('--staterr/--no-staterr', default=False,
-#               help='print interpolation error info on metric output')
-# @click.option('--statsky/--no-statsky', default=False,
-#               help='print sky info (sun x,y,z dirnorm, dirdiff) on metric '
-#                    'output')
-# @clk.shared_decs(clk.command_decs(raytraverse.__version__, wrap=True))
-# def integrate(ctx, loc=None, wea=None, skyro=0.0, ground_fac=0.15, pts=None,
-#               skyonly=False, sunonly=False, hdr=True, metric=True, res=800, interp=12,
-#               vname='view', static=None, header=False, metricset="",
-#               tradius=30.0, blursun=1, **kwargs):
-#     """the integrate command combines sky and sun results and evaluates the
-#     given set of positions and sky conditions"""
-#     if 'scene' not in ctx.obj:
-#         clk.invoke_dependency(ctx, scene)
-#     scn = ctx.obj['scene']
-#
-#     if static is not None:
-#         sk = StaticField(scn, prefix=static)
-#         itg = BaseIntegrator(sk)
-#     elif skyonly:
-#         sk = SCBinField(scn)
-#         itg = Integrator(sk, wea=wea, loc=loc, skyro=skyro,
-#                          ground_fac=ground_fac)
-#     else:
-#         if 'suns' not in ctx.obj:
-#             clk.invoke_dependency(ctx, suns)
-#         sns = ctx.obj['suns']
-#         # su = SunField(scn, sns, blursun=blursun)
-#         # if sunonly:
-#         #     itg = Integrator(su, wea=wea, loc=loc, skyro=skyro,
-#         #                      ground_fac=ground_fac)
-#         # else:
-#         sk = SCBinField(scn)
-#         itg = SunSkyIntegrator(sk, wea=wea, loc=loc, skyro=skyro,
-#                                ground_fac=ground_fac)
-#     metric_return_opts = {"idx": kwargs['statidx'],
-#                           "sensor": kwargs['statsensor'],
-#                           "err": kwargs['staterr'], "sky": kwargs['statsky']}
-#     if header and metric:
-#         print("\t".join(itg.metricheader))
-#     data = itg.integrate(pts, interp=interp, res=res, vname=vname, scale=179,
-#                          metricset=metricset, dohdr=hdr, dometric=metric,
-#                          tradius=tradius, metric_return_opts=metric_return_opts)
-#     #
-#     # for d in data:
-#     #     print("\t".join([f"{i}" for i in d]))
-#
-#
-# def cross_interpolate(sk_kd, sk_vec, sk_lum, su_kd, su_vec, su_lum):
-#     lum_sk = LightFieldKD.interpolate_query(sk_kd, sk_lum, sk_vec, su_vec, k=1)
-#     lum_su = LightFieldKD.interpolate_query(su_kd, su_lum, su_vec, sk_vec, k=1)
-#     vecs = np.vstack((su_vec, sk_vec))
-#     lum_sk = np.vstack((lum_sk, sk_lum))
-#     lum_su = np.vstack((su_lum, lum_su))
-#     lums = np.hstack((lum_su, lum_sk))
-#     kd, omega = LightFieldKD.mk_vector_ball(vecs)
-#     return vecs, lums, np.squeeze(omega)
-#
-#
-# def metric_out(sk_kd, sk_vlo, pt, perr, pi, scn, sns, skydat, dirs, header, metricset, outname, **kwargs):
-#     metric_return_opts = {"idx"   : kwargs['statidx'],
-#                           "sensor": kwargs['statsensor'],
-#                           "err"   : kwargs['staterr'], "sky": kwargs['statsky']
-#                           }
-#     mcalc = Metric(scene, metricset, metric_return_opts)
-#     viewf = SunViewField(scn, sns)
-#     spi_o = None
-#     hassun = False
-#     f = open(f"{scn.outdir}_{outname}_{pi:04d}.out", 'w')
-#     if header:
-#         print("\t".join(mcalc.metricheader), file=f)
-#     j = -1
-#     for i, sd in enumerate(skydat.skydata):
-#         if skydat.daysteps[i]:
-#             j += 1
-#             sunbin = skydat.sunproxy[j]
-#             spi = (pi, sunbin[1])
-#             if spi != spi_o:
-#                 spi_o = spi
-#                 pref = f"sun_{sunbin[1]:04d}"
-#                 hassun = False
-#                 if os.path.isfile(f"{scn.outdir}/{pref}_kd_lum.dat"):
-#                     sf = LightFieldKD(scn, prefix=pref, fvrays=scn.maxspec, log=False)
-#                     if pi in sf.d_kd.keys():
-#                         if sf.d_kd[pi] is not None:
-#                             su_vlo = cross_interpolate(sk_kd, sk_vlo[0],
-#                                                        sk_vlo[1], sf.d_kd[pi],
-#                                                        sf.vec[pi], sf.lum[pi])
-#                             hassun = True
-#             if sd[-2] > 0 and hassun:
-#                 skyvec = np.concatenate((skydat.sun[j][-2:-1], skydat.smtx[j]))
-#                 use_vlo = su_vlo
-#                 serr = skydat._serr[j]
-#             else:
-#                 skyvec = np.copy(skydat.smtx[j])
-#                 skyvec[sunbin[0]] += skydat.sun[j][-1]
-#                 use_vlo = sk_vlo
-#                 serr = -90
-#             lum = np.einsum('j,kj->k', skyvec, use_vlo[1])
-#             rays = use_vlo[0]
-#             omega = use_vlo[2]
-#             for vd in dirs[:, 0:3]:
-#                 vm = ViewMapper(vd, 180)
-#                 info = mcalc._metric_info([pi, i], [*pt, *vd],
-#                                           [perr, serr],
-#                                           skydat.skydata[j])
-#                 svw = viewf.get_ray(spi, vm, skydat.sun[j])
-#                 if svw is not None:
-#                     rays = np.vstack((rays, svw[0][None, :]))
-#                     lum = np.concatenate((lum, [svw[1]]))
-#                     omega = np.concatenate((omega, [svw[2]]))
-#                 fmetric = MetricSet(vm, rays, omega, lum, metricset)()
-#                 data = np.nan_to_num(
-#                     np.concatenate((info[0], fmetric, info[1])))
-#                 for d in data:
-#                     f.write(f"{d}\t")
-#                 f.write("\n")
-#     f.close()
-#
-#
-#
-#
-# @main.command()
-# @click.option('-loc', callback=clk.split_float,
-#               help='specify the scene location (if not specified in -wea or to'
-#                    ' override. give as "lat lon mer" where lat is + North, lon'
-#                    ' is + West and mer is the timezone meridian (full hours are'
-#                    ' 15 degree increments)')
-# @click.option('-wea',
-#               help="path to weather/sun position file. possible formats are:\n"
-#                    "\n"
-#                    "1. .wea file\n"
-#                    "#. .wea file without header (requires -loc)\n"
-#                    "#. .epw file\n"
-#                    "#. .epw file without header (requires -loc)\n"
-#                    "#. 4 column tsv file, each row is altitude, azimuth, direct"
-#                    " normal, diff. horizontal of canditate suns (requires "
-#                    "--usepositions)\n"
-#                    "#. 5 column tsv file, each row is dx, dy, dz, direct "
-#                    "normal, diff. horizontal of canditate suns (requires "
-#                    "--usepositions)\n\n"
-#                    "tsv files are loaded with loadtxt"
-#               )
-# @click.option('-pts', default='0,0,0', callback=np_load,
-#               help="points to evaluate, this can be a .npy file, a whitespace "
-#                    "seperated text file or entered as a string with commas "
-#                    "between components of a point and spaces between points. "
-#                    "in all cases each point requires 3 numbers x,y,z "
-#                    "so the shape of the array will be (N, 3)")
-# @click.option('-dirs', default='0,-1,0', callback=np_load,
-#               help="directions to evaluate, this can be a .npy file, a whitespace "
-#                    "seperated text file or entered as a string with commas "
-#                    "between components of a point and spaces between points. "
-#                    "in all cases each point requires 3 numbers dx,dy,dz "
-#                    "so the shape of the array will be (N, 3)")
-# @click.option('-skyro', default=0.0,
-#               help='counter clockwise rotation (in degrees) of the sky to'
-#                    ' rotate true North to project North, so if project North'
-#                    ' is 10 degrees East of North, skyro=10')
-# @click.option('-outname', default="metric",
-#               help='naming for outfiles (combined with point index and scene)')
-# @click.option('-ground_fac', default=0.15,
-#               help='ground reflectance')
-# @click.option('-metricset', default="illum avglum gcr dgp ugr",
-#               callback=clk.split_str,
-#               help='which metrics to return items must be in: '
-#                    f'{", ".join(allmetrics)}')
-# @click.option('-threshold', default=2000.0,
-#               help='Threshold factor; if factor is larger than 100, it is used '
-#                    'as constant threshold in cd/m2. If factor is less or equal '
-#                    'than 100,  this  factor  multiplied  by the average task '
-#                    'luminance will be used as  threshold for detecting the '
-#                    'glare sources. task luminance is taken from the center'
-#                    'of the view and encompasses tradius (see parameter '
-#                    '-tradius)')
-# @click.option('-tradius', default=30.0,
-#               help='task radius in degrees for calculating task luminance')
-# @click.option('--header/--no-header', default=False,
-#               help='print column headings on metric output')
-# @click.option('--statidx/--no-statidx', default=False,
-#               help='print index columns on metric output')
-# @click.option('--statsensor/--no-statsensor', default=False,
-#               help='print sensor position and direction columns on metric '
-#                    'output')
-# @click.option('--staterr/--no-staterr', default=False,
-#               help='print interpolation error info on metric output')
-# @click.option('--statsky/--no-statsky', default=False,
-#               help='print sky info (sun x,y,z dirnorm, dirdiff) on metric '
-#                    'output')
-# @clk.shared_decs(clk.command_decs(raytraverse.__version__, wrap=True))
-# def computemetric(ctx, loc=None, wea=None, skyro=0.0, ground_fac=0.15, pts=None,
-#                   dirs=None, header=False, metricset="",
-#                   tradius=30.0, outname="metric", **kwargs):
-#     """the integrate command combines sky and sun results and evaluates the
-#     given set of positions and sky conditions"""
-#     if 'scene' not in ctx.obj:
-#         clk.invoke_dependency(ctx, scene)
-#     scn = ctx.obj['scene']
-#     if 'suns' not in ctx.obj:
-#         clk.invoke_dependency(ctx, suns)
-#     sns = ctx.obj['suns']
-#     skydat = SkyData(wea, scn, sns, loc=loc, skyro=skyro, ground_fac=ground_fac)
-#     perrs, pis = scn.area.pt_kd.query(pts[:, 0:3])
-#     skyf = SCBinField(scn)
-#
-#     for pt, perr, pi in zip(pts, perrs, pis):
-#         sk_kd = skyf.d_kd[pi]
-#         sk_vlo = (skyf.vec[pi], skyf.lum[pi], np.squeeze(skyf.omega[pi]))
-#         metric_out(sk_kd, sk_vlo, pt, perr, pi, scn, sns, skydat, dirs, header, metricset, outname, **kwargs)
-#
-#
-#
-# @main.command()
-# @click.option('-loc', callback=clk.split_float,
-#               help='specify the scene location (if not specified in -wea or to'
-#                    ' override. give as "lat lon mer" where lat is + North, lon'
-#                    ' is + West and mer is the timezone meridian (full hours are'
-#                    ' 15 degree increments)')
-# @click.option('-wea',
-#               help="path to weather/sun position file. possible formats are:\n"
-#                    "\n"
-#                    "1. .wea file\n"
-#                    "#. .wea file without header (requires -loc)\n"
-#                    "#. .epw file\n"
-#                    "#. .epw file without header (requires -loc)\n"
-#                    "#. 4 column tsv file, each row is altitude, azimuth, direct"
-#                    " normal, diff. horizontal of canditate suns (requires "
-#                    "--usepositions)\n"
-#                    "#. 5 column tsv file, each row is dx, dy, dz, direct "
-#                    "normal, diff. horizontal of canditate suns (requires "
-#                    "--usepositions)\n\n"
-#                    "tsv files are loaded with loadtxt"
-#               )
-# @click.option('-pts', default='0,0,0,0,-1,0', callback=np_load,
-#               help="points to evaluate, this can be a .npy file, a whitespace "
-#                    "seperated text file or entered as a string with commas "
-#                    "between components of a point and spaces between points. "
-#                    "in all cases each point requires 6 numbers x,y,z,dx,dy,dz "
-#                    "so the shape of the array will be (N, 6)")
-# @click.option('-res', default=800,
-#               help="the resolution of hdr output in pixels")
-# @click.option('-interp', default=12,
-#               help='number of nearby rays to use for interpolation of hdr'
-#                    'output (weighted by a gaussian filter). this does'
-#                    'not apply to metric calculations')
-# @click.option('-blursun', default=1,
-#               help='spread sun to mimic camera or human eye, 1 is no blur'
-#                    ' a value of 4 will double the apparent radius')
-# @click.option('-vname', default='view',
-#               help='name to include with hdr outputs')
-# @click.option('-skyro', default=0.0,
-#               help='counter clockwise rotation (in degrees) of the sky to'
-#                    ' rotate true North to project North, so if project North'
-#                    ' is 10 degrees East of North, skyro=10')
-# @click.option('-ground_fac', default=0.15,
-#               help='ground reflectance')
-# @clk.shared_decs(clk.command_decs(raytraverse.__version__, wrap=True))
-# def computehdr(ctx, loc=None, wea=None, skyro=0.0, ground_fac=0.15, pts=None, **kwargs):
-#     """the integrate command combines sky and sun results and evaluates the
-#     given set of positions and sky conditions"""
-#     if 'scene' not in ctx.obj:
-#         clk.invoke_dependency(ctx, scene)
-#     scn = ctx.obj['scene']
-#     if 'suns' not in ctx.obj:
-#         clk.invoke_dependency(ctx, suns)
-#     sns = ctx.obj['suns']
-#     skydat = SkyData(wea, scn, sns, loc=loc, skyro=skyro, ground_fac=ground_fac)
-#     perrs, pis = scn.area.pt_kd.query(pts[:, 0:3])
-#     skyf = SCBinField(scn)
-#     for pt, perr, pi in zip(pts, perrs, pis):
-#         for i, sd in enumerate(skydat.skydata):
-#             sunbin = skydat.sunproxy[i]
-#             spi = (pi, sunbin[1])
-#             pref = f"sun_{sunbin[1]:04d}"
-#             hassun = False
-#             if os.path.isfile(f"{scn.outdir}/{pref}_kd_lum.dat"):
-#                 sf = LightFieldKD(scn, prefix=pref, fvrays=scn.maxspec, log=False)
-#                 sk = SunSkyPt(skyf, sf, pi)
-#                 print("here")
-#             else:
-#                 print("not here")
-
-
+@main.command()
+@clk.shared_decs(clk.command_decs(raytraverse.__version__, wrap=True))
+def examplescript(ctx, **kwargs):
+    """print an example workflow for script based/api level access to
+     raytraverse"""
+    example = open(raytraverse.__file__.replace("__init__", "example")).read()
+    print(example)
 
 
 @main.resultcallback()

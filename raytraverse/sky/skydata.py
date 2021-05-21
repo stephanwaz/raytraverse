@@ -22,8 +22,8 @@ class SkyData(object):
     Parameters
     ----------
     wea: str np.array
-        path to epw, wea, or .npy file or np.array, if loc not set attempts to
-        extract location data (if needed).
+        path to epw, wea, .npy file or np.array, or .npz file, if loc not set
+        attempts to extract location data (if needed).
     loc: tuple, optional
         location data given as lat, lon, mer with + west of prime meridian
         overrides location data in wea (but not in sunfield)
@@ -34,6 +34,10 @@ class SkyData(object):
         ground reflectance
     skyres: float, optional
         approximate square patch size in degrees
+    minalt: float, optional
+        minimum solar altitude for daylight masking
+    mindiff: float, optional
+        minumum diffuse horizontal irradiance for daylight masking
     """
 
     def __init__(self, wea, loc=None, skyro=0.0, ground_fac=0.15,
@@ -85,35 +89,66 @@ class SkyData(object):
         ----------
         wea: str, np.array
             This method takes either a file path or np.array. File path can
-            point to a wea, epw, or .npy file. Loaded array must be one of
+            point to a wea, epw, tsv file, or npz. tsv array must be one of
             the following:
             - 4 col: alt, az, dir, diff
             - 5 col: dx, dy, dz, dir, diff
             - 5 col: m, d, h, dir, diff
+            npz file will rewrite skyres
         """
-        skydata, md, td = self._format_skydata(wea)
-        minz = np.sin(self._minalt * np.pi / 180)
-        daymask = np.logical_and(skydata[:, 2] > minz,
-                                 skydata[:, 4] > self._mindiff)
-        sxyz = skydata[daymask, 0:3]
-        dirdif = skydata[daymask, 3:]
-        if md is not None:
-            md = md[daymask]
-        if hasattr(td, "__len__"):
-            td = td[daymask]
-        smtx, grnd, sun = skycalc.sky_mtx(sxyz, dirdif, self.skyres, md=md,
-                                          ground_fac=self.ground_fac, td=td)
-        # ratio between actual solar disc and patch
-        omegar = np.square(0.2665 * np.pi * self.skyres / 180) * .5
-        plum = sun[:, -1] * omegar
-        sun = np.hstack((sun, plum[:, None]))
-        smtx = np.hstack((smtx, grnd[:, None]))
+        npzdata = self._load(wea)
+        if npzdata:
+            skydata, smtx, sun, daymask = npzdata
+        else:
+            skydata, md, td = self._format_skydata(wea)
+            minz = np.sin(self._minalt * np.pi / 180)
+            daymask = np.logical_and(skydata[:, 2] > minz,
+                                    skydata[:, 4] > self._mindiff)
+            sxyz = skydata[daymask, 0:3]
+            dirdif = skydata[daymask, 3:]
+            if md is not None:
+                md = md[daymask]
+            if hasattr(td, "__len__"):
+                td = td[daymask]
+            smtx, grnd, sun = skycalc.sky_mtx(sxyz, dirdif, self.skyres, md=md,
+                                              ground_fac=self.ground_fac, td=td)
+            # ratio between actual solar disc and patch
+            omegar = np.square(0.2665 * np.pi * self.skyres / 180) * .5
+            plum = sun[:, -1] * omegar
+            sun = np.hstack((sun, plum[:, None]))
+            smtx = np.hstack((smtx, grnd[:, None]))
         self._smtx = smtx
         self._sun = sun
         self._daymask = daymask
         self._skydata = skydata
-        self.sunproxy = sxyz
+        self.sunproxy = skydata[daymask, 0:3]
         self._daysteps = smtx.shape[0]
+
+    def write(self, name="skydata", scene=None, compressed=True):
+        file = f"{name}.npz"
+        if scene is not None:
+            file = f"{scene.outdir}/{file}"
+        kws = dict(skydata=self._skydata, smtx=self._smtx, sun=self._sun,
+                   daymask=self._daymask, loc=self._loc)
+        if compressed:
+            np.savez_compressed(file, **kws)
+        else:
+            np.savez(file, **kws)
+
+    def _load(self, file):
+        try:
+            result = np.load(file)
+        except (ValueError, TypeError, FileNotFoundError):
+            return False
+        else:
+            skydata = result['skydata']
+            smtx = result['smtx']
+            sun = result['sun']
+            daymask = result['daymask']
+            loc = result['loc']
+            self._loc = (loc[0], loc[1], int(loc[2]))
+            self._skyres = int(np.sqrt(smtx.shape[1] - 1))
+            return skydata, smtx, sun, daymask
 
     def _format_skydata(self, dat):
         """process dat argument as skydata

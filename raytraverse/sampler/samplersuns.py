@@ -47,9 +47,9 @@ class SamplerSuns(BaseSampler):
     #: initial sampling threshold coefficient
     t0 = .05
     #: final sampling threshold coefficient
-    t1 = .9
+    t1 = .5
     #: upper bound for drawing from pdf
-    ub = 100
+    ub = 8
 
     def __init__(self, scene, engine, accuracy=1.0, nlev=3, jitter=True,
                  ptkwargs=None, areakwargs=None,
@@ -159,7 +159,8 @@ class SamplerSuns(BaseSampler):
         levels = self.sampling_scheme(skymapper)
         super().run(skymapper, areamapper.name, levels, **kwargs)
         return DayLightPlaneKD(self.scene, self.vecs, self._areamapper,
-                               f"{self._skymapper.name}_sun")
+                               f"{self._skymapper.name}_sun",
+                               includesky=self._specguide is not None)
 
     def _init4run(self, levels, **kwargs):
         """(re)initialize object for new run, ensuring properties are cleared
@@ -195,6 +196,11 @@ class SamplerSuns(BaseSampler):
         si, uv = self.sample_to_uv(draws, shape)
         if si.size > 0:
             self._dump_vecs(vecs)
+            srate = si.shape[1]/np.prod(shape)
+            row = (f"{i + 1} of {self.levels.shape[0]}\t"
+                   f"{str(shape): >11}\t{si.shape[1]: >7}\t"
+                   f"{srate: >7.02%}")
+            self.scene.log(self, row, True, level=self._slevel)
             if plotp:
                 self._plot_p(p, i, mapper, name, fisheye=pfish)
                 self._plot_vecs(vecs, i, mapper, name, fisheye=pfish)
@@ -225,8 +231,11 @@ class SamplerSuns(BaseSampler):
         if level > 0:
             # calculate detail over points across sun positions
             nweights = self._normed_weights()
+            emode = 'reflect'
+            if level < 2:
+                emode = 'constant'
             det = draw.get_detail(nweights,
-                                  *filterdict[self.detailfunc], mode='constant')
+                                  *filterdict[self.detailfunc], mode=emode)
             mfunc = self._areakwargs['metricfunc']
             det = np.transpose(det.reshape(self._areaweights.shape),
                                (3, 4, 0, 1, 2))
@@ -296,6 +305,7 @@ class SamplerSuns(BaseSampler):
         pbar = self.scene.progress_bar(self, list(zip(range(*idx), vecs,
                                                       self._areadraws)),
                                        level=self._slevel)
+        level_desc = f"Level {len(self.slices)} of {len(self.levels)}"
         for suni, sunpos, adraws in pbar:
             sunsamp = SunSamplerPt(self.scene, self.engine, sunpos, suni,
                                    stype=f"{self._skymapper.name}_sun",
@@ -312,7 +322,7 @@ class SamplerSuns(BaseSampler):
                     pts = (f"{self.scene.outdir}/{self._areamapper.name}/"
                            f"{src}_points.tsv")
                     lf = LightPlaneKD(self.scene, pts, self._areamapper, src)
-                    pbar.set_description("Recovering")
+                    pbar.set_description(f"Recovering {level_desc}")
                     metrics = self._areakwargs['metricset']
                     try:
                         mc = self._areakwargs['metricclass']
@@ -327,7 +337,7 @@ class SamplerSuns(BaseSampler):
                 else:
                     needs_sampling = False
             if needs_sampling:
-                pbar.set_description("Sampling")
+                pbar.set_description(level_desc)
                 lf = areasampler.run(amapper, specguide=self._specguide,
                                      log=False)
                 shp = (*areasampler.levels[-1], areasampler.features)

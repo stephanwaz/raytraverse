@@ -133,7 +133,8 @@ class SunSamplerPt(SamplerPt):
         # temporarily override arguments
         self.engine.set_args(self.engine.directargs)
         viewsampler = SunSamplerPtView(self.scene, self.engine, self.sunpos,
-                                       self.sunbin)
+                                       self.sunbin,
+                                       samplerlevel=self._slevel + 1)
         sunview = viewsampler.run(point, posidx)
         self.engine.set_args(args)
         lightpoint = LightPointKD(self.scene, self.vecs, self.lum,

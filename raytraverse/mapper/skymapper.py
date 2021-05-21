@@ -29,9 +29,10 @@ class SkyMapper(AngularMixin, Mapper):
             2. an array (or tsv file loadable with np.loadtxt) of shape
                (N,3), (N,4), or (N,5):
 
-                    a. 3 elements: dx,dy,dz of sun positions
-                    b. 4 elements: alt, azm, dirnorm, diffhoriz (angles in degrees)
-                    c. 5 elements: dx, dy, dz, dirnorm, diffhoriz.
+                    a. 2 elements: alt, azm (angles in degrees)
+                    b. 3 elements: dx,dy,dz of sun positions
+                    c. 4 elements: alt, azm, dirnorm, diffhoriz (angles in degrees)
+                    d. 5 elements: dx, dy, dz, dirnorm, diffhoriz.
 
             3. path to an epw or wea formatted file
             4. None (default) all possible sun positions are considered
@@ -45,8 +46,7 @@ class SkyMapper(AngularMixin, Mapper):
         counterclockwise sky-rotation in degrees (equivalent to clockwise
         project north rotation)
     sunres: float, optional
-        if less than 180, the horizontal and vertical view angle, if greater,
-        view becomes 360,180
+        initial sampling resolution for suns
     name: str, optional
 
     """
@@ -96,7 +96,8 @@ class SkyMapper(AngularMixin, Mapper):
             self._load_sun_data(location)
             self.in_solarbounds_uv = self._test_uv_candidates
             self.solar_grid_uv = self._solar_grid_uv_candidates
-        elif np.asarray(location).size > 3 or len(np.asarray(location).shape) == 2:
+        elif (np.asarray(location).size > 3 or
+              len(np.asarray(location).shape) == 2):
             self._norm_input_data(np.asarray(location))
             self.in_solarbounds_uv = self._test_uv_candidates
             self.solar_grid_uv = self._solar_grid_uv_candidates

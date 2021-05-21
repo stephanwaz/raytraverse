@@ -131,7 +131,7 @@ class BaseSampler(object):
         kwargs:
             unused
         """
-        detaillog = True
+        detaillog = self._slevel == 0
         logerr = False
         if log == 'scene':
             logerr = False
@@ -146,7 +146,10 @@ class BaseSampler(object):
             hdr = ['level ', '      shape', 'samples', '   rate']
             self.scene.log(self, '\t'.join(hdr), logerr, level=self._slevel)
         allc = 0
-        for i in self._init4run(levels, plotp=plotp, pfish=pfish):
+        leveliter = self._init4run(levels, plotp=plotp, pfish=pfish)
+        for i in leveliter:
+            if hasattr(leveliter, "set_description"):
+                leveliter.set_description(f"Level {i+1} of {len(self.levels)}")
             allc += self._run_level(mapper, name, i, plotp, detaillog, logerr,
                                     pfish)
         srate = (allc * self.features /

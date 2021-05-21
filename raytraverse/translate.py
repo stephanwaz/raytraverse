@@ -23,7 +23,7 @@ def norm1(v):
     n = np.sqrt(np.sum(np.square(v)))
     if n == 0:
         n = 1
-    return v/n
+    return np.asarray(v)/n
 
 
 ###############################################
@@ -429,7 +429,7 @@ def rmtx_yp(v):
     """
     v = norm1(v)
     v2 = np.array((0, 0, 1))
-    if np.isnan(v[0]):
+    if np.sum(np.abs(v)) == 0:
         raise ValueError(f"Vector Normalization Failed: {v}")
     if np.allclose(v, v2):
         return np.identity(3), np.identity(3)

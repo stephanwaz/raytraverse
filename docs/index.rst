@@ -1,10 +1,61 @@
 .. include:: ../README.rst
 
+.. include:: ../raytraverse/example.py
+   :code: py
+
 Command Line Interface
 ----------------------
 
+The raytraverse command provides command line access to executing common
+tasks. The best way to manage all of the options is with a .cfg file. First,
+generate a template::
+
+    raytraverse --template > options.cfg
+
+and then edit the options for each file. To duplicate the run shown in
+the example script above save the following to options.cfg::
+
+    [raytraverse_scene]
+    out = outdir
+    scene = room.rad
+
+    [raytraverse_area]
+    ptres = 2.0
+    zone = plane.rad
+
+    [raytraverse_suns]
+    loc = weather.epw
+    epwloc = True
+
+    [raytraverse_skydata]
+    wea = weather.epw
+
+    [raytraverse_skyengine]
+    accuracy = 2.0
+    rayargs = -ab 2 -ad 4 -c 1000
+
+    [raytraverse_sunengine]
+    accuracy = 2.0
+    rayargs = -ab 2 -c 1
+
+    [raytraverse_skyrun]
+    accuracy = 2.0
+    jitter = True
+    nlev = 2
+    overwrite = False
+
+    [raytraverse_sunrun]
+    accuracy = 2.0
+    nlev = 2
+    srcaccuracy = 2.0
+
+and then from the command line run::
+
+    raytraverse -c options.cfg skyrun sunrun
+
+
 .. toctree::
-   :maxdepth: 3
+   :maxdepth: 2
    :caption: Command Line Interface
 
    cli

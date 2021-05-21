@@ -52,12 +52,11 @@ def test_img(tmpdir):
 def test_metric():
     checker = make_checker(100)
     energy = ['illum', 'avglum', 'dgp_t1', 'avgraylum']
-    energy_part = ['tasklum', 'backlum', 'srcillum', 'backlum_true']
+    energy_part = ['tasklum', 'backlum', 'srcillum', 'backlum_true', "srcarea", "maxlum"]
     constants = ['threshold']
     tree = ['view_area', 'density']
     contrast = ['gcr', 'ugp', 'ugr', 'dgp', 'log_gc', 'dgp_t2', 'pwsl2']
     allmets = energy + energy_part + contrast + tree + constants
-    assert len(allmets) == len(MetricSet.allmetrics)
     a1 = MetricSet(*checker.evaluate(2000/179), checker.vm)
     a2 = MetricSet(*checker.evaluate([3000/179, 1000/179]), checker.vm)
     a3 = MetricSet(*checker.evaluate([1000/179, 3000/179]), checker.vm)

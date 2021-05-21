@@ -185,16 +185,15 @@ class BaseScene(object):
         else:
             pool = None
         return _TStqdm(instance, self._tz, pool=pool, iterable=iterable,
-                       total=total, desc=message, mininterval=1.0,
-                       leave=None, position=level, dynamic_ncols=True)
+                       total=total, desc=message, leave=None, position=level)
 
 
 class _TStqdm(tqdm):
 
     def __init__(self, instance, tz=None, pool=None, position=0, desc=None,
-                 **kwargs):
+                 ncols=100, **kwargs):
         self._instance = instance
-        self.pos = position
+        self.loglevel = position
         tf = "%H:%M:%S"
         self.ts = datetime.now(tz=tz).strftime(tf)
         self.pool = pool
@@ -203,14 +202,14 @@ class _TStqdm(tqdm):
         else:
             self.nworkers = pool._max_workers
         super().__init__(desc=self.ts_message(desc), position=position,
-                         **kwargs)
+                         ncols=ncols, **kwargs)
 
     def ts_message(self, s):
         if s is None:
             s = f"{type(self._instance).__name__}"
         else:
             s = f"{type(self._instance).__name__} {s}"
-        s = f"{' | ' * self.pos}{self.ts} {s}"
+        s = f"{' | ' * self.loglevel} {s}"
         return s
 
     def write(self, s, file=None, end="\n", nolock=False):

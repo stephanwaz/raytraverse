@@ -33,14 +33,17 @@ class DayLightPlaneKD(LightField):
         name of sun sources group.
     """
 
-    def __init__(self, scene, vecs, pm, src):
+    def __init__(self, scene, vecs, pm, src, includesky=True):
         super().__init__(scene, vecs, pm, src)
-        pts = f"{self._datadir}/sky_points.tsv"
-        self._skyplane = LightPlaneKD(self.scene, pts, self.pm, "sky")
+        if includesky:
+            pts = f"{self._datadir}/sky_points.tsv"
+            self._skyplane = LightPlaneKD(self.scene, pts, self.pm, "sky")
+        else:
+            self._skyplane = None
 
     @property
     def vecs(self):
-        """indexing vectors (such as position, sun positions, etc.)"""
+        """indexing vectors (sx, sy, sz, px, py, pz)"""
         return self._vecs
 
     @property
@@ -104,7 +107,7 @@ class DayLightPlaneKD(LightField):
         Parameters
         ----------
         vecs: np.array
-            shape (N, 3) vectors to query.
+            shape (N, 6) vectors to query.
 
         Returns
         -------
@@ -121,13 +124,15 @@ class DayLightPlaneKD(LightField):
         return i, d
 
     def evaluate(self, skydata, points, vm, metricclass=MetricSet,
-                 metrics=None, logerr=True, datainfo=False, **kwargs):
+                 metrics=None, logerr=True, datainfo=False, hdr=False,
+                 res=1024, interp=False, prefix="img", **kwargs):
         """
 
         Parameters
         ----------
         skydata: raytraverse.sky.Skydata
         points: np.array
+            shape (N, 3)
         vm: Union[raytraverse.mapper.ViewMapper, np.array]
         metricclass: raytraverse.evaluate.BaseMetricSet, optional
         metrics: Sized, optional
@@ -140,11 +145,22 @@ class DayLightPlaneKD(LightField):
             of source vector at a 500^2 resolution of the mapper.
             order is ignored, info is always in order listed above after the
             last metric.
+        hdr: bool, optional
+            whether to write a 180 degree fisheye  hdr image for each point/sky
+            combo (be careful with large sets), named by
+            img_row(skydata)_pt_vdir.hdr
+        res: int, optional
+            image resolution
+        interp: bool, optional
+            interpolate image
+        prefix: str, optional
+            prefix for output file naming
 
         Returns
         -------
         raytraverse.lightfield.LightResult
         """
+        points = np.atleast_2d(points)
         if hasattr(vm, "dxyz"):
             vms = [vm]
         else:
@@ -168,23 +184,34 @@ class DayLightPlaneKD(LightField):
         # query sky simulation data
         skp_idx, sk_pt_err = self.skyplane.query(points)
 
-        # use parallel processing
-        fields = self._eval_mgr(skp_idx, sidx, skydata, oshape,
-                                vm=vm, vms=vms, metricclass=metricclass,
-                                metrics=metrics, **kwargs)
         sinfo, dinfo = self._sinfo(datainfo, vecs, sidx, points, skp_idx,
                                    oshape)
-        if sinfo is not None:
-            fields = np.concatenate((fields, sinfo), axis=-1)
         # compose axes
         skyaxis = ResultAxis(skydata.maskindices, f"sky")
         ptaxis = ResultAxis(points, "point")
         viewaxis = ResultAxis([v.dxyz for v in vms], "view")
         metricaxis = ResultAxis(list(metrics) + dinfo, "metric")
+        if hdr:
+            a, b, c = np.meshgrid(skyaxis.values, ptaxis.values,
+                                  viewaxis.values, indexing='ij')
+            combos = np.stack((a.ravel().astype(object), b.ravel(), c.ravel()))
+            combos = combos.T.reshape(-1, len(viewaxis.values), 3)
+        else:
+            combos = np.zeros(len(sidx))
+        # use parallel processing
+        kwargs.update(res=res, interp=interp, prefix=prefix)
+        fields = self._eval_mgr(skp_idx, sidx, skydata, oshape, combos=combos,
+                                vm=vm, vms=vms, metricclass=metricclass,
+                                metrics=metrics, **kwargs)
+
+        if sinfo is not None:
+            fields = np.concatenate((fields, sinfo), axis=-1)
+
         lr = LightResult(fields, skyaxis, ptaxis, viewaxis, metricaxis)
         return lr
 
-    def _eval_mgr(self, skp_idx, sidx, skydata, oshape, srconly=False, **kwargs):
+    def _eval_mgr(self, skp_idx, sidx, skydata, oshape, combos=None,
+                  srconly=False, metricclass=None, metrics=None, **kwargs):
         """sort and submit queries to process pool"""
         ski = np.broadcast_to(skp_idx, oshape[0:2]).reshape(-1, 1)
         # tuples of all combinations: order: (suns, pts) row-major
@@ -202,7 +229,8 @@ class DayLightPlaneKD(LightField):
         dsns = np.broadcast_to(skydata.sun[:, None, :], s).reshape(-1, s[-1])
 
         fields = []
-        if srconly:
+        sumsafe = metricclass.check_safe2sum(metrics)
+        if srconly or sumsafe:
             workers = "threads"
         else:
             workers = True
@@ -229,7 +257,10 @@ class DayLightPlaneKD(LightField):
                     pbar.update(len(done) - pbar_t)
                     pbar_t = len(done)
                 fu = exc.submit(_evaluate_pt, skp, snp, smtx[mask],
-                                dsns[mask], srconly=srconly, **kwargs)
+                                dsns[mask], combos=combos[mask],
+                                srconly=srconly, sumsafe=sumsafe,
+                                metricclass=metricclass, metrics=metrics,
+                                **kwargs)
                 futures.append(fu)
                 not_done.add(fu)
                 cnt += 1
@@ -274,28 +305,41 @@ class DayLightPlaneKD(LightField):
 
 
 def _evaluate_pt(skpoint, snpoint, skyvecs, suns, vm=None, vms=None,
-                 metricclass=None, metrics=None, srconly=False, **kwargs):
+                 metricclass=None, metrics=None, combos=None, srconly=False,
+                 sumsafe=False, hdr=False, res=1024, interp=False, prefix="img",
+                 **kwargs):
     """point by point evaluation suitable for submitting to ProcessPool"""
     if srconly:
-        sunskypt = snpoint
-        smtx = suns[:, 3]
+        sunskypt = [snpoint]
+        smtx = [suns[:, 3]]
+    elif sumsafe:
+        sunskypt = [skpoint, snpoint]
+        smtx = [skyvecs, suns[:, 3]]
     else:
-        sunskypt = skpoint.add(snpoint)
-        smtx = np.hstack((skyvecs, suns[:, 3:4]))
+        sunskypt = [skpoint.add(snpoint)]
+        smtx = [np.hstack((skyvecs, suns[:, 3:4]))]
     if len(vms) == 1:
-        didx = sunskypt.query_ball(vms[0].dxyz,
-                                   vms[0].viewangle * vms[0].aspect)[0]
+        args = (vms[0].dxyz, vms[0].viewangle * vms[0].aspect)
+        didx = [lpt.query_ball(*args)[0] for lpt in sunskypt]
     else:
-        didx = None
-    pts = []
-    for skyvec, sun in zip(smtx, suns):
-        vol = sunskypt.evaluate(skyvec, vm=vm, idx=didx,
-                                srcvecoverride=sun[0:3], srconly=srconly)
-        views = []
-        for v in vms:
-            views.append(metricclass(*vol, v, metricset=metrics,
-                                     **kwargs)())
-        views = np.stack(views)
-        pts.append(views)
-    pts = np.stack(pts)
-    return pts
+        didx = [None] * len(sunskypt)
+    srcs = []
+    for lpt, di, sx in zip(sunskypt, didx, smtx):
+        pts = []
+        for skyvec, sun in zip(sx, suns):
+            vol = lpt.evaluate(skyvec, vm=vm, idx=di,
+                               srcvecoverride=sun[0:3], srconly=srconly)
+            views = []
+            for v in vms:
+                # if hdr:
+                #     img, pdirs, mask, mask2, header = vm.init_img(res, self.pt)
+                #     header = [header]
+                #     self.add_to_img(img, pdirs[mask], mask, vm=vm,
+                #                     interp=interp, skyvec=skyvec)
+                #     io.array2hdr(img, outf, header)
+                views.append(metricclass(*vol, v, metricset=metrics,
+                                         **kwargs)())
+            views = np.stack(views)
+            pts.append(views)
+        srcs.append(np.stack(pts))
+    return np.sum(srcs, axis=0)

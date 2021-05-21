@@ -46,6 +46,8 @@ class BaseMetricSet(object):
 
     allmetrics = defaultmetrics + ["density", "avgraylum"]
 
+    safe2sum = {"illum", "avglum"}
+
     def __init__(self, vec, omega, lum, vm, metricset=None, scale=179.,
                  omega_as_view_area=True, **kwargs):
         if metricset is not None:
@@ -95,6 +97,13 @@ class BaseMetricSet(object):
             raise AttributeError(f"'{bad}' are not defined in "
                                  f"MetricSet: {cls.allmetrics}")
         return good
+
+    @classmethod
+    def check_safe2sum(cls, metrics):
+        """checks if list if metrics is safe to compute for seperate
+        sources before adding"""
+        mset = set(metrics)
+        return mset.issubset(cls.safe2sum)
 
     @property
     def vec(self):

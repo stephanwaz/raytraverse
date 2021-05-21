@@ -91,7 +91,7 @@ class Rcontrib(RadianceRenderer):
         """
         cls.ground = ground
         if scene is not None:
-            srcdef = Fmt.get_skydef((1, 1, 1), ground=True, name=modname)
+            srcdef = Fmt.get_skydef((1, 1, 1), ground=ground, name=modname)
             scene = Fmt.add_source(scene, srcdef)
         cls.side = int(np.floor(90/skyres)*2)
         cls.srcn = cls.side**2 + ground

@@ -75,3 +75,15 @@ use the Documentation link included above or::
 
 to generate local documentation.
 
+Getting Started
+---------------
+
+the following example script shows the basic workflow for a complete simulation
+it can be saved to a local file with::
+
+    raytraverse examplescript > example.py
+
+or the file is located at raytraverse/example.py
+
+.. include:: raytraverse/example.py
+   :code: py

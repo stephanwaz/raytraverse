@@ -96,6 +96,7 @@ def test_rmtx_world2std():
         if z == 0:
             with pytest.raises(ValueError):
                 ymtx, pmtx = translate.rmtx_yp(v)
+                print(ymtx, pmtx)
         else:
             ymtx, pmtx = translate.rmtx_yp(v)
             t = v.reshape(3, -1)

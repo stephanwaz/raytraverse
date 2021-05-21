@@ -47,8 +47,8 @@ class SamplerPt(BaseSampler):
 
     _includeorigin = True
 
-    def __init__(self, scene, engine, idres=5, fdres=9,
-                 accuracy=1.0,  srcn=1, stype='generic', bands=1, **kwargs):
+    def __init__(self, scene, engine, idres=5, fdres=9, accuracy=1.0,
+                 srcn=1, stype='generic', bands=1, samplerlevel=0, **kwargs):
         #: int: number of spectral bands / channels returned by renderer
         #: based on given renderopts (user ensures these agree).
         self.bands = bands
@@ -57,7 +57,8 @@ class SamplerPt(BaseSampler):
         #: int: initial direction resolution (as log2(res))
         self.idres = idres
         self.fdres = fdres
-        super().__init__(scene, engine, accuracy=accuracy, stype=stype)
+        super().__init__(scene, engine, accuracy=accuracy, stype=stype,
+                         samplerlevel=samplerlevel)
 
     def sampling_scheme(self, a):
         """calculate sampling scheme"""
@@ -94,6 +95,13 @@ class SamplerPt(BaseSampler):
         levels = self.sampling_scheme(mapper.aspect)
         super().run(mapper, name, levels, **kwargs)
         return self._run_callback(point, posidx, mapper, **lpargs)
+
+    def _init4run(self, levels, **kwargs):
+        """(re)initialize object for new run, ensuring properties are cleared
+        prior to executing sampling loop"""
+        leveliter = super()._init4run(levels, **kwargs)
+        return self.scene.progress_bar(self, list(leveliter),
+                                       level=self._slevel)
 
     def _run_callback(self, point, posidx, vm, write=True, **kwargs):
         """handle class specific lightpointKD construction"""
