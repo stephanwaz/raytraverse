@@ -65,6 +65,8 @@ def main():
     sk_engine = SkySamplerPt(scn, rcontrib, accuracy=2.0)
     skysampler = SamplerArea(scn, sk_engine, accuracy=2.0, nlev=1, jitter=False)
     skyfield = skysampler.run(pm)
+    print(rcontrib)
+    rcontrib.reset()
 
     # to modify parameters for sun/pt sampler pass arguments to the ptkwargs
     # argument of SamperSuns
@@ -74,7 +76,7 @@ def main():
                              ptkwargs=ptkwargs, areakwargs=areakwargs)
 
     daylightfield = sunsampler.run(sm, pm, specguide=skyfield)
-
+    rtrace.reset()
     # calculate sky patch and sun contributions
     sd = SkyData(epw)
 

@@ -585,8 +585,6 @@ def evaluate(ctx, sensor=None, skymask=None, metrics=None, hdr=False,
         print("no implemented yet...")
 
 
-
-
 @main.command()
 @clk.shared_decs(clk.command_decs(raytraverse.__version__, wrap=True))
 def examplescript(ctx, **kwargs):
@@ -596,7 +594,7 @@ def examplescript(ctx, **kwargs):
     print(example)
 
 
-@main.resultcallback()
+@main.result_callback()
 @click.pass_context
 def printconfig(ctx, returnvalue, **kwargs):
     """callback to cleanup any temp files"""

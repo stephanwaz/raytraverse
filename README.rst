@@ -85,5 +85,3 @@ it can be saved to a local file with::
 
 or the file is located at raytraverse/example.py
 
-.. include:: raytraverse/example.py
-   :code: py

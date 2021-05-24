@@ -1,0 +1,16 @@
+# genbox wall box 5 10 3
+
+void plastic wall
+0
+0
+5 .5 .5 .5 0 0
+
+
+wall polygon box.6457
+0
+0
+12
+	                 2	                4	                 1
+	                 2	                2	                 1
+	                 4	                2	                 1
+	                 4	                4	                 1
