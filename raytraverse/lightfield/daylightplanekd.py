@@ -11,7 +11,7 @@ from concurrent.futures import wait, FIRST_COMPLETED
 import numpy as np
 from scipy.spatial import cKDTree, distance_matrix
 
-from raytraverse import translate
+from raytraverse import translate, io
 from raytraverse.evaluate import MetricSet
 from raytraverse.lightfield.lightplanekd import LightPlaneKD
 from raytraverse.lightfield.sets import MultiLightPointSet
@@ -123,10 +123,9 @@ class DayLightPlaneKD(LightField):
         d, i = self.kd.query(weighted_vecs)
         return i, d
 
-    def evaluate(self, skydata, points, vm, metricclass=MetricSet,
-                 metrics=None, logerr=True, datainfo=False, hdr=False,
-                 res=1024, interp=False, prefix="img", **kwargs):
-        """
+    def make_images(self, skydata, points, vm, res=512, interp=False,
+                    prefix="img", namebyindex=False, logerr=True):
+        """see namebyindex for file naming conventions
 
         Parameters
         ----------
@@ -134,6 +133,77 @@ class DayLightPlaneKD(LightField):
         points: np.array
             shape (N, 3)
         vm: Union[raytraverse.mapper.ViewMapper, np.array]
+            either a predefined ViewMapper (used for all points) or an array
+            of view directions (will use a 180 degree view angle when
+            initializing ViewMapper)
+        res: int, optional
+            image resolution
+        interp: bool, optional
+            interpolate image
+        prefix: str, optional
+            prefix for output file naming
+        namebyindex: bool, optional
+            if False (default), names images by:
+            <prefix>_sky-<row>_pt-<x>_<y>_<z>_vd-<dx>_<dy>_<dz>.hdr
+            if True, names images by:
+            <prefix>_sky-<row>_pt-<pidx>_vd-<vidx>.hdr, where pidx, vidx are
+            refer to the order of points, and vm.
+        logerr: bool, optional
+
+        Returns
+        -------
+
+        """
+        points = np.atleast_2d(points)
+        if hasattr(vm, "dxyz"):
+            vms = [vm]
+        else:
+            dxyz = np.asarray(vm).reshape(-1, 3)
+            vms = [ViewMapper(d, 180) for d in dxyz]
+        oshape = (len(skydata.maskindices), len(points), len(vms))
+        self.scene.log(self, f"Making Images for {oshape[2]}"
+                             f" view directions at {oshape[1]} points under "
+                             f"{oshape[0]} skies", logerr)
+
+        # query and group sun positions
+        suns = skydata.sun[:, None, 0:3]
+        pts = np.atleast_2d(points)[None, :]
+        vecs = np.concatenate(np.broadcast_arrays(suns, pts), -1).reshape(-1, 6)
+        # order: (suns, pts) row-major
+        sidx, sun_err = self.query(vecs)
+        # query sky simulation data
+        skp_idx, sk_pt_err = self.skyplane.query(points)
+
+        skyaxis = ResultAxis(skydata.maskindices, f"sky")
+        # move naming up here
+        # if namebyindex:
+        #     ptaxis = ResultAxis(np.arange(len(points)), "point")
+        #     viewaxis = ResultAxis(np.arange(len(vms)), "view")
+        # else:
+        ptaxis = ResultAxis(points, "point")
+        viewaxis = ResultAxis([v.dxyz for v in vms], "view")
+        a, b, c = np.meshgrid(skyaxis.values, ptaxis.values,
+                              viewaxis.values, indexing='ij')
+        combos = np.stack((a.ravel().astype(object), b.ravel(), c.ravel()))
+        combos = combos.T.reshape(-1, len(viewaxis.values), 3)
+        # use parallel processing
+        self._img_mgr(skp_idx, sidx, skydata, oshape,  combos,
+                      vms=vms, res=res, interp=interp, prefix=prefix)
+
+    def evaluate(self, skydata, points, vm, metricclass=MetricSet,
+                 metrics=None, logerr=True, datainfo=False, **kwargs):
+        """apply sky data and view queries to daylightplane to return metrics
+        parallelizes and optimizes run order.
+
+        Parameters
+        ----------
+        skydata: raytraverse.sky.Skydata
+        points: np.array
+            shape (N, 3)
+        vm: Union[raytraverse.mapper.ViewMapper, np.array]
+            either a predefined ViewMapper (used for all points) or an array
+            of view directions (will use a 180 degree view angle when
+            initializing ViewMapper)
         metricclass: raytraverse.evaluate.BaseMetricSet, optional
         metrics: Sized, optional
         logerr: bool, optional
@@ -145,16 +215,6 @@ class DayLightPlaneKD(LightField):
             of source vector at a 500^2 resolution of the mapper.
             order is ignored, info is always in order listed above after the
             last metric.
-        hdr: bool, optional
-            whether to write a 180 degree fisheye  hdr image for each point/sky
-            combo (be careful with large sets), named by
-            img_row(skydata)_pt_vdir.hdr
-        res: int, optional
-            image resolution
-        interp: bool, optional
-            interpolate image
-        prefix: str, optional
-            prefix for output file naming
 
         Returns
         -------
@@ -169,7 +229,6 @@ class DayLightPlaneKD(LightField):
             vms = [ViewMapper(d, 180) for d in dxyz]
         if metrics is None:
             metrics = metricclass.defaultmetrics
-
         oshape = (len(skydata.maskindices), len(points), len(vms), len(metrics))
         self.scene.log(self, f"Evaluating {oshape[3]} metrics for {oshape[2]}"
                              f" view directions at {oshape[1]} points under "
@@ -183,7 +242,6 @@ class DayLightPlaneKD(LightField):
         sidx, sun_err = self.query(vecs)
         # query sky simulation data
         skp_idx, sk_pt_err = self.skyplane.query(points)
-
         sinfo, dinfo = self._sinfo(datainfo, vecs, sidx, points, skp_idx,
                                    oshape)
         # compose axes
@@ -191,27 +249,18 @@ class DayLightPlaneKD(LightField):
         ptaxis = ResultAxis(points, "point")
         viewaxis = ResultAxis([v.dxyz for v in vms], "view")
         metricaxis = ResultAxis(list(metrics) + dinfo, "metric")
-        if hdr:
-            a, b, c = np.meshgrid(skyaxis.values, ptaxis.values,
-                                  viewaxis.values, indexing='ij')
-            combos = np.stack((a.ravel().astype(object), b.ravel(), c.ravel()))
-            combos = combos.T.reshape(-1, len(viewaxis.values), 3)
-        else:
-            combos = np.zeros(len(sidx))
         # use parallel processing
-        kwargs.update(res=res, interp=interp, prefix=prefix)
-        fields = self._eval_mgr(skp_idx, sidx, skydata, oshape, combos=combos,
-                                vm=vm, vms=vms, metricclass=metricclass,
-                                metrics=metrics, **kwargs)
-
+        fields = self._eval_mgr(skp_idx, sidx, skydata, oshape, vm=vm, vms=vms,
+                                metricclass=metricclass, metrics=metrics,
+                                **kwargs)
         if sinfo is not None:
             fields = np.concatenate((fields, sinfo), axis=-1)
 
         lr = LightResult(fields, skyaxis, ptaxis, viewaxis, metricaxis)
         return lr
 
-    def _eval_mgr(self, skp_idx, sidx, skydata, oshape, combos=None,
-                  srconly=False, metricclass=None, metrics=None, **kwargs):
+    def _eval_mgr(self, skp_idx, sidx, skydata, oshape, srconly=False,
+                  metricclass=None, metrics=None, **kwargs):
         """sort and submit queries to process pool"""
         ski = np.broadcast_to(skp_idx, oshape[0:2]).reshape(-1, 1)
         # tuples of all combinations: order: (suns, pts) row-major
@@ -257,8 +306,7 @@ class DayLightPlaneKD(LightField):
                     pbar.update(len(done) - pbar_t)
                     pbar_t = len(done)
                 fu = exc.submit(_evaluate_pt, skp, snp, smtx[mask],
-                                dsns[mask], combos=combos[mask],
-                                srconly=srconly, sumsafe=sumsafe,
+                                dsns[mask], srconly=srconly, sumsafe=sumsafe,
                                 metricclass=metricclass, metrics=metrics,
                                 **kwargs)
                 futures.append(fu)
@@ -303,11 +351,62 @@ class DayLightPlaneKD(LightField):
             sinfo.append(np.tile(skp_idx, oshape[0]))
         return np.array(sinfo).T.reshape(*oshape[:-2], 1, -1), dinfo
 
+    def _img_mgr(self, skp_idx, sidx, skydata, oshape, combos, **kwargs):
+        """sort and submit queries to process pool"""
+        ski = np.broadcast_to(skp_idx, oshape[0:2]).reshape(-1, 1)
+        # tuples of all combinations: order: (suns, pts) row-major
+        idx_tup = np.hstack((self.data.idx[sidx], ski))
+
+        # unique returns sorted values (evaluation order)
+        qtup, qidx = np.unique(idx_tup, axis=0, return_index=True)
+        # broadcast skydata to match full indexing
+        s = (*oshape[0:2], skydata.smtx.shape[1])
+        smtx = np.broadcast_to(skydata.smtx[:, None, :], s).reshape(-1, s[-1])
+        s = (*oshape[0:2], skydata.sun.shape[1])
+        dsns = np.broadcast_to(skydata.sun[:, None, :], s).reshape(-1, s[-1])
+        skinfo = skydata.skydata[skydata.fullmask]
+        s = (*oshape[0:2], skinfo.shape[1])
+        skinfo = np.broadcast_to(skinfo[:, None, :], s).reshape(-1, s[-1])
+        with self.scene.progress_bar(self, message="Evaluating Points",
+                                     total=len(qtup), workers=True) as pbar:
+            exc = pbar.pool
+            pbar.write(f"Making Images for {len(qidx)} sun/sky/pt combinations")
+            futures = []
+            done = set()
+            not_done = set()
+            cnt = 0
+            pbar_t = 0
+            # submit asynchronous to process pool
+            for qi, skp_qi in zip(sidx[qidx], qtup):
+                skp = self.skyplane.data[skp_qi[2]]
+                snp = self.data[qi]
+                mask = np.all(idx_tup == skp_qi, -1)
+                # manage to queue to avoid loading too many points in memory
+                # and update progress bar as completed
+                if cnt > pbar.nworkers*3:
+                    wait_r = wait(not_done, return_when=FIRST_COMPLETED)
+                    not_done = wait_r.not_done
+                    done.update(wait_r.done)
+                    pbar.update(len(done) - pbar_t)
+                    pbar_t = len(done)
+                fu = exc.submit(_img_pt, skp, snp, smtx[mask],
+                                dsns[mask], combos=combos[mask],
+                                skinfo=skinfo[mask], **kwargs)
+                futures.append(fu)
+                not_done.add(fu)
+                cnt += 1
+            # gather results (in order)
+            for future in futures:
+                future.result()
+                if future in not_done:
+                    pbar.update(1)
+            # sort back to original order and reshape
+            pbar.write(f"Completed evaluation for {len(idx_tup)} values")
+
 
 def _evaluate_pt(skpoint, snpoint, skyvecs, suns, vm=None, vms=None,
-                 metricclass=None, metrics=None, combos=None, srconly=False,
-                 sumsafe=False, hdr=False, res=1024, interp=False, prefix="img",
-                 **kwargs):
+                 metricclass=None, metrics=None, srconly=False,
+                 sumsafe=False, **kwargs):
     """point by point evaluation suitable for submitting to ProcessPool"""
     if srconly:
         sunskypt = [snpoint]
@@ -331,15 +430,42 @@ def _evaluate_pt(skpoint, snpoint, skyvecs, suns, vm=None, vms=None,
                                srcvecoverride=sun[0:3], srconly=srconly)
             views = []
             for v in vms:
-                # if hdr:
-                #     img, pdirs, mask, mask2, header = vm.init_img(res, self.pt)
-                #     header = [header]
-                #     self.add_to_img(img, pdirs[mask], mask, vm=vm,
-                #                     interp=interp, skyvec=skyvec)
-                #     io.array2hdr(img, outf, header)
                 views.append(metricclass(*vol, v, metricset=metrics,
                                          **kwargs)())
             views = np.stack(views)
             pts.append(views)
         srcs.append(np.stack(pts))
     return np.sum(srcs, axis=0)
+
+
+def _img_pt(skpoint, snpoint, skyvecs, suns, vms=None,
+            combos=None, skinfo=None, res=512, interp=False, prefix="img"):
+    """point by point evaluation suitable for submitting to ProcessPool"""
+    outfs = []
+    lpinfo = ["SKYPOINT= loc: ({:.3f}, {:.3f}, {:.3f}) {}".format(*skpoint.pt,
+                                                                  skpoint.file),
+              "SUNPOINT= loc: ({:.3f}, {:.3f}, {:.3f}) src: ({:.3f}, {:.3f}, "
+              "{:.3f}) {}".format(*skpoint.pt, *snpoint.srcdir[0],
+                                  skpoint.file)]
+    for i, v in enumerate(vms):
+        img, pdirs, mask, mask2, header = v.init_img(res)
+        if interp:
+            sun_i = None
+            sky_i = None
+        else:
+            sun_i, _ = snpoint.query_ray(pdirs[mask])
+            sky_i, _ = skpoint.query_ray(pdirs[mask])
+        for skyvec, sun, (si, pt, vd), info in zip(skyvecs, suns,
+                                                   combos[:, i], skinfo):
+            header = [v.header(pt), "SKYCOND= sunpos: ({:.3f}, {:.3f}, {:.3f}) "
+                      "dirnorm: {} diffhoriz: {}".format(*info)] + lpinfo
+            skpoint.add_to_img(img, pdirs[mask], mask, vm=v, interp=interp,
+                               idx=sky_i, skyvec=skyvec)
+            snpoint.add_to_img(img, pdirs[mask], mask, vm=v, interp=interp,
+                               idx=sun_i, skyvec=sun[3])
+            outf = (f"{prefix}_sky-{si:04d}_pt-{pt[0]:.1f}_{pt[1]:.1f}_"
+                    f"{pt[2]:.1f}_vd-{vd[0]:.1f}_{vd[1]:.1f}_{vd[2]:.1f}.hdr")
+            outfs.append(outf)
+            io.array2hdr(img, outf, header)
+            img[:] = 0
+    return outfs

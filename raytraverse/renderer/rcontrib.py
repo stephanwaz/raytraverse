@@ -101,7 +101,9 @@ class Rcontrib(RadianceRenderer):
     @classmethod
     def get_default_args(cls):
         """construct default arguments"""
-        return f"-ab 7 -ad 10 -as 0 -lw 1e-5 -st 0 -ss 16 -c {10*cls.srcn}"
+        # f"-ab 7 -ad 10 -as 0 -lw 1e-5 -st 0 -ss 16 -c {10*cls.srcn}"
+        return (f"-u+ -ab 16 -av 0 0 0 -aa 0 -as 0 -dc 1 -dt 0 -lr -14 -ad "
+                f"{50*cls.srcn} -lw {0.008/cls.srcn} -st 0 -ss 16 -c 1")
 
     @classmethod
     def set_args(cls, args, nproc=None):

@@ -23,7 +23,7 @@ deploy:
     repo: stephanwaz/raytraverse
     branch: release
     tags: true
-  cleanup: false
+  skip_cleanup: true
 
 after_success:
 - |

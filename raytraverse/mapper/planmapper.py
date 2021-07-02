@@ -45,7 +45,7 @@ class PlanMapper(Mapper):
         #: float: point resolution for area look ups and grid
         self.ptres = ptres
         self._bbox = None
-        self._zheight = 0.0
+        self._zheight = zheight
         self._path = []
         self.update_bbox(area, updatez=zheight is None)
         super().__init__(name=name, sf=self._sf, bbox=self.bbox)
@@ -81,14 +81,13 @@ class PlanMapper(Mapper):
     def update_bbox(self, plane, level=0, updatez=True):
         """handle bounding box generation from plane or points"""
         try:
-            points = np.loadtxt(plane)
+            points = np.atleast_2d(np.loadtxt(plane))[:, 0:3]
+            paths, z = self._calc_border(points, level)
         except TypeError:
-            points = plane.reshape(-1, 3)
+            points = np.atleast_2d(plane)[:, 0:3]
             paths, z = self._calc_border(points, level)
         except ValueError:
             paths, z = self._rad_scene_to_paths(plane)
-        else:
-            paths, z = self._calc_border(points.reshape(-1, 3), level)
         bbox = np.full((2, 2), np.inf)
         bbox[1] *= -1
         for p in paths:

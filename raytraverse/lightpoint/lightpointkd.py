@@ -227,7 +227,7 @@ class LightPointKD(object):
         return np.einsum('ij,kj->ik', c, self.lum)
 
     def add_to_img(self, img, vecs, mask=None, skyvec=1, interp=False,
-                   omega=False, vm=None, rnd=False):
+                   idx=None, omega=False, vm=None, rnd=False):
         """add luminance contributions to image array (updates in place)
 
         Parameters
@@ -244,6 +244,8 @@ class LightPointKD(object):
         interp: bool, optional
             for linear interpolation (falls back to nearest outside of
             convexhull
+        idx: np.array, optional
+            precomputed query result (ignored if interp=True)
         omega: bool
             if true, add value of ray solid angle instead of luminance
         vm: raytraverse.mapper.ViewMapper, optional
@@ -267,7 +269,10 @@ class LightPointKD(object):
             i, d = self.query_ray(vecs[neg])
             lum[neg] = val[0, i]
         else:
-            i, d = self.query_ray(vecs)
+            if idx is not None:
+                i = idx
+            else:
+                i, d = self.query_ray(vecs)
             lum = val[:, i]
         img[mask] += np.squeeze(lum)
         for srcview in self.srcviews:

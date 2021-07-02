@@ -26,7 +26,8 @@ class ViewMapper(AngularMixin, Mapper):
         becomes 360,180
     """
 
-    def __init__(self, dxyz=(0.0, 1.0, 0.0), viewangle=360.0, name='view'):
+    def __init__(self, dxyz=(0.0, 1.0, 0.0), viewangle=360.0, name='view',
+                 origin=(0, 0, 0)):
         self._viewangle = viewangle
         if viewangle > 180:
             aspect = 2
@@ -37,7 +38,8 @@ class ViewMapper(AngularMixin, Mapper):
             aspect = 1
             sf = np.array((self._viewangle/180, self._viewangle/180))
             bbox = np.stack((.5 - sf/2, .5 + sf/2))
-        super().__init__(dxyz=dxyz, sf=sf, bbox=bbox, aspect=aspect, name=name)
+        super().__init__(dxyz=dxyz, sf=sf, bbox=bbox, aspect=aspect, name=name,
+                         origin=origin)
 
     @property
     def aspect(self):

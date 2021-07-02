@@ -59,7 +59,9 @@ class Rtrace(RadianceRenderer):
     name = 'rtrace'
     #: raytraverse.crenderer.cRtrace
     engine = cRtrace
-    defaultargs = "-av 0 0 0 -aa 0 -ab 7 -ad 128 -as 0 -c 10 -as 0 -lw 1e-5"
+    # defaultargs = "-av 0 0 0 -aa 0 -ab 7 -ad 128 -as 0 -c 10 -as 0 -lw 1e-5"
+    defaultargs = (f"-u+ -ab 16 -av 0 0 0 -aa 0 -as 0 -dc 1 -dt 0 -lr -14 -ad "
+                   f"1000 -lw 0.00004 -st 0 -ss 16 -c 1")
     directargs = "-av 0 0 0 -ab 0 -lr 0"
     usedirect = False
 

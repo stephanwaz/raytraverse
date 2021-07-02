@@ -37,6 +37,8 @@ class BaseMetricSet(object):
         keys of metrics to return, same as property names
     scale: float, optional
         scalefactor for luminance
+    omega_as_view_area: bool, optional
+        take sum(omega) as view area. if false corrects omega to vm.area
     kwargs:
         additional arguments that may be required by additional properties
     """

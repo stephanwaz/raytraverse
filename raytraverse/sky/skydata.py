@@ -5,8 +5,6 @@
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 # =======================================================================
-import re
-
 import numpy as np
 from raytraverse import translate
 from raytraverse.sky import skycalc
@@ -100,10 +98,10 @@ class SkyData(object):
         if npzdata:
             skydata, smtx, sun, daymask = npzdata
         else:
-            skydata, md, td = self._format_skydata(wea)
+            skydata, md, td = self.format_skydata(wea)
             minz = np.sin(self._minalt * np.pi / 180)
             daymask = np.logical_and(skydata[:, 2] > minz,
-                                    skydata[:, 4] > self._mindiff)
+                                     skydata[:, 4] > self._mindiff)
             sxyz = skydata[daymask, 0:3]
             dirdif = skydata[daymask, 3:]
             if md is not None:
@@ -150,7 +148,7 @@ class SkyData(object):
             self._skyres = int(np.sqrt(smtx.shape[1] - 1))
             return skydata, smtx, sun, daymask
 
-    def _format_skydata(self, dat):
+    def format_skydata(self, dat):
         """process dat argument as skydata
 
         see sky.setter for details on argument
@@ -186,8 +184,8 @@ class SkyData(object):
                     raise ValueError("cannot parse wea data without a Location")
                 times = skycalc.row_2_datetime64(skydat[:, 0:3])
                 xyz = skycalc.sunpos_xyz(times, *loc, ro=self._skyro)
-                skydat = np.hstack((xyz, skydat[:, 3:]))
                 md = skydat[:, 0:2].astype(int)
+                skydat = np.hstack((xyz, skydat[:, 3:]))
         else:
             raise ValueError('input data should be one of the following:'
                              '\n4 col: alt, az, dir, diff'

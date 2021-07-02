@@ -43,7 +43,7 @@ if [ "$answer" != "${answer#[Yy]}" ] ;then
                 git push
                 tag="$(git tag | tail -1)"
                 git push origin $tag
-                git push releease $tag
+                git push release $tag
 			else
 				git status
 			fi

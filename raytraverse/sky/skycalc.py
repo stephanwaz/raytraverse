@@ -17,6 +17,7 @@ from scipy.interpolate import interp1d
 from skyfield.api import Topos, utc, Loader
 
 from raytraverse import translate
+from raytraverse.formatter import RadianceFormatter
 
 load = Loader(os.path.dirname(translate.__file__))
 planets = load('de421.bsp')
@@ -535,7 +536,7 @@ def perez(sxyz, dirdif, md=None, ground_fac=0.2, td=10.9735311509):
         (N, 2) month day of sky calcs (for more precise eccentricity calc)
     ground_fac: float
         scaling factor (reflectance) for ground brightness
-    td: np.array, float
+    td: np.array float, optional
         (N,) dew point temperature in C
 
     Returns
@@ -543,11 +544,13 @@ def perez(sxyz, dirdif, md=None, ground_fac=0.2, td=10.9735311509):
     perez: np.array
         (N, 10) diffuse normalization, ground brightness, perez coefs, x, y, z
     """
-    n = sxyz.shape[0]
+    sxyz = np.atleast_2d(sxyz)
+    dirdif = np.atleast_2d(dirdif)
     # match constants from gendaylit.c
     sole = 1367
     dn = 0
     if md is not None:
+        md = np.atleast_2d(md)
         dn = perez_constants['mdays'][md[:, 0] - 1] + md[:, 1]
     da = 2*np.pi*(dn - 1)/365
     eccentricity = (1.00011 + 0.034221*np.cos(da) + 0.00128*np.sin(da) +
@@ -624,3 +627,71 @@ def sky_mtx(sxyz, dirdif, side, jn=4, **kwargs):
     lum = perez_lum(xyz, coefs).reshape(coefs.shape[0], -1, jn*jn)
     lum = np.average(lum, -1)
     return lum, coefs[:, 1], np.hstack((sxyz, solarrad[:, None]))
+
+
+def radiance_skydef(sunpos, dirdif, loc=None, md=None, ground_fac=0.2,
+                    td=10.9735311509, ro=0.0):
+    """similar to gendaylit, returns strings
+
+    Parameters
+    ----------
+    sunpos: Sequence
+        dx, dy, dz sun position or m,d,h (if loc is not None)
+    dirdif: Sequence
+        direct normal, diffuse horizontal W/m^2
+    loc: tuple, optional
+        location data given as lat, lon, mer with + west of prime meridian
+        triggers sunpos treated as timestep
+    md: tuple, optional
+        month day of sky calcs (for more precise eccentricity calc with xyz
+        sunpos)
+    ground_fac: float
+        scaling factor (reflectance) for ground brightness
+    td: np.array float, optional
+        (N,) dew point temperature in C
+    ro: float, optional
+        ignored if sunpos is xyz, else angle in degrees counter-clockwise to
+        rotate sky (to correct model north, equivalent to clockwise rotation
+        of scene)
+    Returns
+    -------
+    desc: str
+        comments with sky info
+    sund: str
+        solar material and sun object ("" if no sun)
+    skyd: str
+        perezlum brightfunc definition and sky/ground objects
+    """
+    if loc is not None:
+        desc = (f"# perez sky:\n"
+                f"# time: {sunpos}\n"
+                f"# dewpoint: {td}\n"
+                f"# location: {loc}\n"
+                f"# sky rotation: {ro}\n"
+                f"# directnormal, diffuse horiz: {dirdif}\n"
+                f"# ground reflectance: {ground_fac}\n")
+        md = (int(sunpos[0]), int(sunpos[1]))
+        ts = row_2_datetime64(sunpos)
+        sxyz = sunpos_xyz(ts, *loc, ro=ro).flatten()
+    else:
+        desc = (f"# perez sky:\n"
+                f"# sunposition: {sunpos}\n"
+                f"# dewpoint: {td}\n"
+                f"# month/day (for eccentricity): {md}\n"
+                f"# directnormal, diffuse horiz: {dirdif}\n"
+                f"# ground reflectance: {ground_fac}\n")
+        sxyz = sunpos
+    if sxyz[2] <= 0:
+        return "# sun below horizon", "", ""
+    coefs, solarrad = perez(sxyz, dirdif, md, ground_fac, td)
+    coefs = coefs[0]
+    srad = solarrad[0]
+    sund = ""
+    if srad > 0:
+        sund = f"\nvoid light solar\n0\n0\n3 {srad:.6f} {srad:.6f} {srad:.6f}\n"
+        sund += "\n solar source sun\n0\n0\n4 {:.6f} {:.6f} {:.6f} 0.533\n".format(*sxyz)
+    skyd = ("\nvoid brightfunc skyfunc\n2 skybright perezlum.cal\n0\n10 "
+            "{:.6f} {:.6f} {:.6f} {:.6f} {:.6f} {:.6f} {:.6f} {:.6f} {:.6f}"
+            " {:.6f}\n\n".format(*coefs, *sxyz))
+    skyd += RadianceFormatter.get_skydef(mod="skyfunc", groundname="groundglow")
+    return desc, sund, skyd

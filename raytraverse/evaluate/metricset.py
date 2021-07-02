@@ -206,4 +206,5 @@ class MetricSet(BaseMetricSet):
     @property
     @functools.lru_cache(1)
     def ugp(self):
-        return self.ugr * .0325
+        """http://dx.doi.org/10.1016/j.buildenv.2016.08.005"""
+        return (1 + 2/7 * 10**(-(self.ugr + 5)/40))**-10

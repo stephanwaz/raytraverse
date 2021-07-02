@@ -53,7 +53,7 @@ class RadianceFormatter(Formatter):
         return out
 
     @staticmethod
-    def add_source(scene, src):
+    def add_source(scene, src, rewrite=False):
         """add source files to compiled scene"""
         out = scene.rsplit(".", 1)[0] + "_sky.oct"
         if os.path.isfile(src):
@@ -62,17 +62,25 @@ class RadianceFormatter(Formatter):
         else:
             ocom = f'oconv -f -i {scene} -'
             inp = src
-        f = open(out, 'wb')
-        cst.pipeline([ocom], outfile=f, inp=inp, close=True)
+        if rewrite or not os.path.isfile(out):
+            f = open(out, 'wb')
+            cst.pipeline([ocom], outfile=f, inp=inp, close=True)
         return out
 
     @staticmethod
-    def get_skydef(color, ground=True, name='skyglow'):
+    def get_skydef(color=(.96, 1.004, 1.118), ground=True, name='skyglow',
+                   mod="void", groundname=None, groundcolor=(1, 1, 1)):
         """assemble sky definition"""
-        skydeg = (f"void glow {name} 0 0 4 {color[0]} {color[1]} {color[2]}  0 "
-                  f"{name} source sky 0 0 4 0 0 1 180\n")
+        if groundname is None:
+            groundname = name
+            groundmod = ""
+        else:
+            groundmod = (f"{mod} glow {groundname} 0 0 4 {groundcolor[0]} "
+                         f"{groundcolor[1]} {groundcolor[2]} 0\n")
+        skydeg = (f"{mod} glow {name} 0 0 4 {color[0]} {color[1]} {color[2]} 0"
+                  f"\n{name} source sky 0 0 4 0 0 1 180\n")
         if ground:
-            skydeg += f"{name} source ground  0 0 4 0 0 -1 180"
+            skydeg += f"{groundmod}{groundname} source ground  0 0 4 0 0 -1 180"
         return skydeg
 
     @staticmethod

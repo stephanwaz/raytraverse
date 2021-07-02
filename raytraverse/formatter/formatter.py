@@ -40,7 +40,7 @@ class Formatter(object):
         pass
 
     @staticmethod
-    def get_skydef(color, ground=True, name='skyglow'):
+    def get_skydef(color=None, ground=True, name='skyglow'):
         """assemble sky definition"""
         pass
 
