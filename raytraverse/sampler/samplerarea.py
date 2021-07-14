@@ -94,8 +94,7 @@ class SamplerArea(BaseSampler):
         Parameters
         ----------
         mapper: raytraverse.mapper.PlanMapper
-            the pointset to build/run if initialized with points runs a static
-            sampler
+            the pointset to build/run
         name: str, optional
         specguide: raytraverse.lightfield.LightPlaneKD
             sky source lightfield to use as specular guide for sampling (used by

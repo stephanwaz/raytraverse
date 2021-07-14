@@ -12,6 +12,11 @@ from raytraverse.formatter import RadianceFormatter
 class Scene(BaseScene):
     """container for radiance scene description
 
+    WARNING!! if scene parameter contains and instance primitive, sunsampler
+    will throw a segmentation fault when it tries to change the source. As
+    scene instanciation will make a frozen octree, it is better to feed complete
+    scene description files, or an octree.
+
     Parameters
     ----------
     outdir: str

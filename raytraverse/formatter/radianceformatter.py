@@ -49,6 +49,7 @@ class RadianceFormatter(Formatter):
             result, err = cst.pipeline([oconv, ], outfile=out, close=True,
                                        caperr=True, writemode='wb')
             if b'fatal' in err:
+                os.remove(out)
                 raise ChildProcessError(err.decode(cst.encoding))
         return out
 

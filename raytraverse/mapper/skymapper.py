@@ -79,7 +79,7 @@ class SkyMapper(AngularMixin, Mapper):
 
     @sunres.setter
     def sunres(self, s):
-        self._sunres = int(np.floor(90/s)*2)
+        self._sunres = int(np.floor(180/s))
 
     @property
     def loc(self):
@@ -176,7 +176,7 @@ class SkyMapper(AngularMixin, Mapper):
         idx = np.arange(np.product(shape))
         uv = self.idx2uv(idx, shape, jitter)
         if masked:
-            return uv[self.in_solarbounds_uv(uv, False)]
+            return uv[self.in_solarbounds_uv(uv)]
         else:
             return uv
 
@@ -202,7 +202,7 @@ class SkyMapper(AngularMixin, Mapper):
         sbins = np.arange(uvsize**2)
         suv = self._solar_grid_uv(jitter=jitter, level=level, masked=False)
         if masked:
-            mask = self.in_solarbounds_uv(suv, level)
+            mask = self.in_solarbounds_uv(suv, level=level)
             sbins = sbins[mask]
             suv = suv[mask]
         sunsuv = []

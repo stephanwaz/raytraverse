@@ -201,7 +201,9 @@ class MetricSet(BaseMetricSet):
     @property
     @functools.lru_cache(1)
     def ugr(self):
-        return np.maximum(0, 8 * np.log10(0.25 * self.pwsl2 / self.backlum))
+        with np.errstate(divide='ignore'):
+            ug = np.maximum(0, 8 * np.log10(0.25 * self.pwsl2 / self.backlum))
+        return ug
 
     @property
     @functools.lru_cache(1)

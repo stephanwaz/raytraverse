@@ -562,10 +562,15 @@ def perez(sxyz, dirdif, md=None, ground_fac=0.2, td=10.9735311509):
     airmass = 1/(csunz + 0.15*np.exp(-np.log(93.885 - sunz*180/np.pi)*1.253))
     skybright = dirdif[:, 1]*airmass/(sole * eccentricity)
     skyclear = ((dirdif[:, 1] + dirdif[:, 0])/dirdif[:, 1] + sunz3)/(1 + sunz3)
+    # check_parametrization
+    skyclear = np.minimum(np.maximum(skyclear, 1.0), 12.099)
+    skybright = np.minimum(np.maximum(skybright, 0.01), 0.6)
+
     catn = np.minimum(np.searchsorted(perez_constants['cats'], skyclear,
                                       side='right') - 1, 7)
     directi, diffusei = scale_efficacy(dirdif, sunz, csunz,
                                        skybright, catn, td)
+    # sunz, epsilon, delta
     cperez = coeff_lum_perez(sunz, skyclear, skybright, catn)
     tp = np.stack((perez_constants['theta'], perez_constants['phi'])).T
     dz = np.cos(tp[:, 0])
@@ -689,7 +694,7 @@ def radiance_skydef(sunpos, dirdif, loc=None, md=None, ground_fac=0.2,
     sund = ""
     if srad > 0:
         sund = f"\nvoid light solar\n0\n0\n3 {srad:.6f} {srad:.6f} {srad:.6f}\n"
-        sund += "\n solar source sun\n0\n0\n4 {:.6f} {:.6f} {:.6f} 0.533\n".format(*sxyz)
+        sund += "\nsolar source sun\n0\n0\n4 {:.6f} {:.6f} {:.6f} 0.533\n".format(*sxyz)
     skyd = ("\nvoid brightfunc skyfunc\n2 skybright perezlum.cal\n0\n10 "
             "{:.6f} {:.6f} {:.6f} {:.6f} {:.6f} {:.6f} {:.6f} {:.6f} {:.6f}"
             " {:.6f}\n\n".format(*coefs, *sxyz))

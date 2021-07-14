@@ -54,7 +54,7 @@ class SkyData(object):
         self._skyro = skyro
         self._sunproxy = None
         self.skydata = wea
-        self.mask = np.full(np.sum(self.daymask), True)
+        self.mask = None
 
     @property
     def skyres(self):
@@ -221,8 +221,10 @@ class SkyData(object):
         """if m has length = daysteps, sets mask directly as bool array. if
         m has length = skydata, sets mask from daysteps of m as bool array.
         otherwise, assumes m is an index array (indexed by row of skydata) and
-        sets all indices of m withing daysteps to True.
+        sets all indices of m withing daysteps to True. reset with m=None
         """
+        if m is None:
+            m = np.full(np.sum(self.daymask), True)
         if len(m) == self.daysteps:
             self._mask = np.asarray(m, bool)
         elif len(m) == len(self.skydata):

@@ -17,7 +17,8 @@ from clasp import click
 import clasp.click_ext as clk
 
 import raytraverse
-from raytraverse.lightfield import LightPlaneKD, DayLightPlaneKD
+from raytraverse.lightfield import LightPlaneKD, DayLightPlaneKD, ResultAxis, \
+    LightResult
 from raytraverse.mapper import PlanMapper, SkyMapper, ViewMapper
 from raytraverse.scene import Scene
 from raytraverse.renderer import Rtrace, Rcontrib
@@ -503,8 +504,23 @@ def sunrun(ctx, srcaccuracy=1.0, srcnlev=3, srcjitter=True, recover=False,
 
 
 @main.command()
-@click.option("-sensor", callback=clk.split_float,
-              help="the sensor location (6 component vector 'x y z dx dy dz')")
+@click.option("-sensors", callback=np_load,
+              help="sensor points, this can be a .npy file, a whitespace "
+                   "seperated text file or entered as a string with commas "
+                   "between components of a point and spaces between points. "
+                   "points should either all be 3 componnent (x,y,z) or 6"
+                   " component (x,y,z,dx,dy,dz). If 3 component, -sdirs is "
+                   "required, if 6-component, -sdirs is ignored")
+@click.option("-sdirs", callback=np_load,
+              help="sensor directions, this can be a .npy file, a whitespace "
+                   "seperated text file or entered as a string with commas "
+                   "between components of a point and spaces between points. "
+                   "vectors should all be 3 componnent (dx,dy,dz). used with"
+                   "3-component -sensors argument, all points are run for all"
+                   "views, creating len(sensors)*len(sdirs) results. this"
+                   "is the preferred option for multiple view directions, as"
+                   "the calculations are grouped more efficiently")
+@click.option("-viewangle", default=180.)
 @click.option("-skymask", callback=clk.split_int,
               help="""mask to reduce output from full SkyData, enter as index
 rows in wea/epw file using space seperated list or python range notation:
@@ -513,30 +529,22 @@ rows in wea/epw file using space seperated list or python range notation:
     - 12:8760:24 (everyday at Noon)
 
 """)
-@click.option("-metrics", callback=clk.split_str, default="illum dgp ugp",
-              help='metrics to compute, choices: ["illum", '
-                   '"avglum", "gcr", "ugp", "dgp", "tasklum", "backlum", '
-                   '"dgp_t1", "log_gc", "dgp_t2", "ugr", "threshold", "pwsl2", '
-                   '"view_area", "backlum_true", "srcillum", "srcarea", '
-                   '"maxlum"]')
-@click.option("--hdr/--no-hdr", default=False,
-              help="make an image for every unmasked item in skydata")
-@click.option("--metric/--no-metric", default=True,
-              help="calculate metrics")
 @click.option("-res", default=800, help="image resolution")
 @click.option("--interpolate/--no-interpolate", default=False,
               help="use linear iinterpolation in image output")
-@click.option("-viewangle", default=180.0,
-              help='applies to both image and metrics, should be <= 180 or 360')
+@click.option("--namebyindex/--no-namebyindex", default=False,
+              help="if False (default), names images by: "
+                   "<prefix>_sky-<row>_pt-<x>_<y>_<z>_vd-<dx>_<dy>_<dz>.hdr "
+                   "if True, names images by: "
+                   "<prefix>_sky-<row>_pt-<pidx>_vd-<vidx>.hdr, "
+                   "where pidx, vidx refer to the order of points, and vm.")
 @click.option("-basename", default="results",
-              help="basename for hdr outputs will write: <basename>_#####.hdr"
-                   " for each value in skymask (or range(len(skydata)) if "
-                   "skymask is None).")
+              help="prefix of namebyindex.")
 @clk.shared_decs(clk.command_decs(raytraverse.__version__, wrap=True))
-def evaluate(ctx, sensor=None, skymask=None, metrics=None, hdr=False,
-             metric=True, res=800, interpolate=False, viewangle=180.0,
-             basename="results", **kwargs):
-    """evaluate metrics and/or make hdr for a single sensor location
+def images(ctx, sensors=None, sdirs=None, viewangle=180., skymask=None,
+           basename="results", res=800, interpolate=False, namebyindex=False,
+           **kwargs):
+    """render images
 
     Prequisites
     ~~~~~~~~~~~
@@ -548,8 +556,7 @@ def evaluate(ctx, sensor=None, skymask=None, metrics=None, hdr=False,
         - Invokes skydata
         - invokes area (no effects)
         - invokes suns (no effects)
-        - if hdr=True, writes: <basename>_#####.hdr
-        - if metric=True, writes: <basename>.tsv
+        - writes: output images according to --namebyindex
 
     """
     if 'scene' not in ctx.obj:
@@ -570,19 +577,120 @@ def evaluate(ctx, sensor=None, skymask=None, metrics=None, hdr=False,
         df = DayLightPlaneKD(scn, f"{scn.outdir}/{pm.name}/{skmapper.name}_"
                                   f"sunpositions.tsv",
                              pm, f"{skmapper.name}_sun")
-    point = sensor[0:3]
-    vm = ViewMapper(sensor[3:6], viewangle)
     if skymask is not None:
         sd.mask = skymask
-    if metric:
-        result = df.evaluate(sd, point, vm, metrics=metrics)
-        data, axes, names = result.pull("sky", "metric")
-        header = "\t".join([names[1]] + list(axes[2]))
-        data = np.hstack((axes[1][:, None], data[0]))
-        fmt = ["%d"] + ["%.4f"]*len(axes[2])
-        np.savetxt(f"{basename}.tsv", data, fmt, header=header, delimiter="\t")
-    if hdr:
-        print("no implemented yet...")
+    if sensors.shape[1] == 6:
+        result = []
+        for sensor in sensors:
+            point = sensor[0:3]
+            vm = ViewMapper(sensor[3:6], viewangle)
+            result.append(df.make_images(sd, point, vm, res=res, interp=interpolate,
+                          prefix=basename, namebyindex=namebyindex))
+        result = np.concatenate(result, axis=1)
+    elif sdirs is None:
+        raise ValueError("if sensors do not have directions, sdirs cannot be "
+                         "None")
+    else:
+        result = df.make_images(sd, sensors, sdirs, viewangle=viewangle,
+                                res=res, interp=interpolate, prefix=basename,
+                                namebyindex=namebyindex)
+    for d in result:
+        print(d, file=sys.stderr)
+    sd.mask = None
+
+
+@main.command()
+@click.option("-sensors", callback=np_load,
+              help="sensor points, this can be a .npy file, a whitespace "
+                   "seperated text file or entered as a string with commas "
+                   "between components of a point and spaces between points. "
+                   "points should either all be 3 componnent (x,y,z) or 6"
+                   " component (x,y,z,dx,dy,dz). If 3 component, -sdirs is "
+                   "required, if 6-component, -sdirs is ignored")
+@click.option("-sdirs", callback=np_load,
+              help="sensor directions, this can be a .npy file, a whitespace "
+                   "seperated text file or entered as a string with commas "
+                   "between components of a point and spaces between points. "
+                   "vectors should all be 3 componnent (dx,dy,dz). used with"
+                   "3-component -sensors argument, all points are run for all"
+                   "views, creating len(sensors)*len(sdirs) results. this"
+                   "is the preferred option for multiple view directions, as"
+                   "the calculations are grouped more efficiently")
+@click.option("-viewangle", default=180.)
+@click.option("-skymask", callback=clk.split_int,
+              help="""mask to reduce output from full SkyData, enter as index
+rows in wea/epw file using space seperated list or python range notation:
+
+    - 370 371 372 (10AM-12PM on jan. 16th)
+    - 12:8760:24 (everyday at Noon)
+
+""")
+@click.option("-metrics", callback=clk.split_str, default="illum dgp ugp",
+              help='metrics to compute, choices: ["illum", '
+                   '"avglum", "gcr", "ugp", "dgp", "tasklum", "backlum", '
+                   '"dgp_t1", "log_gc", "dgp_t2", "ugr", "threshold", "pwsl2", '
+                   '"view_area", "backlum_true", "srcillum", "srcarea", '
+                   '"maxlum"]')
+@click.option("-basename", default="results",
+              help="LightResult object is written to basename.npz.")
+@clk.shared_decs(clk.command_decs(raytraverse.__version__, wrap=True))
+def evaluate(ctx, sensors=None, sdirs=None, viewangle=180., skymask=None,
+             metrics=None, basename="results", **kwargs):
+    """evaluate metrics
+
+    Prequisites
+    ~~~~~~~~~~~
+        - skyrun and sunrun must be manually invoked prior to this
+
+    Effects
+    ~~~~~~~
+        - Invokes scene
+        - Invokes skydata
+        - invokes area (no effects)
+        - invokes suns (no effects)
+        - writes: <basename>.npz light result file (use "raytraverse pull" to
+          extract data views)
+
+    """
+    if 'scene' not in ctx.obj:
+        clk.invoke_dependency(ctx, scene, reload=True, overwrite=False)
+    scn = ctx.obj['scene']
+    if 'skydata' not in ctx.obj:
+        clk.invoke_dependency(ctx, skydata, reload=True)
+    sd = ctx.obj['skydata']
+    if 'planmapper' not in ctx.obj:
+        clk.invoke_dependency(ctx, area)
+    pm = ctx.obj['planmapper']
+    if 'skymapper' not in ctx.obj:
+        clk.invoke_dependency(ctx, suns)
+    skmapper = ctx.obj['skymapper']
+    if 'daylightfield' in ctx.obj:
+        df = ctx.obj['daylightfiield']
+    else:
+        df = DayLightPlaneKD(scn, f"{scn.outdir}/{pm.name}/{skmapper.name}_"
+                                  f"sunpositions.tsv",
+                             pm, f"{skmapper.name}_sun")
+    if skymask is not None:
+        sd.mask = skymask
+    if sensors.shape[1] == 6:
+        result = []
+        for sensor in sensors:
+            point = sensor[0:3]
+            vm = ViewMapper(sensor[3:6], viewangle)
+            result.append(df.evaluate(sd, point, vm, metrics=metrics))
+        data = np.concatenate([r.data for r in result], axis=1)
+        ptaxis = ResultAxis(sensors, "point")
+        viewaxis = ResultAxis([0], "view")
+        result = LightResult(data, result[0].axes[0], ptaxis, viewaxis,
+                             result[0].axes[3])
+    elif sdirs is None:
+        raise ValueError("if sensors do not have directions, sdirs cannot be "
+                         "None")
+    else:
+        result = df.evaluate(sd, sensors, sdirs, viewangle=viewangle,
+                             metrics=metrics)
+    result.write(f"{basename}.npz")
+    sd.mask = None
 
 
 @main.command()
