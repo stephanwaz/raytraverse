@@ -5,6 +5,7 @@
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 # =======================================================================
+import sys
 from concurrent.futures import wait, FIRST_COMPLETED
 
 
@@ -186,10 +187,11 @@ class DayLightPlaneKD(LightField):
         s = (*oshape[0:2], skinfo.shape[1])
         skinfo = np.broadcast_to(skinfo[:, None, :], s).reshape(-1, s[-1])
         mask_kwargs = dict(combos=combos, qpts=vecs[:, 3:], skinfo=skinfo)
-        return self._process_mgr(skp_idx, sidx, skydata, oshape, True, _img_pt,
-                                 message="Making Images",
-                                 mask_kwargs=mask_kwargs, vms=vms, res=res,
-                                 interp=interp, prefix=prefix)
+        outfs = self._process_mgr(skp_idx, sidx, skydata, oshape, True, _img_pt,
+                                  message="Making Images",
+                                  mask_kwargs=mask_kwargs, vms=vms, res=res,
+                                  interp=interp, prefix=prefix)
+        return sorted([i for j in outfs for i in j])
 
     def evaluate(self, skydata, points, vm, viewangle=180.,
                  metricclass=MetricSet, metrics=None, datainfo=False,
@@ -321,7 +323,8 @@ class DayLightPlaneKD(LightField):
         smtx = np.broadcast_to(skydata.smtx[:, None, :], s).reshape(-1, s[-1])
         s = (*oshape[0:2], skydata.sun.shape[1])
         dsns = np.broadcast_to(skydata.sun[:, None, :], s).reshape(-1, s[-1])
-
+        s = (*oshape[0:2], 1)
+        dprx = np.broadcast_to(skydata.sunproxy[:, None, None], s).reshape(-1, s[-1])
         tup_sort = np.lexsort(idx_tup.T[::-1])
         # make an inverse sort to undo evaluation order
         tup_isort = np.argsort(tup_sort, kind='stable')
@@ -330,7 +333,8 @@ class DayLightPlaneKD(LightField):
         with self.scene.progress_bar(self, message=message,
                                      total=len(qtup), workers=workers) as pbar:
             exc = pbar.pool
-            pbar.write(f"Calculating {len(qidx)} sun/sky/pt combinations")
+            pbar.write(f"Calculating {len(qidx)} sun/sky/pt combinations",
+                       file=sys.stderr)
             futures = []
             done = set()
             not_done = set()
@@ -353,7 +357,7 @@ class DayLightPlaneKD(LightField):
                     for k, v in mask_kwargs.items():
                         eval_kwargs.update([(k, v[mask])])
                 fu = exc.submit(eval_fn, skp, snp, smtx[mask], dsns[mask],
-                                **eval_kwargs)
+                                dprx[mask], **eval_kwargs)
                 futures.append(fu)
                 not_done.add(fu)
                 cnt += 1
@@ -362,13 +366,15 @@ class DayLightPlaneKD(LightField):
                 fields.append(future.result())
                 if future in not_done:
                     pbar.update(1)
-            pbar.write(f"Completed evaluation for {len(idx_tup)} values")
+            pbar.write(f"Completed evaluation for {len(idx_tup)} values",
+                       file=sys.stderr)
             # sort back to original order and reshape
-            fields = np.concatenate(fields, axis=0)[tup_isort].reshape(oshape)
+            if type(fields[0]) != list:
+                fields = np.concatenate(fields, axis=0)[tup_isort].reshape(oshape)
         return fields
 
 
-def _evaluate_pt(skpoint, snpoint, skyvecs, suns, vm=None, vms=None,
+def _evaluate_pt(skpoint, snpoint, skyvecs, suns, dproxy, vm=None, vms=None,
                  metricclass=None, metrics=None, srconly=False,
                  sumsafe=False, **kwargs):
     """point by point evaluation suitable for submitting to ProcessPool"""
@@ -381,6 +387,17 @@ def _evaluate_pt(skpoint, snpoint, skyvecs, suns, vm=None, vms=None,
     else:
         sunskypt = [skpoint.add(snpoint)]
         smtx = [np.hstack((skyvecs, suns[:, 3:4]))]
+        # use sky only (did not work so well)
+        # has_dview = len(snpoint.srcviews) > 0
+        # has_peak = np.max(snpoint.lum) > .01
+        # has_samples = snpoint.omega.size / skpoint.omega.size > .25
+        # if has_dview or has_peak or has_samples:
+        #     sunskypt = [skpoint.add(snpoint)]
+        #     smtx = [np.hstack((skyvecs, suns[:, 3:4]))]
+        # else:
+        #     sunskypt = [skpoint]
+        #     smtx = [np.copy(skyvecs)]
+        #     smtx[0][np.arange(len(smtx)), dproxy.ravel()] += suns[:, 4]
     if len(vms) == 1:
         args = (vms[0].dxyz, vms[0].viewangle * vms[0].aspect)
         didx = [lpt.query_ball(*args)[0] for lpt in sunskypt]
@@ -402,7 +419,7 @@ def _evaluate_pt(skpoint, snpoint, skyvecs, suns, vm=None, vms=None,
     return np.sum(srcs, axis=0)
 
 
-def _img_pt(skpoint, snpoint, skyvecs, suns, vms=None,  combos=None,
+def _img_pt(skpoint, snpoint, skyvecs, suns, dproxy, vms=None,  combos=None,
             qpts=None, skinfo=None, res=512, interp=False, prefix="img"):
     """point by point evaluation suitable for submitting to ProcessPool"""
     outfs = []

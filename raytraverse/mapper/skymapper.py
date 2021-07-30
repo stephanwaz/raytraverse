@@ -106,6 +106,14 @@ class SkyMapper(AngularMixin, Mapper):
             self.in_solarbounds_uv = self._test_uv_boundary
             self.solar_grid_uv = self._solar_grid_uv
 
+    @property
+    def solarbounds(self):
+        return self._solarbounds
+
+    @property
+    def candidates(self):
+        return self._candidates
+
     def in_solarbounds(self, xyz, level=0, include='center'):
         """for checking if src direction is in solar transit
 
@@ -259,7 +267,7 @@ class SkyMapper(AngularMixin, Mapper):
         except ValueError:
             loc = skycalc.get_loc_epw(wea)
             wdat = skycalc.read_epw(wea)
-            times = skycalc.row_2_datetime64(wdat[:, 0:3])
+            times = skycalc.row_2_datetime64(wdat[:, 0:3])[wdat[:, 3] > 0]
             cxyz = skycalc.sunpos_xyz(times, *loc)
             self._loc = loc
             self._candidates = self.xyz2uv((self._skyromtx@cxyz.T).T)

@@ -9,7 +9,6 @@ import numpy as np
 import functools
 
 from raytraverse.evaluate.basemetricset import BaseMetricSet
-from raytraverse.evaluate.positionindex import PositionIndex
 
 
 class MetricSet(BaseMetricSet):
@@ -64,9 +63,8 @@ class MetricSet(BaseMetricSet):
                  threshold=2000., guth=True, tradius=30.0,
                  omega_as_view_area=False, **kwargs):
         super().__init__(vec, omega, lum, vm, metricset=metricset, scale=scale,
-                         omega_as_view_area=omega_as_view_area, **kwargs)
+                         omega_as_view_area=omega_as_view_area, guth=guth, **kwargs)
         self._threshold = threshold
-        self.guth = guth
         self.tradius = tradius
 
     # -------------------metric dependencies (return array)--------------------
@@ -105,8 +103,7 @@ class MetricSet(BaseMetricSet):
     @property
     @functools.lru_cache(1)
     def source_pos_idx(self):
-        svec, _, _ = self.sources
-        return PositionIndex(self.guth).positions(self.vm, svec)
+        return self.pos_idx[self.src_mask]
 
     # -----------------metric functions (return single value)-----------------
 

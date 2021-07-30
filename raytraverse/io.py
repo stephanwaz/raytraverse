@@ -231,6 +231,27 @@ def hdr2array(imgf, stdin=None):
     return bytes2np(p.stdout.read(), shape)[-1::-1, -1::-1]
 
 
+def hdr2carray(imgf, stdin=None):
+    """read np.array from color hdr image
+
+    Parameters
+    ----------
+    imgf: file path of image
+    stdin:
+        passed to Popen (imgf should be "")
+
+    Returns
+    -------
+    ar: np.array
+
+    """
+    pval = f'pvalue -n -h -df -o {imgf}'
+    p = Popen(shlex.split(pval), stdin=stdin, stdout=PIPE)
+    shape = p.stdout.readline().strip().split()
+    shape = (3, int(shape[-3]), int(shape[-1]))
+    return bytes2np(p.stdout.read(), shape)[:, -1::-1, -1::-1]
+
+
 def rgb2rad(rgb):
     try:
         return np.einsum('ij,j', rgb, [0.265, 0.670, 0.065])

@@ -10,6 +10,7 @@ import os
 import shutil
 import sys
 from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor
+from concurrent.futures import wait, FIRST_COMPLETED
 
 from tqdm import tqdm
 
@@ -157,7 +158,7 @@ class BaseScene(object):
 
         Returns
         -------
-        _TStqdm:
+        TStqdm:
             a subclass of tqdm that decorates messages and has a pool
             property for multiprocessing.
 
@@ -177,26 +178,28 @@ class BaseScene(object):
                 pbar.update(1)
 
         """
+        return TStqdm(instance, self._tz, workers=workers, iterable=iterable,
+                      total=total, desc=message, leave=None, position=level)
+
+
+class TStqdm(tqdm):
+
+    def __init__(self, instance=None, tz=None, workers=False, position=0,
+                 desc=None, ncols=100, cap=None, **kwargs):
         if str(workers).lower() in ('thread', 't', 'threads'):
             pool = ThreadPoolExecutor()
         elif workers:
-            nproc = io.get_nproc()
+            nproc = io.get_nproc(cap)
             pool = ProcessPoolExecutor(nproc)
         else:
             pool = None
-        return _TStqdm(instance, self._tz, pool=pool, iterable=iterable,
-                       total=total, desc=message, leave=None, position=level)
-
-
-class _TStqdm(tqdm):
-
-    def __init__(self, instance, tz=None, pool=None, position=0, desc=None,
-                 ncols=100, **kwargs):
         self._instance = instance
         self.loglevel = position
         tf = "%H:%M:%S"
         self.ts = datetime.now(tz=tz).strftime(tf)
         self.pool = pool
+        self.wait = wait
+        self.FIRST_COMPLETED = FIRST_COMPLETED
         if pool is None:
             self.nworkers = 0
         else:
@@ -205,10 +208,14 @@ class _TStqdm(tqdm):
                          ncols=ncols, **kwargs)
 
     def ts_message(self, s):
-        if s is None:
-            s = f"{type(self._instance).__name__}"
+        if self._instance is not None:
+            p = type(self._instance).__name__
         else:
-            s = f"{type(self._instance).__name__} {s}"
+            p = ""
+        if s is None:
+            s = f"{p}"
+        else:
+            s = f"{p} {s}"
         s = f"{' | ' * self.loglevel} {s}"
         return s
 

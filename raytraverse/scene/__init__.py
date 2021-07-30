@@ -8,10 +8,10 @@
 
 """scene objects"""
 
-__all__ = ['BaseScene', 'Scene', 'ImageScene']
+__all__ = ['BaseScene', 'Scene', 'ImageScene', 'TStqdm']
 
 
-from raytraverse.scene.basescene import BaseScene
+from raytraverse.scene.basescene import BaseScene, TStqdm
 from raytraverse.scene.scene import Scene
 from raytraverse.scene.imagescene import ImageScene
 

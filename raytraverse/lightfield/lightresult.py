@@ -78,7 +78,14 @@ class LightResult(object):
             file.close()
 
     def pull(self, *axes, aindices=None, findices=None, order=None):
-        """arrange and extract data slices from result
+        """arrange and extract data slices from result.
+
+        DaylightPlaneKD.evaluate constructs a light result with these axes:
+
+            0. sky
+            1. point
+            2. view
+            3. metric
 
         Parameters
         ----------
@@ -88,8 +95,8 @@ class LightResult(object):
         aindices: Sequence[array_like], optional
             sequence of returned axis indices, up to one per each of axes to
             return a subset of data along these axes.
-        findices: Sequence[array_like], optional
-            sequence of indices for pre-flattened axes to be flattened. give
+        findices: Sequence, optional
+            sequence of indices or slices for pre-flattened axes to be flattened. give
             in order matching "order"
         order: Sequence
             the remainder of the axes in the order in which they should be
@@ -110,10 +117,6 @@ class LightResult(object):
             aindices = []
         else:
             aindices = np.atleast_2d(aindices)
-        if findices is None:
-            findices = []
-        else:
-            findices = np.atleast_2d(findices)
         # get the indexes and shape of keeper axes
         idx = [self._index(i) for i in axes]
         shp = np.array(self.data.shape)[idx]
@@ -129,12 +132,18 @@ class LightResult(object):
         if len(set(order + idx)) != len(order + idx):
             raise ValueError("axes + order cannot include duplicate axes, "
                              "give each axes index exactly once.")
+        if findices is None:
+            findices = []
         oshp = []
         ax0 = []
+        fi2 = []
         for i in range(len(order)):
             if i < len(findices):
-                oshp.append(range(len(findices[i])))
-                ax0.append(self.axes[order[i]].values[findices[i]])
+                d0 = self.axes[order[i]].values
+                d = d0[findices[i]]
+                fi2.append(np.arange(len(d0))[findices[i]])
+                oshp.append(range(len(d)))
+                ax0.append(d)
             else:
                 oshp.append(range(self.data.shape[order[i]]))
                 ax0.append(self.axes[order[i]].values)
@@ -147,7 +156,7 @@ class LightResult(object):
         labels = [list(zip(*ax0))] + [self.axes[i].values for i in idx]
         names = [ax0_name] + [self.names[i] for i in idx]
         data = self.data
-        for i, slc in zip(order, findices):
+        for i, slc in zip(order, fi2):
             data = np.take(data, slc, axis=i)
         # transpose result and apply slice
         result = np.transpose(data, order + idx).reshape(-1, *shp)

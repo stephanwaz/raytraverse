@@ -53,21 +53,19 @@ class PositionIndex(object):
             vv = np.cross(viewvec, hv)
             #: phi: vertical angle
             phi = self._angle_vv(vv, vec) - np.pi/2.0
-            #: theta: horizontal angle
-            theta = np.pi/2.0 - self._angle_vv(hv, vec)
-            posidx = np.where(phi < 0, self._get_pidx_iwata(phi, theta),
-                              self._get_pidx_guth(sigma, tau))
+            # iwata (2010) below horizon
+            tau[:, phi < 0] = 90.0
+            posidx = self._get_pidx_guth(sigma, tau)
             posidx = np.minimum(16, posidx)
         else:  # KIM model
             # from src/Radiance/util/evalglare.c
             posidx = self._get_pidx_kim(sigma, tau)
-        return posidx
+        return posidx.ravel()
 
     def positions_vec(self, viewvec, srcvec, up=(0, 0, 1)):
         sigma = np.arccos(np.einsum("ki,ji->kj", np.atleast_2d(viewvec),
                                     np.atleast_2d(srcvec))) * 180/np.pi
         return self._positions(viewvec, srcvec, sigma, up)
-
 
     @staticmethod
     def _to_plane(n, vec):
@@ -85,13 +83,6 @@ class PositionIndex(object):
         return np.exp((35.2 - 0.31889*tau - 1.22*np.exp(-2*tau/9)) /
                       1000*sigma + (21 + 0.26667*tau - 0.002963*tau*tau) /
                       100000*sigma*sigma)
-
-    @staticmethod
-    def _get_pidx_iwata(phi, theta):
-        d = 1/np.tan(phi)
-        s = np.tan(theta)/np.tan(phi)
-        r = np.sqrt((1 + np.square(s))/np.square(d))
-        return 1 + np.where(r > 0.6, np.minimum(3, r)*1.2, r*0.8)
 
     @staticmethod
     def _get_pidx_kim(sigma, tau):

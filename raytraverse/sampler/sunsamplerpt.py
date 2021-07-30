@@ -97,6 +97,13 @@ class SunSamplerPt(SamplerPt):
             s[pdraws] = 0
             sdraws = draw.from_pdf(s, self.slimit, ub=1)
             pdraws = np.concatenate((pdraws, sdraws))
+        # try some additional brightness based sampling to find smaller patches
+        elif level in [1, 2] and self._specguide is not None:
+            s = translate.resample(self._specguide, self._wshape(level)).ravel()
+            s[pdraws] = 0
+            sdraws = draw.from_pdf(s, self.slimit/100, lb=self.lb, ub=self.ub)
+            print(len(pdraws), len(sdraws))
+            pdraws = np.concatenate((pdraws, sdraws))
         return pdraws, pa + s
 
     def _load_specguide(self, specguide, vm):

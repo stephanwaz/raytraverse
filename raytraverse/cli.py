@@ -9,7 +9,7 @@
 
 """Console script for raytraverse."""
 import os
-import sys
+import re
 
 import numpy as np
 
@@ -17,9 +17,9 @@ from clasp import click
 import clasp.click_ext as clk
 
 import raytraverse
-from raytraverse.lightfield import LightPlaneKD, DayLightPlaneKD, ResultAxis, \
-    LightResult
-from raytraverse.mapper import PlanMapper, SkyMapper, ViewMapper
+from raytraverse.lightfield import LightPlaneKD, DayLightPlaneKD, ResultAxis
+from raytraverse.lightfield import LightResult
+from raytraverse.mapper import PlanMapper, SkyMapper, ViewMapper, imagetools
 from raytraverse.scene import Scene
 from raytraverse.renderer import Rtrace, Rcontrib
 from raytraverse.sampler import SkySamplerPt, SamplerArea, SamplerSuns
@@ -228,9 +228,12 @@ candidates within adaptive grid.""")
               help="if True, use location from epw/wea argument to -loc as a"
                    " transit mask (like -loc option 1.) instead of as a list"
                    " of candidate sun positions.")
+@click.option("--printdata/--no-printdata", default=False,
+              help="if True, print skymapper sun positions (either boundary or "
+                   "candidates in xyz coordinates)")
 @clk.shared_decs(clk.command_decs(raytraverse.__version__, wrap=True))
 def suns(ctx, loc=None, opts=False, debug=False, version=False, epwloc=False,
-         **kwargs):
+         printdata=False, **kwargs):
     """define solar sampling space
 
     Effects
@@ -247,6 +250,15 @@ def suns(ctx, loc=None, opts=False, debug=False, version=False, epwloc=False,
         except ValueError:
             pass
     ctx.obj['skymapper'] = SkyMapper(loc=loc, **kwargs)
+    if printdata:
+        sm = ctx.obj['skymapper']
+        if sm.solarbounds is None:
+            xyz = sm.uv2xyz(sm.candidates)
+        else:
+            xyz = sm.uv2xyz(sm.solarbounds.vertices)
+            xyz = xyz[np.logical_not(np.isnan(xyz[:, 0]))]
+        for x in xyz:
+            print("{: >10.05f} {: >10.05f} {: >10.05f}".format(*x))
 
 
 @main.command()
@@ -595,7 +607,7 @@ def images(ctx, sensors=None, sdirs=None, viewangle=180., skymask=None,
                                 res=res, interp=interpolate, prefix=basename,
                                 namebyindex=namebyindex)
     for d in result:
-        print(d, file=sys.stderr)
+        print(d)
     sd.mask = None
 
 
@@ -633,9 +645,12 @@ rows in wea/epw file using space seperated list or python range notation:
                    '"maxlum"]')
 @click.option("-basename", default="results",
               help="LightResult object is written to basename.npz.")
+@click.option("--npz/--no-npz", default=True,
+              help="write LightResult object to .npz, use 'raytraverse pull'"
+                   "or LightResult('basename.npz') to access results")
 @clk.shared_decs(clk.command_decs(raytraverse.__version__, wrap=True))
 def evaluate(ctx, sensors=None, sdirs=None, viewangle=180., skymask=None,
-             metrics=None, basename="results", **kwargs):
+             metrics=None, basename="results", npz=True, **kwargs):
     """evaluate metrics
 
     Prequisites
@@ -689,8 +704,141 @@ def evaluate(ctx, sensors=None, sdirs=None, viewangle=180., skymask=None,
     else:
         result = df.evaluate(sd, sensors, sdirs, viewangle=viewangle,
                              metrics=metrics)
-    result.write(f"{basename}.npz")
+    if npz:
+        result.write(f"{basename}.npz")
     sd.mask = None
+    ctx.obj['lightresult'] = result
+
+
+@main.command()
+@click.option("-imgs", callback=clk.are_files,
+              help="hdr image files, must be angular fisheye projection,"
+                   "if no view in header, assumes 180 degree")
+@click.option("-metrics", callback=clk.split_str, default="illum dgp ugp",
+              help='metrics to compute, choices: ["illum", '
+                   '"avglum", "gcr", "ugp", "dgp", "tasklum", "backlum", '
+                   '"dgp_t1", "log_gc", "dgp_t2", "ugr", "threshold", "pwsl2", '
+                   '"view_area", "backlum_true", "srcillum", "srcarea", '
+                   '"maxlum"]')
+@click.option("--parallel/--no-parallel", default=True,
+              help="use available cores")
+@click.option("-basename", default="img_metrics",
+              help="LightResult object is written to basename.npz.")
+@click.option("--npz/--no-npz", default=False,
+              help="write LightResult object to .npz, use 'raytraverse pull'"
+                   "or LightResult('basename.npz') to access results")
+@click.option("--peakn/--no-peakn", default=False,
+              help="corrrect aliasing and/or filtering artifacts for direct sun"
+                   " by assigning up to expected energy to peakarea")
+@click.option("-peaka", default=6.7967e-05,
+              help="expected peak area over which peak energy is distributed")
+@click.option("-peakt", default=1.0e5,
+              help="include down to this threshold in possible peak, note that"
+                   "once expected peak energy is satisfied remaining pixels are"
+                   "maintained, so it is safe-ish to keep this value low")
+@click.option("-peakr", default=4.0,
+              help="for peaks that do not meet expected area (such as partial"
+                   " suns, to determines the ratio of what counts as part of"
+                   " the source (max/peakr)")
+@clk.shared_decs(clk.command_decs(raytraverse.__version__, wrap=True))
+def imgmetric(ctx, imgs=None, metrics=None, parallel=True,
+              basename="img_metrics", npz=True, peakn=False,
+              peaka=6.7967e-05, peakt=1e5, peakr=4.0, **kwargs):
+    """calculate metrics for hdr images"""
+    if parallel:
+        cap = None
+    else:
+        cap = 1
+    results = imagetools.multi_img_metric(imgs, metrics, cap=cap, peakn=peakn,
+                                          peaka=peaka, peakt=peakt, peakr=peakr)
+    imgaxis = ResultAxis(imgs, "image")
+    metricaxis = ResultAxis(metrics, "metric")
+    lr = LightResult(np.asarray(results), imgaxis, metricaxis)
+    if npz:
+        lr.write(f"{basename}.npz")
+    ctx.obj['lightresult'] = lr
+
+
+@main.command()
+@click.option("-lr", callback=clk.is_file,
+              help=".npz LightResult, overrides lightresult from chained "
+                   "commands (evaluate/imgmetric). required if not chained "
+                   "with evaluate or imgmetric.")
+@click.option("-col", default='metric',
+              type=click.Choice(['metric', 'point', 'view', 'sky']),
+              help="axis to preserve")
+@click.option("-order", default="point view sky", callback=clk.split_str,
+              help="order for flattening remaining result axes. Note that"
+                   " in the case of an imgmetric result, this option is ignored"
+                   " as the result is already 2D")
+@click.option("-ptfilter", callback=clk.split_int,
+              help="point indices to return (ignored for imgmetric result)")
+@click.option("-viewfilter", callback=clk.split_int,
+              help="view direction indices to return "
+                   "(ignored for imgmetric result)")
+@click.option("-skyfilter", callback=clk.split_int,
+              help="sky indices to return (ignored for imgmetric result)")
+@click.option("-imgfilter", callback=clk.split_int,
+              help="image indices to return (ignored for lightfield result)")
+@click.option("-metricfilter", callback=clk.split_str,
+              help="metrics to return (non-existant are ignored)")
+@click.option("--header/--no-header", default=True, help="print col labels")
+@click.option("--rowlabel/--no-rowlabel", default=True, help="label row")
+@clk.shared_decs(clk.command_decs(raytraverse.__version__, wrap=True))
+def pull(ctx, lr=None, col="metric", order=('point', 'view', 'sky'),
+         ptfilter=None, viewfilter=None, skyfilter=None, imgfilter=None,
+         metricfilter=None, header=True, rowlabel=True, **kwargs):
+    if lr is not None:
+        result = LightResult(lr)
+    elif 'lightresult' in ctx.obj:
+        result = ctx.obj['lightresult']
+    else:
+        click.echo("Please provide an -lr option (path to light result file)",
+                   err=True)
+        raise click.Abort
+
+    filters = dict(metric=metricfilter, sky=skyfilter, point=ptfilter,
+                   view=viewfilter, image=imgfilter)
+    # translate metric names to indices
+    axes = [i.name for i in result.axes]
+    if metricfilter is not None:
+        ai = axes.index("metric")
+        av = result.axes[ai].values
+        aindices = np.flatnonzero([i in metricfilter for i in av])
+        [click.echo(f"Warning! {i} not in LightResult", err=True) for i in
+         metricfilter if i not in av]
+        filters["metric"] = aindices
+    # translate sky index to skydata shape
+    if skyfilter is not None and "sky" in axes:
+        ai = axes.index("sky")
+        av = result.axes[ai].values
+        aindices = np.flatnonzero(np.isin(av, skyfilter))
+        filters["sky"] = aindices
+    if len(result.data.shape) == 2:
+        order = None
+        findices = [slice(None) if imgfilter is None else imgfilter]
+    else:
+        findices = [slice(filters[x]) if filters[x] is None else filters[x]
+                    for x in order]
+    rt, labels, names = result.pull(col, aindices=filters[col],
+                                    findices=findices, order=order)
+    if header:
+        h = '\t'.join([str(i) for i in labels[1]])
+        if rowlabel:
+            # construct row label format
+            row_label_names = dict(sky="sky", point="x\ty\tz",
+                                   view="dx\tdy\tdz", image="image",
+                                   metric="metric")
+            rln = "\t".join([row_label_names[i] for i in names[0].split("_")])
+            h = rln + "\t" + h
+        print(h)
+    for r, rh in zip(rt, labels[0]):
+        rl = "\t".join([f"{i:.05f}" for i in r])
+        if rowlabel:
+            rl2 = "\t".join(str(i) for i in rh)
+            rl2 = re.sub(r"[(){}\[\]]", "", rl2).replace(", ", "\t")
+            rl = rl2 + "\t" + rl
+        print(rl)
 
 
 @main.command()

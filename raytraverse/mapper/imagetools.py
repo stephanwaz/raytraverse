@@ -12,6 +12,8 @@ import numpy as np
 import clasp.script_tools as cst
 
 from raytraverse import translate, io
+from raytraverse.evaluate import MetricSet
+from raytraverse.scene import TStqdm
 from raytraverse.mapper.viewmapper import ViewMapper
 
 
@@ -27,9 +29,10 @@ def uvarray2hdr(uvarray, imgf, header=None):
     io.array2hdr(img.reshape(res, res), imgf, header)
 
 
-def hdr2vol(imgf):
-    ar = io.hdr2array(imgf)
-    vm = hdr2vm(imgf)
+def hdr2vol(imgf, vm=None):
+    ar = io.hdr2array(imgf).T
+    if vm is None:
+        vm = hdr2vm(imgf)
     vecs = vm.pixelrays(ar.shape[-1]).reshape(-1, 3)
     oga = vm.pixel2omega(vm.pixels(ar.shape[-1]), ar.shape[-1]).ravel()
     return vecs, oga, ar.ravel()
@@ -53,3 +56,88 @@ def hdr2vm(imgf):
         return ViewMapper(view_dir, view_angle * x / y)
     else:
         return None
+
+
+def normalize_peak(v, o, l, scale=179, peaka=6.7967e-05, peakt=1e5, peakr=4):
+    pc = np.nonzero(l > peakt / scale)[0]
+    if pc.size > 0:
+        # first sort descending by luminance
+        pc = pc[np.argsort(-l[pc])]
+        pvol = np.hstack((v[pc], o[pc, None], l[pc, None]))
+        # establish maximum radius for grouping
+        cosrad = np.cos((peaka/np.pi)**.5*4)
+        # calculate angular distance from peak ray and filter strays
+        pd = np.einsum("i,ji->j", pvol[0, 0:3], pvol[:, 0:3])
+        dm = pd > cosrad
+        pc = pc[dm]
+        pvol = pvol[dm]
+        # calculate expected energy assuming full visibility:
+        esun = pvol[0, 4]*peaka
+        # sum up to peak energy
+        cume = np.cumsum(pvol[:, 3]*pvol[:, 4])
+        # treat as full sun
+        if cume[-1] > esun:
+            stop = np.argmax(cume > esun)
+            if stop == 0:
+                stop = len(cume)
+            peakl = cume[stop - 1]/peaka
+        # treat as partial sun (needs to use peak ratio)
+        else:
+            stop = np.argmax(pvol[:, 4] < pvol[0, 4]/peakr)
+            if stop == 0:
+                stop = len(cume)
+            peakl = pvol[0, 4]
+            peaka = cume[stop - 1]/peakl
+        pc = pc[:stop]
+        pvol = pvol[:stop]
+        # new source vector weight by L*omega of source rarys
+        pv = translate.norm(np.average(pvol[:, 0:3], axis=0,
+                                       weights=pvol[:, 3]*pvol[:, 4]))
+        # filter out source rays
+        vol = np.delete(np.hstack((v, o[:, None], l[:, None])), pc, axis=0)
+        v = np.vstack((vol[:, 0:3], pv))
+        o = np.concatenate((vol[:, 3], [peaka]))
+        l = np.concatenate((vol[:, 4], [peakl]))
+    return v, o, l
+
+
+def imgmetric(imgf, metrics, peakn=False, scale=179, **peakwargs):
+    vm = hdr2vm(imgf)
+    if vm is None:
+        vm = ViewMapper(viewangle=180)
+    v, o, l = hdr2vol(imgf, vm)
+    if peakn:
+        v, o, l = normalize_peak(v, o, l, scale, **peakwargs)
+    return MetricSet(v, o, l, vm, metrics, scale=scale)()
+
+
+def multi_img_metric(imgs, metrics, cap=None, **peakwargs):
+    with TStqdm(workers=True, total=len(imgs), cap=cap,
+                desc="processing images") as pbar:
+        exc = pbar.pool
+        futures = []
+        done = set()
+        not_done = set()
+        cnt = 0
+        pbar_t = 0
+        # submit asynchronous to process pool
+        results = []
+        for img in imgs:
+            # manage to queue to avoid loading too many points in memory
+            # and update progress bar as completed
+            if cnt > pbar.nworkers*3:
+                wait_r = pbar.wait(not_done, return_when=pbar.FIRST_COMPLETED)
+                not_done = wait_r.not_done
+                done.update(wait_r.done)
+                pbar.update(len(done) - pbar_t)
+                pbar_t = len(done)
+            fu = exc.submit(imgmetric, img, metrics, **peakwargs)
+            futures.append(fu)
+            not_done.add(fu)
+            cnt += 1
+        # gather results (in order)
+        for future in futures:
+            results.append(future.result())
+            if future in not_done:
+                pbar.update(1)
+    return results

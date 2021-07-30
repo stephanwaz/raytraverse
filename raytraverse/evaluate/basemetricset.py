@@ -10,6 +10,7 @@ import numpy as np
 import functools
 
 from raytraverse import translate
+from raytraverse.evaluate.positionindex import PositionIndex
 
 
 class BaseMetricSet(object):
@@ -44,18 +45,20 @@ class BaseMetricSet(object):
     """
 
     #: available metrics (and the default return set)
-    defaultmetrics = ["illum", "avglum", "gcr"]
+    defaultmetrics = ["illum", "avglum", "loggcr"]
 
-    allmetrics = defaultmetrics + ["density", "avgraylum"]
+    allmetrics = defaultmetrics + ["gcr", "pwgcr", "logpwgcr", "density",
+                                   "avgraylum", "pwavglum"]
 
-    safe2sum = {"illum", "avglum"}
+    safe2sum = {"illum", "avglum", "density"}
 
     def __init__(self, vec, omega, lum, vm, metricset=None, scale=179.,
-                 omega_as_view_area=True, **kwargs):
+                 omega_as_view_area=True, guth=True, **kwargs):
         if metricset is not None:
             self.check_metrics(metricset, True)
             self.defaultmetrics = metricset
         self.vm = vm
+        self.guth = guth
         self.view_area = vm.area
         self._correct_omega = not omega_as_view_area
         v = translate.norm(vec)
@@ -63,8 +66,10 @@ class BaseMetricSet(object):
             self._vec = v
             self._lum = lum
             self.omega = omega
+            self.view_mask = slice(None)
         else:
-            mask = self.vm.in_view(v)
+            mask = self.vm.in_view(v, indices=False)
+            self.view_mask = mask
             self._vec = v[mask]
             try:
                 self._lum = lum[mask]
@@ -169,7 +174,22 @@ class BaseMetricSet(object):
         rad = np.arccos(self.ctheta)
         return rad
 
+    @property
+    @functools.lru_cache(1)
+    def pos_idx(self):
+        return PositionIndex(self.guth).positions(self.vm, self.vec)
+
+    @property
+    @functools.lru_cache(1)
+    def pweight(self):
+        return self.omega/np.square(self.pos_idx)
+
     # -----------------metric functions (return single value)-----------------
+
+    @property
+    @functools.lru_cache(1)
+    def pweighted_area(self):
+        return np.sum(self.pweight)
 
     @property
     @functools.lru_cache(1)
@@ -184,6 +204,13 @@ class BaseMetricSet(object):
         """average luminance"""
         return (np.einsum('i,i->', self.lum, self.omega) *
                 self.scale/self.view_area)
+
+    @property
+    @functools.lru_cache(1)
+    def pwavglum(self):
+        """position weighted average luminance"""
+        return (np.einsum('i,i->', self.lum, self.pweight) *
+                self.scale/self.pweighted_area)
 
     @property
     @functools.lru_cache(1)
@@ -202,6 +229,31 @@ class BaseMetricSet(object):
             return a2lum/self.avglum**2
         else:
             return 1.0
+
+    @property
+    @functools.lru_cache(1)
+    def pwgcr(self):
+        """a unitless measure of relative contrast defined as the average of
+        the squared luminances divided by the average luminance squared
+        weighted by a position index"""
+        a2lum = (np.einsum('i,i,i->', self.lum, self.lum, self.pweight) *
+                 self.scale**2/self.pweighted_area)
+        if self.pwavglum > 0:
+            return a2lum/self.pwavglum**2
+        else:
+            return 1.0
+
+    @property
+    @functools.lru_cache(1)
+    def logpwgcr(self):
+        """a unitless measure of relative contrast defined as the log of gcr"""
+        return np.log10(self.pwgcr)
+
+    @property
+    @functools.lru_cache(1)
+    def loggcr(self):
+        """a unitless measure of relative contrast defined as the log of gcr"""
+        return np.log10(self.gcr)
 
     @property
     @functools.lru_cache(1)
