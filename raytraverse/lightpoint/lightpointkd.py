@@ -82,7 +82,7 @@ class LightPointKD(object):
             outdir = f"{self.scene.outdir}/{parent}"
         else:
             outdir = self.scene.outdir
-        self._parent = parent
+        self.parent = parent
         #: str: relative path to disk storage
         self.file = f"{outdir}/{self.src}/{self.posidx:06d}.rytpt"
         self._vec = np.empty((0, 3))
@@ -111,9 +111,9 @@ class LightPointKD(object):
         f.close()
 
     def dump(self):
-        if self._parent is not None:
-            try_mkdir(f"{self.scene.outdir}/{self._parent}")
-            try_mkdir(f"{self.scene.outdir}/{self._parent}/{self.src}")
+        if self.parent is not None:
+            try_mkdir(f"{self.scene.outdir}/{self.parent}")
+            try_mkdir(f"{self.scene.outdir}/{self.parent}/{self.src}")
         else:
             try_mkdir(f"{self.scene.outdir}/{self.src}")
         f = open(self.file, 'wb')
@@ -413,8 +413,8 @@ class LightPointKD(object):
         else:
             outshape = (res*vm.aspect, res)
             img = np.zeros(outshape)
-            uv = translate.bin2uv(np.arange(res*res), res)
-            pdirs = vm.uv2xyz(uv).reshape(res, res, 3)
+            uv = translate.bin2uv(np.arange(res*res*vm.aspect), res)
+            pdirs = vm.uv2xyz(uv).reshape(res*vm.aspect, res, 3)
             mask = None
             mask2 = None
             header = None
@@ -449,7 +449,7 @@ class LightPointKD(object):
             io.array2hdr(img, outf, header)
         return outf
 
-    def add(self, lf2, src=None, calcomega=True, write=False):
+    def add(self, lf2, src=None, calcomega=True, write=False, sumsrc=False):
         """add light points of distinct sources together
         results in a new lightpoint with srcn=self.srcn+srcn2 and
         vector size=self.vecsize+vecsize2
@@ -463,26 +463,39 @@ class LightPointKD(object):
             passed to LightPointKD constructor
         write: bool, optional
             passed to LightPointKD constructor
+        sumsrc: bool, optional
+            if True adds matching source indices together (must be same shape)
+            this assumes that the two lightpoints represent the same source
+            but different components (such as direct/indirect)
         Returns
         -------
         raytraverse.lightpoint.LightPointKD
             will be subtyped according to self, unless lf2 is needed to preserve
             data
         """
-        vecs = np.concatenate((self.vec, lf2.vec), axis=0)
         i, d = self.query_ray(lf2.vec)
+        notmatch = d > 1e-6
+        i = i[notmatch]
+        vecs = np.concatenate((self.vec, lf2.vec[notmatch]), axis=0)
+
         lum1 = np.concatenate((self.lum, self.lum[i]), axis=0)
         i, d = lf2.query_ray(self.vec)
-        lum2 = np.concatenate((lf2.lum[i], lf2.lum), axis=0)
-        lums = np.concatenate((lum1, lum2), axis=1)
-        srcdir = np.concatenate((self.srcdir, lf2.srcdir), axis=0)
+        lum2 = np.concatenate((lf2.lum[i], lf2.lum[notmatch]), axis=0)
+        if sumsrc:
+            lums = lum1 + lum2
+            srcn = self.srcn
+            srcdir = self.srcdir
+        else:
+            lums = np.concatenate((lum1, lum2), axis=1)
+            srcdir = np.concatenate((self.srcdir, lf2.srcdir), axis=0)
+            srcn = self.srcn + lf2.srcn
         if src is None:
             src = f"{self.src}_{lf2.src}"
         return type(self)(self.scene, vecs, lums, vm=self.vm, pt=self.pt,
                           posidx=self.posidx, src=src, calcomega=calcomega,
-                          srcn=self.srcn + lf2.srcn, write=write, srcdir=srcdir,
+                          srcn=srcn, write=write, srcdir=srcdir,
                           srcviews=self.srcviews + lf2.srcviews,
-                          filterviews=False, parent=self._parent)
+                          filterviews=False, parent=self.parent)
 
     def update(self, vec, lum, omega=None, calcomega=True, write=True,
                filterviews=False):

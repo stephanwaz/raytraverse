@@ -43,6 +43,7 @@ class SkySamplerPt(SamplerPt):
         lum: np.array
             array of shape (N,) to update weights
         """
+        self._dump_vecs(vecs)
         lum = self.engine.run(np.copy(vecs, 'C'))
         if len(self.lum) == 0:
             self.lum = lum

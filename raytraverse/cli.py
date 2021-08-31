@@ -10,6 +10,8 @@
 """Console script for raytraverse."""
 import os
 import re
+import shutil
+from glob import glob
 
 import numpy as np
 
@@ -19,7 +21,8 @@ import clasp.click_ext as clk
 import raytraverse
 from raytraverse.lightfield import LightPlaneKD, DayLightPlaneKD, ResultAxis
 from raytraverse.lightfield import LightResult
-from raytraverse.mapper import PlanMapper, SkyMapper, ViewMapper, imagetools
+from raytraverse.mapper import PlanMapper, SkyMapper, ViewMapper
+from raytraverse.utility import pool_call, imagetools
 from raytraverse.scene import Scene
 from raytraverse.renderer import Rtrace, Rcontrib
 from raytraverse.sampler import SkySamplerPt, SamplerArea, SamplerSuns
@@ -231,9 +234,12 @@ candidates within adaptive grid.""")
 @click.option("--printdata/--no-printdata", default=False,
               help="if True, print skymapper sun positions (either boundary or "
                    "candidates in xyz coordinates)")
+@click.option("-printlevel", type=int,
+              help="print a set of sun positions at sampling level "
+                   "(overrides printdata)")
 @clk.shared_decs(clk.command_decs(raytraverse.__version__, wrap=True))
 def suns(ctx, loc=None, opts=False, debug=False, version=False, epwloc=False,
-         printdata=False, **kwargs):
+         printdata=False, printlevel=None, **kwargs):
     """define solar sampling space
 
     Effects
@@ -250,15 +256,21 @@ def suns(ctx, loc=None, opts=False, debug=False, version=False, epwloc=False,
         except ValueError:
             pass
     ctx.obj['skymapper'] = SkyMapper(loc=loc, **kwargs)
-    if printdata:
+    if printdata or printlevel is not None:
         sm = ctx.obj['skymapper']
-        if sm.solarbounds is None:
+        if printlevel is not None:
+            xyz = sm.solar_grid(level=printlevel)
+        elif sm.solarbounds is None:
             xyz = sm.uv2xyz(sm.candidates)
         else:
             xyz = sm.uv2xyz(sm.solarbounds.vertices)
             xyz = xyz[np.logical_not(np.isnan(xyz[:, 0]))]
-        for x in xyz:
-            print("{: >10.05f} {: >10.05f} {: >10.05f}".format(*x))
+        click.echo("columns: 0:x 1:y 2:z 3:x(anglular) 4:y(angular) 5:u 6:v", err=True)
+        uv = sm.xyz2uv(xyz)
+        axy = sm.xyz2vxy(xyz)
+        for x, u, a in zip(xyz, uv, axy):
+            print("{: >10.05f} {: >10.05f} {: >10.05f} {: >10.05f} {: >10.05f} "
+                  "{: >10.05f} {: >10.05f}".format(*x, *a, *u))
 
 
 @main.command()
@@ -324,10 +336,13 @@ def skydata(ctx, wea=None, name="skydata", loc=None, reload=True, opts=False,
               help='the final directional sampling resolution, yielding a'
                    ' grid of potential samples at 2^fdres x 2^fdres per'
                    ' hemisphere')
+@click.option('-dcompargs', default='-ab 1',
+              help="additional arguments for running direct component. when "
+                   "using, set -ab in sunengine.rayargs to this ab minus one.")
 @clk.shared_decs(clk.command_decs(raytraverse.__version__, wrap=True))
 def skyengine(ctx, accuracy=1.0, idres=5, rayargs=None, default_args=True,
-              skyres=10.0, fdres=9, opts=False, debug=False, version=None,
-              **kwargs):
+              skyres=10.0, fdres=9, dcompargs='-ab 1', usedecomp=False,
+              opts=False, debug=False, version=None, **kwargs):
     """initialize engine for skyrun
 
     Effects
@@ -338,6 +353,11 @@ def skyengine(ctx, accuracy=1.0, idres=5, rayargs=None, default_args=True,
     if 'scene' not in ctx.obj:
         clk.invoke_dependency(ctx, scene, reload=True, overwrite=False)
     scn = ctx.obj['scene']
+    if usedecomp:
+        if rayargs is not None:
+            rayargs += " " + dcompargs
+        else:
+            rayargs = dcompargs
     rcontrib = Rcontrib(rayargs=rayargs, scene=scn.scene, skyres=skyres,
                         default_args=default_args)
     ctx.obj['skyengine'] = SkySamplerPt(scn, rcontrib, accuracy=accuracy,
@@ -369,10 +389,13 @@ def skyengine(ctx, accuracy=1.0, idres=5, rayargs=None, default_args=True,
                    "the specular guide will either over sample (including "
                    "direct views) or under sample (miss specular reflections) "
                    "depending on this setting.")
+@click.option('-dcompargs', default='-ab 0',
+              help="additional arguments for running direct component. when "
+                   "using, set -ab in skyengine.rayargs to this ab plus one.")
 @clk.shared_decs(clk.command_decs(raytraverse.__version__, wrap=True))
 def sunengine(ctx, accuracy=1.0, idres=5, rayargs=None, default_args=True,
-              fdres=10, slimit=0.01, maxspec=0.2, opts=False, debug=False,
-              version=None, **kwargs):
+              fdres=10, slimit=0.01, maxspec=0.2, dcompargs='-ab 0',
+              usedecomp=False, opts=False, debug=False, version=None, **kwargs):
     """initialize engine for sunrun
 
     Effects
@@ -382,6 +405,11 @@ def sunengine(ctx, accuracy=1.0, idres=5, rayargs=None, default_args=True,
     if 'scene' not in ctx.obj:
         clk.invoke_dependency(ctx, scene, reload=True, overwrite=False)
     scn = ctx.obj['scene']
+    if usedecomp:
+        if rayargs is not None:
+            rayargs += " " + dcompargs
+        else:
+            rayargs = dcompargs
     rtrace = Rtrace(rayargs=rayargs, scene=scn.scene, default_args=default_args)
     ptkwargs = dict(slimit=slimit, maxspec=maxspec, accuracy=accuracy,
                     idres=idres, fdres=fdres)
@@ -397,18 +425,23 @@ sample_opts = [
               help="number of levels to sample (final resolution will be "
                    "ptres/2^(nlev-1))"),
  click.option("--jitter/--no-jitter", default=True,
-              help="jitter samples on plane within adaptive sampling grid")
+              help="jitter samples on plane within adaptive sampling grid"),
+ click.option("--plotp/--no-plotp", default=False,
+              help="plot pdfs and sample vecs for each level")
     ]
 
 
 @main.command()
 @clk.shared_decs(sample_opts)
+@click.option("--dcomp/--no-dcomp", default=True,
+              help="calculate indirect sun component from skyrun "
+                   "(think 5-phase)")
 @click.option("--overwrite/--no-overwrite", default=False,
               help="If True, reruns sampler when invoked, otherwise will first"
                    " attempt to load results")
 @clk.shared_decs(clk.command_decs(raytraverse.__version__, wrap=True))
-def skyrun(ctx, accuracy=1.0, nlev=3, jitter=True, overwrite=False, opts=False,
-           debug=False, version=None):
+def skyrun(ctx, accuracy=1.0, nlev=3, jitter=True, overwrite=False, dcomp=True,
+           plotp=False, opts=False, debug=False, version=None):
     """run scene under sky for a set of points (defined by area)
 
     Effects
@@ -441,10 +474,26 @@ def skyrun(ctx, accuracy=1.0, nlev=3, jitter=True, overwrite=False, opts=False,
         skyfield = LightPlaneKD(scn, f"{scn.outdir}/{pm.name}/sky_points"
                                 f".tsv", pm, "sky")
     except OSError:
-        skyfield = skysampler.run(pm)
+        skyfield = skysampler.run(pm, plotp=plotp)
     else:
         click.echo(f"Sky Lightfield reloaded from {scn.outdir}/{pm.name} "
                    f"use --overwrite to rerun", err=True)
+    if dcomp:
+        try:
+            if overwrite:
+                raise OSError
+            dskyfield = LightPlaneKD(scn,
+                                     f"{scn.outdir}/{pm.name}/skydcomp_points"
+                                     f".tsv", pm, "skydcomp")
+        except OSError:
+            skengine.engine.reset()
+            clk.invoke_dependency(ctx, skyengine, usedecomp=True)
+            skysampler = SamplerArea(scn, skengine, accuracy=accuracy,
+                                     nlev=nlev, jitter=jitter)
+            dskyfield = skysampler.repeat(skyfield, "skydcomp")
+        ctx.obj['dskyfield'] = dskyfield
+    else:
+        ctx.obj['dskyfield'] = None
     ctx.obj['skyfield'] = skyfield
 
 
@@ -462,8 +511,11 @@ def skyrun(ctx, accuracy=1.0, nlev=3, jitter=True, overwrite=False, opts=False,
                    "candidate SkyMappers, only affects weighting of selecting"
                    " candidates in the same grid true positions are still "
                    "used")
-@click.option("--recover/--no-recover", default=False,
+@click.option("--recover/--no-recover", default=True,
               help="If True, recovers existing sampling")
+@click.option("--overwrite/--no-overwrite", default=False,
+              help="If True, reruns sampler when invoked, otherwise will first"
+                   " attempt to load results")
 @click.option("--guided/--no-guided", default=True,
               help="If True, uses skysampling results to guide sun sampling "
                    "this is necessary if the model has any specular "
@@ -471,7 +523,8 @@ def skyrun(ctx, accuracy=1.0, nlev=3, jitter=True, overwrite=False, opts=False,
                    " called yet.")
 @clk.shared_decs(clk.command_decs(raytraverse.__version__, wrap=True))
 def sunrun(ctx, srcaccuracy=1.0, srcnlev=3, srcjitter=True, recover=False,
-           guided=True, opts=False, debug=False, version=None, **kwargs):
+           overwrite=False, guided=True, plotp=False, opts=False, debug=False,
+           version=None, **kwargs):
     """run scene for a set of suns (defined by suns) for a set of points
     (defined by area)
 
@@ -492,26 +545,36 @@ def sunrun(ctx, srcaccuracy=1.0, srcnlev=3, srcjitter=True, recover=False,
     if 'planmapper' not in ctx.obj:
         clk.invoke_dependency(ctx, area)
     pm = ctx.obj['planmapper']
-    if 'sunengine' not in ctx.obj:
-        clk.invoke_dependency(ctx, sunengine)
-    snengine = ctx.obj['sunengine']['engine']
-    ptkwargs = ctx.obj['sunengine']['ptkwargs']
     if 'skymapper' not in ctx.obj:
         clk.invoke_dependency(ctx, suns)
     skmapper = ctx.obj['skymapper']
-
     if guided and 'skyfield' not in ctx.obj:
         clk.invoke_dependency(ctx, skyrun, overwrite=False)
     if guided:
         specguide = ctx.obj['skyfield']
+        dcomp = ctx.obj['dskyfield']
     else:
         specguide = None
+        dcomp = None
+    if 'sunengine' not in ctx.obj:
+        clk.invoke_dependency(ctx, sunengine, usedcomp=dcomp is not None)
+    snengine = ctx.obj['sunengine']['engine']
+    ptkwargs = ctx.obj['sunengine']['ptkwargs']
     if ctx.obj['static_points']:
         kwargs.update(nlev=1, jitter=False)
     sunsampler = SamplerSuns(scn, snengine, accuracy=srcaccuracy, nlev=srcnlev,
                              jitter=srcjitter, ptkwargs=ptkwargs,
                              areakwargs=kwargs)
-    dfield = sunsampler.run(skmapper, pm, specguide=specguide, recover=recover)
+    sunfile = f"{scn.outdir}/{pm.name}/{skmapper.name}_sunpositions.tsv"
+    if overwrite:
+        shutil.rmtree(sunfile, ignore_errors=True)
+        for src in glob(f"{scn.outdir}/{pm.name}/{skmapper.name}_sun_*"):
+            shutil.rmtree(src, ignore_errors=True)
+            raise OSError
+    dfield = sunsampler.run(skmapper, pm, specguide=specguide, recover=recover,
+                            plotp=plotp, pfish=False)
+    if dcomp is not None:
+        dfield = dfield.add_indirect_to_suns(dcomp)
     ctx.obj['daylightfield'] = dfield
 
 
@@ -550,12 +613,16 @@ rows in wea/epw file using space seperated list or python range notation:
                    "if True, names images by: "
                    "<prefix>_sky-<row>_pt-<pidx>_vd-<vidx>.hdr, "
                    "where pidx, vidx refer to the order of points, and vm.")
+@click.option("--dcomp/--no-dcomp", default=True,
+              help="try loading dcomp sun points")
 @click.option("-basename", default="results",
               help="prefix of namebyindex.")
+@click.option("--sunonly/--no-sunonly", default=False,
+              help="metrics for sun source only (no sky)")
 @clk.shared_decs(clk.command_decs(raytraverse.__version__, wrap=True))
 def images(ctx, sensors=None, sdirs=None, viewangle=180., skymask=None,
            basename="results", res=800, interpolate=False, namebyindex=False,
-           **kwargs):
+           sunonly=False, dcomp=True, **kwargs):
     """render images
 
     Prequisites
@@ -583,12 +650,17 @@ def images(ctx, sensors=None, sdirs=None, viewangle=180., skymask=None,
     if 'skymapper' not in ctx.obj:
         clk.invoke_dependency(ctx, suns)
     skmapper = ctx.obj['skymapper']
-    if 'daylightfield' in ctx.obj:
-        df = ctx.obj['daylightfiield']
-    else:
-        df = DayLightPlaneKD(scn, f"{scn.outdir}/{pm.name}/{skmapper.name}_"
-                                  f"sunpositions.tsv",
-                             pm, f"{skmapper.name}_sun")
+    sunfile = f"{scn.outdir}/{pm.name}/{skmapper.name}_sunpositions.tsv"
+    if dcomp:
+        try:
+            df = DayLightPlaneKD(scn, sunfile, pm, f"i_{skmapper.name}_sun",
+                                 includesky=not sunonly)
+        except OSError:
+            click.echo("Warning! no dcomp runs found", err=True)
+            dcomp = False
+    if not dcomp:
+        df = DayLightPlaneKD(scn, sunfile, pm, f"{skmapper.name}_sun",
+                             includesky=not sunonly)
     if skymask is not None:
         sd.mask = skymask
     if sensors.shape[1] == 6:
@@ -645,12 +717,17 @@ rows in wea/epw file using space seperated list or python range notation:
                    '"maxlum"]')
 @click.option("-basename", default="results",
               help="LightResult object is written to basename.npz.")
+@click.option("--sunonly/--no-sunonly", default=False,
+              help="metrics for sun source only (no sky)")
+@click.option("--dcomp/--no-dcomp", default=True,
+              help="try loading dcomp sun points")
 @click.option("--npz/--no-npz", default=True,
               help="write LightResult object to .npz, use 'raytraverse pull'"
                    "or LightResult('basename.npz') to access results")
 @clk.shared_decs(clk.command_decs(raytraverse.__version__, wrap=True))
 def evaluate(ctx, sensors=None, sdirs=None, viewangle=180., skymask=None,
-             metrics=None, basename="results", npz=True, **kwargs):
+             metrics=None, basename="results", sunonly=False, dcomp=True,
+             npz=True, **kwargs):
     """evaluate metrics
 
     Prequisites
@@ -679,12 +756,17 @@ def evaluate(ctx, sensors=None, sdirs=None, viewangle=180., skymask=None,
     if 'skymapper' not in ctx.obj:
         clk.invoke_dependency(ctx, suns)
     skmapper = ctx.obj['skymapper']
-    if 'daylightfield' in ctx.obj:
-        df = ctx.obj['daylightfiield']
-    else:
-        df = DayLightPlaneKD(scn, f"{scn.outdir}/{pm.name}/{skmapper.name}_"
-                                  f"sunpositions.tsv",
-                             pm, f"{skmapper.name}_sun")
+    sunfile = f"{scn.outdir}/{pm.name}/{skmapper.name}_sunpositions.tsv"
+    if dcomp:
+        try:
+            df = DayLightPlaneKD(scn, sunfile, pm, f"i_{skmapper.name}_sun",
+                                 includesky=not sunonly)
+        except OSError:
+            click.echo("Warning! no dcomp runs found", err=True)
+            dcomp = False
+    if not dcomp:
+        df = DayLightPlaneKD(scn, sunfile, pm, f"{skmapper.name}_sun",
+                             includesky=not sunonly)
     if skymask is not None:
         sd.mask = skymask
     if sensors.shape[1] == 6:
@@ -724,10 +806,10 @@ def evaluate(ctx, sensors=None, sdirs=None, viewangle=180., skymask=None,
               help="use available cores")
 @click.option("-basename", default="img_metrics",
               help="LightResult object is written to basename.npz.")
-@click.option("--npz/--no-npz", default=False,
+@click.option("--npz/--no-npz", default=True,
               help="write LightResult object to .npz, use 'raytraverse pull'"
                    "or LightResult('basename.npz') to access results")
-@click.option("--peakn/--no-peakn", default=False,
+@click.option("--peakn/--no-peakn", default=True,
               help="corrrect aliasing and/or filtering artifacts for direct sun"
                    " by assigning up to expected energy to peakarea")
 @click.option("-peaka", default=6.7967e-05,
@@ -740,17 +822,33 @@ def evaluate(ctx, sensors=None, sdirs=None, viewangle=180., skymask=None,
               help="for peaks that do not meet expected area (such as partial"
                    " suns, to determines the ratio of what counts as part of"
                    " the source (max/peakr)")
+@click.option("-threshold", default=2000.,
+              help="same as the evalglare -b option. if factor is larger than "
+                   "100, it is used as constant threshold in cd/m2, else this "
+                   "factor is multiplied by the average task luminance. task "
+                   "position is center of image with a 30 degree field of view")
+@click.option("-scale", default=179.,
+              help="scale factor applied to pixel values to convert to cd/m^2")
 @clk.shared_decs(clk.command_decs(raytraverse.__version__, wrap=True))
 def imgmetric(ctx, imgs=None, metrics=None, parallel=True,
               basename="img_metrics", npz=True, peakn=False,
-              peaka=6.7967e-05, peakt=1e5, peakr=4.0, **kwargs):
-    """calculate metrics for hdr images"""
+              peaka=6.7967e-05, peakt=1e5, peakr=4.0, threshold=2000.,
+              scale=179., **kwargs):
+    """calculate metrics for hdr images, similar to evalglare but without
+    glare source grouping, equivalent to -r 0 in evalglare. This ensures that
+    all glare source positions are  weighted by the metrics to which they are
+    applied. Additional peak normalization reduces the deviation between images
+    processed in different ways, for example pfilt with -r, rpict drawsource(),
+    or an undersampled vwrays | rtrace run where the pixels give a coarse
+    estimate of the actual sun area."""
     if parallel:
         cap = None
     else:
         cap = 1
-    results = imagetools.multi_img_metric(imgs, metrics, cap=cap, peakn=peakn,
-                                          peaka=peaka, peakt=peakt, peakr=peakr)
+    results = pool_call(imagetools.imgmetric, list(zip(imgs)), metrics, cap=cap,
+                        desc="processing images", peakn=peakn,
+                        peaka=peaka, peakt=peakt, peakr=peakr,
+                        threshold=threshold, scale=scale)
     imgaxis = ResultAxis(imgs, "image")
     metricaxis = ResultAxis(metrics, "metric")
     lr = LightResult(np.asarray(results), imgaxis, metricaxis)
@@ -820,25 +918,8 @@ def pull(ctx, lr=None, col="metric", order=('point', 'view', 'sky'),
     else:
         findices = [slice(filters[x]) if filters[x] is None else filters[x]
                     for x in order]
-    rt, labels, names = result.pull(col, aindices=filters[col],
-                                    findices=findices, order=order)
-    if header:
-        h = '\t'.join([str(i) for i in labels[1]])
-        if rowlabel:
-            # construct row label format
-            row_label_names = dict(sky="sky", point="x\ty\tz",
-                                   view="dx\tdy\tdz", image="image",
-                                   metric="metric")
-            rln = "\t".join([row_label_names[i] for i in names[0].split("_")])
-            h = rln + "\t" + h
-        print(h)
-    for r, rh in zip(rt, labels[0]):
-        rl = "\t".join([f"{i:.05f}" for i in r])
-        if rowlabel:
-            rl2 = "\t".join(str(i) for i in rh)
-            rl2 = re.sub(r"[(){}\[\]]", "", rl2).replace(", ", "\t")
-            rl = rl2 + "\t" + rl
-        print(rl)
+    result.print(col, aindices=filters[col], findices=findices, order=order,
+                 header=header, rowlabel=rowlabel)
 
 
 @main.command()

@@ -28,9 +28,7 @@ def tmpdir(tmp_path_factory):
 
 def test_example(tmpdir):
     from raytraverse.example import main, out, scene_files, zone, epw, output
-    print(renderer.Rcontrib.__dict__)
     main()
-    print(renderer.Rcontrib.__dict__)
     lr1 = LightResult("check.npz")
     lr2 = LightResult(output)
     data, axes, names = lr1.pull("sky", "metric", findices=[[0], [3]])

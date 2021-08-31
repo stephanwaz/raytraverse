@@ -7,7 +7,8 @@ import shutil
 import pytest
 import numpy as np
 
-from raytraverse.mapper import ViewMapper, imagetools
+from raytraverse.mapper import ViewMapper
+from raytraverse.utility import imagetools
 from raytraverse.lightpoint import LightPointKD, CompressedPointKD
 from raytraverse import translate, io
 from raytraverse.scene import BaseScene, ImageScene

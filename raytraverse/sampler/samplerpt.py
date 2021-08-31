@@ -96,10 +96,30 @@ class SamplerPt(BaseSampler):
         super().run(mapper, name, levels, **kwargs)
         return self._run_callback(point, posidx, mapper, **lpargs)
 
+    def repeat(self, guide, stype):
+        ostype = self.stype
+        self.stype = stype
+
+        mapper = guide.vm
+        mapper.origin = guide.pt
+
+        self.vecs = None
+        self.lum = []
+
+        gvecs = guide.vec
+        vecs = np.hstack((np.broadcast_to(mapper.origin, gvecs.shape), gvecs))
+        self.sample(vecs)
+        lp = self._run_callback(guide.pt, guide.posidx, mapper,
+                                parent=guide.parent)
+        self.stype = ostype
+        return lp
+
     def _init4run(self, levels, **kwargs):
         """(re)initialize object for new run, ensuring properties are cleared
         prior to executing sampling loop"""
         leveliter = super()._init4run(levels, **kwargs)
+        if self._slevel == 0:
+            return leveliter
         return self.scene.progress_bar(self, list(leveliter),
                                        level=self._slevel)
 

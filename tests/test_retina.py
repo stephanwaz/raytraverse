@@ -6,7 +6,7 @@ import os
 
 import pytest
 from raytraverse import translate
-from raytraverse.mapper import imagetools
+from raytraverse.utility import imagetools
 from raytraverse.evaluate import retina
 import numpy as np
 

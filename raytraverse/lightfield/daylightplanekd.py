@@ -5,6 +5,8 @@
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 # =======================================================================
+import os
+import shutil
 import sys
 from concurrent.futures import wait, FIRST_COMPLETED
 
@@ -18,7 +20,9 @@ from raytraverse.lightfield.lightplanekd import LightPlaneKD
 from raytraverse.lightfield.sets import MultiLightPointSet
 from raytraverse.lightfield.lightfield import LightField
 from raytraverse.lightfield.lightresult import ResultAxis, LightResult
+from raytraverse.lightpoint import LightPointKD
 from raytraverse.mapper import ViewMapper
+from raytraverse.utility import pool_call
 
 
 class DayLightPlaneKD(LightField):
@@ -123,6 +127,52 @@ class DayLightPlaneKD(LightField):
         weighted_vecs[:, 3:] *= self._normalization
         d, i = self.kd.query(weighted_vecs)
         return i, d
+
+    def add_indirect_to_suns(self, skyplanedirect, srcprefix="i_",
+                             overwrite=False):
+        """
+
+        Parameters
+        ----------
+        skyplanedirect: DayLightPlaneKD
+            a skyplane with matching ray samples to self.skyplane
+            (use SamplerArea.repeat) representing the direct contribution from
+            sky patches.
+        overwrite: bool, optional
+            overwrite output
+        srcprefix: str, optional
+            if inplace is False, the prefix to add to the source names
+        Returns
+        -------
+        DayLightPlaneKD
+            self if inplace is True, else a new DaylightPlaneKD
+        """
+        if self.skyplane is None:
+            raise ValueError("method requires DaylightPlaneKD initialized with"
+                             " includesky=True")
+        side = int(np.sqrt(self.skyplane.data[0].lum.shape[1] - 1))
+        omegar = np.square(0.2665*np.pi*side/180)*.5
+        skpatches = translate.xyz2skybin(self.vecs[:, 0:3], side)
+        sis, _ = self.skyplane.query(self.vecs[:, 3:])
+        args = []
+        for i, si in enumerate(sis):
+            pf2 = (f"{self.scene.outdir}/{self.skyplane.data[si].parent}/"
+                   f"{srcprefix}{self.data[i].src}_points.tsv")
+            if not os.path.isfile(pf2):
+                args.append((self.data[i], self.skyplane.data[si],
+                             skyplanedirect.data[si], skpatches[i]))
+        file_depend = pool_call(_indirect_to_suns, args, omegar, self.scene,
+                                overwrite=overwrite, srcprefix=srcprefix,
+                                desc="adding indirect to LightPoints")
+        file_depend = set(file_depend)
+        if None in file_depend:
+            file_depend.remove(None)
+        for fd in set(file_depend):
+            shutil.copy(*fd)
+        vecs = np.hstack((self.data.idx[:, 0:1], self.samplelevel[:, 0:1],
+                          self.vecs[:, 0:3]))
+        src = f"{srcprefix}{self.src}"
+        return DayLightPlaneKD(self.scene, vecs, self.pm, src)
 
     def make_images(self, skydata, points, vm, viewangle=180., res=512,
                     interp=False, prefix="img", namebyindex=False):
@@ -255,11 +305,8 @@ class DayLightPlaneKD(LightField):
 
         # use parallel processing
         sumsafe = metricclass.check_safe2sum(metrics)
-        if srconly or sumsafe:
-            workers = "threads"
-        else:
-            workers = True
-        fields = self._process_mgr(skp_idx, sidx, skydata, oshape, workers,
+        srconly = srconly or skp_idx is None
+        fields = self._process_mgr(skp_idx, sidx, skydata, oshape, True,
                                    _evaluate_pt, message="Evaluating Points",
                                    srconly=srconly, sumsafe=sumsafe,
                                    metricclass=metricclass, metrics=metrics,
@@ -278,7 +325,10 @@ class DayLightPlaneKD(LightField):
         # order: (suns, pts) row-major
         sidx, sun_err = self.query(vecs)
         # query sky simulation data
-        skp_idx, sk_pt_err = self.skyplane.query(points)
+        if self.skyplane is not None:
+            skp_idx, sk_pt_err = self.skyplane.query(points)
+        else:
+            skp_idx = None
         return vecs, sidx, skp_idx
 
     def _sinfo(self, datainfo, vecs, sidx, points, skp_idx, oshape):
@@ -291,6 +341,15 @@ class DayLightPlaneKD(LightField):
             dinfo = [i for i in dinfo if i in datainfo]
         if len(dinfo) == 0:
             return None, dinfo
+        if skp_idx is None:
+            try:
+                dinfo.remove("sky_pt_err")
+            except ValueError:
+                pass
+            try:
+                dinfo.remove("sky_pt_idx")
+            except ValueError:
+                pass
         sinfo = []
         if "sun_err" in dinfo:
             snerr = np.linalg.norm(vecs[:, :3] - self.vecs[sidx, :3],
@@ -313,7 +372,10 @@ class DayLightPlaneKD(LightField):
     def _process_mgr(self, skp_idx, sidx, skydata, oshape, workers, eval_fn,
                      message="Evaluating Points", mask_kwargs=None,
                      **eval_kwargs):
-        ski = np.broadcast_to(skp_idx, oshape[0:2]).reshape(-1, 1)
+        if skp_idx is None:
+            ski = np.full(oshape[0:2], -1).reshape(-1, 1)
+        else:
+            ski = np.broadcast_to(skp_idx, oshape[0:2]).reshape(-1, 1)
         # tuples of all combinations: order: (suns, pts) row-major
         idx_tup = np.hstack((self.data.idx[sidx], ski))
         # unique returns sorted values (evaluation order)
@@ -342,7 +404,10 @@ class DayLightPlaneKD(LightField):
             pbar_t = 0
             # submit asynchronous to process pool
             for qi, skp_qi in zip(sidx[qidx], qtup):
-                skp = self.skyplane.data[skp_qi[2]]
+                if skp_idx is None:
+                    skp = None
+                else:
+                    skp = self.skyplane.data[skp_qi[2]]
                 snp = self.data[qi]
                 mask = np.all(idx_tup == skp_qi, -1)
                 # manage to queue to avoid loading too many points in memory
@@ -423,11 +488,13 @@ def _img_pt(skpoint, snpoint, skyvecs, suns, dproxy, vms=None,  combos=None,
             qpts=None, skinfo=None, res=512, interp=False, prefix="img"):
     """point by point evaluation suitable for submitting to ProcessPool"""
     outfs = []
-    lpinfo = ["SKYPOINT= loc: ({:.3f}, {:.3f}, {:.3f}) {}".format(*skpoint.pt,
-                                                                  skpoint.file),
-              "SUNPOINT= loc: ({:.3f}, {:.3f}, {:.3f}) src: ({:.3f}, {:.3f}, "
-              "{:.3f}) {}".format(*skpoint.pt, *snpoint.srcdir[0],
-                                  skpoint.file)]
+    lpinfo = ["SUNPOINT= loc: ({:.3f}, {:.3f}, {:.3f}) src: ({:.3f}, {:.3f}, "
+              "{:.3f}) {}".format(*snpoint.pt, *snpoint.srcdir[0],
+                                  snpoint.file)]
+    if skpoint is not None:
+        lpinfo.append("SKYPOINT= loc: ({:.3f}, {:.3f}, "
+                      "{:.3f}) {}".format(*skpoint.pt, skpoint.file))
+    sky_i = -1
     for i, v in enumerate(vms):
         img, pdirs, mask, mask2, header = v.init_img(res)
         if interp:
@@ -435,13 +502,15 @@ def _img_pt(skpoint, snpoint, skyvecs, suns, dproxy, vms=None,  combos=None,
             sky_i = None
         else:
             sun_i, _ = snpoint.query_ray(pdirs[mask])
-            sky_i, _ = skpoint.query_ray(pdirs[mask])
+            if skpoint is not None:
+                sky_i, _ = skpoint.query_ray(pdirs[mask])
         for skyvec, sun, c, info, qpt in zip(skyvecs, suns, combos[:, i],
                                              skinfo, qpts):
             header = [v.header(qpt), "SKYCOND= sunpos: ({:.3f}, {:.3f}, {:.3f})"
                       " dirnorm: {} diffhoriz: {}".format(*info)] + lpinfo
-            skpoint.add_to_img(img, pdirs[mask], mask, vm=v, interp=interp,
-                               idx=sky_i, skyvec=skyvec)
+            if skpoint is not None:
+                skpoint.add_to_img(img, pdirs[mask], mask, vm=v, interp=interp,
+                                   idx=sky_i, skyvec=skyvec)
             snpoint.add_to_img(img, pdirs[mask], mask, vm=v, interp=interp,
                                idx=sun_i, skyvec=[sun[3]])
             outf = "{}_{}_{}_{}.hdr".format(prefix, *c)
@@ -449,3 +518,17 @@ def _img_pt(skpoint, snpoint, skyvecs, suns, dproxy, vms=None,  combos=None,
             io.array2hdr(img, outf, header)
             img[:] = 0
     return outfs
+
+
+def _indirect_to_suns(snp, skp, skd, skpatch, omegar, scene, srcprefix="i_"):
+    src = f"{srcprefix}{snp.src}"
+    pf1 = f"{scene.outdir}/{skp.parent}/{snp.src}_points.tsv"
+    pf2 = f"{scene.outdir}/{skp.parent}/{src}_points.tsv"
+    skvec = skp.vec
+    sklum = np.maximum((skp.lum - skd.lum)[:, skpatch]*omegar, 0)
+    ski = LightPointKD(scene, vec=skvec, lum=sklum, vm=skp.vm,
+                       pt=skp.pt, posidx=skp.posidx, src='indirect',
+                       srcn=1, srcdir=skp.srcdir[skpatch],
+                       write=False, omega=skp.omega, parent=skp.parent)
+    snp.add(ski, src=src, calcomega=True, write=True, sumsrc=True)
+    return pf1, pf2

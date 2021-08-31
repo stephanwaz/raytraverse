@@ -179,7 +179,6 @@ class BaseSampler(object):
         if si.size > 0:
             vecs = mapper.uv2xyz(uv, stackorigin=self._includeorigin)
             srate = si.shape[1]/np.prod(shape)
-            self._dump_vecs(vecs)
             if detaillog:
                 row = (f"{i + 1} of {self.levels.shape[0]}\t"
                        f"{str(shape): >11}\t{si.shape[1]: >7}\t"
@@ -262,6 +261,7 @@ class BaseSampler(object):
         lum: np.array
             array of shape (N,) to update weights
         """
+        self._dump_vecs(vecs)
         lum = self.engine.run(np.copy(vecs, 'C')).ravel()
         self.lum = np.concatenate((self.lum, lum))
         return lum

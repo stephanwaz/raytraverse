@@ -44,8 +44,8 @@ output = "metrics.npz"
 # In this example, only directions are dynamically sampled, but position and
 # solar sources are sampled for 1 level only at a low resolution. to sample
 # points dynamically, set SamplerArea(nlev=3, jitter=True).  To dynamically
-# sample suns, change  SamplerSuns(nlev=3) or other appropriate level.
-# refer to the documentation for adjusting the sampling scheme used in
+# sample suns, change  SamplerSuns(nlev=3, jitter=True) or other appropriate
+# level. refer to the documentation for adjusting the sampling scheme used in
 # directional sampling (SamplerPt, SkySamplerPt, SunSamplerPt).
 def main():
     loc = skycalc.get_loc_epw(epw)
@@ -72,7 +72,7 @@ def main():
     # argument of SamperSuns
     ptkwargs = dict(accuracy=2.0)
     areakwargs = dict(accuracy=2.0, nlev=1, jitter=False)
-    sunsampler = SamplerSuns(scn, rtrace, nlev=1,
+    sunsampler = SamplerSuns(scn, rtrace, nlev=1, jitter=False,
                              ptkwargs=ptkwargs, areakwargs=areakwargs)
 
     daylightfield = sunsampler.run(sm, pm, specguide=skyfield)

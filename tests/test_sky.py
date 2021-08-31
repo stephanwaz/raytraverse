@@ -27,24 +27,24 @@ def tmpdir(tmp_path_factory):
 
 
 def test_suns(tmpdir):
-    sm = SkyMapper((46.25, -6.13, -15))
+    sm = SkyMapper((46.25, -6.13, -15), sunres=22)
     suns = sm.solar_grid(False, 1)
     sm.plot(suns, "test_sky_suns.hdr", res=512, grow=0)
     ref = io.hdr2array("ref_sky_suns.hdr")
     test = io.hdr2array("test_sky_suns.hdr")
     assert np.allclose(ref, test, atol=.0001)
-    sm = SkyMapper((46.25, -6.13, -15))
+    sm = SkyMapper((46.25, -6.13, -15), sunres=22)
     suns = sm.solar_grid(True, 1)
     np.savetxt('test_suns.txt', suns)
-    sm = SkyMapper('test_suns.txt')
+    sm = SkyMapper('test_suns.txt', sunres=22)
     suns2 = sm.solar_grid(False, 1)
     assert np.allclose(suns, suns2, atol=.0001)
-    sm = SkyMapper(suns)
+    sm = SkyMapper(suns, sunres=22)
     suns2 = sm.solar_grid(False, 1)
     assert np.allclose(suns, suns2, atol=.0001)
-    sm = SkyMapper("geneva.wea")
+    sm = SkyMapper("geneva.wea", sunres=22)
     suns2 = sm.solar_grid(False, 3)
-    assert suns2.shape[0] == 605
+    assert suns2.shape[0] == 509
     img, vecs, mask, mask2, header = sm.init_img()
     img[mask] = sm.in_solarbounds(vecs[mask], level=3)
     io.array2hdr(img, "test_geneva_mask.hdr")
@@ -54,24 +54,24 @@ def test_suns(tmpdir):
 
 
 def test_sunrotation(tmpdir):
-    sm = SkyMapper((46.25, -6.13, -15), skyro=127)
+    sm = SkyMapper((46.25, -6.13, -15), skyro=127, sunres=22)
     suns = sm.solar_grid(False, 1)
     sm.plot(suns, "test2_sky_suns.hdr", res=512, grow=0)
     ref = io.hdr2array("ref2_sky_suns.hdr")
     test = io.hdr2array("test2_sky_suns.hdr")
     assert np.allclose(ref, test, atol=.0001)
-    sm = SkyMapper((46.25, -6.13, -15), skyro=127)
+    sm = SkyMapper((46.25, -6.13, -15), skyro=127, sunres=22)
     suns = sm.solar_grid(True, 1)
     np.savetxt('test2_suns.txt', suns)
-    sm = SkyMapper('test2_suns.txt')
+    sm = SkyMapper('test2_suns.txt', sunres=22)
     suns2 = sm.solar_grid(False, 1)
     assert np.allclose(suns, suns2, atol=.0001)
-    sm = SkyMapper(translate.rotate_elem(suns, -127), skyro=127)
+    sm = SkyMapper(translate.rotate_elem(suns, -127), skyro=127, sunres=22)
     suns2 = sm.solar_grid(False, 1)
     assert np.allclose(suns, suns2, atol=.0001)
-    sm = SkyMapper("geneva.wea", skyro=127)
+    sm = SkyMapper("geneva.wea", skyro=127, sunres=22)
     suns2 = sm.solar_grid(False, 3)
-    assert suns2.shape[0] == 600
+    assert suns2.shape[0] == 521
     img, vecs, mask, mask2, header = sm.init_img()
     img[mask] = sm.in_solarbounds(vecs[mask], level=3)
     io.array2hdr(img, "test2_geneva_mask.hdr")

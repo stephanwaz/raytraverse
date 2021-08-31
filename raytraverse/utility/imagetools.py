@@ -13,7 +13,6 @@ import clasp.script_tools as cst
 
 from raytraverse import translate, io
 from raytraverse.evaluate import MetricSet
-from raytraverse.scene import TStqdm
 from raytraverse.mapper.viewmapper import ViewMapper
 
 
@@ -101,43 +100,12 @@ def normalize_peak(v, o, l, scale=179, peaka=6.7967e-05, peakt=1e5, peakr=4):
     return v, o, l
 
 
-def imgmetric(imgf, metrics, peakn=False, scale=179, **peakwargs):
+def imgmetric(imgf, metrics, peakn=False, scale=179, threshold=2000.,
+              **peakwargs):
     vm = hdr2vm(imgf)
     if vm is None:
         vm = ViewMapper(viewangle=180)
     v, o, l = hdr2vol(imgf, vm)
     if peakn:
         v, o, l = normalize_peak(v, o, l, scale, **peakwargs)
-    return MetricSet(v, o, l, vm, metrics, scale=scale)()
-
-
-def multi_img_metric(imgs, metrics, cap=None, **peakwargs):
-    with TStqdm(workers=True, total=len(imgs), cap=cap,
-                desc="processing images") as pbar:
-        exc = pbar.pool
-        futures = []
-        done = set()
-        not_done = set()
-        cnt = 0
-        pbar_t = 0
-        # submit asynchronous to process pool
-        results = []
-        for img in imgs:
-            # manage to queue to avoid loading too many points in memory
-            # and update progress bar as completed
-            if cnt > pbar.nworkers*3:
-                wait_r = pbar.wait(not_done, return_when=pbar.FIRST_COMPLETED)
-                not_done = wait_r.not_done
-                done.update(wait_r.done)
-                pbar.update(len(done) - pbar_t)
-                pbar_t = len(done)
-            fu = exc.submit(imgmetric, img, metrics, **peakwargs)
-            futures.append(fu)
-            not_done.add(fu)
-            cnt += 1
-        # gather results (in order)
-        for future in futures:
-            results.append(future.result())
-            if future in not_done:
-                pbar.update(1)
-    return results
+    return MetricSet(v, o, l, vm, metrics, scale=scale, threshold=threshold)()

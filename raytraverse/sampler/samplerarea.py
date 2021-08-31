@@ -116,6 +116,41 @@ class SamplerArea(BaseSampler):
         super().run(mapper, name, levels, **kwargs)
         return LightPlaneKD(self.scene, self.vecs, self._mapper, self.stype)
 
+    def repeat(self, guide, stype):
+        """repeat the sampling of a guide LightPlane (to match all rays)
+
+        Parameters
+        ----------
+        guide: LightPlaneKD
+        stype: str, optional
+            alternate stype name for samplerpt. raises a ValueError if it
+            matches the guide.
+        Returns
+        -------
+
+        """
+        self._mapper = guide.pm
+        self._name = self._mapper.name
+        if stype == guide.src:
+            raise ValueError("stype cannot match guide.src, as it would "
+                             "overwrite data")
+        ostype = self.stype
+        self.stype = stype
+
+        self.vecs = None
+        self.lum = []
+
+        gvecs = guide.vecs
+        self._dump_vecs(gvecs)
+        pbar = self.scene.progress_bar(self, list(enumerate(gvecs)),
+                                       level=self._slevel, message="resampling")
+        for posidx, point in pbar:
+            gpt = guide.data[posidx]
+            self.engine.repeat(gpt, stype)
+        lp = LightPlaneKD(self.scene, self.vecs, self._mapper, self.stype)
+        self.stype = ostype
+        return lp
+
     def draw(self, level):
         """draw samples based on detail calculated from weights
 
@@ -186,6 +221,7 @@ class SamplerArea(BaseSampler):
         lum: np.array
             array of shape (N,) to update weights
         """
+        self._dump_vecs(vecs)
         idx = self.slices[-1].indices(self.slices[-1].stop)
         lums = []
         lpargs = dict(parent=self._name)
@@ -196,16 +232,26 @@ class SamplerArea(BaseSampler):
             kwargs.update(peakthreshold=self.engine.slimit)
             specguide = self._specguide
         level_desc = f"Level {len(self.slices)} of {len(self.levels)}"
-        pbar = self.scene.progress_bar(self, list(zip(range(*idx), vecs)),
-                                       level=self._slevel, message=level_desc)
+        if self.nlev == 1 and len(vecs) == 1:
+            logpoint = 'err'
+        else:
+            logpoint = None
+        if logpoint is not None:
+            self.engine._slevel -= 1
+            pbar = list(zip(range(*idx), vecs))
+        else:
+            pbar = self.scene.progress_bar(self, list(zip(range(*idx), vecs)),
+                                           level=self._slevel, message=level_desc)
         for posidx, point in pbar:
             if specguide is not None:
                 sgpt = self._load_specguide(point)
             lp = self.engine.run(point, posidx, specguide=sgpt, lpargs=lpargs,
-                                 log=None)
+                                 log=logpoint)
             vol = lp.evaluate(1)
             metric = self.metricclass(*vol, lp.vm,  **kwargs)
             lums.append(metric())
+        if logpoint is not None:
+            self.engine._slevel += 1
         if len(self.lum) == 0:
             self.lum = np.array(lums)
         else:

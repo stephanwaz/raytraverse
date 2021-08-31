@@ -95,14 +95,14 @@ class SunSamplerPt(SamplerPt):
         if level == self.specidx and self._specguide is not None:
             s = self._specguide.ravel()
             s[pdraws] = 0
+            # tried lowering slimit to capture small sun patches, but got
+            # large positive bias...
+            # sp = np.percentile(s, 99)
+            # if self.slimit < sp:
+            #     slimit = self.slimit
+            # else:
+            #     slimit = max(sp, self.slimit/100)
             sdraws = draw.from_pdf(s, self.slimit, ub=1)
-            pdraws = np.concatenate((pdraws, sdraws))
-        # try some additional brightness based sampling to find smaller patches
-        elif level in [1, 2] and self._specguide is not None:
-            s = translate.resample(self._specguide, self._wshape(level)).ravel()
-            s[pdraws] = 0
-            sdraws = draw.from_pdf(s, self.slimit/100, lb=self.lb, ub=self.ub)
-            print(len(pdraws), len(sdraws))
             pdraws = np.concatenate((pdraws, sdraws))
         return pdraws, pa + s
 

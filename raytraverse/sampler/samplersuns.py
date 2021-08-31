@@ -195,7 +195,6 @@ class SamplerSuns(BaseSampler):
         draws, p = self.draw(i)
         si, uv = self.sample_to_uv(draws, shape)
         if si.size > 0:
-            self._dump_vecs(vecs)
             srate = si.shape[1]/np.prod(shape)
             row = (f"{i + 1} of {self.levels.shape[0]}\t"
                    f"{str(shape): >11}\t{si.shape[1]: >7}\t"
@@ -214,7 +213,7 @@ class SamplerSuns(BaseSampler):
         In this way all solar positions are presented to the area sampler, but
         the area sampler is initialized with a weighting to sample only where
         there is variance between sun position. this keeps the subsampling of
-        area and solar position independent, escaping dimensional curses.
+        area and solar position independent.
 
         Returns
         -------
@@ -298,7 +297,7 @@ class SamplerSuns(BaseSampler):
         lum: np.array
             array of shape (N,) to update weights
         """
-
+        self._dump_vecs(vecs)
         idx = self.slices[-1].indices(self.slices[-1].stop)
         lums = []
 

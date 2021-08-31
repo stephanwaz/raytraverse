@@ -5,6 +5,8 @@
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 # =======================================================================
+import re
+
 import numpy as np
 
 
@@ -165,6 +167,30 @@ class LightResult(object):
             labels[i+1] = labels[i+1][slc]
 
         return result, labels, names
+
+    def print(self, col, aindices=None, findices=None, order=None,
+              header=True, rowlabel=True, file=None):
+        """first calls pull and then prints result to file"""
+        rt, labels, names = self.pull(col, aindices=aindices,
+                                      findices=findices, order=order)
+        if header:
+            h = '\t'.join([str(i) for i in labels[1]])
+            if rowlabel:
+                # construct row label format
+                row_label_names = dict(sky="sky", point="x\ty\tz",
+                                       view="dx\tdy\tdz", image="image",
+                                       metric="metric")
+                rln = "\t".join(
+                    [row_label_names[i] for i in names[0].split("_")])
+                h = rln + "\t" + h
+            print(h, file=file)
+        for r, rh in zip(rt, labels[0]):
+            rl = "\t".join([f"{i:.05f}" for i in r])
+            if rowlabel:
+                rl2 = "\t".join(str(i) for i in rh)
+                rl2 = re.sub(r"[(){}\[\]]", "", rl2).replace(", ", "\t")
+                rl = rl2 + "\t" + rl
+            print(rl, file=file)
 
     def pull2pandas(self, ax1, ax2, **kwargs):
         """returns a list of dicts suitable for initializing pandas.DataFrames
