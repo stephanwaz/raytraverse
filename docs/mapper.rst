@@ -40,3 +40,11 @@ PlanMapper
     :members:
     :undoc-members:
     :show-inheritance:
+
+MaskedPlanMapper
+------------------------------
+
+.. autoclass:: raytraverse.mapper.MaskedPlanMapper
+    :members:
+    :undoc-members:
+    :show-inheritance:

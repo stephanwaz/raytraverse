@@ -80,6 +80,7 @@ and then from the command line run::
 
    io
    translate
+   utility
 
 Tutorials
 ---------
