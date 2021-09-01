@@ -40,7 +40,7 @@ endmacro()
 
 
 set(VERSION_FILE "${CMAKE_CURRENT_SOURCE_DIR}/Version.c")
-create_version_file("${VERSION_FILE}")
+#create_version_file("${VERSION_FILE}")
 
 # make lists of radiance source files for library creation
 set(rtrad_SOURCES

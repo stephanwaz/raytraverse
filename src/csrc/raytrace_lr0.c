@@ -1,5 +1,5 @@
 #ifndef lint
-static const char RCSid[] = "$Id: raytrace.c,v 2.81 2020/03/29 18:21:57 greg Exp $";
+static const char RCSid[] = "$Id: raytrace.c,v 2.85 2021/06/09 18:21:10 greg Exp $";
 #endif
 /*
  *  raytrace.c - routines for tracing and shading rays.
@@ -147,6 +147,8 @@ rayclear(			/* clear a ray for (re)evaluation */
 	r->rox = NULL;
 	r->rxt = r->rmt = r->rot = FHUGE;
 	VCOPY(r->rop, r->rorg);
+	r->ron[0] = -r->rdir[0]; r->ron[1] = -r->rdir[1]; r->ron[2] = -r->rdir[2];
+	r->rod = 1.0;
 	r->pert[0] = r->pert[1] = r->pert[2] = 0.0;
 	r->rflips = 0;
 	r->uv[0] = r->uv[1] = 0.0;
@@ -514,6 +516,41 @@ flipsurface(			/* reverse surface orientation */
 	r->rflips++;
 }
 
+
+int
+rayreject(		/* check if candidate hit is worse than current */
+	OBJREC *o,
+	RAY *r,
+	double t
+)
+{
+	OBJREC	*mnew, *mray;
+
+	if ((t <= FTINY) | (t > r->rot + FTINY))
+		return(1);
+	if (t < r->rot - FTINY)		/* is new hit significantly closer? */
+		return(0);
+					/* coincident point, so decide... */
+	if (o == r->ro)
+		return(1);		/* shouldn't happen */
+	if (r->ro == NULL)
+		return(0);		/* ditto */
+	mnew = findmaterial(o);
+	mray = findmaterial(r->ro);	/* check material transparencies */
+	if (mnew == NULL) {
+		if (mray != NULL)
+			return(1);	/* new has no material */
+	} else if (mray == NULL) {
+		return(0);		/* old has no material(!) */
+	} else if (istransp(mnew->otype)) {
+		if (!istransp(mray->otype))
+			return(1);	/* new is transparent */
+	} else if (istransp(mray->otype)) {
+		return(0);		/* old is transparent */
+	}
+			/* weakest priority to later modifier definition */
+	return (r->ro->omod >= o->omod);
+}
 
 void
 rayhit(			/* standard ray hit test */

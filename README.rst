@@ -51,10 +51,6 @@ or if you have cloned this repository::
     cd path/to/this/file
     pip install .
 
-
-note that on first run the skycalc module may download some auxilary
-data which could take a minute, after that first run start-up is much faster.
-
 Usage
 -----
 raytraverse includes a complete command line interface with all commands
