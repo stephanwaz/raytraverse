@@ -24,18 +24,21 @@ add_subdirectory(pybind11)
 include_directories(pybind11/include/pybind11)
 include(pybind11_add_module_libs.cmake)
 
-#include_directories(Radiance/src/rt Radiance/src/common)
 include_directories(Radiance/src/common)
+
+execute_process(COMMAND git log --pretty=format:'%h' -n 1
+        WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/Radiance
+        OUTPUT_VARIABLE RADIANCE_VERSION
+        ERROR_QUIET)
 
 macro(create_version_file version_file)
     add_custom_command(
             OUTPUT "${version_file}"
             COMMAND "${CMAKE_COMMAND}"
-            -DRADIANCE_VERSION="${PROJECT_VERSION_MAJOR}.${PROJECT_VERSION_MINOR}.${PROJECT_VERSION_TWEAK}"
+            -DRADIANCE_VERSION="${RADIANCE_VERSION}"
             -DVERSION_OUT_FILE="${version_file}"
             -DVERSION_IN_FILE="${CMAKE_CURRENT_SOURCE_DIR}/Radiance/src/rt/VERSION"
-            -DVERSION_GOLD="${CMAKE_CURRENT_SOURCE_DIR}/Radiance/src/rt/Version.c"
-            -P "${CMAKE_CURRENT_SOURCE_DIR}/Radiance/src/rt/create_version.cmake"
+            -P "${CMAKE_CURRENT_SOURCE_DIR}/create_version.cmake"
     )
 endmacro()
 

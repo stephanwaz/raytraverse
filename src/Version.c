@@ -1,1 +1,1 @@
-char VersionID[]="RADIANCE 5.4a 2021-08-31 LBNL (..)";
+char VersionID[]="RADIANCE 5.4a (https://github.com/LBNL-ETA/Radiance/tree/c59dce44) compiled 2021-09-01 for raytraverse";

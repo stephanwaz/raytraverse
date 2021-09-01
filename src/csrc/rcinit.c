@@ -69,8 +69,9 @@ int	lim_dist = 0;			/* limit distance? */
 int	report_intvl = 0;		/* reporting interval (seconds) */
 int return_value_count = 0;
 
-const char	*modname[MAXMODLIST];	/* ordered modifier name list */
-int		nmods = 0;		/* number of modifiers */
+char	**modname = NULL;		/* ordered modifier name list */
+int	nmods = 0;			/* number of modifiers */
+int	modasiz = 0;			/* allocated modifier array size */
 
 char	RCCONTEXT[] = "RC.";		/* our special evaluation context */
 
