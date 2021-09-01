@@ -24,7 +24,8 @@ add_subdirectory(pybind11)
 include_directories(pybind11/include/pybind11)
 include(pybind11_add_module_libs.cmake)
 
-include_directories(Radiance/src/rt Radiance/src/common)
+#include_directories(Radiance/src/rt Radiance/src/common)
+include_directories(Radiance/src/common)
 
 macro(create_version_file version_file)
     add_custom_command(
@@ -40,7 +41,7 @@ endmacro()
 
 
 set(VERSION_FILE "${CMAKE_CURRENT_SOURCE_DIR}/Version.c")
-#create_version_file("${VERSION_FILE}")
+create_version_file("${VERSION_FILE}")
 
 # make lists of radiance source files for library creation
 set(rtrad_SOURCES
@@ -112,7 +113,12 @@ add_library(raycalls STATIC ${RAYCALLS})
 add_library(rcraycalls STATIC csrc/rcraycalls.c ${RCCALLFILES})
 add_library(rtracecfiles STATIC csrc/rtinit.c csrc/rtraceparts.c ${RTFILES} ${VERSION_FILE})
 add_library(rcontribcfiles STATIC csrc/rcinit.c csrc/rcontribparts.c csrc/rc3_mod.c csrc/rc2_mod.c ${VERSION_FILE})
-
+target_include_directories(rtrad PRIVATE Radiance/src/rt)
+target_include_directories(radiance PRIVATE Radiance/src/rt)
+target_include_directories(raycalls PRIVATE Radiance/src/rt)
+target_include_directories(rcraycalls PRIVATE Radiance/src/rt)
+target_include_directories(rtracecfiles PRIVATE Radiance/src/rt)
+target_include_directories(rcontribcfiles PRIVATE Radiance/src/rt)
 
 target_link_libraries(rtrad ${LIB_M})
 

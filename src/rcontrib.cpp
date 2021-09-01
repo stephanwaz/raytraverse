@@ -21,12 +21,12 @@
 #include "rcontrib.hh"
 
 namespace rayrc{
-#include <ray.h>
+#include "Radiance/src/rt/ray.h"
 #include "csrc/rcinit.h"
     extern "C" {
-#include <ambient.h>
-#include <pmapray.h>
-#include <func.h>
+#include "Radiance/src/rt/ambient.h"
+#include "Radiance/src/rt/pmapray.h"
+#include "Radiance/src/rt/func.h"
     }
 }
 
