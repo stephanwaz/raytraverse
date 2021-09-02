@@ -128,8 +128,7 @@ class DayLightPlaneKD(LightField):
         d, i = self.kd.query(weighted_vecs)
         return i, d
 
-    def add_indirect_to_suns(self, skyplanedirect, srcprefix="i_",
-                             overwrite=False):
+    def add_indirect_to_suns(self, skyplanedirect, srcprefix="i_"):
         """
 
         Parameters
@@ -138,8 +137,6 @@ class DayLightPlaneKD(LightField):
             a skyplane with matching ray samples to self.skyplane
             (use SamplerArea.repeat) representing the direct contribution from
             sky patches.
-        overwrite: bool, optional
-            overwrite output
         srcprefix: str, optional
             if inplace is False, the prefix to add to the source names
         Returns
@@ -162,7 +159,7 @@ class DayLightPlaneKD(LightField):
                 args.append((self.data[i], self.skyplane.data[si],
                              skyplanedirect.data[si], skpatches[i]))
         file_depend = pool_call(_indirect_to_suns, args, omegar, self.scene,
-                                overwrite=overwrite, srcprefix=srcprefix,
+                                srcprefix=srcprefix,
                                 desc="adding indirect to LightPoints")
         file_depend = set(file_depend)
         if None in file_depend:

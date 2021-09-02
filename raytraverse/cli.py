@@ -415,7 +415,6 @@ def sunengine(ctx, accuracy=1.0, idres=5, rayargs=None, default_args=True,
                     idres=idres, fdres=fdres)
     ctx.obj['sunengine'] = dict(engine=rtrace, ptkwargs=ptkwargs)
 
-
 sample_opts = [
  click.option("-accuracy", default=1.0,
               help="parameter to set threshold at sampling level relative to "
@@ -570,7 +569,8 @@ def sunrun(ctx, srcaccuracy=1.0, srcnlev=3, srcjitter=True, recover=False,
         shutil.rmtree(sunfile, ignore_errors=True)
         for src in glob(f"{scn.outdir}/{pm.name}/{skmapper.name}_sun_*"):
             shutil.rmtree(src, ignore_errors=True)
-            raise OSError
+        for src in glob(f"{scn.outdir}/{pm.name}/i_{skmapper.name}_sun_*"):
+            shutil.rmtree(src, ignore_errors=True)
     dfield = sunsampler.run(skmapper, pm, specguide=specguide, recover=recover,
                             plotp=plotp, pfish=False)
     if dcomp is not None:
