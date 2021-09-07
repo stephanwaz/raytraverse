@@ -52,8 +52,8 @@ def test_uv2xy():
 
 def test_xyz2uv(thetas):
     xyz = translate.tp2xyz(thetas)
-    uv = translate.xyz2uv(xyz, normalize=True)
-    xyz2 = translate.uv2xyz(uv)
+    uv = translate.xyz2uv(xyz, normalize=True, flipu=True)
+    xyz2 = translate.uv2xyz(uv, xsign=-1)
     for a, b in zip(xyz, xyz2):
         assert np.allclose(a, b)
 

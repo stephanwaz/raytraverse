@@ -66,6 +66,3 @@ def pool_call(func, args, *fixed_args, cap=None, desc="processing", **kwargs):
             if future in not_done:
                 pbar.update(1)
     return results
-
-
-

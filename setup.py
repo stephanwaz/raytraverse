@@ -43,7 +43,8 @@ setup_dict = dict(
     description="adaptive sampling for CBDM",
     python_requires=">=3.6",
     entry_points={
-        'console_scripts': ['raytraverse=raytraverse.cli:main'],
+        'console_scripts': ['raytraverse=raytraverse.cli:main',
+                            'raytu=raytraverse.raytu:main'],
         },
     install_requires=requirements,
     license="Mozilla Public License 2.0 (MPL 2.0)",

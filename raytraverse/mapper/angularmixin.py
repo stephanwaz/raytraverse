@@ -53,7 +53,8 @@ class AngularMixin(object):
     def xyz2vxy(self, xyz):
         """transform from world xyz to view image space (2d)"""
         rxyz = self.world2view(np.atleast_2d(xyz))
-        xy = translate.xyz2xy(rxyz) * 180 / (self.viewangle * self._chordfactor)
+        xy = (translate.xyz2xy(rxyz, flip=self._flipu) * 180 /
+              (self.viewangle * self._chordfactor))
         return xy/2 + .5
 
     def vxy2xyz(self, xy, stackorigin=False):
@@ -63,7 +64,9 @@ class AngularMixin(object):
         pxy *= (self.viewangle * self._chordfactor) / 180
         d = np.sqrt(np.sum(np.square(pxy), -1))
         z = np.cos(np.pi*d)
+        nperr = np.seterr(all="ignore")
         d = np.where(d <= 0, np.pi, np.sqrt(1 - z*z)/d)
+        np.seterr(**nperr)
         pxy *= d[..., None]
         xyz = np.concatenate((pxy, z[..., None]), -1)
         xyz = self.view2world(xyz.reshape(-1, 3)).reshape(xyz.shape)

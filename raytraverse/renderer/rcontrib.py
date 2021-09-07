@@ -117,6 +117,6 @@ class Rcontrib(RadianceRenderer):
             cpu limit
 
         """
-        args = (f" -V+ {args} -e 'side:{cls.side}' -f scbins.cal "
+        args = (f" -V+ {args} -w- -e 'side:{cls.side}' -f scbins.cal "
                 f"-b bin -bn {cls.srcn} -m {cls.modname}")
         super().set_args(args, nproc)

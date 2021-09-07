@@ -52,7 +52,7 @@ def uv2xy(uv):
     return xy
 
 
-def uv2xyz(uv, axes=(0, 1, 2), xsign=-1):
+def uv2xyz(uv, axes=(0, 1, 2), xsign=1):
     """translate from 2 x unit square (0,2),(0,1) to unit sphere (x,y,z)
     http://psgraphics.blogspot.com/2011/01/improved-code-for-concentric
     -map.html.
@@ -80,7 +80,7 @@ def uv2xyz(uv, axes=(0, 1, 2), xsign=-1):
     return xyz
 
 
-def xyz2uv(xyz, normalize=False, axes=(0, 1, 2), flipu=True):
+def xyz2uv(xyz, normalize=False, axes=(0, 1, 2), flipu=False):
     """translate from vector x,y,z (normalized) to u,v (0,2),(0,1)
     Shirley, Peter, and Kenneth Chiu. A Low Distortion Map Between Disk and
     Square. Journal of Graphics Tools, vol. 2, no. 3, Jan. 1997, pp. 45-52.
@@ -210,7 +210,7 @@ def skybin2xyz(bn, side):
 # Translate to/from anglular fisheye projeection #
 ##################################################
 
-def xyz2xy(xyz, axes=(0, 1, 2), flip=True):
+def xyz2xy(xyz, axes=(0, 1, 2), flip=False):
     """xyz coordinates to xy mapping of angular fisheye proejection"""
     xyz = np.atleast_2d(xyz)
     r = np.arctan2(np.sqrt(np.sum(np.square(xyz[:, axes[0:2]]), -1)),

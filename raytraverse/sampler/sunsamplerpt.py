@@ -6,6 +6,7 @@
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 # =======================================================================
 import os
+import tempfile
 
 import numpy as np
 
@@ -64,7 +65,8 @@ class SunSamplerPt(SamplerPt):
         self.sunpos = np.asarray(sun).flatten()[0:3]
         self.sunbin = sunbin
         # load new source
-        srcdef = f'{scene.outdir}/tmp_srcdef_{sunbin}.rad'
+        f, srcdef = tempfile.mkstemp(dir=f"./{scene.outdir}/", prefix='tmp_src')
+        # srcdef = f'{scene.outdir}/tmp_srcdef_{sunbin}.rad'
         f = open(srcdef, 'w')
         f.write(scene.formatter.get_sundef(sun, (1, 1, 1)))
         f.close()

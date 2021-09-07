@@ -27,7 +27,7 @@ def test_uv2xyz():
 def test_xyz2uv():
     grid_u, grid_v = np.mgrid[0:2:2/2048, 0:1:1/1024]
     uv = np.vstack((grid_u.flatten(), grid_v.flatten())).T + 1/2048
-    xyz = translate.uv2xyz(uv, axes=(0, 2, 1))
+    xyz = translate.uv2xyz(uv, axes=(0, 2, 1), xsign=-1)
     vm = ViewMapper( (.13,-.435,1), viewangle=90)
     inside = np.sum(np.prod(np.logical_and(vm.xyz2uv(xyz) > 0, vm.xyz2uv(xyz) < 1), 1))/xyz.shape[0]
     assert np.isclose(inside, 1/8, atol=1e-4)
