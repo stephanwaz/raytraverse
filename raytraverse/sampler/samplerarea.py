@@ -74,6 +74,7 @@ class SamplerArea(BaseSampler):
         self._edgemode = edgemode
         self._mask = slice(None)
         self._candidates = None
+        self._plotpchild = False
         self.slices = []
         #: raytraverse.evaluate.BaseMetricSet
         self.metricclass = metricclass
@@ -88,7 +89,7 @@ class SamplerArea(BaseSampler):
         """calculate sampling scheme"""
         return np.array([mapper.shape(i) for i in range(self.nlev)])
 
-    def run(self, mapper, name=None, specguide=None, **kwargs):
+    def run(self, mapper, name=None, specguide=None, plotp=False, **kwargs):
         """adapively sample an area defined by mapper
 
         Parameters
@@ -113,7 +114,9 @@ class SamplerArea(BaseSampler):
         self._name = name
         self._specguide = specguide
         levels = self.sampling_scheme(mapper)
-        super().run(mapper, name, levels, **kwargs)
+        plotpthis = plotp and len(levels) > 1
+        self._plotpchild = plotp and not plotpthis
+        super().run(mapper, name, levels, plotp=plotpthis, **kwargs)
         return LightPlaneKD(self.scene, self.vecs, self._mapper, self.stype)
 
     def repeat(self, guide, stype):
@@ -246,7 +249,7 @@ class SamplerArea(BaseSampler):
             if specguide is not None:
                 sgpt = self._load_specguide(point)
             lp = self.engine.run(point, posidx, specguide=sgpt, lpargs=lpargs,
-                                 log=logpoint)
+                                 log=logpoint, plotp=self._plotpchild)
             vol = lp.evaluate(1)
             metric = self.metricclass(*vol, lp.vm,  **kwargs)
             lums.append(metric())

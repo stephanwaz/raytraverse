@@ -163,7 +163,7 @@ ncomp: int
 
 
 PYBIND11_MODULE(rtrace_c, m){
-  py::class_<Rtrace>(m, "cRtrace", R"pbdoc(singleton interface to the Radiance rtrace executable.
+  py::class_<Rtrace>(m, "cRtrace", py::module_local(), R"pbdoc(singleton interface to the Radiance rtrace executable.
 
 See the rtrace man page for a full description of the programs functionality. Instance is initialized with a list
 of arguments similar to the command line tool, but with several differences:

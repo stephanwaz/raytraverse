@@ -290,7 +290,7 @@ class SamplerSuns(BaseSampler):
         Parameters
         ----------
         vecs: np.array
-            sample vectors (subclasses can choose which to use)
+            sample vectors
 
         Returns
         -------

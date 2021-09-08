@@ -6,7 +6,7 @@ venv/
 MANIFEST
 _skbuild/
 .coveralls.yml
-
+buildenv/
 
 
 *.bsp
