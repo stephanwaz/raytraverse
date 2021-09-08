@@ -57,6 +57,7 @@ def main(ctx, out=None, config=None, n=None,  **kwargs):
     clk.get_config_chained(ctx, config, None, None, None)
     ctx.obj = dict(out=out)
 
+
 @main.command()
 @click.option("-d", callback=np_load,
               help="a .npy file, a whitespace "

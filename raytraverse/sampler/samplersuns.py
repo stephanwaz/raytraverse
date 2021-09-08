@@ -18,6 +18,7 @@ from raytraverse.sampler.basesampler import BaseSampler, filterdict
 from raytraverse.sampler.sunsamplerpt import SunSamplerPt
 from raytraverse.lightfield import DayLightPlaneKD, LightPlaneKD
 from raytraverse.evaluate import SamplingMetrics
+from raytraverse.utility import pool_call
 
 
 class SamplerSuns(BaseSampler):
@@ -126,7 +127,7 @@ class SamplerSuns(BaseSampler):
 
     def run(self, skymapper, areamapper, specguide=None,
             recover=True, **kwargs):
-        """adapively sample sun positions for an area (also adaptively sampled)
+        """adaptively sample sun positions for an area (also adaptively sampled)
 
         Parameters
         ----------
@@ -284,6 +285,58 @@ class SamplerSuns(BaseSampler):
         si = np.stack(np.unravel_index(pdraws, shape))
         return si, self._candidates[pdraws]
 
+    def _sample_sun(self, suni, sunpos, adraws):
+        """this function is for calling with a process pool, by declaring the
+        sun sampler point after the child process is forked/spawned the
+        call to engine.load_source happens on an isolated memory instance,
+        allowing for concurrency on different scenes, despite the singleton/
+        global namespace issues of the cRtrace instance."""
+        sunsamp = SunSamplerPt(self.scene, self.engine, sunpos, suni,
+                               stype=f"{self._skymapper.name}_sun",
+                               **self._ptkwargs)
+        areasampler = SamplerArea(self.scene, sunsamp, **self._areakwargs)
+        if adraws is not None:
+            amapper = MaskedPlanMapper(self._areamapper, adraws, 0)
+        else:
+            amapper = self._areamapper
+        needs_sampling = True
+        if self._recovery_data is not None:
+            try:
+                src = f"{self._skymapper.name}_sun_{suni:04d}"
+                pts = (f"{self.scene.outdir}/{self._areamapper.name}/"
+                       f"{src}_points.tsv")
+                lf = LightPlaneKD(self.scene, pts, self._areamapper, src)
+                metrics = self._areakwargs['metricset']
+                try:
+                    mc = self._areakwargs['metricclass']
+                except KeyError:
+                    mc = SamplingMetrics
+                areasampler.lum = lf.evaluate(1, metrics=metrics,
+                                              metricclass=mc)
+                shp = (*areasampler.sampling_scheme(amapper)[-1],
+                       areasampler.features)
+            except (ValueError, OSError):
+                pass
+            else:
+                needs_sampling = False
+        if needs_sampling:
+            lf = areasampler.run(amapper, specguide=self._specguide,
+                                 log=False)
+            shp = (*areasampler.levels[-1], areasampler.features)
+        # build weights based on final sampling
+        candidates = amapper.point_grid_uv(jitter=False,
+                                           level=areasampler.nlev - 1,
+                                           masked=False)
+        mask = amapper.in_view_uv(candidates, False)
+        wvecs = amapper.uv2xyz(candidates)
+        idx, d = lf.query(wvecs)
+        weights = areasampler.lum[idx].reshape(shp)
+        weights = np.moveaxis(weights, 2, 0)
+        weights = weights[self._metidx]
+        for w in weights:
+            w.flat[np.logical_not(mask)] = -1
+        return weights
+
     def sample(self, vecs):
         """call rendering engine to sample rays
 
@@ -299,60 +352,17 @@ class SamplerSuns(BaseSampler):
         """
         self._dump_vecs(vecs)
         idx = self.slices[-1].indices(self.slices[-1].stop)
-        lums = []
-
-        pbar = self.scene.progress_bar(self, list(zip(range(*idx), vecs,
-                                                      self._areadraws)),
-                                       level=self._slevel)
         level_desc = f"Level {len(self.slices)} of {len(self.levels)}"
-        for suni, sunpos, adraws in pbar:
-            sunsamp = SunSamplerPt(self.scene, self.engine, sunpos, suni,
-                                   stype=f"{self._skymapper.name}_sun",
-                                   **self._ptkwargs)
-            areasampler = SamplerArea(self.scene, sunsamp, **self._areakwargs)
-            if adraws is not None:
-                amapper = MaskedPlanMapper(self._areamapper, adraws, 0)
-            else:
-                amapper = self._areamapper
-            needs_sampling = True
-            if self._recovery_data is not None:
-                try:
-                    src = f"{self._skymapper.name}_sun_{suni:04d}"
-                    pts = (f"{self.scene.outdir}/{self._areamapper.name}/"
-                           f"{src}_points.tsv")
-                    lf = LightPlaneKD(self.scene, pts, self._areamapper, src)
-                    pbar.set_description(f"Recovering {level_desc}")
-                    metrics = self._areakwargs['metricset']
-                    try:
-                        mc = self._areakwargs['metricclass']
-                    except KeyError:
-                        mc = SamplingMetrics
-                    areasampler.lum = lf.evaluate(1, metrics=metrics,
-                                                  metricclass=mc)
-                    shp = (*areasampler.sampling_scheme(amapper)[-1],
-                           areasampler.features)
-                except (ValueError, OSError):
-                    pass
-                else:
-                    needs_sampling = False
-            if needs_sampling:
-                pbar.set_description(level_desc)
-                lf = areasampler.run(amapper, specguide=self._specguide,
-                                     log=False)
-                shp = (*areasampler.levels[-1], areasampler.features)
-            # build weights based on final sampling
-            candidates = amapper.point_grid_uv(jitter=False,
-                                               level=areasampler.nlev - 1,
-                                               masked=False)
-            mask = amapper.in_view_uv(candidates, False)
-            wvecs = amapper.uv2xyz(candidates)
-            idx, d = lf.query(wvecs)
-            weights = areasampler.lum[idx].reshape(shp)
-            weights = np.moveaxis(weights, 2, 0)
-            weights = weights[self._metidx]
-            for w in weights:
-                w.flat[np.logical_not(mask)] = -1
-            lums.append(weights)
+        # if engine is configured for internal multiprocessing run on one
+        # process, else use environment cap. Generally, if -ab > 0 then run
+        # with rtrace -n X for better memory efficiency, else, use processpool
+        # cap
+        if self.engine.nproc is None or self.engine.nproc > 1:
+            cap = 1
+        else:
+            cap = None
+        lums = pool_call(self._sample_sun, list(zip(range(*idx), vecs,
+                         self._areadraws)), desc=level_desc, cap=cap)
         lums = np.array(lums)
         # initialize areaweights here now that we know the shape
         if len(self.lum) == 0:

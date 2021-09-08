@@ -25,7 +25,7 @@ class RadianceRenderer(Renderer):
     defaultargs = ""
     args = None
     _args = None
-    _nproc = None
+    nproc = None
 
     def __init__(self, rayargs=None, scene=None, nproc=None, default_args=True):
         type(self).instance = self.engine.get_instance()
@@ -63,9 +63,9 @@ class RadianceRenderer(Renderer):
 
         """
         if nproc is None:
-            nproc = cls._nproc
+            nproc = cls.nproc
         nproc = io.get_nproc(nproc)
-        cls._nproc = nproc
+        cls.nproc = nproc
         cls.args = args
         cls._args = shlex.split(f"{cls.name} -n {nproc} {args}")
         nproc = cls.instance.initialize(cls._args)

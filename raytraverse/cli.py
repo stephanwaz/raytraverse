@@ -360,10 +360,12 @@ def skyengine(ctx, accuracy=1.0, idres=5, rayargs=None, default_args=True,
 @click.option('-dcompargs', default='-ab 0',
               help="additional arguments for running direct component. when "
                    "using, set -ab in skyengine.rayargs to this ab plus one.")
+@click.option("--usedcomp/--no-usedcomp", default=False,
+              help="configure Rtrace as a dcomp run (appends dcompargs)")
 @clk.shared_decs(clk.command_decs(raytraverse.__version__, wrap=True))
 def sunengine(ctx, accuracy=1.0, idres=5, rayargs=None, default_args=True,
               fdres=10, slimit=0.01, maxspec=0.2, dcompargs='-ab 0',
-              usedecomp=False, opts=False, debug=False, version=None, **kwargs):
+              usedcomp=False, opts=False, debug=False, version=None, **kwargs):
     """initialize engine for sunrun
 
     Effects
@@ -373,12 +375,17 @@ def sunengine(ctx, accuracy=1.0, idres=5, rayargs=None, default_args=True,
     if 'scene' not in ctx.obj:
         clk.invoke_dependency(ctx, scene, reload=True, overwrite=False)
     scn = ctx.obj['scene']
-    if usedecomp:
+    print(usedcomp)
+    if usedcomp:
+        nproc = 1
         if rayargs is not None:
             rayargs += " " + dcompargs
         else:
             rayargs = dcompargs
-    rtrace = Rtrace(rayargs=rayargs, scene=scn.scene, default_args=default_args)
+    else:
+        nproc = None
+    rtrace = Rtrace(rayargs=rayargs, scene=scn.scene, default_args=default_args,
+                    nproc=nproc)
     ptkwargs = dict(slimit=slimit, maxspec=maxspec, accuracy=accuracy,
                     idres=idres, fdres=fdres)
     ctx.obj['sunengine'] = dict(engine=rtrace, ptkwargs=ptkwargs)

@@ -51,7 +51,7 @@ class BaseSampler(object):
 
     #: initial sampling threshold coefficient
     #: this value times the accuracy parameter is passed to
-    #: raytraverse.sampler.draw.from_pdf() at level 0
+    #: raytraverse.sampler.draw.from_pdf() at level 0 (usually not used)
     t0 = 2**-8
     #: final sampling threshold coefficient
     #: this value times the accuracy parameter is passed to
