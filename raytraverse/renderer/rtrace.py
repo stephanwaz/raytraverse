@@ -16,7 +16,7 @@ class Rtrace(RadianceRenderer):
     """singleton wrapper for c++ raytrraverse.crenderer.cRtrace class
 
     this class sets default arguments, helps with initialization and setting
-    cpu limits of the cRtrace instance. see raytrraverse.crenderer.cRtrace
+    cpu limits of the cRtrace instance. see raytraverse.crenderer.cRtrace
     for more details.
 
     Parameters

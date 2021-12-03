@@ -17,7 +17,7 @@ from raytraverse import translate
 from raytraverse.lightfield import ResultAxis
 from raytraverse.lightfield import LightResult
 from raytraverse.utility import pool_call, imagetools
-from raytraverse.utility.cli import np_load, np_load_safe, shared_pull
+from raytraverse.utility.cli import np_load, shared_pull, pull_decs
 
 
 @click.group(chain=True, invoke_without_command=True)
@@ -184,6 +184,8 @@ def imgmetric(ctx, imgs=None, metrics=None, parallel=True,
 
 
 @main.command()
+@clk.shared_decs(pull_decs)
+@clk.shared_decs(clk.command_decs(raytraverse.__version__, wrap=True))
 def pull(*args, **kwargs):
     return shared_pull(*args, **kwargs)
 

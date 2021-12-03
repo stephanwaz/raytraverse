@@ -22,7 +22,7 @@ from raytraverse import translate
 from raytraverse.lightfield import LightPlaneKD, DayLightPlaneKD, ResultAxis
 from raytraverse.lightfield import LightResult
 from raytraverse.mapper import PlanMapper, SkyMapper, ViewMapper
-from raytraverse.utility.cli import np_load, np_load_safe, shared_pull
+from raytraverse.utility.cli import np_load, np_load_safe, shared_pull, pull_decs
 from raytraverse.scene import Scene
 from raytraverse.renderer import Rtrace, Rcontrib
 from raytraverse.sampler import SkySamplerPt, SamplerArea, SamplerSuns
@@ -375,7 +375,6 @@ def sunengine(ctx, accuracy=1.0, idres=5, rayargs=None, default_args=True,
     if 'scene' not in ctx.obj:
         clk.invoke_dependency(ctx, scene, reload=True, overwrite=False)
     scn = ctx.obj['scene']
-    print(usedcomp)
     if usedcomp:
         nproc = 1
         if rayargs is not None:
@@ -409,7 +408,7 @@ sample_opts = [
 @clk.shared_decs(sample_opts)
 @click.option("--dcomp/--no-dcomp", default=True,
               help="calculate indirect sun component from skyrun "
-                   "(think 5-phase)")
+                   "(2-phase DDS / daysim / 5-phase)")
 @click.option("--overwrite/--no-overwrite", default=False,
               help="If True, reruns sampler when invoked, otherwise will first"
                    " attempt to load results")
@@ -638,6 +637,7 @@ def images(ctx, sensors=None, sdirs=None, viewangle=180., skymask=None,
                              includesky=not sunonly)
     if skymask is not None:
         sd.mask = skymask
+    sensors = np.atleast_2d(sensors)
     if sensors.shape[1] == 6:
         result = []
         for sensor in sensors:
@@ -645,7 +645,7 @@ def images(ctx, sensors=None, sdirs=None, viewangle=180., skymask=None,
             vm = ViewMapper(sensor[3:6], viewangle)
             result.append(df.make_images(sd, point, vm, res=res, interp=interpolate,
                           prefix=basename, namebyindex=namebyindex))
-        result = np.concatenate(result, axis=1)
+        result = np.concatenate(result)
     elif sdirs is None:
         raise ValueError("if sensors do not have directions, sdirs cannot be "
                          "None")
@@ -699,10 +699,16 @@ rows in wea/epw file using space seperated list or python range notation:
 @click.option("--npz/--no-npz", default=True,
               help="write LightResult object to .npz, use 'raytraverse pull'"
                    "or LightResult('basename.npz') to access results")
+@click.option("--serr/--no-serr", default=False,
+              help="include columns of sampling info/errors columns are: "
+                   "sun_pt_err, sun_pt_bin, sky_pt_err, sky_pt_bin, sun_err, "
+                   "sun_bin. 'err' is distance from queried vector to actual. "
+                   "'bin' is the unraveled idx of source vector at a 500^2 "
+                   "resolution of the mapper.")
 @clk.shared_decs(clk.command_decs(raytraverse.__version__, wrap=True))
 def evaluate(ctx, sensors=None, sdirs=None, viewangle=180., skymask=None,
              metrics=None, basename="results", sunonly=False, dcomp=True,
-             npz=True, **kwargs):
+             npz=True, serr=False, **kwargs):
     """evaluate metrics
 
     Prequisites
@@ -744,6 +750,7 @@ def evaluate(ctx, sensors=None, sdirs=None, viewangle=180., skymask=None,
                              includesky=not sunonly)
     if skymask is not None:
         sd.mask = skymask
+    sensors = np.atleast_2d(sensors)
     if sensors.shape[1] == 6:
         result = []
         for sensor in sensors:
@@ -760,7 +767,7 @@ def evaluate(ctx, sensors=None, sdirs=None, viewangle=180., skymask=None,
                          "None")
     else:
         result = df.evaluate(sd, sensors, sdirs, viewangle=viewangle,
-                             metrics=metrics)
+                             metrics=metrics, datainfo=serr)
     if npz:
         result.write(f"{basename}.npz")
     sd.mask = None
@@ -768,6 +775,8 @@ def evaluate(ctx, sensors=None, sdirs=None, viewangle=180., skymask=None,
 
 
 @main.command()
+@clk.shared_decs(pull_decs)
+@clk.shared_decs(clk.command_decs(raytraverse.__version__, wrap=True))
 def pull(*args, **kwargs):
     return shared_pull(*args, **kwargs)
 

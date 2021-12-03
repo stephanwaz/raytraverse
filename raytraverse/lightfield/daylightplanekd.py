@@ -309,6 +309,9 @@ class DayLightPlaneKD(LightField):
                                    metricclass=metricclass, metrics=metrics,
                                    vm=vm, vms=vms, **kwargs)
         if sinfo is not None:
+            nshape = list(sinfo.shape)
+            nshape[2] = fields.shape[2]
+            sinfo = np.broadcast_to(sinfo, nshape)
             fields = np.concatenate((fields, sinfo), axis=-1)
 
         lr = LightResult(fields, skyaxis, ptaxis, viewaxis, metricaxis)
@@ -449,17 +452,6 @@ def _evaluate_pt(skpoint, snpoint, skyvecs, suns, dproxy, vm=None, vms=None,
     else:
         sunskypt = [skpoint.add(snpoint)]
         smtx = [np.hstack((skyvecs, suns[:, 3:4]))]
-        # use sky only (did not work so well)
-        # has_dview = len(snpoint.srcviews) > 0
-        # has_peak = np.max(snpoint.lum) > .01
-        # has_samples = snpoint.omega.size / skpoint.omega.size > .25
-        # if has_dview or has_peak or has_samples:
-        #     sunskypt = [skpoint.add(snpoint)]
-        #     smtx = [np.hstack((skyvecs, suns[:, 3:4]))]
-        # else:
-        #     sunskypt = [skpoint]
-        #     smtx = [np.copy(skyvecs)]
-        #     smtx[0][np.arange(len(smtx)), dproxy.ravel()] += suns[:, 4]
     if len(vms) == 1:
         args = (vms[0].dxyz, vms[0].viewangle * vms[0].aspect)
         didx = [lpt.query_ball(*args)[0] for lpt in sunskypt]
