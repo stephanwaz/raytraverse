@@ -18,6 +18,7 @@ from clasp.script_tools import try_mkdir
 from raytraverse import io, translate
 from raytraverse.mapper import ViewMapper
 from raytraverse.lightpoint.srcviewpoint import SrcViewPoint
+from raytraverse.renderer import Rtrace
 
 
 class LightPointKD(object):
@@ -261,13 +262,49 @@ class LightPointKD(object):
         if vm is None:
             vm = self.vm
         if interp:
-            xyp = vm.xyz2vxy(vecs)
-            xys = vm.xyz2vxy(self.vec)
-            interp = LinearNDInterpolator(xys, val[0], fill_value=-1)
-            lum = interp(xyp[:, 0], xyp[:, 1])
-            neg = lum < 0
-            i, d = self.query_ray(vecs[neg])
-            lum[neg] = val[0, i]
+
+            pts = np.hstack(np.broadcast_arrays(self.pt[None], self.vec))
+            pts_o = np.hstack(np.broadcast_arrays(self.pt[None], vecs))
+            rt = Rtrace("-ab 0", self.scene.scene)
+            rt.update_ospec("LNM")
+            sgeo = rt(pts)
+            sgeo_o = rt(pts_o)
+
+            mods = sgeo[:, 4].astype(int)
+            norms = sgeo[:, 1:4]
+            dist = sgeo[:, 0]
+
+            mods_o = sgeo_o[:, 4].astype(int)
+            norms_o = sgeo_o[:, 1:4]
+            dist_o = sgeo_o[:, 0]
+
+            bandwidth = 10
+            ntol = 0.2
+            dtol = 0.5
+
+            d, i = self.d_kd.query(vecs, bandwidth)
+            d = 1/np.square(d)
+
+            mod_match = np.equal(mods[i], mods_o[:, None])
+            norm_match = np.all(np.isclose(norms[i], norms_o[:, None], atol=ntol), 2)
+            dist_match = np.abs(dist[i] - dist_o[:, None]) < dtol
+            all_match = np.logical_and(mod_match, np.logical_and(norm_match, dist_match))
+            # fall back to closest when there is no match
+            all_match[np.sum(all_match, 1) == 0, 0] = True
+            d[np.logical_not(all_match)] = 0
+            d = d/np.sum(d, 1)[:, None]
+            dc = np.cumsum(d, 1)
+            c = np.random.default_rng().random(len(vecs))
+            ic = np.array(list(map(np.searchsorted, dc, c)))[:, None]
+            i = np.take_along_axis(i, ic, 1).ravel()
+            # xyp = vm.xyz2vxy(vecs)
+            # xys = vm.xyz2vxy(self.vec)
+            # interp = LinearNDInterpolator(xys, val[0], fill_value=-1)
+            # lum = interp(xyp[:, 0], xyp[:, 1])
+            # neg = lum < 0
+            # i, d = self.query_ray(vecs[neg])
+            # lum[neg] = val[0, i]
+            lum = val[:, i]
         else:
             if idx is not None:
                 i = idx
