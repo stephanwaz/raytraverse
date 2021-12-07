@@ -18,10 +18,10 @@ from raytraverse.lightfield import ResultAxis
 from raytraverse.lightfield import LightResult
 from raytraverse.utility import pool_call, imagetools
 from raytraverse.utility.cli import np_load, shared_pull, pull_decs
+from raytraverse.scene import ImageScene
 
 
 @click.group(chain=True, invoke_without_command=True)
-@click.option('-out', type=click.Path(file_okay=False))
 @click.option('-config', '-c', type=click.Path(exists=True),
               help="path of config file to load")
 @click.option('--template/--no-template', is_eager=True,
@@ -55,7 +55,6 @@ def main(ctx, out=None, config=None, n=None,  **kwargs):
     raytraverse.io.set_nproc(n)
     ctx.info_name = 'raytu'
     clk.get_config_chained(ctx, config, None, None, None)
-    ctx.obj = dict(out=out)
 
 
 @main.command()
@@ -117,6 +116,7 @@ def transform(ctx, d=None, flip=False, reshape=None, cols=None,
             print(*o)
     else:
         np.savetxt(outf, out)
+
 
 @main.command()
 @click.option("-imgs", callback=clk.are_files,
@@ -182,6 +182,30 @@ def imgmetric(ctx, imgs=None, metrics=None, parallel=True,
         lr.write(f"{basename}.npz")
     ctx.obj['lightresult'] = lr
 
+
+@main.command()
+@click.option('-out', default="imglf", type=click.Path(file_okay=False),
+              help="output directory")
+@click.option("-imga", callback=clk.are_files,
+              help="hdr image files, primary view direction, must be angular "
+                   "fisheye projection, view header required")
+@click.option("-imgb", callback=clk.are_files,
+              help="hdr image files, opposite view direction, must be angular "
+                   "fisheye projection, assumed to be same as imga with -vd"
+                   " reversed")
+@clk.shared_decs(clk.command_decs(raytraverse.__version__, wrap=True))
+def img2lf(ctx, imga=None, imgb=None, out="imglf", **kwargs):
+    """read and compress angular fisheye images into lightpoints/lightplane"""
+    if imga is None:
+        click.echo("-imga is required", err=True)
+        raise click.Abort
+    if imgb is None:
+        imgb = [None] * len(imga)
+    elif len(imgb) < len(imga):
+        imgb = imgb + [None] * (len(imga) - len(imgb))
+    scene = ImageScene(out)
+    srcs = [f"img{i:03d}" for i in range(len(imga))]
+    results = pool_call(imagetools.img2lf, list(zip(imga, imgb, srcs)), scn=scene)
 
 @main.command()
 @clk.shared_decs(pull_decs)

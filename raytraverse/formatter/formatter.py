@@ -22,6 +22,8 @@ class Formatter(object):
     @staticmethod
     def make_scene(scene_files, out, frozen=True):
         """compile scene"""
+        if scene_files is None:
+            return None
         if not os.path.isfile(scene_files):
             raise FileNotFoundError(f"{scene_files} must be an existing file")
         if frozen:
