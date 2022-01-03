@@ -202,7 +202,7 @@ class DayLightPlaneKD(LightField):
 
         Returns
         -------
-        np.array of out_files shape (skiees, points, views)
+        np.array of out_files shape (skies, points, views)
 
         """
         points = np.atleast_2d(points)

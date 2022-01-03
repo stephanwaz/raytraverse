@@ -142,9 +142,15 @@ engine_opts = [
               help="replaces z in points or zone")
 @click.option("-name", default="plan",
               help="name for zone/point group (impacts file naming)")
+@click.option("--printdata/--no-printdata", default=False,
+              help="if True, print areamapper positions (either boundary or "
+                   "static points)")
+@click.option("-printlevel", type=int,
+              help="print a set of sun positions at sampling level "
+                   "(overrides printdata)")
 @clk.shared_decs(clk.command_decs(raytraverse.__version__, wrap=True))
 def area(ctx, static_points=None, zone=None, opts=False, debug=False,
-         version=None, **kwargs):
+         version=None, printdata=False, printlevel=None, **kwargs):
     """define sampling area
 
     Effects
@@ -161,6 +167,16 @@ def area(ctx, static_points=None, zone=None, opts=False, debug=False,
     if zone is None:
         raise ValueError("one of 'static_points' or 'zone' must be defined")
     ctx.obj['planmapper'] = PlanMapper(zone, **kwargs)
+    if printdata or printlevel is not None:
+        pm = ctx.obj['planmapper']
+        if printlevel is not None:
+            xyz = pm.point_grid(level=printlevel, jitter=False)
+        elif ctx.obj['static_points']:
+            xyz = zone
+        else:
+            xyz = np.array(pm.borders()).reshape(-1, 3)
+        for x in xyz:
+            print("{: >10.05f} {: >10.05f} {: >10.05f}".format(*x))
 
 
 @main.command()
