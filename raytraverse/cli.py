@@ -27,6 +27,7 @@ from raytraverse.scene import Scene
 from raytraverse.renderer import Rtrace, Rcontrib
 from raytraverse.sampler import SkySamplerPt, SamplerArea, SamplerSuns
 from raytraverse.sky import SkyData, skycalc
+from raytraverse.lightfield.integrator import Integrator
 
 
 @click.group(chain=True, invoke_without_command=True)
@@ -277,6 +278,8 @@ def suns(ctx, loc=None, opts=False, debug=False, version=False, epwloc=False,
               help="minimum solar altitude for daylight masking")
 @click.option("-mindiff", default=5.0,
               help="minumum diffuse horizontal irradiance for daylight masking")
+@click.option("-mindir", default=0.0,
+              help="minumum direct normal irradiance for daylight masking")
 @click.option("--reload/--no-reload", default=True,
               help="reload saved skydata if it exists in scene directory")
 @click.option("-name", default="skydata",
@@ -654,21 +657,25 @@ def images(ctx, sensors=None, sdirs=None, viewangle=180., skymask=None,
     if skymask is not None:
         sd.mask = skymask
     sensors = np.atleast_2d(sensors)
+    if sunonly:
+        itg = Integrator(df)
+    else:
+        itg = Integrator(df, df.skyplane)
     if sensors.shape[1] == 6:
         result = []
         for sensor in sensors:
             point = sensor[0:3]
             vm = ViewMapper(sensor[3:6], viewangle)
-            result.append(df.make_images(sd, point, vm, res=res, interp=interpolate,
+            result.append(itg.make_images(sd, point, vm, res=res, interp=interpolate,
                           prefix=basename, namebyindex=namebyindex))
         result = np.concatenate(result)
     elif sdirs is None:
         raise ValueError("if sensors do not have directions, sdirs cannot be "
                          "None")
     else:
-        result = df.make_images(sd, sensors, sdirs, viewangle=viewangle,
-                                res=res, interp=interpolate, prefix=basename,
-                                namebyindex=namebyindex)
+        result = itg.make_images(sd, sensors, sdirs, viewangle=viewangle,
+                                 res=res, interp=interpolate, prefix=basename,
+                                 namebyindex=namebyindex)
     for d in result:
         print(d)
     sd.mask = None
@@ -767,12 +774,17 @@ def evaluate(ctx, sensors=None, sdirs=None, viewangle=180., skymask=None,
     if skymask is not None:
         sd.mask = skymask
     sensors = np.atleast_2d(sensors)
+    if sunonly:
+        itg = Integrator(df)
+    else:
+        itg = Integrator(df, df.skyplane)
     if sensors.shape[1] == 6:
         result = []
         for sensor in sensors:
             point = sensor[0:3]
             vm = ViewMapper(sensor[3:6], viewangle)
-            result.append(df.evaluate(sd, point, vm, metrics=metrics))
+            result.append(itg.evaluate(sd, point, vm, metrics=metrics,
+                                       datainfo=serr))
         data = np.concatenate([r.data for r in result], axis=1)
         ptaxis = ResultAxis(sensors, "point")
         viewaxis = ResultAxis([0], "view")
@@ -782,8 +794,8 @@ def evaluate(ctx, sensors=None, sdirs=None, viewangle=180., skymask=None,
         raise ValueError("if sensors do not have directions, sdirs cannot be "
                          "None")
     else:
-        result = df.evaluate(sd, sensors, sdirs, viewangle=viewangle,
-                             metrics=metrics, datainfo=serr)
+        result = itg.evaluate(sd, sensors, sdirs, viewangle=viewangle,
+                              metrics=metrics, datainfo=serr)
     if npz:
         result.write(f"{basename}.npz")
     sd.mask = None

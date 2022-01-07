@@ -109,8 +109,12 @@ class AngularMixin(object):
             return mask
 
     def header(self, pt=(0, 0, 0), **kwargs):
+        if np.allclose(self.dxyz, (0, 0, 1)):
+            vup = "0 1 0"
+        else:
+            vup = "0 0 1"
         return ('VIEW= -vta -vv {0} -vh {0} -vd {1} {2} {3} -vp {4} {5} '
-                '{6}'.format(self.viewangle, *self.dxyz, *pt))
+                '{6} -vu {7}'.format(self.viewangle, *self.dxyz, *pt, vup))
 
     def init_img(self, res=512, pt=(0, 0, 0), **kwargs):
         """Initialize an image array with vectors and mask

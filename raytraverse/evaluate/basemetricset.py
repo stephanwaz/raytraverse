@@ -48,7 +48,7 @@ class BaseMetricSet(object):
     defaultmetrics = ["illum", "avglum", "loggcr"]
 
     allmetrics = defaultmetrics + ["gcr", "pwgcr", "logpwgcr", "density",
-                                   "avgraylum", "pwavglum"]
+                                   "avgraylum", "pwavglum", "maxlum"]
 
     safe2sum = {"illum", "avglum", "density"}
 
@@ -204,6 +204,12 @@ class BaseMetricSet(object):
         """average luminance"""
         return (np.einsum('i,i->', self.lum, self.omega) *
                 self.scale/self.view_area)
+
+    @property
+    @functools.lru_cache(1)
+    def maxlum(self):
+        """average luminance"""
+        return np.max(self.lum) * self.scale
 
     @property
     @functools.lru_cache(1)

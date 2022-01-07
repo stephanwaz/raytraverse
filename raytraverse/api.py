@@ -11,10 +11,13 @@
 import os
 from glob import glob
 
+import numpy as np
+
 from raytraverse.scene import Scene
 from raytraverse.sky import SkyData
 from raytraverse.mapper import PlanMapper
 from raytraverse.lightfield import DayLightPlaneKD
+from raytraverse.lightpoint import LightPointKD
 
 
 def auto_reload(scndir, area, areaname="plan", skydata="skydata", ptres=1.0,
@@ -25,7 +28,7 @@ def auto_reload(scndir, area, areaname="plan", skydata="skydata", ptres=1.0,
     ----------
     scndir: str
         matches outdir argument of Scene()
-    area: str np.array, optional
+    area: str np.array
         radiance scene geometry defining a plane to sample, tsv file of
         points to generate bounding box, or np.array of points.
     areaname: str, optional
@@ -67,3 +70,25 @@ def auto_reload(scndir, area, areaname="plan", skydata="skydata", ptres=1.0,
         skname = f"i_{skname}"
     lp = DayLightPlaneKD(scn, sunfile, pm, skname, includesky=includesky)
     return lp, skd
+
+
+def load_lp(path, hasparent=True):
+    ftree = path.split("/")
+    if hasparent:
+        scndir = ftree[-4]
+        parent = ftree[-3]
+    else:
+        scndir = ftree[-3]
+        parent = None
+    scn = Scene(scndir)
+    pidx = int(ftree[-1].split(".")[0])
+    try:
+        pts = np.loadtxt(path.replace(f"/{ftree[-1]}", "_points.tsv"))
+    except FileNotFoundError:
+        pt = (0, 0, 0)
+    else:
+        pt = pts[pidx, -3:]
+    return LightPointKD(scn, parent=parent, src=ftree[-2], posidx=pidx, pt=pt)
+
+
+

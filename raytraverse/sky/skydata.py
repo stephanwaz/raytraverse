@@ -39,7 +39,7 @@ class SkyData(object):
     """
 
     def __init__(self, wea, loc=None, skyro=0.0, ground_fac=0.15,
-                 skyres=10.0, minalt=2.0, mindiff=5.0):
+                 skyres=10.0, minalt=2.0, mindiff=5.0, mindir=0.0):
         self.skyres = skyres
         self.ground_fac = ground_fac
         if loc is None and wea is not None:
@@ -51,6 +51,7 @@ class SkyData(object):
         self._loc = loc
         self._minalt = minalt
         self._mindiff = mindiff
+        self._mindir = mindir
         self._skyro = skyro
         self._sunproxy = None
         self.skydata = wea
@@ -102,6 +103,7 @@ class SkyData(object):
             minz = np.sin(self._minalt * np.pi / 180)
             daymask = np.logical_and(skydata[:, 2] > minz,
                                      skydata[:, 4] > self._mindiff)
+            daymask = np.logical_and(daymask, skydata[:, 3] > self._mindir)
             sxyz = skydata[daymask, 0:3]
             dirdif = skydata[daymask, 3:]
             if md is not None:
@@ -294,7 +296,7 @@ class SkyData(object):
         mask = np.copy(self.daymask)
         mask[self.daymask] = self.mask
         px = np.full((self.skydata.shape[0], *x.shape[1:]), fill_value,
-                     dtype=float)
+                     dtype=x.dtype)
         px[mask] = x
         return px
 

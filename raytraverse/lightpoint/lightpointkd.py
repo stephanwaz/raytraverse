@@ -60,11 +60,15 @@ class LightPointKD(object):
     def __init__(self, scene, vec=None, lum=None, vm=None, pt=(0, 0, 0),
                  posidx=0, src='sky', srcn=1, srcdir=(0, 0, 1), calcomega=True,
                  write=True, omega=None, filterviews=True, srcviews=None,
-                 parent=None):
+                 parent=None, srcviewidxs=None):
         if srcviews is None:
             srcviews = []
         self.srcviews = [i for i in srcviews
                          if issubclass(type(i), SrcViewPoint)]
+        if srcviewidxs is None:
+            self.srcviewidxs = [-1] * len(self.srcviews)
+        else:
+            self.srcviewidxs = srcviewidxs
         if vm is None:
             vm = ViewMapper()
         #: raytraverse.mapper.ViewMapper
@@ -108,6 +112,10 @@ class LightPointKD(object):
         self._d_kd, self._vec, self._omega, self._lum = loads[0:4]
         self.srcviews = loads[4]
         self.srcdir = loads[5]
+        try:
+            self.srcviewidxs = loads[6]
+        except IndexError:
+            self.srcviewidxs = [-1] * len(self.srcviews)
         self.srcn = self.lum.shape[1]
         f.close()
 
@@ -119,7 +127,8 @@ class LightPointKD(object):
             try_mkdir(f"{self.scene.outdir}/{self.src}")
         f = open(self.file, 'wb')
         pickle.dump((self._d_kd, self._vec, self._omega, self._lum,
-                     self.srcviews, self.srcdir), f, protocol=4)
+                     self.srcviews, self.srcdir, self.srcviewidxs), f,
+                    protocol=4)
         f.close()
 
     @property
@@ -312,8 +321,8 @@ class LightPointKD(object):
                 i, d = self.query_ray(vecs)
             lum = val[:, i]
         img[mask] += np.squeeze(lum)
-        for srcview in self.srcviews:
-            srcview.add_to_img(img, vecs, mask, skyvec[-1], vm)
+        for srcview, srcidx in zip(self.srcviews, self.srcviewidxs):
+            srcview.add_to_img(img, vecs, mask, skyvec[srcidx], vm)
 
     def evaluate(self, skyvec, vm=None, idx=None, srcvecoverride=None,
                  srconly=False):
@@ -362,8 +371,8 @@ class LightPointKD(object):
             lum = self.apply_coef(skyvec)[:, idx].T
         if len(self.srcviews) > 0:
             vrs = []
-            for srcview in self.srcviews:
-                srcvec = np.atleast_2d(skyvec)[:, -1]
+            for srcview, srcidx in zip(self.srcviews, self.srcviewidxs):
+                srcvec = np.atleast_2d(skyvec)[:, srcidx]
                 vrs.append(srcview.evaluate(srcvec, vm))
             vr, vo, vl = zip(*vrs)
             vl = np.array(vl)
@@ -528,11 +537,14 @@ class LightPointKD(object):
             srcn = self.srcn + lf2.srcn
         if src is None:
             src = f"{self.src}_{lf2.src}"
+        svi = [i if i >= 0 else self.srcn + i for i in self.srcviewidxs]
+        svi2 = [i + self.srcn if i >= 0 else i for i in lf2.srcviewidxs]
         return type(self)(self.scene, vecs, lums, vm=self.vm, pt=self.pt,
                           posidx=self.posidx, src=src, calcomega=calcomega,
                           srcn=srcn, write=write, srcdir=srcdir,
                           srcviews=self.srcviews + lf2.srcviews,
-                          filterviews=False, parent=self.parent)
+                          srcviewidxs=svi + svi2, filterviews=False,
+                          parent=self.parent)
 
     def update(self, vec, lum, omega=None, calcomega=True, write=True,
                filterviews=False):

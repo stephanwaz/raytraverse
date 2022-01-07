@@ -8,6 +8,7 @@
 from glob import glob
 
 import numpy as np
+from scipy.spatial import cKDTree
 from clasp.script_tools import try_mkdir, sglob
 
 from raytraverse import io, translate
@@ -190,9 +191,11 @@ class SamplerSuns(BaseSampler):
         shape = self.levels[i]
         uv = self._skymapper.xyz2uv(vecs)
         idx = self._skymapper.uv2idx(uv, shape)
-        candidates = np.full((np.prod(shape), 2), 3.0)
+        candidates = self._skymapper.solar_grid_uv(jitter=self.jitter,
+                                                   level=i, masked=False)
         candidates[idx] = uv
-        self._lift_weights(i, candidates=candidates)
+        self._candidates = candidates
+        self._lift_weights(i)
         draws, p = self.draw(i)
         si, uv = self.sample_to_uv(draws, shape)
         if si.size > 0:
@@ -283,7 +286,9 @@ class SamplerSuns(BaseSampler):
         if len(pdraws) == 0:
             return np.empty(0), np.empty(0)
         si = np.stack(np.unravel_index(pdraws, shape))
-        return si, self._candidates[pdraws]
+        uv = self._candidates[pdraws]
+        self._candidates = None
+        return si, uv
 
     def _sample_sun(self, suni, sunpos, adraws):
         """this function is for calling with a process pool, by declaring the
@@ -379,11 +384,10 @@ class SamplerSuns(BaseSampler):
         update = self._areaweights[..., si[0], si[1]]
         self._areaweights[..., si[0], si[1]] = np.where(lum > 0, lum, update)
 
-    def _lift_weights(self, i, candidates=None):
-        if candidates is None:
-            candidates = self._skymapper.solar_grid_uv(jitter=self.jitter,
-                                                       level=i, masked=False)
-        self._candidates = candidates
+    def _lift_weights(self, i):
+        if self._candidates is None:
+            self._candidates = self._skymapper.solar_grid_uv(jitter=self.jitter,
+                                                             level=i, masked=False)
         shape = self._skymapper.shape(i)
         mask = self._skymapper.in_solarbounds_uv(self._candidates,
                                                  level=i).reshape(shape)

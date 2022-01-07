@@ -38,15 +38,18 @@ class LightResult(object):
         axis information
     """
 
-    def __init__(self, data, *axes):
+    def __init__(self, data, *axes, header=None):
+        self._file = None
         if not hasattr(data, "shape"):
-            data, axes = self.load(data)
+            self._file = data
+            data, axes, header = self.load(data)
         if len(data.shape) != len(axes):
             raise ValueError(f"data of shape: {data.shape} requires "
                              f"{len(data.shape)} axes arguments.")
         self._data = data
         self._axes = axes
         self._names = [a.name for a in axes]
+        self._header = header
 
     @property
     def data(self):
@@ -60,6 +63,14 @@ class LightResult(object):
     def names(self):
         return self._names
 
+    @property
+    def header(self):
+        return self._header
+
+    @property
+    def file(self):
+        return self._file
+
     @staticmethod
     def load(file):
         with np.load(file) as result:
@@ -67,17 +78,24 @@ class LightResult(object):
             names = result['names']
             axes = tuple([ResultAxis(result[f"arr_{i}"], n)
                           for i, n in enumerate(names)])
-        return data, axes
+            try:
+                header = result['heeader']
+            except KeyError:
+                header = None
+        return data, axes, header
 
     def write(self, file, compressed=True):
-        kws = dict(data=self.data, names=self.names)
+        kws = dict(data=self.data, names=self.names, header=self.header)
         args = [a.values for a in self.axes]
         if compressed:
             np.savez_compressed(file, *args, **kws)
         else:
             np.savez(file, *args, **kws)
         if hasattr(file, "write"):
+            self._file = file.name
             file.close()
+        else:
+            self._file = file
 
     def pull(self, *axes, aindices=None, findices=None, order=None):
         """arrange and extract data slices from result.
@@ -117,7 +135,7 @@ class LightResult(object):
         """
         if aindices is None:
             aindices = []
-        else:
+        elif len(axes) == 1:
             aindices = np.atleast_2d(aindices)
         # get the indexes and shape of keeper axes
         idx = [self._index(i) for i in axes]
@@ -163,34 +181,95 @@ class LightResult(object):
         # transpose result and apply slice
         result = np.transpose(data, order + idx).reshape(-1, *shp)
         for i, slc in enumerate(aindices):
-            result = np.take(result, slc, axis=i+1)
-            labels[i+1] = labels[i+1][slc]
+            if slc is not None:
+                result = np.take(result, slc, axis=i+1)
+                labels[i+1] = labels[i+1][slc]
 
         return result, labels, names
 
-    def print(self, col, aindices=None, findices=None, order=None,
-              header=True, rowlabel=True, file=None):
-        """first calls pull and then prints result to file"""
-        rt, labels, names = self.pull(col, aindices=aindices,
-                                      findices=findices, order=order)
+    @staticmethod
+    def _print(file, rt, labels, names, header=True, rowlabel=True):
         if header:
-            h = '\t'.join([str(i) for i in labels[1]])
-            if rowlabel:
-                # construct row label format
-                row_label_names = dict(sky="sky", point="x\ty\tz",
-                                       view="dx\tdy\tdz", image="image",
-                                       metric="metric")
-                rln = "\t".join(
-                    [row_label_names[i] for i in names[0].split("_")])
-                h = rln + "\t" + h
+            h = LightResult.pull_header(names, labels, rowlabel)
             print(h, file=file)
-        for r, rh in zip(rt, labels[0]):
+        if rowlabel:
+            rls = LightResult.row_labels(labels[0])
+        else:
+            rls = labels[0]
+        for r, rh in zip(rt, rls):
             rl = "\t".join([f"{i:.05f}" for i in r])
             if rowlabel:
-                rl2 = "\t".join(str(i) for i in rh)
-                rl2 = re.sub(r"[(){}\[\]]", "", rl2).replace(", ", "\t")
-                rl = rl2 + "\t" + rl
+                rl = rh + "\t" + rl
             print(rl, file=file)
+
+    @staticmethod
+    def row_labels(labels):
+        rls = []
+        for rh in labels:
+            rl = "\t".join(str(i) for i in rh)
+            rl = re.sub(r"[(){}\[\]]", "", rl).replace(", ", "\t")
+            rls.append(rl)
+        return rls
+
+    @staticmethod
+    def pull_header(names, labels, rowlabel=True):
+        h = [str(i) for i in labels[1]]
+        if rowlabel:
+            # construct row label format
+            row_label_names = dict(sky="sky", point="x\ty\tz",
+                                   view="dx\tdy\tdz", image="image",
+                                   metric="metric")
+            h = [row_label_names[i] for i in names[0].split("_")] + h
+        return "\t".join(h)
+
+    def print(self, col, aindices=None, findices=None, order=None,
+              header=True, rowlabel=True, file=None):
+        """first calls pull and then prints 2d result to file"""
+        rt, labels, names = self.pull(col, aindices=aindices,
+                                      findices=findices, order=order)
+        self._print(file, rt, labels, names, header, rowlabel)
+
+    def return2d(self, col, aindices=None, findices=None, order=None,
+                 rowlabel=True):
+        rt, labels, names = self.pull(col, aindices=aindices,
+                                      findices=findices, order=order)
+        header = self.pull_header(names, labels, rowlabel)
+        rowlabels = self.row_labels(labels[0])
+        return rt, header, rowlabels
+
+    def print_serial(self, col, basename, aindices=None, findices=None,
+                     order=None, header=True, rowlabel=True):
+        """print 3d result to series of 2d files
+
+            col[0] is column, col[1] is file
+        """
+        rt, labels, names = self.pull(*col, aindices=aindices,
+                                      findices=findices, order=order)
+        if aindices[1] is None:
+            idxs = range(rt.shape[-1])
+        else:
+            idxs = aindices[1]
+        for i, j in enumerate(idxs):
+            f = open(f"{basename}_{names[-1]}_{j:04d}.txt", 'w')
+            self._print(f, rt[..., i], labels[0:-1], names[0:-1], header,
+                        rowlabel)
+            f.close()
+
+    def return_serial(self, col, basename, aindices=None, findices=None,
+                      order=None, rowlabel=True):
+        rt, labels, names = self.pull(*col, aindices=aindices,
+                                      findices=findices, order=order)
+        if aindices[1] is None:
+            idxs = range(rt.shape[-1])
+        else:
+            idxs = aindices[1]
+        frames = {}
+        header = self.pull_header(names[0:-1], labels[0:-1], rowlabel)
+        rowlabels = self.row_labels(labels[0])
+        for i, j in enumerate(idxs):
+            key = f"{basename}_{names[-1]}_{j:04d}.txt"
+            frames[key] = rt[..., i]
+        return frames, header, rowlabels
 
     def pull2pandas(self, ax1, ax2, **kwargs):
         """returns a list of dicts suitable for initializing pandas.DataFrames

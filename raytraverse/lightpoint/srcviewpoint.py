@@ -128,7 +128,8 @@ class SrcViewPoint(object):
             img += i2
 
     def evaluate(self, sunval, vm=None):
-        if vm is None or vm.in_view(self.vec, indices=False)[0]:
+        if (vm is None or vm.aspect == 2 or
+                vm.in_view(self.vec, indices=False)[0]):
             svlm = self.lum * sunval/self.blursun
             svo = self.omega * self.blursun
             return self.vec, svo, svlm
