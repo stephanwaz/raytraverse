@@ -7,7 +7,6 @@
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 # =======================================================================
 import os
-import sys
 
 import numpy as np
 from clasp import click
@@ -107,25 +106,7 @@ def shared_pull(ctx, lr=None, col="metric", order=('point', 'view', 'sky'),
                    err=True)
         raise click.Abort
     if info:
-        ns = result.names
-        sh = result.data.shape
-        axs = result.axes
-        click.echo(f"LightResult: {result.file}:", err=True)
-        click.echo(result.header, err=True)
-        click.echo(f"LightResult has {len(ns)} axes: {ns}", err=True)
-        for n, s, a in zip(ns, sh, axs):
-            click.echo(f"  Axis '{n}' has length {s}:", err=True)
-            v = a.values
-            if len(v) < 20:
-                for i, k in enumerate(v):
-                    click.echo(f"  {i: 5d} {k}", err=True)
-            else:
-
-                for i in [0, 1, 2, 3, "...", s-2, s-1]:
-                    if i == "...":
-                        click.echo(f"  {i}", err=True)
-                    else:
-                        click.echo(f"  {i: 5d} {v[i]}", err=True)
+        click.echo(result.info(), err=True)
         return None
     filters = dict(metric=metricfilter, sky=skyfilter, point=ptfilter,
                    view=viewfilter, image=imgfilter)
@@ -159,54 +140,14 @@ def shared_pull(ctx, lr=None, col="metric", order=('point', 'view', 'sky'),
 
     if skyfill is not None:
         skydata = SkyData(skyfill)
-        if col == "sky":
-            raise ValueError("skyfill cannot be used with col='sky'")
-        if len(result.data.shape) == 2:
-            raise ValueError("skyfill only compatible with 4d lightresults")
-        skysize = result.axes[axes.index("sky")].values.size
-        if skydata.daysteps != skysize:
-            raise ValueError(f"LightResult ({skysize}) and SkyData "
-                             f"({skydata.daysteps}) do not match along sky "
-                             f"axis")
         if skyfilter is not None:
             skydata.mask = skyfilter
-        if ofiles is None:
-            data, hdr, rowlabels = result.return2d(col, filters[col],
-                                                   findices, order, rowlabel)
-            frames = {"stdout": data}
-        else:
-            if hasattr(findices[0], "stop"):
-                findices[0] = None
-            aindices = [filters[col], findices[0]]
-            findices = findices[1:]
-            col = [col, order[0]]
-            order = order[1:]
-            frames, hdr, rowlabels = result.return_serial(col, ofiles, aindices,
-                                                          findices, order,
-                                                          rowlabel)
-        if len(rowlabels) != skydata.smtx.shape[0]:
-            raise ValueError(f"pulled data has {len(rowlabels)} rows but "
-                             f"{skydata.smtx.shape[0]} rows expected by "
-                             f"SkyData")
-        fv = "\t".join(["0"] * len(rowlabels[0].split("\t")))
-        rhfull = skydata.fill_data(np.asarray(rowlabels), fv)
-        for out, data in frames.items():
-            if out == "stdout":
-                f = sys.stdout
-            else:
-                f = open(out, 'w')
-            dfull = skydata.fill_data(data)
-            if header:
-                print(hdr, file=f)
-            for rh, d in zip(rhfull, dfull):
-                rl = "\t".join([f"{i:.05f}" for i in d])
-                if rowlabel:
-                    rl = rh + "\t" + rl
-                print(rl, file=f)
+    else:
+        skydata = None
 
-    elif ofiles is None:
+    if ofiles is None:
         result.print(col, aindices=filters[col], findices=findices, order=order,
-                     **pargs)
+                     skyfill=skydata, **pargs)
     else:
         if hasattr(findices[0], "stop"):
             findices[0] = None
@@ -215,4 +156,4 @@ def shared_pull(ctx, lr=None, col="metric", order=('point', 'view', 'sky'),
         col = [col, order[0]]
         order = order[1:]
         result.print_serial(col, ofiles, aindices=aindices, findices=findices,
-                            order=order, **pargs)
+                            order=order, skyfill=skydata, **pargs)

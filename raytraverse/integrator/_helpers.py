@@ -13,19 +13,21 @@ from raytraverse import io
 from raytraverse.lightpoint import LightPointKD
 
 
-def evaluate_pt(skpoint, snpoint, skyvecs, suns, dproxy, vm=None, vms=None,
-                 metricclass=None, metrics=None, srconly=False,
-                 sumsafe=False, **kwargs):
+def evaluate_pt(lpts, skyvecs, suns, vm=None, vms=None,
+                metricclass=None, metrics=None, srconly=False,
+                sumsafe=False, **kwargs):
     """point by point evaluation suitable for submitting to ProcessPool"""
-    if srconly:
-        sunskypt = [snpoint]
-        smtx = [suns[:, 3]]
-    elif sumsafe:
-        sunskypt = [skpoint, snpoint]
-        smtx = [skyvecs, suns[:, 3]]
+    if srconly or sumsafe:
+        sunskypt = lpts
+        smtx = skyvecs
     else:
-        sunskypt = [skpoint.add(snpoint)]
-        smtx = [np.hstack((skyvecs, suns[:, 3:4]))]
+        lp0 = lpts[0]
+        for lp in lpts[1:]:
+            lp0 = lp0.add(lp)
+        sunskypt = [lp0]
+        print(lp0.srcn)
+        smtx = [np.hstack(skyvecs)]
+
     if len(vms) == 1:
         args = (vms[0].dxyz, vms[0].viewangle * vms[0].aspect)
         didx = [lpt.query_ball(*args)[0] for lpt in sunskypt]
@@ -47,35 +49,27 @@ def evaluate_pt(skpoint, snpoint, skyvecs, suns, dproxy, vm=None, vms=None,
     return np.sum(srcs, axis=0)
 
 
-def img_pt(skpoint, snpoint, skyvecs, suns, dproxy, vms=None,  combos=None,
-            qpts=None, skinfo=None, res=512, interp=False, prefix="img"):
+def img_pt(lpts, skyvecs, suns, vms=None,  combos=None,
+           qpts=None, skinfo=None, res=512, interp=False, prefix="img"):
     """point by point evaluation suitable for submitting to ProcessPool"""
     outfs = []
-    lpinfo = ["SUNPOINT= loc: ({:.3f}, {:.3f}, {:.3f}) src: ({:.3f}, {:.3f}, "
-              "{:.3f}) {}".format(*snpoint.pt, *snpoint.srcdir[0],
-                                  snpoint.file)]
-    if skpoint is not None:
-        lpinfo.append("SKYPOINT= loc: ({:.3f}, {:.3f}, "
-                      "{:.3f}) {}".format(*skpoint.pt, skpoint.file))
-    sky_i = -1
+    lpinfo = ["LPOINT{}= loc: ({:.3f}, {:.3f}, {:.3f}) src: ({:.3f}, {:.3f}, "
+              "{:.3f}) {}".format(i, *lpt.pt, *lpt.srcdir[0], lpt.file)
+              for i, lpt in enumerate(lpts)]
     for i, v in enumerate(vms):
         img, pdirs, mask, mask2, header = v.init_img(res)
         if interp:
-            sun_i = None
-            sky_i = None
+            lp_is = [None] * len(lpts)
         else:
-            sun_i, _ = snpoint.query_ray(pdirs[mask])
-            if skpoint is not None:
-                sky_i, _ = skpoint.query_ray(pdirs[mask])
-        for skyvec, sun, c, info, qpt in zip(skyvecs, suns, combos[:, i],
-                                             skinfo, qpts):
+            lp_is = [lpt.query_ray(pdirs[mask])[0] for lpt in lpts]
+        for j, (c, info, qpt) in enumerate(zip(combos[:, i], skinfo, qpts)):
             header = [v.header(qpt), "SKYCOND= sunpos: ({:.3f}, {:.3f}, {:.3f})"
                       " dirnorm: {} diffhoriz: {}".format(*info)] + lpinfo
-            if skpoint is not None:
-                skpoint.add_to_img(img, pdirs[mask], mask, vm=v, interp=interp,
-                                   idx=sky_i, skyvec=skyvec)
-            snpoint.add_to_img(img, pdirs[mask], mask, vm=v, interp=interp,
-                               idx=sun_i, skyvec=[sun[3]])
+            for lp_i, lp, svec in zip(lp_is, lpts, skyvecs):
+                lp.add_to_img(img, pdirs[mask], mask, vm=v, interp=interp,
+                              idx=lp_i, skyvec=svec[j])
+                if np.min(svec) < 0:
+                    img = np.maximum(img, 0)
             outf = "{}_{}_{}_{}.hdr".format(prefix, *c)
             outfs.append(outf)
             io.array2hdr(img, outf, header)

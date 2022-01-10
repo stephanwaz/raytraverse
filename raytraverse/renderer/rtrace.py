@@ -69,6 +69,8 @@ class Rtrace(RadianceRenderer):
                  default_args=True, direct=False):
         type(self).usedirect = direct
         default_args = default_args or direct
+        if direct:
+            nproc = 1
         super().__init__(rayargs, scene, nproc, default_args=default_args)
 
     @classmethod
@@ -78,20 +80,6 @@ class Rtrace(RadianceRenderer):
             return cls.directargs
         else:
             return cls.defaultargs
-
-    @classmethod
-    def set_args(cls, args, nproc=None):
-        """prepare arguments to call engine instance initialization
-
-        Parameters
-        ----------
-        args: str
-            rendering options
-        nproc: int, optional
-            cpu limit
-
-        """
-        super().set_args(args, nproc)
 
     @classmethod
     def update_ospec(cls, vs):

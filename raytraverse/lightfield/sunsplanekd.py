@@ -14,15 +14,8 @@ from concurrent.futures import wait, FIRST_COMPLETED
 import numpy as np
 from scipy.spatial import cKDTree, distance_matrix
 
-from raytraverse import translate
-from raytraverse.evaluate import MetricSet
-from raytraverse.lightfield.lightplanekd import LightPlaneKD
 from raytraverse.lightfield.sets import MultiLightPointSet
 from raytraverse.lightfield.lightfield import LightField
-from raytraverse.lightfield.lightresult import ResultAxis, LightResult
-import raytraverse.lightfield._helpers as intg
-from raytraverse.mapper import ViewMapper
-from raytraverse.utility import pool_call
 
 
 class SunsPlaneKD(LightField):

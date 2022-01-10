@@ -214,13 +214,13 @@ def pull(*args, **kwargs):
     return shared_pull(*args, **kwargs)
 
 
-@main.command()
-@clk.shared_decs(clk.command_decs(raytraverse.__version__, wrap=True))
-def examplescript(ctx, **kwargs):
-    """print an example workflow for script based/api level access to
-     raytraverse"""
-    example = open(raytraverse.__file__.replace("__init__", "example")).read()
-    print(example)
+# @main.command()
+# @clk.shared_decs(clk.command_decs(raytraverse.__version__, wrap=True))
+# def examplescript(ctx, **kwargs):
+#     """print an example workflow for script based/api level access to
+#      raytraverse"""
+#     example = open(raytraverse.__file__.replace("__init__", "example")).read()
+#     print(example)
 
 
 @main.result_callback()

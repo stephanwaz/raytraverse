@@ -5,10 +5,7 @@
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 # =======================================================================
-from glob import glob
-
 import numpy as np
-from scipy.spatial import cKDTree
 from clasp.script_tools import try_mkdir, sglob
 
 from raytraverse import io, translate
@@ -17,7 +14,7 @@ from raytraverse.sampler import draw
 from raytraverse.sampler.samplerarea import SamplerArea
 from raytraverse.sampler.basesampler import BaseSampler, filterdict
 from raytraverse.sampler.sunsamplerpt import SunSamplerPt
-from raytraverse.lightfield import DayLightPlaneKD, LightPlaneKD
+from raytraverse.lightfield import SunsPlaneKD, LightPlaneKD
 from raytraverse.evaluate import SamplingMetrics
 from raytraverse.utility import pool_call
 
@@ -160,9 +157,8 @@ class SamplerSuns(BaseSampler):
         self._areaweights = None
         levels = self.sampling_scheme(skymapper)
         super().run(skymapper, areamapper.name, levels, **kwargs)
-        return DayLightPlaneKD(self.scene, self.vecs, self._areamapper,
-                               f"{self._skymapper.name}_sun",
-                               includesky=self._specguide is not None)
+        return SunsPlaneKD(self.scene, self.vecs, self._areamapper,
+                           f"{self._skymapper.name}_sun")
 
     def _init4run(self, levels, **kwargs):
         """(re)initialize object for new run, ensuring properties are cleared

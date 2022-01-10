@@ -100,7 +100,7 @@ class LightResult(object):
     def pull(self, *axes, aindices=None, findices=None, order=None):
         """arrange and extract data slices from result.
 
-        DaylightPlaneKD.evaluate constructs a light result with these axes:
+        Integrators construct a light result with these axes:
 
             0. sky
             1. point
@@ -188,14 +188,9 @@ class LightResult(object):
         return result, labels, names
 
     @staticmethod
-    def _print(file, rt, labels, names, header=True, rowlabel=True):
+    def _print(file, rt, header, rls, rowlabel=True):
         if header:
-            h = LightResult.pull_header(names, labels, rowlabel)
-            print(h, file=file)
-        if rowlabel:
-            rls = LightResult.row_labels(labels[0])
-        else:
-            rls = labels[0]
+            print(header, file=file)
         for r, rh in zip(rt, rls):
             rl = "\t".join([f"{i:.05f}" for i in r])
             if rowlabel:
@@ -223,22 +218,20 @@ class LightResult(object):
         return "\t".join(h)
 
     def print(self, col, aindices=None, findices=None, order=None,
-              header=True, rowlabel=True, file=None):
+              header=True, rowlabel=True, file=None, skyfill=None):
         """first calls pull and then prints 2d result to file"""
         rt, labels, names = self.pull(col, aindices=aindices,
                                       findices=findices, order=order)
-        self._print(file, rt, labels, names, header, rowlabel)
-
-    def return2d(self, col, aindices=None, findices=None, order=None,
-                 rowlabel=True):
-        rt, labels, names = self.pull(col, aindices=aindices,
-                                      findices=findices, order=order)
-        header = self.pull_header(names, labels, rowlabel)
+        if header:
+            header = self.pull_header(names, labels, rowlabel)
         rowlabels = self.row_labels(labels[0])
-        return rt, header, rowlabels
+        if skyfill is not None:
+            rowlabels = self._check_sky_data(col, skyfill, rowlabels)
+            rt = skyfill.fill_data(rt)
+        self._print(file, rt, header, rowlabels, rowlabel)
 
     def print_serial(self, col, basename, aindices=None, findices=None,
-                     order=None, header=True, rowlabel=True):
+                     order=None, header=True, rowlabel=True, skyfill=None):
         """print 3d result to series of 2d files
 
             col[0] is column, col[1] is file
@@ -249,27 +242,19 @@ class LightResult(object):
             idxs = range(rt.shape[-1])
         else:
             idxs = aindices[1]
+        if header:
+            header = self.pull_header(names[0:-1], labels[0:-1], rowlabel)
+        rowlabels = self.row_labels(labels[0])
+        if skyfill is not None:
+            rowlabels = self._check_sky_data(col, skyfill, rowlabels)
         for i, j in enumerate(idxs):
             f = open(f"{basename}_{names[-1]}_{j:04d}.txt", 'w')
-            self._print(f, rt[..., i], labels[0:-1], names[0:-1], header,
-                        rowlabel)
+            if skyfill:
+                data = skyfill.fill_data(rt[..., i])
+            else:
+                data = rt[..., i]
+            self._print(f, data, header, rowlabels, rowlabel)
             f.close()
-
-    def return_serial(self, col, basename, aindices=None, findices=None,
-                      order=None, rowlabel=True):
-        rt, labels, names = self.pull(*col, aindices=aindices,
-                                      findices=findices, order=order)
-        if aindices[1] is None:
-            idxs = range(rt.shape[-1])
-        else:
-            idxs = aindices[1]
-        frames = {}
-        header = self.pull_header(names[0:-1], labels[0:-1], rowlabel)
-        rowlabels = self.row_labels(labels[0])
-        for i, j in enumerate(idxs):
-            key = f"{basename}_{names[-1]}_{j:04d}.txt"
-            frames[key] = rt[..., i]
-        return frames, header, rowlabels
 
     def pull2pandas(self, ax1, ax2, **kwargs):
         """returns a list of dicts suitable for initializing pandas.DataFrames
@@ -317,6 +302,43 @@ class LightResult(object):
             frame_info.append(dict(name=names[0], item=l, axis0=names[1],
                                    axis1=names[2]))
         return panda_args, frame_info
+
+    def _check_sky_data(self, col, skydata, rowlabels):
+        if col == "sky":
+            raise ValueError("skyfill cannot be used with col='sky'")
+        if len(self.data.shape) == 2:
+            raise ValueError("skyfill only compatible with 4d lightresults")
+        skysize = self.axes[self._index("sky")].values.size
+        if skydata.daysteps != skysize:
+            raise ValueError(f"LightResult ({skysize}) and SkyData "
+                             f"({skydata.daysteps}) do not match along sky "
+                             f"axis")
+        fv = "\t".join(["0"]*len(rowlabels[0].split("\t")))
+        if len(rowlabels) != skydata.smtx.shape[0]:
+            raise ValueError(f"pulled data has {len(rowlabels)} rows but "
+                             f"{skydata.smtx.shape[0]} rows expected by "
+                             f"SkyData")
+        return skydata.fill_data(np.asarray(rowlabels), fv)
+
+    def info(self):
+        ns = self.names
+        sh = self.data.shape
+        axs = self.axes
+        infostr = [f"LightResult {self.file}:", f"{self.header}",
+                   f"LightResult has {len(ns)} axes: {ns}"]
+        for n, s, a in zip(ns, sh, axs):
+            infostr.append(f"  Axis '{n}' has length {s}:")
+            v = a.values
+            if len(v) < 20:
+                for i, k in enumerate(v):
+                    infostr.append(f"  {i: 5d} {k}")
+            else:
+                for i in [0, 1, 2, 3, "...", s - 2, s - 1]:
+                    if i == "...":
+                        infostr.append(f"  {i}")
+                    else:
+                        infostr.append(f"  {i: 5d} {v[i]}")
+        return "\n".join(infostr)
 
     def _index(self, i):
         """interpret indice as an axes key or a range index"""

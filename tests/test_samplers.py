@@ -83,7 +83,7 @@ def test_sunsample(tmpdir):
         return np.sum(hdr.flatten()*omega*cost)*179, illumm0
 
     scene = Scene('skysample', "box.rad", frozen=False)
-    rtrace = Rtrace(scene=scene.scene, direct=True)
+    rtrace = Rtrace(scene=scene.scene, rayargs="-ab 0")
     for sunb, ref in zip([174, 176], [0.169, 2.86]):
         sun = translate.skybin2xyz([sunb], 18)[0]
         sampler = SunSamplerPt(scene, rtrace, sun, sunb)

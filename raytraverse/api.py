@@ -9,20 +9,21 @@
 
 """factory functions for easy api access raytraverse."""
 import os
-from glob import glob
 
 import numpy as np
 
+from raytraverse.integrator import IntegratorDS
+from raytraverse.integrator.integrator import Integrator
 from raytraverse.scene import Scene
 from raytraverse.sky import SkyData
 from raytraverse.mapper import PlanMapper
-from raytraverse.lightfield import DayLightPlaneKD
+from raytraverse.lightfield import SunsPlaneKD, LightPlaneKD
 from raytraverse.lightpoint import LightPointKD
 
 
 def auto_reload(scndir, area, areaname="plan", skydata="skydata", ptres=1.0,
-                rotation=0.0, zheight=None, includesky=True):
-    """reload daylight plane and associated class instances from file paths
+                rotation=0.0, zheight=None):
+    """reload associated class instances from file paths
 
     Parameters
     ----------
@@ -42,12 +43,11 @@ def auto_reload(scndir, area, areaname="plan", skydata="skydata", ptres=1.0,
         positive Z rotation for point grid alignment
     zheight: float, optional
         override calculated zheight
-    includesky: bool, optional
-        include lightplane for sky source with DaylightPlaneKD for suns
 
     Returns
     -------
-    DayLightPlaneKD
+    Scene
+    PlanMapper
     SkyData
     """
     if not os.path.exists(scndir):
@@ -61,15 +61,7 @@ def auto_reload(scndir, area, areaname="plan", skydata="skydata", ptres=1.0,
     skd = SkyData(f"{scndir}/{skydata}.npz")
     pm = PlanMapper(area, name=areaname, ptres=ptres, rotation=rotation,
                     zheight=zheight)
-    try:
-        sunfile = glob(f"{scndir}/{areaname}/*_sunpositions.tsv")[0]
-    except IndexError:
-        raise FileNotFoundError(f"no sunpositions file in {scndir}/{areaname}")
-    skname = sunfile.split("/")[-1][:-13]
-    if os.path.exists(f"{scndir}/{areaname}/i_{skname}_0000"):
-        skname = f"i_{skname}"
-    lp = DayLightPlaneKD(scn, sunfile, pm, skname, includesky=includesky)
-    return lp, skd
+    return scn, pm, skd
 
 
 def load_lp(path, hasparent=True):
@@ -91,4 +83,49 @@ def load_lp(path, hasparent=True):
     return LightPointKD(scn, parent=parent, src=ftree[-2], posidx=pidx, pt=pt)
 
 
+stypes = ('1comp', '2comp', '3comp', 'direct', 'directpatch', 'sunonly',
+          'sunpatch', 'skyonly')
 
+
+def get_integrator(scn, pm, srcname="suns", simtype="2comp"):
+    req_sun = ('2comp', '3comp', 'direct', 'directview')
+    req_sky = ('1comp', '2comp', '3comp', 'sunpatch')
+    req_dsk = ('3comp', 'directpatch')
+    sunfile = f"{scn.outdir}/{pm.name}/{srcname}_sunpositions.tsv"
+    skpoints = f"{scn.outdir}/{pm.name}/sky_points.tsv"
+    dskpoints = f"{scn.outdir}/{pm.name}/skydcomp_points.tsv"
+
+    try:
+        sunplane = SunsPlaneKD(scn, sunfile, pm, f"{srcname}_sun")
+    except OSError:
+        if simtype in req_sun:
+            raise OSError(f"file: {sunfile} does not exist, make sure that a"
+                          f" complete sun sampling exists")
+        sunplane = None
+    try:
+        skyplane = LightPlaneKD(scn, skpoints, pm, "sky")
+    except OSError:
+        if simtype in req_sky:
+            raise OSError(f"file: {skpoints} does not exist, make sure that a"
+                          f" complete sky sampling exists")
+        skyplane = None
+    try:
+        dskplane = LightPlaneKD(scn, dskpoints, pm, "skydcomp")
+    except OSError:
+        if simtype in req_dsk:
+            raise OSError(f"file: {dskpoints} does not exist, make sure that a"
+                          f" complete direct sky sampling exists")
+        dskplane = None
+
+    if simtype in ["1comp", "sunpatch", "skyonly"]:
+        return Integrator(skyplane, includesky=simtype != "sunpatch",
+                          includesun=simtype != "skyonly")
+    if simtype == "2comp":
+        return Integrator(skyplane, sunplane)
+    if simtype == "3comp":
+        return IntegratorDS(skyplane, dskplane, sunplane)
+    if simtype in ["direct", "sunonly"]:
+        return Integrator(sunplane, includesky=False)
+    if simtype == "directpatch":
+        return Integrator(dskplane, includesky=False)
+    raise ValueError(f"Error loading {simtype}")

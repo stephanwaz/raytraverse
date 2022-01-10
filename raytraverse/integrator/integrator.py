@@ -5,24 +5,17 @@
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 # =======================================================================
-import os
-import shutil
 import sys
 from concurrent.futures import wait, FIRST_COMPLETED
 
 
 import numpy as np
-from scipy.spatial import cKDTree, distance_matrix
 
-from raytraverse import translate, io
+from raytraverse import translate
 from raytraverse.evaluate import MetricSet
-from raytraverse.lightfield.lightplanekd import LightPlaneKD
-from raytraverse.lightfield.sets import MultiLightPointSet
-from raytraverse.lightfield.lightfield import LightField
 from raytraverse.lightfield.lightresult import ResultAxis, LightResult
-import raytraverse.lightfield._helpers as intg
+import raytraverse.integrator._helpers as intg
 from raytraverse.mapper import ViewMapper
-from raytraverse.utility import pool_call
 
 
 class Integrator(object):
@@ -33,9 +26,11 @@ class Integrator(object):
     lightplanes: Sequence[raytraverse.lightfield.LightPlaneKD]
     """
 
-    def __init__(self, *lightplanes):
+    def __init__(self, *lightplanes, includesky=True, includesun=True):
         self.scene = lightplanes[0].scene
         self.lightplanes = lightplanes
+        self.includesky = includesky
+        self.includesun = includesun
 
     def make_images(self, skydata, points, vm, viewangle=180., res=512,
                     interp=False, prefix="img", namebyindex=False):
@@ -101,7 +96,7 @@ class Integrator(object):
         skinfo = np.broadcast_to(skinfo[:, None, :], s).reshape(-1, s[-1])
         mask_kwargs = dict(combos=combos, qpts=vecs[:, 3:], skinfo=skinfo)
         outfs = self._process_mgr(idxs, skydata, oshape, True,
-                                  img_pt, message="Making Images",
+                                  intg.img_pt, message="Making Images",
                                   mask_kwargs=mask_kwargs, vms=vms, res=res,
                                   interp=interp, prefix=prefix)
         return sorted([i for j in outfs for i in j])
@@ -166,11 +161,11 @@ class Integrator(object):
 
         # use parallel processing
         sumsafe = metricclass.check_safe2sum(metrics)
-        fields = self._process_mgr(idxs, skydata, oshape, True, evaluate_pt,
-                                   message="Evaluating Points",
-                                   srconly=srconly, sumsafe=sumsafe,
-                                   metricclass=metricclass, metrics=metrics,
-                                   vm=vm, vms=vms, **kwargs)
+        fields = self._process_mgr(idxs, skydata, oshape, True,
+                                   intg.evaluate_pt,
+                                   message="Evaluating Points", srconly=srconly,
+                                   sumsafe=sumsafe, metricclass=metricclass,
+                                   metrics=metrics, vm=vm, vms=vms, **kwargs)
         if sinfo is not None:
             nshape = list(sinfo.shape)
             nshape[2] = fields.shape[2]
@@ -235,36 +230,39 @@ class Integrator(object):
                     dinfo2.append(f"{lp.src}_{di}")
         return np.array(sinfo).T.reshape(*oshape[:-2], 1, -1), dinfo2
 
+    def _build_run_data(self, idxs, skydata, oshape):
+        # broadcast skydata to match full indexing
+        s = (*oshape[0:2], skydata.smtx.shape[1])
+        smtx = np.broadcast_to(skydata.smtx[:, None, :], s).reshape(-1, s[-1])
+        ds = (*oshape[0:2], skydata.sun.shape[1])
+        dsns = np.broadcast_to(skydata.sun[:, None, :], ds).reshape(-1, ds[-1])
+        # makes coefficient list and fill idx lists
+        tidxs = []
+        skydatas = []
+
+        # generic, assumes sun and/or sky, uses patch sun when no sun present
+        skyi = None
+        suni = None
+        for i, (lp, idx) in enumerate(zip(self.lightplanes, idxs)):
+            if lp.vecs.shape[1] == 3:
+                tidxs.append(np.broadcast_to(idx, oshape[0:2]).ravel())
+                skyi = i
+                skydatas.append(smtx)
+            elif self.includesun:
+                tidxs.append(idx)
+                suni = i
+                skydatas.append(dsns[:, 3:4])
+        if self.includesun and suni is None and skyi is not None:
+            dprx = skydata.smtx_patch_sun(includesky=self.includesky)
+            dprx = np.broadcast_to(dprx[:, None, :], s).reshape(-1, s[-1])
+            skydatas[skyi] = dprx
+        return tidxs, skydatas, dsns
+
     def _process_mgr(self, idxs, skydata, oshape, workers, eval_fn,
                      message="Evaluating Points", mask_kwargs=None,
                      **eval_kwargs):
 
-        # broadcast skydata to match full indexing
-        s = (*oshape[0:2], skydata.smtx.shape[1])
-        smtx = np.broadcast_to(skydata.smtx[:, None, :], s).reshape(-1, s[-1])
-        dprx = skydata.smtx_patch_sun()
-        dprx = np.broadcast_to(dprx[:, None, :], s).reshape(-1, s[-1])
-        s = (*oshape[0:2], skydata.sun.shape[1])
-        dsns = np.broadcast_to(skydata.sun[:, None, :], s).reshape(-1, s[-1])
-        # makes coefficient list and fill idx lists
-        tidxs = []
-        skydatas = []
-        skyi = None
-        suni = None
-        for i, (lp, idx) in enumerate(zip(self.lightplanes, idxs)):
-            if idx.size == oshape[1]:
-                tidxs.append(np.broadcast_to(idx, oshape[0:2]).ravel())
-                if lp.src == "sky":
-                    skyi = i
-                    skydatas.append(smtx)
-                else:
-                    skydatas.append(np.ones((smtx.shape[0], 1)))
-            else:
-                tidxs.append(idx)
-                suni = i
-                skydatas.append(dsns[:,3:4])
-        if suni is None and skyi is not None:
-            skydatas[skyi] = dprx
+        tidxs, skydatas, dsns = self._build_run_data(idxs, skydata, oshape)
 
         # tuples of all combinations: order: (suns, pts) row-major
         idx_tup = np.stack(tidxs).T
@@ -318,64 +316,3 @@ class Integrator(object):
             if type(fields[0]) != list:
                 fields = np.concatenate(fields, axis=0)[tup_isort].reshape(oshape)
         return fields
-
-
-def evaluate_pt(lpts, skyvecs, suns, vm=None, vms=None,
-                metricclass=None, metrics=None, srconly=False,
-                sumsafe=False, **kwargs):
-    """point by point evaluation suitable for submitting to ProcessPool"""
-    if srconly or sumsafe:
-        sunskypt = lpts
-        smtx = skyvecs
-    else:
-        lp0 = lpts[0]
-        for lp in lpts[1:]:
-            lp0 = lp0.add(lp)
-        sunskypt = [lp0]
-        smtx = [np.hstack(skyvecs)]
-
-    if len(vms) == 1:
-        args = (vms[0].dxyz, vms[0].viewangle * vms[0].aspect)
-        didx = [lpt.query_ball(*args)[0] for lpt in sunskypt]
-    else:
-        didx = [None] * len(sunskypt)
-    srcs = []
-    for lpt, di, sx in zip(sunskypt, didx, smtx):
-        pts = []
-        for skyvec, sun in zip(sx, suns):
-            vol = lpt.evaluate(skyvec, vm=vm, idx=di,
-                               srcvecoverride=sun[0:3], srconly=srconly)
-            views = []
-            for v in vms:
-                views.append(metricclass(*vol, v, metricset=metrics,
-                                         **kwargs)())
-            views = np.stack(views)
-            pts.append(views)
-        srcs.append(np.stack(pts))
-    return np.sum(srcs, axis=0)
-
-
-def img_pt(lpts, skyvecs, suns, vms=None,  combos=None,
-           qpts=None, skinfo=None, res=512, interp=False, prefix="img"):
-    """point by point evaluation suitable for submitting to ProcessPool"""
-    outfs = []
-    lpinfo = ["LPOINT{}= loc: ({:.3f}, {:.3f}, {:.3f}) src: ({:.3f}, {:.3f}, "
-              "{:.3f}) {}".format(i, *lpt.pt, *lpt.srcdir[0], lpt.file)
-              for i, lpt in enumerate(lpts)]
-    for i, v in enumerate(vms):
-        img, pdirs, mask, mask2, header = v.init_img(res)
-        if interp:
-            lp_is = [None] * len(lpts)
-        else:
-            lp_is = [lpt.query_ray(pdirs[mask])[0] for lpt in lpts]
-        for j, (c, info, qpt) in enumerate(zip(combos[:, i], skinfo, qpts)):
-            header = [v.header(qpt), "SKYCOND= sunpos: ({:.3f}, {:.3f}, {:.3f})"
-                      " dirnorm: {} diffhoriz: {}".format(*info)] + lpinfo
-            for lp_i, lp, svec in zip(lp_is, lpts, skyvecs):
-                lp.add_to_img(img, pdirs[mask], mask, vm=v, interp=interp,
-                              idx=lp_i, skyvec=svec[j])
-            outf = "{}_{}_{}_{}.hdr".format(prefix, *c)
-            outfs.append(outf)
-            io.array2hdr(img, outf, header)
-            img[:] = 0
-    return outfs

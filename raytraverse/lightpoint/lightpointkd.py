@@ -11,7 +11,6 @@ import pickle
 import numpy as np
 
 from scipy.spatial import cKDTree, SphericalVoronoi, Voronoi
-from scipy.interpolate import LinearNDInterpolator
 from shapely.geometry import Polygon
 from clasp.script_tools import try_mkdir
 
@@ -306,13 +305,6 @@ class LightPointKD(object):
             c = np.random.default_rng().random(len(vecs))
             ic = np.array(list(map(np.searchsorted, dc, c)))[:, None]
             i = np.take_along_axis(i, ic, 1).ravel()
-            # xyp = vm.xyz2vxy(vecs)
-            # xys = vm.xyz2vxy(self.vec)
-            # interp = LinearNDInterpolator(xys, val[0], fill_value=-1)
-            # lum = interp(xyp[:, 0], xyp[:, 1])
-            # neg = lum < 0
-            # i, d = self.query_ray(vecs[neg])
-            # lum[neg] = val[0, i]
             lum = val[:, i]
         else:
             if idx is not None:

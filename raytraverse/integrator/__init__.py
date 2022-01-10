@@ -8,10 +8,7 @@
 
 """sampler objects"""
 
-__all__ = ["LightPlaneKD", "SunsPlaneKD", "LightField",
-           "LightResult", "ResultAxis"]
+__all__ = ["Integrator", "IntegratorDS"]
 
-from raytraverse.lightfield.lightfield import LightField
-from raytraverse.lightfield.lightplanekd import LightPlaneKD
-from raytraverse.lightfield.sunsplanekd import SunsPlaneKD
-from raytraverse.lightfield.lightresult import ResultAxis, LightResult
+from raytraverse.integrator.integrator import Integrator
+from raytraverse.integrator.integratords import IntegratorDS

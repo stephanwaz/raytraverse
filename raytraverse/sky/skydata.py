@@ -260,14 +260,17 @@ class SkyData(object):
     def sunproxy(self, sxyz):
         self._sunproxy = translate.xyz2skybin(sxyz, self.skyres)
 
-    def smtx_patch_sun(self):
+    def smtx_patch_sun(self, includesky=True):
         """generate smtx with solar energy applied to proxy patch
         for directly applying to skysampler data (without direct sun components
         can also be used in a partial mode (with sun view / without sun
         reflection."""
-        wsun = np.copy(self.smtx)
-        r = range(wsun.shape[0])
-        wsun[range(wsun.shape[0]), self.sunproxy] += self.sun[r, 4]
+        if includesky:
+            wsun = np.copy(self.smtx)
+        else:
+            wsun = np.zeros_like(self.smtx)
+        r = wsun.shape[0]
+        wsun[range(r), self.sunproxy] += self.sun[range(r), 4]
         return wsun
 
     def header(self):
