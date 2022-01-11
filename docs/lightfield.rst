@@ -18,10 +18,10 @@ LightPlaneKD
     :undoc-members:
     :show-inheritance:
 
-DayLightPlaneKD
+SunsPlaneKD
 ---------------------------------
 
-.. autoclass:: raytraverse.lightfield.DayLightPlaneKD
+.. autoclass:: raytraverse.lightfield.SunsPlaneKD
     :members:
     :undoc-members:
     :show-inheritance:

@@ -25,6 +25,8 @@ class Integrator(object):
     ----------
     lightplanes: Sequence[raytraverse.lightfield.LightPlaneKD]
     """
+    evaluate_pt = intg.evaluate_pt
+    img_pt = intg.img_pt
 
     def __init__(self, *lightplanes, includesky=True, includesun=True):
         self.scene = lightplanes[0].scene
@@ -96,7 +98,7 @@ class Integrator(object):
         skinfo = np.broadcast_to(skinfo[:, None, :], s).reshape(-1, s[-1])
         mask_kwargs = dict(combos=combos, qpts=vecs[:, 3:], skinfo=skinfo)
         outfs = self._process_mgr(idxs, skydata, oshape, True,
-                                  intg.img_pt, message="Making Images",
+                                  type(self).img_pt, message="Making Images",
                                   mask_kwargs=mask_kwargs, vms=vms, res=res,
                                   interp=interp, prefix=prefix)
         return sorted([i for j in outfs for i in j])
@@ -162,7 +164,7 @@ class Integrator(object):
         # use parallel processing
         sumsafe = metricclass.check_safe2sum(metrics)
         fields = self._process_mgr(idxs, skydata, oshape, True,
-                                   intg.evaluate_pt,
+                                   type(self).evaluate_pt,
                                    message="Evaluating Points", srconly=srconly,
                                    sumsafe=sumsafe, metricclass=metricclass,
                                    metrics=metrics, vm=vm, vms=vms, **kwargs)

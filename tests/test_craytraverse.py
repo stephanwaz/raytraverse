@@ -191,7 +191,7 @@ def test_ambient_reset(tmpdir):
     #                                     scale=np.std(aa0),
     #                                     size=10000)
     # ks2 = stats.kstest(bm, d.cdf)
-    assert ks[0] < .06
+    assert ks[0] < .08
     r.set_args(args)
     load_sun((-.5, -.5, 1), 2000000, "temp3.amb")
     a3a = r(vecs).ravel()

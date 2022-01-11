@@ -14,6 +14,14 @@ imagetools
     :undoc-members:
     :show-inheritance:
 
+cli
+---------------------------------
+
+.. automodule:: raytraverse.utility.cli
+    :members:
+    :undoc-members:
+    :show-inheritance:
+
 TStqdm
 ---------------------------------
 

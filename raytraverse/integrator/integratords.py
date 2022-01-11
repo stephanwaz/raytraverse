@@ -7,11 +7,45 @@
 # =======================================================================
 import numpy as np
 
+from raytraverse import translate
 from raytraverse.integrator.integrator import Integrator
+import raytraverse.integrator._helpers as intg
+from raytraverse.lightpoint import LightPointKD
+
+
+def _prep_ds(lpts, skyvecs):
+    skp = lpts[0]
+    skd = lpts[1]
+    snp = lpts[2]
+    skpatch = translate.xyz2skybin(snp.srcdir, int((skp.srcn - 1)**.5))[0]
+    skvec = skp.vec
+    sklum = np.maximum((skp.lum[:, skpatch] - skd.lum[:, skpatch]), 0)[:, None]
+    sklum = np.hstack((skp.lum, sklum))
+    ski = LightPointKD(skp.scene, vec=skvec, lum=sklum, vm=skp.vm,
+                       pt=skp.pt, posidx=skp.posidx,
+                       src=f'sky_isun{skpatch:04d}', srcn=skp.srcn+1,
+                       srcdir=snp.srcdir,
+                       write=False, omega=skp.omega, parent=skp.parent)
+    lpts = [ski, snp]
+    skyvecs = [np.hstack(skyvecs[0:2]), skyvecs[2]]
+    return lpts, skyvecs
+
+
+def evaluate_pt_ds(lpts, skyvecs, suns, **kwargs):
+    lpts, skyvecs = _prep_ds(lpts, skyvecs)
+    return intg.evaluate_pt(lpts, skyvecs, suns, **kwargs)
+
+
+def img_pt_ds(lpts, skyvecs, suns, **kwargs):
+    lpts, skyvecs = _prep_ds(lpts, skyvecs)
+    return intg.img_pt(lpts, skyvecs, suns, **kwargs)
 
 
 class IntegratorDS(Integrator):
-    """collection of lightplanes with KDtree structure for sun position query
+    """specialized integrator for 2-phase DDS style calculation. assumes
+    first lightplane is sky contrribution, second, direct sky contribution
+    (with identical sampling to sky) and third direct sun contribution. Uses
+    special point functions that combine two sky functions on a per patch basis.
 
     Parameters
     ----------
@@ -19,22 +53,32 @@ class IntegratorDS(Integrator):
     snplane: raytraverse.lightfiled.SunsPlaneKD
     dskplane: raytraverse.lightfield.LightPlaneKD
     """
+    evaluate_pt = evaluate_pt_ds
+    img_pt = img_pt_ds
 
     def __init__(self, skplane, dskplane, snplane):
         super().__init__(skplane, dskplane, snplane)
 
     def _build_run_data(self, idxs, skydata, oshape):
+        """
+
+        Parameters
+        ----------
+        idxs
+        skydata: raytraverse.sky.SkyData
+        oshape
+
+        Returns
+        -------
+
+        """
         # broadcast skydata to match full indexing
         s = (*oshape[0:2], skydata.smtx.shape[1])
-        smtx = skydata.smtx_patch_sun(includesky=True)
-        dmtx = -skydata.smtx_patch_sun(includesky=False)
-        smtx = np.broadcast_to(smtx[:, None, :], s).reshape(-1, s[-1])
-        dmtx = np.broadcast_to(dmtx[:, None, :], s).reshape(-1, s[-1])
+        smtx = np.broadcast_to(skydata.smtx[:, None, :], s).reshape(-1, s[-1])
         ds = (*oshape[0:2], skydata.sun.shape[1])
         dsns = np.broadcast_to(skydata.sun[:, None, :], ds).reshape(-1, ds[-1])
         # makes coefficient list and fill idx lists
         tidxs = [np.broadcast_to(idxs[0], oshape[0:2]).ravel(),
                  np.broadcast_to(idxs[1], oshape[0:2]).ravel(), idxs[2]]
-        skydatas = [smtx, dmtx, dsns[:, 3:4]]
+        skydatas = [smtx, dsns[:, 4:], dsns[:, 3:4]]
         return tidxs, skydatas, dsns
-

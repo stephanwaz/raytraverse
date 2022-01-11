@@ -9,7 +9,7 @@
 """parallelization functions for integration"""
 import numpy as np
 
-from raytraverse import io
+from raytraverse import io, translate
 from raytraverse.lightpoint import LightPointKD
 
 
@@ -25,14 +25,13 @@ def evaluate_pt(lpts, skyvecs, suns, vm=None, vms=None,
         for lp in lpts[1:]:
             lp0 = lp0.add(lp)
         sunskypt = [lp0]
-        print(lp0.srcn)
         smtx = [np.hstack(skyvecs)]
 
     if len(vms) == 1:
-        args = (vms[0].dxyz, vms[0].viewangle * vms[0].aspect)
+        args = (vms[0].dxyz, vms[0].viewangle*vms[0].aspect)
         didx = [lpt.query_ball(*args)[0] for lpt in sunskypt]
     else:
-        didx = [None] * len(sunskypt)
+        didx = [None]*len(sunskypt)
     srcs = []
     for lpt, di, sx in zip(sunskypt, didx, smtx):
         pts = []
@@ -75,17 +74,3 @@ def img_pt(lpts, skyvecs, suns, vms=None,  combos=None,
             io.array2hdr(img, outf, header)
             img[:] = 0
     return outfs
-
-
-def indirect_to_suns(snp, skp, skd, skpatch, omegar, scene, srcprefix="i_"):
-    src = f"{srcprefix}{snp.src}"
-    pf1 = f"{scene.outdir}/{skp.parent}/{snp.src}_points.tsv"
-    pf2 = f"{scene.outdir}/{skp.parent}/{src}_points.tsv"
-    skvec = skp.vec
-    sklum = np.maximum((skp.lum - skd.lum)[:, skpatch]*omegar, 0)
-    ski = LightPointKD(scene, vec=skvec, lum=sklum, vm=skp.vm,
-                       pt=skp.pt, posidx=skp.posidx, src='indirect',
-                       srcn=1, srcdir=skp.srcdir[skpatch],
-                       write=False, omega=skp.omega, parent=skp.parent)
-    snp.add(ski, src=src, calcomega=True, write=True, sumsrc=True)
-    return pf1, pf2

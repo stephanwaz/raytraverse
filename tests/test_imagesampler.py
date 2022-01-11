@@ -36,7 +36,7 @@ def test_sample(tmpdir):
     lf = sampler.run((0, 0, 0), 0, vm)
     lf2 = sampler2.run((0, 0, 0), 0, vm)
     ref = sampler.engine.scene
-    lf.direct_view(ref.shape[0], showsample=False, interp=True)
+    lf.direct_view(ref.shape[0], showsample=False, interp=False)
     fmetric = MetricSet(*lf.evaluate(1, vm), vm, ["illum", "density"])()
     fmetric2 = MetricSet(*lf2.evaluate(1, vm), vm, ["illum", "density"])()
     assert np.abs(fmetric[0] - 28200) < 10

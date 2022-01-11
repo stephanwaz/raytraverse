@@ -208,7 +208,7 @@ class SkyMapper(AngularMixin, Mapper):
         uvsize, _ = self.shape(level)
         cbins = translate.uv2bin(self._candidates, uvsize)
         sbins = np.arange(uvsize**2)
-        suv = self._solar_grid_uv(jitter=jitter, level=level, masked=False)
+        suv = self._solar_grid_uv(jitter=False, level=level, masked=False)
         if masked:
             mask = self.in_solarbounds_uv(suv, level=level)
             sbins = sbins[mask]
@@ -225,8 +225,11 @@ class SkyMapper(AngularMixin, Mapper):
                 binc = self.uv2xyz(uv)
                 bp = np.linalg.norm(self.uv2xyz(candidates) - binc,
                                     axis=1)
-                a = np.random.default_rng().choice(candidates, axis=0,
-                                                   p=bp/np.sum(bp))
+                if jitter:
+                    a = np.random.default_rng().choice(candidates, axis=0,
+                                                       p=bp/np.sum(bp))
+                else:
+                    a = candidates[np.argmin(bp)]
             else:
                 a = badsun
             sunsuv.append(a)
