@@ -5,10 +5,6 @@
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 # =======================================================================
-import sys
-from concurrent.futures import wait, FIRST_COMPLETED
-
-
 import numpy as np
 
 from raytraverse import translate
@@ -16,6 +12,7 @@ from raytraverse.evaluate import MetricSet
 from raytraverse.lightfield.lightresult import ResultAxis, LightResult
 import raytraverse.integrator._helpers as intg
 from raytraverse.mapper import ViewMapper
+from raytraverse.utility import pool_call
 
 
 class Integrator(object):
@@ -97,8 +94,8 @@ class Integrator(object):
         s = (*oshape[0:2], skinfo.shape[1])
         skinfo = np.broadcast_to(skinfo[:, None, :], s).reshape(-1, s[-1])
         mask_kwargs = dict(combos=combos, qpts=vecs[:, 3:], skinfo=skinfo)
-        outfs = self._process_mgr(idxs, skydata, oshape, True,
-                                  type(self).img_pt, message="Making Images",
+        outfs = self._process_mgr(idxs, skydata, oshape, type(self).img_pt,
+                                  message="Making Images",
                                   mask_kwargs=mask_kwargs, vms=vms, res=res,
                                   interp=interp, prefix=prefix)
         return sorted([i for j in outfs for i in j])
@@ -163,7 +160,7 @@ class Integrator(object):
 
         # use parallel processing
         sumsafe = metricclass.check_safe2sum(metrics)
-        fields = self._process_mgr(idxs, skydata, oshape, True,
+        fields = self._process_mgr(idxs, skydata, oshape,
                                    type(self).evaluate_pt,
                                    message="Evaluating Points", srconly=srconly,
                                    sumsafe=sumsafe, metricclass=metricclass,
@@ -260,7 +257,7 @@ class Integrator(object):
             skydatas[skyi] = dprx
         return tidxs, skydatas, dsns
 
-    def _process_mgr(self, idxs, skydata, oshape, workers, eval_fn,
+    def _process_mgr(self, idxs, skydata, oshape, eval_fn,
                      message="Evaluating Points", mask_kwargs=None,
                      **eval_kwargs):
 
@@ -275,46 +272,36 @@ class Integrator(object):
         tup_isort = np.argsort(tup_sort, kind='stable')
 
         fields = []
-        with self.scene.progress_bar(self, message=message,
-                                     total=len(qtup), workers=workers) as pbar:
-            exc = pbar.pool
-            pbar.write(f"Calculating {len(qidx)} sun/sky/pt combinations",
-                       file=sys.stderr)
-            futures = []
-            done = set()
-            not_done = set()
-            cnt = 0
-            pbar_t = 0
-            # submit asynchronous to process pool
-            for qi, qt in zip(qidx, qtup):
-                lpts = []
-                for lp, tidx in zip(self.lightplanes, tidxs):
-                    lpts.append(lp.data[tidx[qi]])
-                mask = np.all(idx_tup == qt, -1)
-                # manage to queue to avoid loading too many points in memory
-                # and update progress bar as completed
-                if cnt > pbar.nworkers*3:
-                    wait_r = wait(not_done, return_when=FIRST_COMPLETED)
-                    not_done = wait_r.not_done
-                    done.update(wait_r.done)
-                    pbar.update(len(done) - pbar_t)
-                    pbar_t = len(done)
-                if mask_kwargs is not None:
-                    for k, v in mask_kwargs.items():
-                        eval_kwargs.update([(k, v[mask])])
-                sx = [smx[mask] for smx in skydatas]
-                fu = exc.submit(eval_fn, lpts, sx, dsns[mask], **eval_kwargs)
-                futures.append(fu)
-                not_done.add(fu)
-                cnt += 1
-            # gather results (in order)
-            for future in futures:
-                fields.append(future.result())
-                if future in not_done:
-                    pbar.update(1)
-            pbar.write(f"Completed evaluation for {len(idx_tup)} values",
-                       file=sys.stderr)
-            # sort back to original order and reshape
-            if type(fields[0]) != list:
-                fields = np.concatenate(fields, axis=0)[tup_isort].reshape(oshape)
+
+        d = np.linspace(0, len(qtup), max(2, int(len(qtup)/250))).astype(int)
+        slices = [slice(d[i], d[i + 1], 1) for i in range(len(d) - 1)]
+
+        self.scene.log(self, f"Calculating {len(qidx)} sun/sky/pt combinations",
+                       True)
+
+        for i, slc in enumerate(slices):
+            lptis = []
+            for qi, qt in zip(qidx[slc], qtup[slc]):
+                lptis.append(([(lp.data, tidx[qi]) for lp, tidx
+                               in zip(self.lightplanes, tidxs)], qt))
+            desc = f"{message} ({i+1:02d} of {len(slices):02d})"
+            fields += pool_call(_load_pts, lptis, eval_fn, idx_tup, mask_kwargs,
+                                skydatas, dsns, desc=desc, **eval_kwargs)
+
+        # sort back to original order and reshape
+        if type(fields[0]) != list:
+            fields = np.concatenate(fields, axis=0)[tup_isort].reshape(oshape)
         return fields
+
+
+def _load_pts(lpti, qt, eval_fn, idx_tup, mask_kwargs, skydatas, dsns,
+              **kwargs):
+    lpts = []
+    for lp, tidx in lpti:
+        lpts.append(lp[tidx])
+    mask = np.all(idx_tup == qt, -1)
+    if mask_kwargs is not None:
+        for k, v in mask_kwargs.items():
+            kwargs.update([(k, v[mask])])
+    sx = [smx[mask] for smx in skydatas]
+    return eval_fn(lpts, sx, dsns[mask], **kwargs)

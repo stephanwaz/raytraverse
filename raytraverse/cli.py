@@ -208,7 +208,7 @@ candidates within adaptive grid.""")
 @click.option("-skyro", default=0.0,
               help="counterclockwise sky-rotation in degrees (equivalent to "
                    "clockwise project north rotation)")
-@click.option("-sunres", default=30.0,
+@click.option("-sunres", default=20.0,
               help="initial sampling resolution for suns")
 @click.option("-name", default="suns",
               help="name for solar sourcee group (impacts file naming)")
@@ -271,7 +271,7 @@ def suns(ctx, loc=None, opts=False, debug=False, version=False, epwloc=False,
                    "correct model north, equivalent to clockwise rotation of "
                    "scene)")
 @click.option("-ground_fac", default=0.15, help="ground reflectance")
-@click.option("-skyres", default=10.0,
+@click.option("-skyres", default=12.0,
               help="approximate square patch size in degrees (must match "
                    "argument given to skyengine)")
 @click.option("-minalt", default=2.0,
@@ -313,7 +313,7 @@ def skydata(ctx, wea=None, name="skydata", loc=None, reload=True, opts=False,
 
 @main.command()
 @clk.shared_decs(engine_opts)
-@click.option("-skyres", default=10.0,
+@click.option("-skyres", default=12.0,
               help="approximate resolution for skypatch subdivision (in "
                    "degrees). Patches will have (rounded) size skyres x skyres."
                    " So if skyres=10, each patch will be 100 sq. degrees "
@@ -587,7 +587,7 @@ rows in wea/epw file using space seperated list or python range notation:
     - 12:8760:24 (everyday at Noon)
 
 """),
- click.option("-simtype", default="2comp",
+ click.option("-simtype", default="3comp",
               type=click.Choice(api.stypes),
               help="simulation process/integration type")
     ]
@@ -738,7 +738,7 @@ def evaluate(ctx, sensors=None, sdirs=None, viewangle=180., skymask=None,
                          "None")
     else:
         result = itg.evaluate(sd, sensors, sdirs, viewangle=viewangle,
-                              metrics=metrics, datainfo=serr)
+                              metrics=metrics, datainfo=serr, srconly=simtype == 'directview')
     if npz:
         result.write(f"{basename}.npz")
     sd.mask = None

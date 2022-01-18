@@ -83,13 +83,13 @@ def load_lp(path, hasparent=True):
     return LightPointKD(scn, parent=parent, src=ftree[-2], posidx=pidx, pt=pt)
 
 
-stypes = ('1comp', '2comp', '3comp', 'direct', 'directpatch', 'sunonly',
+stypes = ('1comp', '2comp', '3comp', 'directview', 'directpatch', 'sunonly',
           'sunpatch', 'skyonly')
 
 
 def get_integrator(scn, pm, srcname="suns", simtype="2comp"):
-    req_sun = ('2comp', '3comp', 'direct', 'directview')
-    req_sky = ('1comp', '2comp', '3comp', 'sunpatch')
+    req_sun = ('2comp', '3comp', 'directview', 'sunonly')
+    req_sky = ('1comp', '2comp', '3comp', 'sunpatch', 'skyonly')
     req_dsk = ('3comp', 'directpatch')
     sunfile = f"{scn.outdir}/{pm.name}/{srcname}_sunpositions.tsv"
     skpoints = f"{scn.outdir}/{pm.name}/sky_points.tsv"
@@ -124,7 +124,7 @@ def get_integrator(scn, pm, srcname="suns", simtype="2comp"):
         return Integrator(skyplane, sunplane)
     if simtype == "3comp":
         return IntegratorDS(skyplane, dskplane, sunplane)
-    if simtype in ["direct", "sunonly"]:
+    if simtype in ["directview", "sunonly"]:
         return Integrator(sunplane, includesky=False)
     if simtype == "directpatch":
         return Integrator(dskplane, includesky=False)

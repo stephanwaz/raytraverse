@@ -66,7 +66,7 @@ class RadianceRenderer(Renderer):
             nproc = cls.nproc
         nproc = io.get_nproc(nproc)
         if "-ab 0" in args:
-            cls.nproc = 1
+            nproc = 1
         cls.nproc = nproc
         cls.args = args
         cls._args = shlex.split(f"{cls.name} -n {nproc} {args}")

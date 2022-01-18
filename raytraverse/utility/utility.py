@@ -42,27 +42,12 @@ def pool_call(func, args, *fixed_args, cap=None, desc="processing", **kwargs):
                 desc=desc) as pbar:
         exc = pbar.pool
         futures = []
-        done = set()
-        not_done = set()
-        cnt = 0
-        pbar_t = 0
         # submit asynchronous to process pool
         for arg in args:
-            # manage to queue to avoid loading too many points in memory
-            # and update progress bar as completed
-            if cnt > pbar.nworkers*3:
-                wait_r = pbar.wait(not_done, return_when=pbar.FIRST_COMPLETED)
-                not_done = wait_r.not_done
-                done.update(wait_r.done)
-                pbar.update(len(done) - pbar_t)
-                pbar_t = len(done)
             fu = exc.submit(func, *arg, *fixed_args, **kwargs)
             futures.append(fu)
-            not_done.add(fu)
-            cnt += 1
         # gather results (in order)
         for future in futures:
             results.append(future.result())
-            if future in not_done:
-                pbar.update(1)
+            pbar.update(1)
     return results

@@ -80,20 +80,23 @@ pull_decs = [
               help="path to skydata file. assumes rows are timesteps."
                    " skyfilter should be None and other beside col "
                    "should reduce to 1 or ofiles is given and sky is"
-                   " not first in order and all but first reduces to 1"
+                   " not first in order and all but first reduces to 1."
                    " LightResult should be a full evaluation (not masked)"),
  click.option("--header/--no-header", default=True, help="print col labels"),
  click.option("--rowlabel/--no-rowlabel", default=True, help="label row"),
  click.option("--info/--no-info", default=False,
               help="skip execution and return shape and axis info about "
-                   "LightResult")
+                   "LightResult"),
+ click.option("--gridhdr/--no-gridhdr", default=False,
+              help="use with 'ofiles', order 'X point/sky Y' and make sure Y"
+                   " only has one value (with appropriate filter)"),
  ]
 
 
 def shared_pull(ctx, lr=None, col="metric", order=('point', 'view', 'sky'),
                 ofiles=None, ptfilter=None, viewfilter=None, skyfilter=None,
                 imgfilter=None, metricfilter=None, skyfill=None, header=True,
-                rowlabel=True, info=False, **kwargs):
+                rowlabel=True, info=False, gridhdr=False, **kwargs):
     """used by both raytraverse.cli and raytu, add pull_decs and
     clk.command_decs as  clk.shared_decs in main script so click can properly
     load options"""
@@ -155,5 +158,9 @@ def shared_pull(ctx, lr=None, col="metric", order=('point', 'view', 'sky'),
         findices = findices[1:]
         col = [col, order[0]]
         order = order[1:]
-        result.print_serial(col, ofiles, aindices=aindices, findices=findices,
-                            order=order, skyfill=skydata, **pargs)
+        if gridhdr:
+            result.pull2hdr(col, ofiles, aindices=aindices, findices=findices,
+                            order=order, skyfill=skydata)
+        else:
+            result.print_serial(col, ofiles, aindices=aindices, findices=findices,
+                                order=order, skyfill=skydata, **pargs)

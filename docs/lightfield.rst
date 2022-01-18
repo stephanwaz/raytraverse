@@ -60,11 +60,3 @@ MultiLightPointSet
     :members:
     :undoc-members:
     :show-inheritance:
-
-LightPlaneSet
-~~~~~~~~~~~~~
-
-.. autoclass:: raytraverse.lightfield.sets.LightPlaneSet
-    :members:
-    :undoc-members:
-    :show-inheritance:

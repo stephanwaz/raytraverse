@@ -157,8 +157,6 @@ def img2lf(imga, imgb, src, scn):
         uvb = hdr2uvarray(imgb, vmb, 1024)
         uva = np.stack((uvb, uva), 0).reshape(-1, uvb.shape[1])
         vm = ViewMapper(vm.dxyz)
-        # print(uva.shape)
-        # io.array2hdr(uva, f"{out}/test.hdr")
     accuracy *= np.average(uva)
     uvt = translate.resample(uva, uva.shape, radius=2)
     ar = int(uva.shape[0]/uva.shape[1])
@@ -173,7 +171,6 @@ def img2lf(imga, imgb, src, scn):
         t = _threshold(levels-i, accuracy)
         p[np.logical_not(available)] = 0
         mi = p > t
-        print(i, t, np.sum(mi), res)
         available[mi] = False
         miu = translate.resample(mi, (res*2*ar, res*2), False)
         uv = vm.idx2uv(np.arange(miu.size)[miu.ravel()], miu.shape, False)
@@ -186,7 +183,6 @@ def img2lf(imga, imgb, src, scn):
             rays = np.concatenate((rays, ray))
             vals = np.concatenate((vals, uva[miu]))
         uva = translate.resample(uva, (res*ar, res))
-    print(rays.shape, vals.shape)
     lp = LightPointKD(scn, rays, vals, vm, vp, src=src)
     lp.direct_view(512)
 

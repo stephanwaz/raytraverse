@@ -35,7 +35,7 @@ class SunsPlaneKD(LightField):
         dm = distance_matrix(s0, s0)
         cm = np.ma.MaskedArray(dm, np.eye(dm.shape[0]))
         sund = np.average(np.min(cm, axis=0).data)
-        self._normalization = sund / self.pm.ptres * 2 * 2**.5
+        self._normalization = sund / (self.pm.ptres / 2 * 2**.5)
         s_pts = []
         s_idx = []
         s_lev = []
@@ -48,9 +48,15 @@ class SunsPlaneKD(LightField):
             s_lev.append(np.stack((np.broadcast_to([sl], slev.shape), slev)).T)
         self._vecs = np.concatenate(s_pts)
         self._kd = None
+        self._suns = pts
+        self._sunkd = None
         self._samplelevel = np.concatenate(s_lev)
         self.omega = None
         self.data = np.concatenate(s_idx)
+
+    @property
+    def suns(self):
+        return self._suns
 
     @property
     def data(self):
@@ -70,6 +76,13 @@ class SunsPlaneKD(LightField):
             weighted_vecs[:, 3:] *= self._normalization
             self._kd = cKDTree(weighted_vecs)
         return self._kd
+
+    @property
+    def sunkd(self):
+        """kdtree for sun position queries built on demand"""
+        if self._sunkd is None:
+            self._sunkd = cKDTree(self.suns)
+        return self._sunkd
 
     def query(self, vecs):
         """return the index and distance of the nearest vec to each of vecs
@@ -92,3 +105,20 @@ class SunsPlaneKD(LightField):
         weighted_vecs[:, 3:] *= self._normalization
         d, i = self.kd.query(weighted_vecs)
         return i, d
+
+    def query_by_sun(self, sunvec, count=10, ptol=.05):
+        d, i = self.sunkd.query(sunvec, count)
+        vecs = self.vecs[np.isin(self.data.idx[:, 0], i), 3:]
+        pkd = cKDTree(vecs)
+        pairs = pkd.query_ball_tree(pkd, ptol)
+        flt = np.full(len(vecs), True)
+        flagged = set()
+        for j, p in enumerate(pairs):
+            if j not in flagged and len(p) > 1:
+                flt[p[1:]] = False
+                flagged.update(p[1:])
+        vecs = vecs[flt]
+        vs = np.concatenate(np.broadcast_arrays(sunvec, vecs), -1)
+        i, d = self.query(vs)
+        return i, d
+

@@ -9,6 +9,8 @@ import re
 
 import numpy as np
 
+from raytraverse import io
+
 
 class ResultAxis(object):
 
@@ -70,6 +72,9 @@ class LightResult(object):
     @property
     def file(self):
         return self._file
+
+    def axis(self, name):
+        return self.axes[self.names.index(name)]
 
     @staticmethod
     def load(file):
@@ -256,6 +261,46 @@ class LightResult(object):
             self._print(f, data, header, rowlabels, rowlabel)
             f.close()
 
+    def pull2hdr(self, col, basename, aindices=None, findices=None, order=None,
+                 skyfill=None):
+        rt, labels, names = self.pull(*col, aindices=aindices,
+                                      findices=findices, order=order)
+        pts = self.axis(order[0]).values
+        if order[0] not in ['point', 'sky'] or len(pts) != rt.shape[0]:
+            raise ValueError("'pull2hdr' is only compatible over points or sky "
+                             "and a single element in the last dimension")
+        if order[0] == 'sky' and skyfill is None:
+            raise ValueError("'pull2hdr' with 'sky' requires skyfill")
+        if aindices[1] is None:
+            idxs = range(rt.shape[-1])
+        else:
+            idxs = aindices[1]
+        if order[0] == 'point':
+            pts = np.array(list(zip(*pts))).T
+            gshp = (np.unique(pts[:, 0]).size, np.unique(pts[:, 1]).size)
+            gsort = np.lexsort((pts[:, 1], pts[:, 0]))
+            psize = int(500/max(gshp)/2)*2
+            psize = (psize, psize)
+        else:
+            gshp = (365, 24)
+            hour = np.arange(8760)
+            gsort = np.lexsort((-np.mod(hour, 24), np.floor(hour/24)))
+            psize = (2, 10)
+        for i, j in enumerate(idxs):
+            if skyfill:
+                data = skyfill.fill_data(rt[..., i])
+            else:
+                data = rt[..., i]
+            for k, (la, d) in enumerate(zip(labels[1], data.T)):
+                do = d[gsort].reshape(gshp)
+                do = np.repeat(np.repeat(do, psize[1], 1), psize[0], 0)
+                if col[0] == 'metric':
+                    lab = la
+                else:
+                    lab = f"{col[0]}_{k:04d}"
+                io.array2hdr(do[-1::-1], f"{basename}_{order[0]}_{lab}_"
+                                         f"{names[-1]}_{j:04d}.hdr")
+
     def pull2pandas(self, ax1, ax2, **kwargs):
         """returns a list of dicts suitable for initializing pandas.DataFrames
 
@@ -321,6 +366,7 @@ class LightResult(object):
         return skydata.fill_data(np.asarray(rowlabels), fv)
 
     def info(self):
+        caps = {'default': 20, 'metric': 100}
         ns = self.names
         sh = self.data.shape
         axs = self.axes
@@ -329,11 +375,16 @@ class LightResult(object):
         for n, s, a in zip(ns, sh, axs):
             infostr.append(f"  Axis '{n}' has length {s}:")
             v = a.values
-            if len(v) < 20:
+            try:
+                cap = caps[n]
+            except KeyError:
+                cap = caps['default']
+            if len(v) <= cap:
                 for i, k in enumerate(v):
                     infostr.append(f"  {i: 5d} {k}")
             else:
-                for i in [0, 1, 2, 3, "...", s - 2, s - 1]:
+                for i in [0, 1, 2, 3, 4, "...",
+                          s - 5, s - 4, s - 3, s - 2, s - 1]:
                     if i == "...":
                         infostr.append(f"  {i}")
                     else:
