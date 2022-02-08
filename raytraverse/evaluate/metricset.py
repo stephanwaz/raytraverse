@@ -61,9 +61,10 @@ class MetricSet(BaseMetricSet):
 
     def __init__(self, vec, omega, lum, vm, metricset=None, scale=179.,
                  threshold=2000., guth=True, tradius=30.0,
-                 omega_as_view_area=False, **kwargs):
+                 omega_as_view_area=False, lowlight=False, **kwargs):
         super().__init__(vec, omega, lum, vm, metricset=metricset, scale=scale,
                          omega_as_view_area=omega_as_view_area, guth=guth, **kwargs)
+        self._lowlight = lowlight
         self._threshold = threshold
         self.tradius = tradius
 
@@ -176,7 +177,7 @@ class MetricSet(BaseMetricSet):
     @functools.lru_cache(1)
     def dgp(self):
         ll = 1
-        if self.illum < 1000:
+        if self._lowlight and self.illum < 500:
             ll = np.exp(0.024*self.illum - 4)/(1 + np.exp(0.024*self.illum - 4))
         return np.minimum(ll*(self.dgp_t1 + self.dgp_t2 + 0.16), 1.0)
 

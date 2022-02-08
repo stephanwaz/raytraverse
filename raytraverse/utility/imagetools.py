@@ -11,6 +11,7 @@
 import numpy as np
 import clasp.script_tools as cst
 
+
 from raytraverse import translate, io
 from raytraverse.evaluate import MetricSet
 from raytraverse.lightpoint import LightPointKD
@@ -79,7 +80,8 @@ def hdr2vm(imgf, vpt=False):
         return vm
 
 
-def normalize_peak(v, o, l, scale=179, peaka=6.7967e-05, peakt=1e5, peakr=4):
+def normalize_peak(v, o, l, scale=179, peaka=6.7967e-05, peakt=1e5, peakr=4,
+                   blur=1.0):
     pc = np.nonzero(l > peakt / scale)[0]
     if pc.size > 0:
         # first sort descending by luminance
@@ -117,8 +119,8 @@ def normalize_peak(v, o, l, scale=179, peaka=6.7967e-05, peakt=1e5, peakr=4):
         # filter out source rays
         vol = np.delete(np.hstack((v, o[:, None], l[:, None])), pc, axis=0)
         v = np.vstack((vol[:, 0:3], pv))
-        o = np.concatenate((vol[:, 3], [peaka]))
-        l = np.concatenate((vol[:, 4], [peakl]))
+        o = np.concatenate((vol[:, 3], [peaka*blur]))
+        l = np.concatenate((vol[:, 4], [peakl/blur]))
     return v, o, l
 
 
@@ -185,4 +187,6 @@ def img2lf(imga, imgb, src, scn):
         uva = translate.resample(uva, (res*ar, res))
     lp = LightPointKD(scn, rays, vals, vm, vp, src=src)
     lp.direct_view(512)
+
+
 

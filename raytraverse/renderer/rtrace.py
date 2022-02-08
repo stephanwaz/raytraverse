@@ -64,6 +64,8 @@ class Rtrace(RadianceRenderer):
                    f"1000 -lw 0.00004 -st 0 -ss 16")
     directargs = "-av 0 0 0 -ab 0 -lr 0 -n 1"
     usedirect = False
+    ospec = "Z"
+    ocnt = 1
 
     def __init__(self, rayargs=None, scene=None, nproc=None,
                  default_args=True, direct=False):
@@ -80,6 +82,23 @@ class Rtrace(RadianceRenderer):
             return cls.directargs
         else:
             return cls.defaultargs
+
+    @classmethod
+    def set_args(cls, args, nproc=None):
+        """prepare arguments to call engine instance initialization
+
+        Parameters
+        ----------
+        args: str
+            rendering options
+        nproc: int, optional
+            cpu limit
+
+        """
+        super().set_args(args, nproc)
+        ospec = re.findall("-o\w+", cls.args)
+        if len(ospec) > 0:
+            cls.update_ospec(ospec[-1][2:])
 
     @classmethod
     def update_ospec(cls, vs):
@@ -120,6 +139,8 @@ class Rtrace(RadianceRenderer):
         if outcnt < 0:
             raise ValueError(f"Could not update {cls.__name__} with "
                              f"outputs: '{vs}'")
+        cls.ospec = vs
+        cls.ocnt = outcnt
         return outcnt
 
     @classmethod

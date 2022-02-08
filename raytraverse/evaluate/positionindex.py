@@ -8,6 +8,7 @@
 
 import numpy as np
 from raytraverse import translate
+from raytraverse.mapper import ViewMapper
 
 
 class PositionIndex(object):
@@ -40,22 +41,27 @@ class PositionIndex(object):
 
         """
         vec = translate.norm(vec)
-        up = vm.view2world(np.array((0, 1, 0)))
+        wvec = vm.world2view(vec)
         #: sigma: angle between source and view direction
         sigma = vm.degrees(vec)
-        return self._positions(vm.dxyz, vec, sigma, up)
+        return self._positions(wvec, sigma)
 
-    def _positions(self, viewvec, vec, sigma, up):
+    def _positions(self, vec, sigma):
+        vip = self._to_plane(np.array((0, 0, 1)), vec)
         #: tau: angle between vertical and source projected to view plane
-        tau = self._angle_vv(up, self._to_plane(viewvec, vec))*180/np.pi
+        tau = self._angle_vv(np.array((0, 1, 0)), vip)*180/np.pi
         if self.guth:
-            hv = np.cross(viewvec, up)
-            vv = np.cross(viewvec, hv)
-            #: phi: vertical angle
-            phi = self._angle_vv(vv, vec) - np.pi/2.0
+            b = vec[:, 1] < 0
+            xyzb = vec[b]
             # iwata (2010) below horizon
-            tau[:, phi < 0] = 90.0
-            posidx = self._get_pidx_guth(sigma, tau)
+            tau[:, b] = 90.0
+            # https://discourse.radiance-online.org/t/position-index-below-
+            # line-of-sight-by-evalglare/5789/4
+            beta = np.arctan(np.sqrt(np.square(xyzb[:, 0]) +
+                                     np.square(xyzb[:, 1]*1.15)) / xyzb[:, 2])
+            sigma[b] = 180 / np.pi * beta
+            posidx = self._get_pidx_guth(sigma, tau).ravel()
+            posidx[vec[:, 2] < 0] = 16
             posidx = np.minimum(16, posidx)
         else:  # KIM model
             # from src/Radiance/util/evalglare.c
@@ -63,9 +69,8 @@ class PositionIndex(object):
         return posidx.ravel()
 
     def positions_vec(self, viewvec, srcvec, up=(0, 0, 1)):
-        sigma = np.arccos(np.einsum("ki,ji->kj", np.atleast_2d(viewvec),
-                                    np.atleast_2d(srcvec))) * 180/np.pi
-        return self._positions(viewvec, srcvec, sigma, up)
+        vm = ViewMapper(viewvec)
+        return self.positions(vm, srcvec)
 
     @staticmethod
     def _to_plane(n, vec):

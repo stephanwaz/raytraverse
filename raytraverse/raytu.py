@@ -16,8 +16,10 @@ import raytraverse
 from raytraverse import translate
 from raytraverse.lightfield import ResultAxis
 from raytraverse.lightfield import LightResult
+from raytraverse.sky import SkyData, skycalc
 from raytraverse.utility import pool_call, imagetools
-from raytraverse.utility.cli import np_load, shared_pull, pull_decs
+from raytraverse.utility.cli import np_load, shared_pull, pull_decs, \
+    np_load_safe
 from raytraverse.scene import ImageScene
 
 
@@ -55,6 +57,7 @@ def main(ctx, out=None, config=None, n=None,  **kwargs):
     raytraverse.io.set_nproc(n)
     ctx.info_name = 'raytu'
     clk.get_config_chained(ctx, config, None, None, None)
+    ctx.obj = {}
 
 
 @main.command()
@@ -155,11 +158,14 @@ def transform(ctx, d=None, flip=False, reshape=None, cols=None,
                    "position is center of image with a 30 degree field of view")
 @click.option("-scale", default=179.,
               help="scale factor applied to pixel values to convert to cd/m^2")
+@click.option("-blur", default=1.,
+              help="ratio to blur peak (divides luminance and multiplies omega)"
+                   " simple way to apply human eye PSF")
 @clk.shared_decs(clk.command_decs(raytraverse.__version__, wrap=True))
 def imgmetric(ctx, imgs=None, metrics=None, parallel=True,
               basename="img_metrics", npz=True, peakn=False,
               peaka=6.7967e-05, peakt=1e5, peakr=4.0, threshold=2000.,
-              scale=179., **kwargs):
+              scale=179., blur=1.0, **kwargs):
     """calculate metrics for hdr images, similar to evalglare but without
     glare source grouping, equivalent to -r 0 in evalglare. This ensures that
     all glare source positions are  weighted by the metrics to which they are
@@ -174,7 +180,7 @@ def imgmetric(ctx, imgs=None, metrics=None, parallel=True,
     results = pool_call(imagetools.imgmetric, list(zip(imgs)), metrics, cap=cap,
                         desc="processing images", peakn=peakn,
                         peaka=peaka, peakt=peakt, peakr=peakr,
-                        threshold=threshold, scale=scale)
+                        threshold=threshold, scale=scale, blur=blur)
     imgaxis = ResultAxis(imgs, "image")
     metricaxis = ResultAxis(metrics, "metric")
     lr = LightResult(np.asarray(results), imgaxis, metricaxis)
@@ -214,13 +220,52 @@ def pull(*args, **kwargs):
     return shared_pull(*args, **kwargs)
 
 
-# @main.command()
-# @clk.shared_decs(clk.command_decs(raytraverse.__version__, wrap=True))
-# def examplescript(ctx, **kwargs):
-#     """print an example workflow for script based/api level access to
-#      raytraverse"""
-#     example = open(raytraverse.__file__.replace("__init__", "example")).read()
-#     print(example)
+@main.command()
+@click.option("-wea", callback=np_load_safe,
+              help="path to epw, wea, .npy file or np.array, or .npz file,"
+                   "if loc not set attempts to extract location data "
+                   "(if needed).")
+@click.option("-loc", default=None, callback=clk.split_float,
+              help="location data given as 'lat lon mer' with + west of prime "
+                   "meridian overrides location data in wea")
+@click.option("-minalt", default=2.0,
+              help="minimum solar altitude for daylight masking")
+@click.option("-mindiff", default=5.0,
+              help="minumum diffuse horizontal irradiance for daylight masking")
+@click.option("-mindir", default=0.0,
+              help="minumum direct normal irradiance for daylight masking")
+@click.option("-data", callback=np_load,
+              help="data to pad")
+@click.option("-cols", callback=clk.split_int,
+              help="cols of data to return (default all)")
+@clk.shared_decs(clk.command_decs(raytraverse.__version__, wrap=True))
+def padsky(ctx, wea=None, loc=None, opts=False,
+            debug=False, version=None, data=None, cols=None, **kwargs):
+    """pad filtered result data according to sky filtering
+    """
+    if data is None or wea is None:
+        click.echo("-wea and -data are required", err=True)
+        raise click.Abort
+    if loc is not None:
+        loc = (loc[0], loc[1], int(loc[2]))
+    sd = SkyData(wea, loc=loc, skyres=60, **kwargs)
+    if len(data) != sd.daysteps:
+        raise ValueError(f"data has {len(data)} rows, but {sd.daysteps} were "
+                         f"expected by SkyData")
+    if cols is None:
+        cols = slice(None)
+    d = sd.fill_data(data)[:,cols]
+    try:
+        s = wea.shape
+    except AttributeError:
+        wd = skycalc.read_epw(wea)
+        d = np.hstack((wd[:, 0:3], d))
+        intcol = 2
+    else:
+        intcol = 0
+    for i in d:
+        print("\t".join([str(int(j)) for j in i[0:intcol]] +
+                        [f"{j}" for j in i[intcol:]]))
 
 
 @main.result_callback()

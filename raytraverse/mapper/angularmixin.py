@@ -97,11 +97,11 @@ class AngularMixin(object):
         cp = np.cross(xb - xa, yb - ya)
         return np.linalg.norm(cp, axis=-1)
 
-    def in_view(self, vec, indices=True):
+    def in_view(self, vec, indices=True, tol=0.0):
         """generate mask for vec that are in the field of view (up to
         180 degrees) if view aspect is 2, only tests against primary view
         direction"""
-        ang = self.radians(vec)
+        ang = self.radians(vec) - tol
         mask = ang < (self._chordfactor * self.viewangle * np.pi / 360)
         if indices:
             return np.unravel_index(np.arange(ang.size)[mask], vec.shape[:-1])

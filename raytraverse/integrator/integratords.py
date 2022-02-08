@@ -16,7 +16,11 @@ from raytraverse.lightpoint import LightPointKD
 def _prep_ds(lpts, skyvecs):
     skp = lpts[0]
     skd = lpts[1]
-    snp = lpts[2]
+    try:
+        snp = lpts[2]
+    except IndexError:
+        # this implies the sunpt is not needed (0 direct solar)
+        return lpts[0:1], skyvecs[0:1]
     skpatch = translate.xyz2skybin(snp.srcdir, int((skp.srcn - 1)**.5))[0]
     skvec = skp.vec
     sklum = np.maximum((skp.lum[:, skpatch] - skd.lum[:, skpatch]), 0)[:, None]
@@ -56,15 +60,15 @@ class IntegratorDS(Integrator):
     evaluate_pt = evaluate_pt_ds
     img_pt = img_pt_ds
 
-    def __init__(self, skplane, dskplane, snplane):
-        super().__init__(skplane, dskplane, snplane)
+    def __init__(self, skplane, dskplane, snplane, sunviewengine=None):
+        super(IntegratorDS, self).__init__(skplane, dskplane, snplane,
+                                           sunviewengine=sunviewengine)
 
-    def _build_run_data(self, idxs, skydata, oshape):
+    def _unroll_sky_grid(self, skydata, oshape):
         """
 
         Parameters
         ----------
-        idxs
         skydata: raytraverse.sky.SkyData
         oshape
 
@@ -77,8 +81,6 @@ class IntegratorDS(Integrator):
         smtx = np.broadcast_to(skydata.smtx[:, None, :], s).reshape(-1, s[-1])
         ds = (*oshape[0:2], skydata.sun.shape[1])
         dsns = np.broadcast_to(skydata.sun[:, None, :], ds).reshape(-1, ds[-1])
-        # makes coefficient list and fill idx lists
-        tidxs = [np.broadcast_to(idxs[0], oshape[0:2]).ravel(),
-                 np.broadcast_to(idxs[1], oshape[0:2]).ravel(), idxs[2]]
         skydatas = [smtx, dsns[:, 4:], dsns[:, 3:4]]
-        return tidxs, skydatas, dsns
+        return skydatas, dsns
+

@@ -12,7 +12,8 @@ import os
 
 import numpy as np
 
-from raytraverse.integrator import IntegratorDS
+from raytraverse.integrator import IntegratorDS, ZonalIntegrator, \
+    ZonalIntegratorDS
 from raytraverse.integrator.integrator import Integrator
 from raytraverse.scene import Scene
 from raytraverse.sky import SkyData
@@ -65,11 +66,12 @@ def auto_reload(scndir, area, areaname="plan", skydata="skydata", ptres=1.0,
 
 
 def load_lp(path, hasparent=True):
-    ftree = path.split("/")
     if hasparent:
+        ftree = path.rsplit("/", 3)
         scndir = ftree[-4]
         parent = ftree[-3]
     else:
+        ftree = path.rsplit("/", 2)
         scndir = ftree[-3]
         parent = None
     scn = Scene(scndir)
@@ -87,13 +89,20 @@ stypes = ('1comp', '2comp', '3comp', 'directview', 'directpatch', 'sunonly',
           'sunpatch', 'skyonly')
 
 
-def get_integrator(scn, pm, srcname="suns", simtype="2comp"):
+def get_integrator(scn, pm, srcname="suns", simtype="2comp", zonal=False,
+                   sunviewengine=None):
     req_sun = ('2comp', '3comp', 'directview', 'sunonly')
     req_sky = ('1comp', '2comp', '3comp', 'sunpatch', 'skyonly')
     req_dsk = ('3comp', 'directpatch')
     sunfile = f"{scn.outdir}/{pm.name}/{srcname}_sunpositions.tsv"
     skpoints = f"{scn.outdir}/{pm.name}/sky_points.tsv"
     dskpoints = f"{scn.outdir}/{pm.name}/skydcomp_points.tsv"
+    if zonal:
+        itg = ZonalIntegrator
+        itgds = ZonalIntegratorDS
+    else:
+        itg = Integrator
+        itgds = IntegratorDS
 
     try:
         sunplane = SunsPlaneKD(scn, sunfile, pm, f"{srcname}_sun")
@@ -118,14 +127,14 @@ def get_integrator(scn, pm, srcname="suns", simtype="2comp"):
         dskplane = None
 
     if simtype in ["1comp", "sunpatch", "skyonly"]:
-        return Integrator(skyplane, includesky=simtype != "sunpatch",
+        return itg(skyplane, includesky=simtype != "sunpatch",
                           includesun=simtype != "skyonly")
     if simtype == "2comp":
-        return Integrator(skyplane, sunplane)
+        return itg(skyplane, sunplane, sunviewengine=sunviewengine)
     if simtype == "3comp":
-        return IntegratorDS(skyplane, dskplane, sunplane)
+        return itgds(skyplane, dskplane, sunplane, sunviewengine=sunviewengine)
     if simtype in ["directview", "sunonly"]:
-        return Integrator(sunplane, includesky=False)
+        return itg(sunplane, includesky=False, sunviewengine=sunviewengine)
     if simtype == "directpatch":
-        return Integrator(dskplane, includesky=False)
+        return itg(dskplane, includesky=False)
     raise ValueError(f"Error loading {simtype}")

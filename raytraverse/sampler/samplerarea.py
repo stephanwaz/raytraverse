@@ -284,7 +284,8 @@ class SamplerArea(BaseSampler):
         level with the nearest sample value and then masking after calculating
         the detail we avoid these issues."""
         self._candidates = self._mapper.point_grid_uv(jitter=self.jitter,
-                                                      level=i, masked=False)
+                                                      level=i, masked=False,
+                                                      snap=self.nlev-1)
         self._mask = self._mapper.in_view_uv(self._candidates, False)
         if self.vecs is not None:
             wvecs = self._mapper.uv2xyz(self._candidates)

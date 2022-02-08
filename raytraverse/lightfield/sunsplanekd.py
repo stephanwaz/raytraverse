@@ -14,8 +14,11 @@ from concurrent.futures import wait, FIRST_COMPLETED
 import numpy as np
 from scipy.spatial import cKDTree, distance_matrix
 
+from raytraverse import translate
 from raytraverse.lightfield.sets import MultiLightPointSet
 from raytraverse.lightfield.lightfield import LightField
+from raytraverse.translate import theta2chord, chord2theta
+from raytraverse.utility import pool_call
 
 
 class SunsPlaneKD(LightField):
@@ -106,19 +109,104 @@ class SunsPlaneKD(LightField):
         d, i = self.kd.query(weighted_vecs)
         return i, d
 
-    def query_by_sun(self, sunvec, count=10, ptol=.05):
-        d, i = self.sunkd.query(sunvec, count)
-        vecs = self.vecs[np.isin(self.data.idx[:, 0], i), 3:]
-        pkd = cKDTree(vecs)
-        pairs = pkd.query_ball_tree(pkd, ptol)
-        flt = np.full(len(vecs), True)
-        flagged = set()
-        for j, p in enumerate(pairs):
-            if j not in flagged and len(p) > 1:
-                flt[p[1:]] = False
-                flagged.update(p[1:])
-        vecs = vecs[flt]
-        vs = np.concatenate(np.broadcast_arrays(sunvec, vecs), -1)
-        i, d = self.query(vs)
-        return i, d
+    def query_by_sun(self, sunvec, fixed_points=None, ptfilter=.25, stol=10,
+                     minsun=1):
+        """for finding vectors across zone, sun vector based query
 
+        Parameters
+        ----------
+        sunvec: Sequence
+            sun direction vector (normalized, xyz)
+        fixed_points: Sequence, optional
+            2d array like, shape (N, 3) of additional fixed points to return
+            use for example with a matching sky query. Note that if point filter
+            is to large not all of these points are necessarily returned.
+        ptfilter: Union[float, int], optional
+            minimum seperation for returned points
+        stol: Union[float, int], optional
+            maximum angle (in degrees) for matching sun vectors
+        minsun: int, optional
+            if atleast these many suns are not returned based on stol, directly
+            query for this number of results (regardless of sun error)
+
+        Returns
+        -------
+        vecs: np.array
+            shape (N, 6) final vectors, because of fixed_points, this may not
+            match exactly with self.vecs[i] so this array mus be used in further
+            processing
+        i: np.array
+            integer indices of the closest rays to each query
+        d: np.array
+            angle (in degrees) between queried sunvec and returned index
+
+        """
+        # find suns within tolerance or minimum number
+        i = self.sunkd.query_ball_point(np.ravel(sunvec),
+                                        theta2chord(stol*np.pi/180))
+        if len(i) < minsun:
+            d, i = self.sunkd.query(sunvec, minsun)
+            if minsun == 1:
+                i = [i]
+
+        # filter points corresponding to these suns
+        sunfilt = np.isin(self.data.idx[:, 0], i)
+        vecs = self.vecs[sunfilt]
+        idx = np.argwhere(sunfilt).ravel()
+
+        # prepend fixed_points
+        if fixed_points is not None:
+            fixed_points = np.atleast_2d(fixed_points)
+            pkd = cKDTree(vecs[:, 3:])
+            d, i = pkd.query(fixed_points)
+            fvecs = np.hstack((vecs[i, 0:3], fixed_points))
+            vecs = np.concatenate((fvecs, vecs), axis=0)
+            idx = np.concatenate((idx[i], idx))
+
+        # sort points by ascending by sunerror
+        sund = np.linalg.norm(vecs[:, 0:3] - np.atleast_2d(sunvec), axis=1)
+        sorti = np.argsort(sund, kind='stable')
+
+        # cull points within tolerance prioritizing minimum sun error
+        flt = translate.cull_vectors(vecs[sorti, 3:], ptfilter)
+        # sort back to original order and return indices with sun errors
+        flt = flt[np.argsort(sorti, kind='stable')]
+        d = chord2theta(sund[flt]) * 180/np.pi
+        return vecs[flt], idx[flt], d
+
+    def query_by_suns(self, sunvecs, fixed_points=None, ptfilter=.25, stol=10,
+                      minsun=1):
+        """parallel processing call to query_by_sun for 2d array of sunvecs
+
+        Parameters
+        ----------
+        sunvecs: np.array
+            shape (N, 3) sun direction vectors (normalized, xyz)
+        fixed_points: Sequence, optional
+            2d array like, shape (N, 3) of additional fixed points to return
+            use for example with a matching sky query. Note that if point filter
+            is to large not all of these points are necessarily returned.
+        ptfilter: Union[float, int], optional
+            minimum seperation for returned points
+        stol: Union[float, int], optional
+            maximum angle (in degrees) for matching sun vectors
+        minsun: int, optional
+            if atleast these many suns are not returned based on stol, directly
+            query for this number of results (regardless of sun error)
+
+        Returns
+        -------
+        vecs: list
+            list of np.array, one for each sunvec (see query_by_sun)
+        idx: list
+            list of np.array, one for each sunvec (see query_by_sun)
+        d: list
+            list of np.array, one for each sunvec (see query_by_sun)
+
+        """
+        result = pool_call(self.query_by_sun, sunvecs, expandarg=False,
+                           desc="finding SunPlane points",
+                           fixed_points=fixed_points, ptfilter=ptfilter,
+                           stol=stol, minsun=minsun)
+        vecs, idx, d = zip(*result)
+        return vecs, idx, d
