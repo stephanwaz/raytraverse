@@ -144,6 +144,8 @@ engine_opts = [
               help="initial sampling resolution for points")
 @click.option("-rotation", default=0.0,
               help="positive Z rotation for point grid alignment")
+@click.option("-jitterrate", default=0.5,
+              help="fraction of each axis to jitter over")
 @click.option("-zheight", type=float, default=None,
               help="replaces z in points or zone")
 @click.option("-name", default="plan",
@@ -215,6 +217,8 @@ candidates within adaptive grid.""")
                    "clockwise project north rotation)")
 @click.option("-sunres", default=20.0,
               help="initial sampling resolution for suns")
+@click.option("-jitterrate", default=0.5,
+              help="fraction of each axis to jitter over")
 @click.option("-name", default="suns",
               help="name for solar sourcee group (impacts file naming)")
 @click.option("--epwloc/--no-epwloc", default=False,
