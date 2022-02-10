@@ -54,14 +54,15 @@ class SkyMapper(AngularMixin, Mapper):
     _flipu = False
     _xsign = 1
 
-    def __init__(self, loc=None, skyro=0.0, sunres=20.0, name='sky'):
+    def __init__(self, loc=None, skyro=0.0, sunres=20.0, name='sky',
+                 jitterrate=0.5):
         self._viewangle = 180.0
         self._chordfactor = 1.0
         self._ivm = None
         self.skyro = skyro
         self.sunres = sunres
 
-        super().__init__(name=name, aspect=1)
+        super().__init__(name=name, aspect=1, jitterrate=jitterrate)
         self.loc = loc
 
     @property
@@ -208,7 +209,7 @@ class SkyMapper(AngularMixin, Mapper):
         uvsize, _ = self.shape(level)
         cbins = translate.uv2bin(self._candidates, uvsize)
         sbins = np.arange(uvsize**2)
-        suv = self._solar_grid_uv(jitter=jitter, level=level, masked=False)
+        suv = self._solar_grid_uv(jitter=False, level=level, masked=False)
         if masked:
             mask = self.in_solarbounds_uv(suv, level=level)
             sbins = sbins[mask]
@@ -225,8 +226,11 @@ class SkyMapper(AngularMixin, Mapper):
                 binc = self.uv2xyz(uv)
                 bp = np.linalg.norm(self.uv2xyz(candidates) - binc,
                                     axis=1)
-                a = np.random.default_rng().choice(candidates, axis=0,
-                                                   p=bp/np.sum(bp))
+                if jitter:
+                    a = np.random.default_rng().choice(candidates, axis=0,
+                                                       p=bp/np.sum(bp))
+                else:
+                    a = candidates[np.argmin(bp)]
             else:
                 a = badsun
             sunsuv.append(a)
@@ -274,10 +278,16 @@ class SkyMapper(AngularMixin, Mapper):
             self._solarbounds = None
 
     def _norm_input_data(self, dat):
-        if dat.shape[1] in (3, 5):
-            cxyz = translate.norm(dat[:, 0:3])
-        elif dat.shape[1] in (2, 4):
-            cxyz = translate.aa2xyz(dat[:, 0:2])
+        if dat.shape[1] == 2:
+            cxyz = translate.aa2xyz(dat[dat[:, 0] > 0])
+        elif dat.shape[1] == 3:
+            cxyz = translate.norm(dat[dat[:, 2] > 0])
+        elif dat.shape[1] == 4:
+            cxyz = translate.aa2xyz(dat[np.logical_and(dat[:, 0] > 0,
+                                                       dat[:, 2] > 0), 0:2])
+        elif dat.shape[1] == 5:
+            cxyz = translate.norm(dat[np.logical_and(dat[:, 2] > 0,
+                                                     dat[:, 3] > 0), 0:3])
         else:
             raise ValueError("Data has wrong shape, must be (N, {2,3,4,5})")
         self._loc = None

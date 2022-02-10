@@ -314,7 +314,7 @@ oputc(				/* print local coordinates */
 
 
 static RREAL	vdummy[3] = {0.0, 0.0, 0.0};
-
+static RREAL	vdummy1[1] = {0.0};
 
 static void
 oputp(				/* print point */
@@ -424,16 +424,23 @@ oputM(				/* print material */
         RAY  *r
 )
 {
-  OBJREC	*mat;
+  RREAL omod[1];
+  omod[0] = 0.0;
 
-  if (r->ro != NULL) {
-    if ((mat = findmaterial(r->ro)) != NULL)
-      fputs(mat->oname, stdout);
-    else
-      fputs(VOIDID, stdout);
-  } else
-    putchar('*');
-  putchar('\t');
+  if (r->ro != NULL)
+    omod[0] = r->ro->omod;
+  (*putreal)(omod, 1);
+
+
+//  OBJREC	*mat;
+//  if (r->ro != NULL) {
+//    if ((mat = findmaterial(r->ro)) != NULL)
+//      fputs(mat->oname, stdout);
+//    else
+//      fputs(VOIDID, stdout);
+//  } else
+//    putchar('*');
+//  putchar('\t');
 }
 
 void putn(RREAL *v, int n){ /* output to buffer */
@@ -588,6 +595,10 @@ setoutput2(char *vs)      /* provides additional outputspec Z to output radiance
       case 'N':				/* unperturbed normal */
         *table++ = oputN;
         ncomp += 3;
+        break;
+      case 'M':				/* material */
+        *table++ = oputM;
+        ncomp++;
         break;
       case 'w':				/* weight */
         *table++ = oputw;

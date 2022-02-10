@@ -19,7 +19,8 @@ import clasp.click_ext as clk
 
 import raytraverse
 from raytraverse import translate
-from raytraverse.lightfield import LightPlaneKD, DayLightPlaneKD, ResultAxis
+from raytraverse import api
+from raytraverse.lightfield import LightPlaneKD, ResultAxis
 from raytraverse.lightfield import LightResult
 from raytraverse.mapper import PlanMapper, SkyMapper, ViewMapper
 from raytraverse.utility.cli import np_load, np_load_safe, shared_pull, pull_decs
@@ -104,6 +105,11 @@ engine_opts = [
                    ' variance to sample. A value of 1 will have a sample count'
                    ' at the final sampling level equal to the number of'
                    ' directions with a contribution variance greater than .25'),
+ click.option("-vlt", default=0.64,
+              help="primary transmitting vlt, used to scale the accuracy "
+                   "parameter to the expected scene variance. Optional, but "
+                   "helpful with, for example, electrochromic glazing or "
+                   "shades"),
  click.option('-idres', default=5,
               help='the initial directional sampling resolution. each side'
                    ' of the sampling square (representing a hemisphere) will'
@@ -138,13 +144,21 @@ engine_opts = [
               help="initial sampling resolution for points")
 @click.option("-rotation", default=0.0,
               help="positive Z rotation for point grid alignment")
+@click.option("-jitterrate", default=0.5,
+              help="fraction of each axis to jitter over")
 @click.option("-zheight", type=float, default=None,
               help="replaces z in points or zone")
 @click.option("-name", default="plan",
               help="name for zone/point group (impacts file naming)")
+@click.option("--printdata/--no-printdata", default=False,
+              help="if True, print areamapper positions (either boundary or "
+                   "static points)")
+@click.option("-printlevel", type=int,
+              help="print a set of sun positions at sampling level "
+                   "(overrides printdata)")
 @clk.shared_decs(clk.command_decs(raytraverse.__version__, wrap=True))
 def area(ctx, static_points=None, zone=None, opts=False, debug=False,
-         version=None, **kwargs):
+         version=None, printdata=False, printlevel=None, **kwargs):
     """define sampling area
 
     Effects
@@ -161,6 +175,16 @@ def area(ctx, static_points=None, zone=None, opts=False, debug=False,
     if zone is None:
         raise ValueError("one of 'static_points' or 'zone' must be defined")
     ctx.obj['planmapper'] = PlanMapper(zone, **kwargs)
+    if printdata or printlevel is not None:
+        pm = ctx.obj['planmapper']
+        if printlevel is not None:
+            xyz = pm.point_grid(level=printlevel, jitter=False)
+        elif ctx.obj['static_points']:
+            xyz = zone
+        else:
+            xyz = np.array(pm.borders()).reshape(-1, 3)
+        for x in xyz:
+            print("{: >10.05f} {: >10.05f} {: >10.05f}".format(*x))
 
 
 @main.command()
@@ -191,8 +215,10 @@ candidates within adaptive grid.""")
 @click.option("-skyro", default=0.0,
               help="counterclockwise sky-rotation in degrees (equivalent to "
                    "clockwise project north rotation)")
-@click.option("-sunres", default=30.0,
+@click.option("-sunres", default=20.0,
               help="initial sampling resolution for suns")
+@click.option("-jitterrate", default=0.5,
+              help="fraction of each axis to jitter over")
 @click.option("-name", default="suns",
               help="name for solar sourcee group (impacts file naming)")
 @click.option("--epwloc/--no-epwloc", default=False,
@@ -253,14 +279,16 @@ def suns(ctx, loc=None, opts=False, debug=False, version=False, epwloc=False,
               help="angle in degrees counter-clockwise to rotate sky (to "
                    "correct model north, equivalent to clockwise rotation of "
                    "scene)")
-@click.option("-ground_fac", default=0.15, help="ground reflectance")
-@click.option("-skyres", default=10.0,
+@click.option("-ground_fac", default=0.2, help="ground reflectance")
+@click.option("-skyres", default=12.0,
               help="approximate square patch size in degrees (must match "
                    "argument given to skyengine)")
 @click.option("-minalt", default=2.0,
               help="minimum solar altitude for daylight masking")
 @click.option("-mindiff", default=5.0,
               help="minumum diffuse horizontal irradiance for daylight masking")
+@click.option("-mindir", default=0.0,
+              help="minumum direct normal irradiance for daylight masking")
 @click.option("--reload/--no-reload", default=True,
               help="reload saved skydata if it exists in scene directory")
 @click.option("-name", default="skydata",
@@ -294,7 +322,7 @@ def skydata(ctx, wea=None, name="skydata", loc=None, reload=True, opts=False,
 
 @main.command()
 @clk.shared_decs(engine_opts)
-@click.option("-skyres", default=10.0,
+@click.option("-skyres", default=12.0,
               help="approximate resolution for skypatch subdivision (in "
                    "degrees). Patches will have (rounded) size skyres x skyres."
                    " So if skyres=10, each patch will be 100 sq. degrees "
@@ -308,9 +336,9 @@ def skydata(ctx, wea=None, name="skydata", loc=None, reload=True, opts=False,
               help="additional arguments for running direct component. when "
                    "using, set -ab in sunengine.rayargs to this ab minus one.")
 @clk.shared_decs(clk.command_decs(raytraverse.__version__, wrap=True))
-def skyengine(ctx, accuracy=1.0, idres=5, rayargs=None, default_args=True,
-              skyres=10.0, fdres=9, dcompargs='-ab 1', usedecomp=False,
-              opts=False, debug=False, version=None, **kwargs):
+def skyengine(ctx, accuracy=1.0, vlt=0.64, idres=5, rayargs=None,
+              default_args=True, skyres=10.0, fdres=9, dcompargs='-ab 1',
+              usedecomp=False, opts=False, debug=False, version=None, **kwargs):
     """initialize engine for skyrun
 
     Effects
@@ -328,6 +356,7 @@ def skyengine(ctx, accuracy=1.0, idres=5, rayargs=None, default_args=True,
             rayargs = dcompargs
     rcontrib = Rcontrib(rayargs=rayargs, scene=scn.scene, skyres=skyres,
                         default_args=default_args)
+    accuracy = accuracy * vlt / 0.64
     ctx.obj['skyengine'] = SkySamplerPt(scn, rcontrib, accuracy=accuracy,
                                         idres=idres, fdres=fdres)
 
@@ -347,25 +376,21 @@ def skyengine(ctx, accuracy=1.0, idres=5, rayargs=None, default_args=True,
 @click.option('-slimit', default=0.01,
               help="the minimum value in the specular guide considered as a "
                    "potential specular reflection source, in the case of low "
-                   "vlt glazing, this value should be reduced.")
+                   "vlt glazing, make sure to set -vlt.")
 @click.option('-maxspec', default=0.2,
               help="the maximum value in the specular guide considered as a "
                    "specular reflection source. Above this value it is "
                    "assumed that these are direct view rays to the source so "
-                   "are not sampled. in the case of low vlt glazing, this "
-                   "value should be reduced. In mixed (high-low) vlt scenes "
+                   "are not sampled. in the case of low vlt glazing, "
+                   "set -vlt. In mixed (high-low) vlt scenes "
                    "the specular guide will either over sample (including "
-                   "direct views) or under sample (miss specular reflections) "
+                   "direct views when maxspec is large) or under sample "
+                   "(miss specular reflections when maxspec is small) "
                    "depending on this setting.")
-@click.option('-dcompargs', default='-ab 0',
-              help="additional arguments for running direct component. when "
-                   "using, set -ab in skyengine.rayargs to this ab plus one.")
-@click.option("--usedcomp/--no-usedcomp", default=False,
-              help="configure Rtrace as a dcomp run (appends dcompargs)")
 @clk.shared_decs(clk.command_decs(raytraverse.__version__, wrap=True))
-def sunengine(ctx, accuracy=1.0, idres=5, rayargs=None, default_args=True,
-              fdres=10, slimit=0.01, maxspec=0.2, dcompargs='-ab 0',
-              usedcomp=False, opts=False, debug=False, version=None, **kwargs):
+def sunengine(ctx, accuracy=1.0, vlt=0.64, idres=5, rayargs=None,
+              default_args=True, fdres=10, slimit=0.01, maxspec=0.2,
+              opts=False, debug=False, version=None, **kwargs):
     """initialize engine for sunrun
 
     Effects
@@ -375,25 +400,27 @@ def sunengine(ctx, accuracy=1.0, idres=5, rayargs=None, default_args=True,
     if 'scene' not in ctx.obj:
         clk.invoke_dependency(ctx, scene, reload=True, overwrite=False)
     scn = ctx.obj['scene']
-    if usedcomp:
-        nproc = 1
-        if rayargs is not None:
-            rayargs += " " + dcompargs
-        else:
-            rayargs = dcompargs
-    else:
-        nproc = None
-    rtrace = Rtrace(rayargs=rayargs, scene=scn.scene, default_args=default_args,
-                    nproc=nproc)
+    rtrace = Rtrace(rayargs=rayargs, scene=scn.scene, default_args=default_args)
+    accuracy = accuracy*vlt/0.64
+    maxspec = maxspec*vlt/0.64
+    slimit = slimit*vlt/0.64
     ptkwargs = dict(slimit=slimit, maxspec=maxspec, accuracy=accuracy,
                     idres=idres, fdres=fdres)
     ctx.obj['sunengine'] = dict(engine=rtrace, ptkwargs=ptkwargs)
+
 
 sample_opts = [
  click.option("-accuracy", default=1.0,
               help="parameter to set threshold at sampling level relative to "
                    "final level threshold (smaller number will increase "
                    "sampling)"),
+ click.option("-edgemode", default='constant',
+              type=click.Choice(['constant', 'reflect', 'nearest', 'mirror',
+                                 'wrap']),
+              help="if 'constant' value is set to -self.t1, so edge is "
+                   "always seen as detail. Internal edges (resulting from "
+                   "PlanMapper borders) will behave like 'nearest' for all "
+                   "options except 'constant'"),
  click.option("-nlev", default=3,
               help="number of levels to sample (final resolution will be "
                    "ptres/2^(nlev-1))"),
@@ -406,15 +433,12 @@ sample_opts = [
 
 @main.command()
 @clk.shared_decs(sample_opts)
-@click.option("--dcomp/--no-dcomp", default=True,
-              help="calculate indirect sun component from skyrun "
-                   "(2-phase DDS / daysim / 5-phase)")
 @click.option("--overwrite/--no-overwrite", default=False,
               help="If True, reruns sampler when invoked, otherwise will first"
                    " attempt to load results")
 @clk.shared_decs(clk.command_decs(raytraverse.__version__, wrap=True))
-def skyrun(ctx, accuracy=1.0, nlev=3, jitter=True, overwrite=False, dcomp=True,
-           plotp=False, opts=False, debug=False, version=None):
+def skyrun(ctx, accuracy=1.0, nlev=3, jitter=True, overwrite=False, plotp=False,
+           edgemode='constant', opts=False, debug=False, version=None):
     """run scene under sky for a set of points (defined by area)
 
     Effects
@@ -440,7 +464,7 @@ def skyrun(ctx, accuracy=1.0, nlev=3, jitter=True, overwrite=False, dcomp=True,
         jitter = False
     skengine = ctx.obj['skyengine']
     skysampler = SamplerArea(scn, skengine, accuracy=accuracy, nlev=nlev,
-                             jitter=jitter)
+                             jitter=jitter, edgemode=edgemode)
     try:
         if overwrite:
             raise OSError
@@ -451,23 +475,33 @@ def skyrun(ctx, accuracy=1.0, nlev=3, jitter=True, overwrite=False, dcomp=True,
     else:
         click.echo(f"Sky Lightfield reloaded from {scn.outdir}/{pm.name} "
                    f"use --overwrite to rerun", err=True)
-    if dcomp:
-        try:
-            if overwrite:
-                raise OSError
-            dskyfield = LightPlaneKD(scn,
-                                     f"{scn.outdir}/{pm.name}/skydcomp_points"
-                                     f".tsv", pm, "skydcomp")
-        except OSError:
-            skengine.engine.reset()
-            clk.invoke_dependency(ctx, skyengine, usedecomp=True)
-            skysampler = SamplerArea(scn, skengine, accuracy=accuracy,
-                                     nlev=nlev, jitter=jitter)
-            dskyfield = skysampler.repeat(skyfield, "skydcomp")
-        ctx.obj['dskyfield'] = dskyfield
-    else:
-        ctx.obj['dskyfield'] = None
     ctx.obj['skyfield'] = skyfield
+
+
+@main.command()
+@click.option("--overwrite/--no-overwrite", default=False,
+              help="If True, reruns sampler when invoked, otherwise will first"
+                   " attempt to load results")
+@clk.shared_decs(clk.command_decs(raytraverse.__version__, wrap=True))
+def directskyrun(ctx, overwrite=False, opts=False, debug=False, version=None):
+    if 'skyfield' not in ctx.obj:
+        clk.invoke_dependency(ctx, skyrun, overwrite=False)
+    scn = ctx.obj['scene']
+    skyfield = ctx.obj['skyfield']
+    skengine = ctx.obj['skyengine']
+    pm = skyfield.pm
+    try:
+        if overwrite:
+            raise OSError
+        dskyfield = LightPlaneKD(scn,
+                                 f"{scn.outdir}/{pm.name}/skydcomp_points"
+                                 f".tsv", pm, "skydcomp")
+    except OSError:
+        skengine.engine.reset()
+        clk.invoke_dependency(ctx, skyengine, usedecomp=True)
+        skysampler = SamplerArea(scn, skengine)
+        dskyfield = skysampler.repeat(skyfield, "skydcomp")
+    ctx.obj['dskyfield'] = dskyfield
 
 
 @main.command()
@@ -525,12 +559,10 @@ def sunrun(ctx, srcaccuracy=1.0, srcnlev=3, srcjitter=True, recover=False,
         clk.invoke_dependency(ctx, skyrun, overwrite=False)
     if guided:
         specguide = ctx.obj['skyfield']
-        dcomp = ctx.obj['dskyfield']
     else:
         specguide = None
-        dcomp = None
     if 'sunengine' not in ctx.obj:
-        clk.invoke_dependency(ctx, sunengine, usedcomp=dcomp is not None)
+        clk.invoke_dependency(ctx, sunengine)
     snengine = ctx.obj['sunengine']['engine']
     ptkwargs = ctx.obj['sunengine']['ptkwargs']
     if ctx.obj['static_points']:
@@ -547,20 +579,18 @@ def sunrun(ctx, srcaccuracy=1.0, srcnlev=3, srcjitter=True, recover=False,
             shutil.rmtree(src, ignore_errors=True)
     dfield = sunsampler.run(skmapper, pm, specguide=specguide, recover=recover,
                             plotp=plotp, pfish=False)
-    if dcomp is not None:
-        dfield = dfield.add_indirect_to_suns(dcomp)
     ctx.obj['daylightfield'] = dfield
 
 
-@main.command()
-@click.option("-sensors", callback=np_load,
+eval_opts = [
+ click.option("-sensors", callback=np_load,
               help="sensor points, this can be a .npy file, a whitespace "
                    "seperated text file or entered as a string with commas "
                    "between components of a point and spaces between points. "
                    "points should either all be 3 componnent (x,y,z) or 6"
                    " component (x,y,z,dx,dy,dz). If 3 component, -sdirs is "
-                   "required, if 6-component, -sdirs is ignored")
-@click.option("-sdirs", callback=np_load,
+                   "required, if 6-component, -sdirs is ignored"),
+ click.option("-sdirs", callback=np_load,
               help="sensor directions, this can be a .npy file, a whitespace "
                    "seperated text file or entered as a string with commas "
                    "between components of a point and spaces between points. "
@@ -568,35 +598,45 @@ def sunrun(ctx, srcaccuracy=1.0, srcnlev=3, srcjitter=True, recover=False,
                    "3-component -sensors argument, all points are run for all"
                    "views, creating len(sensors)*len(sdirs) results. this"
                    "is the preferred option for multiple view directions, as"
-                   "the calculations are grouped more efficiently")
-@click.option("-viewangle", default=180.)
-@click.option("-skymask", callback=clk.split_int,
+                   "the calculations are grouped more efficiently"),
+ click.option("-viewangle", default=180.),
+ click.option("-skymask", callback=clk.split_int,
               help="""mask to reduce output from full SkyData, enter as index
 rows in wea/epw file using space seperated list or python range notation:
 
     - 370 371 372 (10AM-12PM on jan. 16th)
     - 12:8760:24 (everyday at Noon)
 
-""")
+"""),
+ click.option("-simtype", default="3comp",
+              type=click.Choice(api.stypes),
+              help="simulation process/integration type"),
+ click.option("-resuntol", default=5.0,
+              help="tolerance for resampling sun views"),
+ click.option("--blursun/--no-blursun", default=False,
+              help="for simulating point spread function for direct sun view"),
+ click.option("--resampleview/--no-resampleview", default=False,
+              help="resample direct sun view directions")
+    ]
+
+
+@main.command()
+@clk.shared_decs(eval_opts)
 @click.option("-res", default=800, help="image resolution")
-@click.option("--interpolate/--no-interpolate", default=False,
-              help="use linear iinterpolation in image output")
+@click.option("-interpolate", type=click.Choice(['linear', 'fast', 'high', '', 'None', 'False']))
 @click.option("--namebyindex/--no-namebyindex", default=False,
               help="if False (default), names images by: "
                    "<prefix>_sky-<row>_pt-<x>_<y>_<z>_vd-<dx>_<dy>_<dz>.hdr "
                    "if True, names images by: "
                    "<prefix>_sky-<row>_pt-<pidx>_vd-<vidx>.hdr, "
                    "where pidx, vidx refer to the order of points, and vm.")
-@click.option("--dcomp/--no-dcomp", default=True,
-              help="try loading dcomp sun points")
 @click.option("-basename", default="results",
               help="prefix of namebyindex.")
-@click.option("--sunonly/--no-sunonly", default=False,
-              help="metrics for sun source only (no sky)")
 @clk.shared_decs(clk.command_decs(raytraverse.__version__, wrap=True))
 def images(ctx, sensors=None, sdirs=None, viewangle=180., skymask=None,
-           basename="results", res=800, interpolate=False, namebyindex=False,
-           sunonly=False, dcomp=True, **kwargs):
+           basename="results", res=800, interpolate=None, namebyindex=False,
+           simtype="2comp", resuntol=5.0, blursun=False, resampleview=False,
+           **kwargs):
     """render images
 
     Prequisites
@@ -624,66 +664,50 @@ def images(ctx, sensors=None, sdirs=None, viewangle=180., skymask=None,
     if 'skymapper' not in ctx.obj:
         clk.invoke_dependency(ctx, suns)
     skmapper = ctx.obj['skymapper']
-    sunfile = f"{scn.outdir}/{pm.name}/{skmapper.name}_sunpositions.tsv"
-    if dcomp:
-        try:
-            df = DayLightPlaneKD(scn, sunfile, pm, f"i_{skmapper.name}_sun",
-                                 includesky=not sunonly)
-        except OSError:
-            click.echo("Warning! no dcomp runs found", err=True)
-            dcomp = False
-    if not dcomp:
-        df = DayLightPlaneKD(scn, sunfile, pm, f"{skmapper.name}_sun",
-                             includesky=not sunonly)
+    if resampleview:
+        if 'sunengine' not in ctx.obj:
+            clk.invoke_dependency(ctx, sunengine)
+        sunviewengine = ctx.obj['sunengine']['engine']
+    else:
+        sunviewengine = None
+
+    itg = api.get_integrator(scn, pm, skmapper.name, simtype,
+                             sunviewengine=sunviewengine)
+
     if skymask is not None:
         sd.mask = skymask
     sensors = np.atleast_2d(sensors)
+
+    if interpolate == "linear":
+        interpolate = True
+    elif interpolate not in ['fast', 'high']:
+        interpolate = False
+
     if sensors.shape[1] == 6:
         result = []
         for sensor in sensors:
             point = sensor[0:3]
             vm = ViewMapper(sensor[3:6], viewangle)
-            result.append(df.make_images(sd, point, vm, res=res, interp=interpolate,
-                          prefix=basename, namebyindex=namebyindex))
+            result.append(itg.make_images(sd, point, vm, res=res,
+                                          interp=interpolate, prefix=basename,
+                                          namebyindex=namebyindex,
+                                          suntol=resuntol, blursun=blursun))
         result = np.concatenate(result)
     elif sdirs is None:
         raise ValueError("if sensors do not have directions, sdirs cannot be "
                          "None")
     else:
-        result = df.make_images(sd, sensors, sdirs, viewangle=viewangle,
-                                res=res, interp=interpolate, prefix=basename,
-                                namebyindex=namebyindex)
+        result = itg.make_images(sd, sensors, sdirs, viewangle=viewangle,
+                                 res=res, interp=interpolate, prefix=basename,
+                                 namebyindex=namebyindex, suntol=resuntol,
+                                 blursun=blursun)
     for d in result:
         print(d)
     sd.mask = None
 
 
 @main.command()
-@click.option("-sensors", callback=np_load,
-              help="sensor points, this can be a .npy file, a whitespace "
-                   "seperated text file or entered as a string with commas "
-                   "between components of a point and spaces between points. "
-                   "points should either all be 3 componnent (x,y,z) or 6"
-                   " component (x,y,z,dx,dy,dz). If 3 component, -sdirs is "
-                   "required, if 6-component, -sdirs is ignored")
-@click.option("-sdirs", callback=np_load,
-              help="sensor directions, this can be a .npy file, a whitespace "
-                   "seperated text file or entered as a string with commas "
-                   "between components of a point and spaces between points. "
-                   "vectors should all be 3 componnent (dx,dy,dz). used with"
-                   "3-component -sensors argument, all points are run for all"
-                   "views, creating len(sensors)*len(sdirs) results. this"
-                   "is the preferred option for multiple view directions, as"
-                   "the calculations are grouped more efficiently")
-@click.option("-viewangle", default=180.)
-@click.option("-skymask", callback=clk.split_int,
-              help="""mask to reduce output from full SkyData, enter as index
-rows in wea/epw file using space seperated list or python range notation:
-
-    - 370 371 372 (10AM-12PM on jan. 16th)
-    - 12:8760:24 (everyday at Noon)
-
-""")
+@clk.shared_decs(eval_opts)
 @click.option("-metrics", callback=clk.split_str, default="illum dgp ugp",
               help='metrics to compute, choices: ["illum", '
                    '"avglum", "gcr", "ugp", "dgp", "tasklum", "backlum", '
@@ -692,10 +716,6 @@ rows in wea/epw file using space seperated list or python range notation:
                    '"maxlum"]')
 @click.option("-basename", default="results",
               help="LightResult object is written to basename.npz.")
-@click.option("--sunonly/--no-sunonly", default=False,
-              help="metrics for sun source only (no sky)")
-@click.option("--dcomp/--no-dcomp", default=True,
-              help="try loading dcomp sun points")
 @click.option("--npz/--no-npz", default=True,
               help="write LightResult object to .npz, use 'raytraverse pull'"
                    "or LightResult('basename.npz') to access results")
@@ -707,8 +727,9 @@ rows in wea/epw file using space seperated list or python range notation:
                    "resolution of the mapper.")
 @clk.shared_decs(clk.command_decs(raytraverse.__version__, wrap=True))
 def evaluate(ctx, sensors=None, sdirs=None, viewangle=180., skymask=None,
-             metrics=None, basename="results", sunonly=False, dcomp=True,
-             npz=True, serr=False, **kwargs):
+             metrics=None, basename="results", simtype="2comp", npz=True,
+             serr=False, resuntol=5.0, blursun=False, resampleview=False,
+             **kwargs):
     """evaluate metrics
 
     Prequisites
@@ -736,18 +757,16 @@ def evaluate(ctx, sensors=None, sdirs=None, viewangle=180., skymask=None,
     pm = ctx.obj['planmapper']
     if 'skymapper' not in ctx.obj:
         clk.invoke_dependency(ctx, suns)
+    if resampleview:
+        if 'sunengine' not in ctx.obj:
+            clk.invoke_dependency(ctx, sunengine)
+        sunviewengine = ctx.obj['sunengine']['engine']
+    else:
+        sunviewengine = None
     skmapper = ctx.obj['skymapper']
-    sunfile = f"{scn.outdir}/{pm.name}/{skmapper.name}_sunpositions.tsv"
-    if dcomp:
-        try:
-            df = DayLightPlaneKD(scn, sunfile, pm, f"i_{skmapper.name}_sun",
-                                 includesky=not sunonly)
-        except OSError:
-            click.echo("Warning! no dcomp runs found", err=True)
-            dcomp = False
-    if not dcomp:
-        df = DayLightPlaneKD(scn, sunfile, pm, f"{skmapper.name}_sun",
-                             includesky=not sunonly)
+    zonal = sensors is None
+    itg = api.get_integrator(scn, pm, skmapper.name, simtype,
+                             sunviewengine=sunviewengine, zonal=zonal)
     if skymask is not None:
         sd.mask = skymask
     sensors = np.atleast_2d(sensors)
@@ -756,18 +775,21 @@ def evaluate(ctx, sensors=None, sdirs=None, viewangle=180., skymask=None,
         for sensor in sensors:
             point = sensor[0:3]
             vm = ViewMapper(sensor[3:6], viewangle)
-            result.append(df.evaluate(sd, point, vm, metrics=metrics))
-        data = np.concatenate([r.data for r in result], axis=1)
+            result.append(itg.evaluate(sd, point, vm, metrics=metrics,
+                                       datainfo=serr, suntol=resuntol,
+                                       blursun=blursun))
+        data = np.squeeze(np.concatenate([r.data for r in result], axis=1), 2)
         ptaxis = ResultAxis(sensors, "point")
-        viewaxis = ResultAxis([0], "view")
-        result = LightResult(data, result[0].axes[0], ptaxis, viewaxis,
-                             result[0].axes[3])
-    elif sdirs is None:
-        raise ValueError("if sensors do not have directions, sdirs cannot be "
-                         "None")
+        result = LightResult(data, result[0].axes[0], ptaxis, result[0].axes[3])
     else:
-        result = df.evaluate(sd, sensors, sdirs, viewangle=viewangle,
-                             metrics=metrics, datainfo=serr)
+        if zonal and sdirs is not None:
+            sensors = pm
+        elif sdirs is None:
+            raise ValueError("if sensors do not have directions, sdirs cannot be "
+                             "None")
+        result = itg.evaluate(sd, sensors, sdirs, viewangle=viewangle,
+                              suntol=resuntol, metrics=metrics, datainfo=serr,
+                              srconly=simtype == 'directview', blursun=blursun)
     if npz:
         result.write(f"{basename}.npz")
     sd.mask = None

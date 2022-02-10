@@ -117,9 +117,6 @@ class SunSamplerPt(SamplerPt):
         vm: raytraverse.mapper.ViewMappper
         """
         if specguide is None:
-            self.scene.log(self, "Warning: no specular guide for "
-                                 f"{self.stype} sampling", err=True,
-                           level=self._slevel)
             self._specguide = None
         else:
             if not hasattr(specguide, '__len__'):

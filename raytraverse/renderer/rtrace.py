@@ -64,11 +64,15 @@ class Rtrace(RadianceRenderer):
                    f"1000 -lw 0.00004 -st 0 -ss 16")
     directargs = "-av 0 0 0 -ab 0 -lr 0 -n 1"
     usedirect = False
+    ospec = "Z"
+    ocnt = 1
 
     def __init__(self, rayargs=None, scene=None, nproc=None,
                  default_args=True, direct=False):
         type(self).usedirect = direct
         default_args = default_args or direct
+        if direct:
+            nproc = 1
         super().__init__(rayargs, scene, nproc, default_args=default_args)
 
     @classmethod
@@ -92,6 +96,9 @@ class Rtrace(RadianceRenderer):
 
         """
         super().set_args(args, nproc)
+        ospec = re.findall("-o\w+", cls.args)
+        if len(ospec) > 0:
+            cls.update_ospec(ospec[-1][2:])
 
     @classmethod
     def update_ospec(cls, vs):
@@ -132,6 +139,8 @@ class Rtrace(RadianceRenderer):
         if outcnt < 0:
             raise ValueError(f"Could not update {cls.__name__} with "
                              f"outputs: '{vs}'")
+        cls.ospec = vs
+        cls.ocnt = outcnt
         return outcnt
 
     @classmethod

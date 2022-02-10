@@ -24,7 +24,7 @@ add_subdirectory(pybind11)
 include_directories(pybind11/include/pybind11)
 include(pybind11_add_module_libs.cmake)
 
-include_directories(Radiance/src/common)
+include_directories(Radiance/src/common Radiance/src/util)
 
 execute_process(COMMAND git log --pretty=format:'%h' -n 1
         WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/Radiance
@@ -165,6 +165,18 @@ target_link_libraries(getinfo rtrad)
 
 add_executable(vwrays Radiance/src/util/vwrays.c)
 target_link_libraries(vwrays rtrad)
+
+
+set(libreetz_SOURCES g3affine.c g3affine.h g3flist.c g3flist.h g3list.h g3nlist.h
+        g3sphere.c g3sphere.h g3vector.c g3vector.h gbasic.c gbasic.h muc_randvar.c muc_randvar.h)
+
+
+list(TRANSFORM libreetz_SOURCES PREPEND Radiance/src/common/)
+
+add_library(libreetz STATIC ${libreetz_SOURCES})
+
+add_executable(evalglare csrc/evalglare.c Radiance/src/util/pictool.c)
+target_link_libraries(evalglare rtrad libreetz)
 
 # from cal
 add_executable(cnt Radiance/src/cal/cnt.c)

@@ -31,7 +31,7 @@ class LightPlaneKD(LightField):
 
     @property
     def omega(self):
-        """represeentative area of each point
+        """representative area of each point
 
         :getter: Returns array of areas
         :setter: sets areas
@@ -137,9 +137,3 @@ class LightPlaneKD(LightField):
                 outf = self._datadir.replace("/", "_") + f"{self.src}_{m}.hdr"
                 self.make_image(outf, r, res=res, showsample=showsample,
                                 interp=interp)
-
-    def add(self, lf2, src=None, calcomega=True, write=False, compress=False):
-        """add light planes of distinct sources together
-        """
-        pass
-        # return type(self)()

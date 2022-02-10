@@ -5,9 +5,12 @@
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 # =======================================================================
+import os.path
 import re
 
 import numpy as np
+
+from raytraverse import io
 
 
 class ResultAxis(object):
@@ -39,18 +42,27 @@ class LightResult(object):
     """
 
     def __init__(self, data, *axes):
-        if not hasattr(data, "shape"):
-            data, axes = self.load(data)
-        if len(data.shape) != len(axes):
-            raise ValueError(f"data of shape: {data.shape} requires "
-                             f"{len(data.shape)} axes arguments.")
-        self._data = data
+        self._file = None
+        if not hasattr(data, "shape") and type(data) not in (list, tuple):
+            if os.path.isfile(data):
+                self._file = data
+                data, axes = self.load(data)
+            else:
+                raise FileNotFoundError(f"{data} is not a valid file path")
+        self.data = data
         self._axes = axes
+        if len(self.data.shape) != len(self.axes):
+            raise ValueError(f"data of shape: {self.data.shape} requires "
+                             f"{len(self.data.shape)} axes arguments.")
         self._names = [a.name for a in axes]
 
     @property
     def data(self):
         return self._data
+
+    @data.setter
+    def data(self, d):
+        self._data = d
 
     @property
     def axes(self):
@@ -60,8 +72,14 @@ class LightResult(object):
     def names(self):
         return self._names
 
-    @staticmethod
-    def load(file):
+    @property
+    def file(self):
+        return self._file
+
+    def axis(self, name):
+        return self.axes[self._index(name)]
+
+    def load(self, file):
         with np.load(file) as result:
             data = result['data']
             names = result['names']
@@ -77,12 +95,15 @@ class LightResult(object):
         else:
             np.savez(file, *args, **kws)
         if hasattr(file, "write"):
+            self._file = file.name
             file.close()
+        else:
+            self._file = file
 
-    def pull(self, *axes, aindices=None, findices=None, order=None):
+    def pull(self, *axes, preserve=1, **kwargs):
         """arrange and extract data slices from result.
 
-        DaylightPlaneKD.evaluate constructs a light result with these axes:
+        Integrators construct a light result with these axes:
 
             0. sky
             1. point
@@ -92,18 +113,13 @@ class LightResult(object):
         Parameters
         ----------
         axes: Union[int, str]
-            the axes (by name or integer index) to maintain and order
-            the returned result (where axes will be the last N axes of result)
-        aindices: Sequence[array_like], optional
-            sequence of returned axis indices, up to one per each of axes to
-            return a subset of data along these axes.
-        findices: Sequence, optional
-            sequence of indices or slices for pre-flattened axes to be flattened. give
-            in order matching "order"
-        order: Sequence
-            the remainder of the axes in the order in which they should be
-            arranged prior to flattening. by default uses their original order
-            in self.data
+            the axes (by name or integer index) to reorder output, list will
+            fill with default object order.
+        preserve: int, optional
+            number of dimensions to preserve (result will be N+1).
+        kwargs: dict, optional
+            keys with axis names will be used to filter output.
+
         Returns
         -------
         result: np.array
@@ -115,129 +131,259 @@ class LightResult(object):
         names: Sequence
             list of strings of returned axis names
         """
-        if aindices is None:
-            aindices = []
-        else:
-            aindices = np.atleast_2d(aindices)
-        # get the indexes and shape of keeper axes
-        idx = [self._index(i) for i in axes]
-        shp = np.array(self.data.shape)[idx]
+        order = self._pad_order(axes, preserve, **kwargs)
+        data, filters = self._filter_data(**kwargs)
+        result = self._transpose_and_shape(data, order, preserve)
 
-        # make order or remaining axes and check for errors
-        if order is None:
-            order = [i for i in range(len(self.names)) if i not in idx]
-        elif len(order) != len(self.names) - len(axes):
-            raise ValueError("axes + order must include all axes of data, "
-                             "give each axes index exactly once.")
-        else:
-            order = [self._index(i) for i in order]
-        if len(set(order + idx)) != len(order + idx):
-            raise ValueError("axes + order cannot include duplicate axes, "
-                             "give each axes index exactly once.")
-        if findices is None:
-            findices = []
-        oshp = []
-        ax0 = []
-        fi2 = []
-        for i in range(len(order)):
-            if i < len(findices):
-                d0 = self.axes[order[i]].values
-                d = d0[findices[i]]
-                fi2.append(np.arange(len(d0))[findices[i]])
-                oshp.append(range(len(d)))
-                ax0.append(d)
-            else:
-                oshp.append(range(self.data.shape[order[i]]))
-                ax0.append(self.axes[order[i]].values)
-        # make index values for flattened axis
+        # get axes names
+        ax0_name = "_".join([self.names[i] for i in order[:-preserve]])
+        names = [ax0_name] + [self.names[i] for i in order[-preserve:]]
+
+        # get orginal shape of flattten axes to unravel labels
+        oshp, ax0_labels = self._pull_labels(data, order, preserve, filters)
         ij = np.meshgrid(*oshp, indexing='ij')
-
-        ax0 = [ax[i.ravel()] for i, ax in zip(ij, ax0)]
-        ax0_name = "_".join([self.names[i] for i in order])
-
-        labels = [list(zip(*ax0))] + [self.axes[i].values for i in idx]
-        names = [ax0_name] + [self.names[i] for i in idx]
-        data = self.data
-        for i, slc in zip(order, fi2):
-            data = np.take(data, slc, axis=i)
-        # transpose result and apply slice
-        result = np.transpose(data, order + idx).reshape(-1, *shp)
-        for i, slc in enumerate(aindices):
-            result = np.take(result, slc, axis=i+1)
-            labels[i+1] = labels[i+1][slc]
-
+        ax0_labels = [slab[i].ravel() for slab, i in zip(ax0_labels, ij)]
+        labels = ([list(zip(*ax0_labels))] +
+                  [self.axes[i].values[filters[i]] for i in order[-preserve:]])
         return result, labels, names
 
-    def print(self, col, aindices=None, findices=None, order=None,
-              header=True, rowlabel=True, file=None):
-        """first calls pull and then prints result to file"""
-        rt, labels, names = self.pull(col, aindices=aindices,
-                                      findices=findices, order=order)
+    def _pull_labels(self, data, order, preserve, filters):
+        oshp = [range(data.shape[i]) for i in order[:-preserve]]
+        ax0_labels = [self.axes[i].values[filters[i]] for i in
+                      order[:-preserve]]
+        return oshp, ax0_labels
+
+    def _transpose_and_shape(self, data, order, preserve):
+        shp = [data.shape[i] for i in order[-preserve:]]
+        return data.transpose(order).reshape(-1, *shp)
+
+    def _pad_order(self, axes, preserve, **kwargs):
+        # get numeric indices of keeper axes
+        order = [self._index(i) for i in axes]
+        # fill out rest of order with default
+        order += [i for i in range(len(self.names)) if i not in order]
+        # flipped preserved axes to end
+        order = order[preserve:] + order[:preserve]
+        return order
+
+    def _filter_data(self, **kwargs):
+        filters = []
+        ns = slice(None)
+        data = self.data
+        for i, n in enumerate(self.names):
+            filt = [ns]*len(self.data.shape)
+            if n in kwargs and kwargs[n] is not None:
+                if type(kwargs[n]) == int:
+                    filt[i] = slice(kwargs[n], kwargs[n] + 1)
+                elif type(kwargs[n]) == slice or len(kwargs[n]) > 1:
+                    filt[i] = kwargs[n]
+                elif len(kwargs[n]) == 1:
+                    filt[i] = slice(kwargs[n][0], kwargs[n][0] + 1)
+            data = data[tuple(filt)]
+            filters.append(filt[i])
+        return data, filters
+
+    @staticmethod
+    def _print(file, rt, header, rls, rowlabel=True):
         if header:
-            h = '\t'.join([str(i) for i in labels[1]])
-            if rowlabel:
-                # construct row label format
-                row_label_names = dict(sky="sky", point="x\ty\tz",
-                                       view="dx\tdy\tdz", image="image",
-                                       metric="metric")
-                rln = "\t".join(
-                    [row_label_names[i] for i in names[0].split("_")])
-                h = rln + "\t" + h
-            print(h, file=file)
-        for r, rh in zip(rt, labels[0]):
+            print(header, file=file)
+        for r, rh in zip(rt, rls):
             rl = "\t".join([f"{i:.05f}" for i in r])
             if rowlabel:
-                rl2 = "\t".join(str(i) for i in rh)
-                rl2 = re.sub(r"[(){}\[\]]", "", rl2).replace(", ", "\t")
-                rl = rl2 + "\t" + rl
+                rl = rh + "\t" + rl
             print(rl, file=file)
 
-    def pull2pandas(self, ax1, ax2, **kwargs):
-        """returns a list of dicts suitable for initializing pandas.DataFrames
+    @staticmethod
+    def row_labels(labels):
+        rls = []
+        for rh in labels:
+            rl = "\t".join(str(i) for i in rh)
+            rl = re.sub(r"[(){}\[\]]", "", rl).replace(", ", "\t")
+            rls.append(rl)
+        return rls
 
-        Parameters
-        ----------
-        ax1: Union[int, str]
-            the output row axis
-        ax2: Union[int, str]
-            the output column axis
-        kwargs: dict
-            additional parameters for self.pull()
-        Returns
-        -------
-        panda_args: Sequence[dict]
-            list of keyword arguments for initializing a pandas DataFrame::
+    @staticmethod
+    def fmt_names(name, labels):
+        rls = []
+        try:
+            tl = len(labels[0].dtype) > 0
+        except TypeError:
+            tl = False
+        for rh in labels:
+            if tl:
+                rl = "_".join(f"{i:.02f}" for i in rh)
+            elif np.issubdtype(type(rh), np.integer):
+                rl = f"{rh:04d}"
+            else:
+                rl = rh
+            rls.append(f"{name}_{rl}")
+        return rls
 
-                frames = [pandas.DataFrame(**kw) for kw in panda_args]
+    def _set_rln(self, row_label_names, axis, labels):
+        try:
+            ptaxis = self.axis(axis).values[0]
+        except IndexError:
+            pass
+        else:
+            if not hasattr(ptaxis, "__len__"):
+                row_label_names[axis] = axis
+            else:
+                ptlabel = labels[0:len(ptaxis)]
+                row_label_names[axis] = "\t".join(ptlabel)
 
-            keys are ['data', 'index', 'columns']
-        frame_info: Sequence[dict]
-            information for each data frame keys:
+    def pull_header(self, names, labels, rowlabel=True):
+        h = [str(i) for i in labels[1]]
+        if rowlabel:
+            # construct row label format
+            row_label_names = dict(sky="sky", point="x\ty\tz",
+                                   view="dx\tdy\tdz", image="image",
+                                   metric="metric")
+            self._set_rln(row_label_names, "point",
+                          ["x", "y", "z", "dx", "dy", "dz"])
+            self._set_rln(row_label_names, "view",
+                          ["dx", "dy", "dz"])
+            h = [row_label_names[i] for i in names[0].split("_")
+                 if i in row_label_names] + h
+        return "\t".join(h)
 
-                - name: the summary name of the frame, a concatenation of the
-                  flattened axes (for example: "point_view" implies the frame is
-                  extracted for a particular point and view direction)
-                - item: the values of the frame from each of the flatten axes
-                  (for example: for a name "point_view" this
-                  item = [(x, y, z), (vx, vy, vz)]
-                - axis0: the name of the row axis (for example: "sky")
-                - axis1: the name of thee column axis (for example: "metric")
+    def print(self, col, header=True, rowlabel=True, file=None,
+              skyfill=None, **kwargs):
+        """first calls pull and then prints 2d result to file"""
+        rt, labels, names = self.pull(*col, **kwargs)
+        if header:
+            header = self.pull_header(names, labels, rowlabel)
+        rowlabels = self.row_labels(labels[0])
+        if skyfill is not None:
+            rowlabels = self._check_sky_data(col[0], skyfill, rowlabels)
+            rt = skyfill.fill_data(rt)
+        self._print(file, rt, header, rowlabels, rowlabel)
 
+    def sky_percentile(self, metric, per=(50,), **kwargs):
+        mi = np.flatnonzero([i == metric for i in self.axis("metric").values])
+        rt, labels, names = self.pull(self._index("metric"), self._index("sky"), preserve=2, metric=mi,
+                                      **kwargs)
+        rt = np.squeeze(np.percentile(rt, per, -1), -1).T
+        labels = [[tuple(i)+tuple(j) for i, j in labels[0]], [f"{metric}_{p}"for p in per]]
+        names = [names[0], names[-2]]
+
+        axes = [ResultAxis(la, na) for la, na in zip(labels, names)]
+        return LightResult(rt, *axes)
+
+    def _print_serial(self, rt, labels, names, basename, header,
+                      rowlabel, skyfill):
+        flabels = self.fmt_names(names[-1], labels[-1])
+        rowlabels = self.row_labels(labels[0])
+        if skyfill is not None:
+            rowlabels = self._check_sky_data(names[0], skyfill, rowlabels)
+        for i, j in enumerate(flabels):
+            if skyfill:
+                data = skyfill.fill_data(rt[..., i])
+            else:
+                data = rt[..., i]
+            f = open(f"{basename}_{j}.txt", 'w')
+            self._print(f, data, header, rowlabels, rowlabel)
+            f.close()
+
+    def print_serial(self, col, basename, header=True,
+                     rowlabel=True, skyfill=None, **kwargs):
+        """print 3d result to series of 2d files
         """
-        result, labels, names = self.pull(ax1, ax2, **kwargs)
-        for i in range(len(labels)):
+        rt, labels, names = self.pull(*col, preserve=2, **kwargs)
+        if header:
+            header = self.pull_header(names[0:-1], labels[0:-1], rowlabel)
+        self._print_serial(rt, labels, names, basename, header, rowlabel,
+                           skyfill)
+
+    def pull2hdr(self, col, basename, skyfill=None, spd=24,  **kwargs):
+        rt, labels, names = self.pull(*col, preserve=2, **kwargs)
+        if names[-1] == "sky":
+            pts = self.axis("point").values
+            if rt.shape[0] != len(pts):
+                raise ValueError(f"cannot grid {rt.shape[0]} to {len(pts)} "
+                                 "points. make sure non-point axes besides "
+                                 "'col' are filtered to a single value")
+            pts = np.array(list(zip(*pts))).T
+            gshp = (np.unique(pts[:, 0]).size, np.unique(pts[:, 1]).size)
+            gsort = np.lexsort((pts[:, 1], pts[:, 0]))
+            psize = int(500/max(gshp)/2)*2
+            psize = (psize, psize)
+        elif skyfill is None:
+            raise ValueError("'pull2hdr' with 'sky' requires skyfill")
+        elif rt.shape[0] != skyfill.smtx.shape[0]:
+            raise ValueError("SkyData and result do not have the same number "
+                             f"of values ({skyfill.smtx.shape[0]} vs. "
+                             f"{rt.shape[0]}) check that SkyData matches result"
+                             ", and is appropriately masked, or that non-sky "
+                             "axes besides 'col' are filtered to a single "
+                             "value")
+        elif skyfill.skydata.shape[0] % 365 == 0:
+            gshp = (365, int(skyfill.skydata.shape[0]/365))
+            hour = np.arange(skyfill.skydata.shape[0])
+            gsort = np.lexsort((-np.mod(hour, gshp[1]), np.floor(hour/gshp[1])))
+            psize = (2, max(5, int(240/gshp[1])))
+        elif skyfill.skydata.shape[0] % spd == 0:
+            gshp = (int(skyfill.skydata.shape[0]/spd), spd)
+            hour = np.arange(skyfill.skydata.shape[0])
+            gsort = np.lexsort((-np.mod(hour, spd), np.floor(hour/spd)))
+            psize = (int(730/gshp[0]), max(5, int(240/gshp[1])))
+        else:
+            raise ValueError(f"skydata must have 365 days and/or {spd} "
+                             f"steps per day")
+        flabels0 = self.fmt_names(names[-1], labels[-1])
+        flabels1 = self.fmt_names(names[-2], labels[-2])
+        for i, la0 in enumerate(flabels0):
+            if skyfill:
+                data = skyfill.fill_data(rt[..., i])
+            else:
+                data = rt[..., i]
+            for k, (la, d) in enumerate(zip(flabels1, data.T)):
+                do = d[gsort].reshape(gshp)
+                do = np.repeat(np.repeat(do, psize[1], 1), psize[0], 0)
+                io.array2hdr(do[-1::-1], f"{basename}_{la}_"
+                                         f"{la0}.hdr")
+
+    def _check_sky_data(self, col, skydata, rowlabels):
+        if "sky" in col:
+            raise ValueError("skyfill cannot be used with col='sky'")
+        if len(self.data.shape) == 2:
+            raise ValueError("skyfill only compatible with 4d lightresults")
+        skysize = self.axis("sky").values.size
+        if skydata.daysteps != skysize:
+            raise ValueError(f"LightResult ({skysize}) and SkyData "
+                             f"({skydata.daysteps}) do not match along sky "
+                             f"axis")
+        fv = "\t".join(["0"]*len(rowlabels[0].split("\t")))
+        if len(rowlabels) != skydata.smtx.shape[0]:
+            raise ValueError(f"pulled data has {len(rowlabels)} rows but "
+                             f"{skydata.smtx.shape[0]} rows expected by "
+                             f"SkyData")
+        return skydata.fill_data(np.asarray(rowlabels), fv)
+
+    def info(self):
+        caps = {'default': 20, 'metric': 100}
+        ns = self.names
+        sh = self.data.shape
+        axs = self.axes
+        infostr = [f"LightResult {self.file}:",
+                   f"LightResult has {len(ns)} axes: {ns}"]
+        for n, s, a in zip(ns, sh, axs):
+            infostr.append(f"  Axis '{n}' has length {s}:")
+            v = a.values
             try:
-                if len(labels[i].shape) > 1:
-                    labels[i] = [tuple(j) for j in labels[i]]
-            except AttributeError:
-                pass
-        panda_args = []
-        frame_info = []
-        for r, l in zip(result, labels[0]):
-            panda_args.append(dict(data=r, index=labels[1], columns=labels[2]))
-            frame_info.append(dict(name=names[0], item=l, axis0=names[1],
-                                   axis1=names[2]))
-        return panda_args, frame_info
+                cap = caps[n]
+            except KeyError:
+                cap = caps['default']
+            if len(v) <= cap:
+                for i, k in enumerate(v):
+                    infostr.append(f"  {i: 5d} {k}")
+            else:
+                for i in [0, 1, 2, 3, 4, "...",
+                          s - 5, s - 4, s - 3, s - 2, s - 1]:
+                    if i == "...":
+                        infostr.append(f"  {i}")
+                    else:
+                        infostr.append(f"  {i: 5d} {v[i]}")
+        return "\n".join(infostr)
 
     def _index(self, i):
         """interpret indice as an axes key or a range index"""
@@ -252,4 +398,4 @@ class LightResult(object):
                 return i
             raise IndexError("index out of range")
         except TypeError:
-            raise IndexError("invalid index")
+            raise IndexError(f"invalid index, axis '{i}' is not in LightResult")

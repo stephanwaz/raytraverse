@@ -32,7 +32,7 @@ class SrcViewPoint(object):
         return hull.points[hull.vertices]
 
     def __init__(self, scene, vecs, lum, pt=(0, 0, 0), posidx=0, src='sunview',
-                 res=64, blursun=1.0, srcomega=6.796702357283834e-05):
+                 res=64, srcomega=6.796702357283834e-05):
         #: raytraverse.scene.Scene
         self.scene = scene
         #: int: index for point
@@ -50,7 +50,6 @@ class SrcViewPoint(object):
         # 2*np.pi*(1 - np.cos(0.533*np.pi/360))
         self.omega = srcomega*vecs.shape[0]/(res * res)
         self.vec = np.average(vecs, 0)
-        self.blursun = blursun
 
     @property
     def vm(self):
@@ -127,10 +126,32 @@ class SrcViewPoint(object):
                 i2 = gaussian_filter(i2, r, truncate=8)
             img += i2
 
-    def evaluate(self, sunval, vm=None):
-        if vm is None or vm.in_view(self.vec, indices=False)[0]:
-            svlm = self.lum * sunval/self.blursun
-            svo = self.omega * self.blursun
+    @staticmethod
+    def _hpsf(x, fwhm=0.183333):
+        hm = np.square(fwhm/2)
+        return hm/(np.square(x) + hm)
+
+    @staticmethod
+    def _inv_hpsf(y, fwhm=0.183333):
+        hm = np.square(fwhm/2)
+        return np.sqrt(hm/y - hm)
+
+    def _blur_sun(self, lmax, lmin=279.33, fwhm=0.183333):
+        r0 = np.sqrt(self.omega/np.pi) * 180/np.pi
+        lmax = max(min(lmax, lmin/self._hpsf(1)), lmin)
+        r = r0 + self._inv_hpsf(lmin/lmax, fwhm)
+        return np.square(r/r0)
+
+    def evaluate(self, sunval, vm=None, blursun=False):
+        tol = np.sqrt(self.omega/np.pi)
+        if (vm is None or vm.aspect == 2 or
+                vm.in_view(self.vec, indices=False, tol=tol)[0]):
+            svlm = self.lum * sunval
+            svo = self.omega
+            if blursun:
+                ogas = self._blur_sun(svlm)
+                svlm = svlm / ogas
+                svo = svo * ogas
             return self.vec, svo, svlm
         else:
             return self.vec, 0, 0

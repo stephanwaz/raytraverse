@@ -477,15 +477,19 @@ def perez_lum_raw(tp, dz, sunz, coefs):
     return perez_apply_coef(coefs, cg, dz)
 
 
-def perez_lum(xyz, coefs):
+def perez_lum(xyz, coefs, intersky=True):
     """matches perezlum.cal"""
     sxyz = coefs[:, 7:]
     cgamma = np.sum(xyz * sxyz[:, None, :], -1)
     rawlum = perez_apply_coef(coefs[:, 2:7], cgamma, xyz[:, 2])
     c = coefs[:, None, 0:2]
-    swght = np.power(xyz[:, 2] + 1.01, 10)[None, :]
-    gwght = np.power(xyz[:, 2] + 1.01, -10)[None, :]
-    return (swght * c[..., 0] * rawlum + gwght * c[..., 1]) / (swght + gwght)
+    if intersky:
+        swght = np.power(xyz[:, 2] + 1.01, 10)[None, :]
+        gwght = np.power(xyz[:, 2] + 1.01, -10)[None, :]
+        c = (swght * c[..., 0] * rawlum + gwght * c[..., 1]) / (swght + gwght)
+    else:
+        c = np.where(xyz[:, 2] >= 0, c[..., 0] * rawlum, c[..., 1])
+    return c
 
 
 def scale_efficacy(dirdif, sunz, csunz, skybright, catn, td=10.9735311509):
@@ -599,7 +603,7 @@ def perez(sxyz, dirdif, md=None, ground_fac=0.2, td=10.9735311509):
     return coefs, solarrad
 
 
-def sky_mtx(sxyz, dirdif, side, jn=4, **kwargs):
+def sky_mtx(sxyz, dirdif, side, jn=4, intersky=True, **kwargs):
     """generate sky, ground and sun values from sun position and sky values
 
     Parameters
@@ -610,8 +614,11 @@ def sky_mtx(sxyz, dirdif, side, jn=4, **kwargs):
         direct normal and diffuse horizontal radiation (W/m^2) (N, 2)
     side: int
         sky subdivision
-    jn: int
+    jn: int, optional
         sky patch subdivision n = jn^2
+    intersky: bool, optional
+        include interreflection between ground and sky (mimics perezlum.cal,
+        not present in gendaymtx
     kwargs: dict, optional
         passed to perez()
 
@@ -629,7 +636,7 @@ def sky_mtx(sxyz, dirdif, side, jn=4, **kwargs):
     jitter = translate.bin2uv(np.arange(jn*jn), jn, offset=0.0) + .5/jn
     uvj = uv[:, None, :] + jitter/side
     xyz = translate.uv2xyz(uvj.reshape(-1, 2), xsign=1).reshape(-1, 3)
-    lum = perez_lum(xyz, coefs).reshape(coefs.shape[0], -1, jn*jn)
+    lum = perez_lum(xyz, coefs, intersky).reshape(coefs.shape[0], -1, jn*jn)
     lum = np.average(lum, -1)
     return lum, coefs[:, 1], np.hstack((sxyz, solarrad[:, None]))
 

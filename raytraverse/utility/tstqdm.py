@@ -8,6 +8,7 @@
 # =======================================================================
 
 """progress bar"""
+import shutil
 from datetime import datetime
 
 from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor
@@ -39,6 +40,7 @@ class TStqdm(tqdm):
             self.nworkers = 0
         else:
             self.nworkers = pool._max_workers
+        ncols = min(ncols, shutil.get_terminal_size().columns)
         super().__init__(desc=self.ts_message(desc), position=position,
                          ncols=ncols, **kwargs)
 

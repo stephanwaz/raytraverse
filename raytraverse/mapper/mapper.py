@@ -29,13 +29,14 @@ class Mapper(object):
     """
 
     def __init__(self, dxyz=(0.0, 0.0, 1.0), sf=(1, 1), bbox=((0, 0), (1, 1)),
-                 aspect=None, name='mapper', origin=(0, 0, 0)):
+                 aspect=None, name='mapper', origin=(0, 0, 0), jitterrate=1.0):
         self._sf = np.asarray(sf).flatten()
         self._bbox = np.asarray(bbox).reshape(2, 2)
         self.name = name
         self.aspect = aspect
         self.dxyz = dxyz
         self.origin = origin
+        self.jitterrate = jitterrate
 
     @property
     def aspect(self):
@@ -94,8 +95,7 @@ class Mapper(object):
             xyz = np.hstack((np.broadcast_to(self.origin, xyz.shape), xyz))
         return xyz
 
-    @staticmethod
-    def idx2uv(idx, shape, jitter=True):
+    def idx2uv(self, idx, shape, jitter=True):
         """
         Parameters
         ----------
@@ -112,7 +112,8 @@ class Mapper(object):
         """
         si = np.stack(np.unravel_index(idx, shape))
         if jitter:
-            offset = np.random.default_rng().random(si.shape).T
+            rng = ((1 - self.jitterrate)/2, (1 + self.jitterrate)/2)
+            offset = np.random.default_rng().uniform(*rng, si.shape).T
         else:
             offset = 0.5
         uv = (si.T + offset)/np.asarray(shape)

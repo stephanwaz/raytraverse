@@ -12,7 +12,8 @@ import numpy as np
 from clasp import click
 import clasp.click_ext as clk
 
-from raytraverse.lightfield import LightResult
+from raytraverse.lightfield import LightResult, ZonalLightResult
+from raytraverse.sky import SkyData
 
 
 @clk.pretty_name("NPY, TSV, FLOATS,FLOATS")
@@ -30,7 +31,10 @@ def np_load(ctx, param, s):
         try:
             ar = np.load(s)
         except ValueError:
-            ar = np.loadtxt(s)
+            try:
+                ar = np.loadtxt(s)
+            except ValueError:
+                ar = np.loadtxt(s, skiprows=1)
         if len(ar.shape) == 1:
             ar = ar.reshape(1, -1)
         return ar
@@ -54,13 +58,18 @@ pull_decs = [
               help=".npz LightResult, overrides lightresult from chained "
                    "commands (evaluate/imgmetric). required if not chained "
                    "with evaluate or imgmetric."),
- click.option("-col", default='metric',
-              type=click.Choice(['metric', 'point', 'view', 'sky']),
-              help="axis to preserve"),
- click.option("-order", default="point view sky", callback=clk.split_str,
-              help="order for flattening remaining result axes. Note that"
-                   " in the case of an imgmetric result, this option is ignored"
-                   " as the result is already 2D"),
+ click.option("-col", default='metric', callback=clk.split_str,
+              help="axis to preserve and order for flattening, if not all axes"
+                   " are specified default order is (sky, point, view, metric)"
+                   " the first value is the column preserved, the second (with"
+                   " -ofiles) is the file to write, and the rest determine the"
+                   " order for ravelling into rows."),
+ click.option("-ofiles",
+              help="if given output serialized files along first axis "
+                   "(given by order) with naming [ofiles]_XXXX.txt"),
+click.option("-spd", default=24,
+             help="steps per day. for use with --gridhdr col != sky matches"
+                  " data underlying -skyfill"),
  click.option("-ptfilter", callback=clk.split_int,
               help="point indices to return (ignored for imgmetric result)"),
  click.option("-viewfilter", callback=clk.split_int,
@@ -72,72 +81,81 @@ pull_decs = [
               help="image indices to return (ignored for lightfield result)"),
  click.option("-metricfilter", callback=clk.split_str,
               help="metrics to return (non-existant are ignored)"),
+ click.option("-skyfill", callback=clk.is_file,
+              help="path to skydata file. assumes rows are timesteps."
+                   " skyfilter should be None and other beside col "
+                   "should reduce to 1 or ofiles is given and sky is"
+                   " not first in order and all but first reduces to 1."
+                   " LightResult should be a full evaluation (not masked)"),
  click.option("--header/--no-header", default=True, help="print col labels"),
  click.option("--rowlabel/--no-rowlabel", default=True, help="label row"),
  click.option("--info/--no-info", default=False,
               help="skip execution and return shape and axis info about "
-                   "LightResult")
+                   "LightResult"),
+ click.option("--gridhdr/--no-gridhdr", default=False,
+              help="use with 'ofiles', order 'X point/sky Y' and make sure Y"
+                   " only has one value (with appropriate filter)"),
+ click.option("-imgzone", default=None,
+              help="for making images from ZonalLightResult, path to area"
+                   "to sample over.")
  ]
 
 
-def shared_pull(ctx, lr=None, col="metric", order=('point', 'view', 'sky'),
-                ptfilter=None, viewfilter=None, skyfilter=None, imgfilter=None,
-                metricfilter=None, header=True, rowlabel=True, info=False,
+def shared_pull(ctx, lr=None, col=("metric",), ofiles=None, ptfilter=None,
+                viewfilter=None, skyfilter=None, imgfilter=None,
+                metricfilter=None, skyfill=None, header=True, spd=24,
+                rowlabel=True, info=False, gridhdr=False, imgzone=None,
                 **kwargs):
     """used by both raytraverse.cli and raytu, add pull_decs and
     clk.command_decs as  clk.shared_decs in main script so click can properly
     load options"""
     if lr is not None:
-        result = LightResult(lr)
+        try:
+            result = LightResult(lr)
+        except KeyError:
+            result = ZonalLightResult(lr)
     elif 'lightresult' in ctx.obj:
         result = ctx.obj['lightresult']
     else:
-        click.echo("Please provide an -lr option (path to light result file)",
+        click.echo("Please provide an -lr or -zr option (path to light result file)",
                    err=True)
         raise click.Abort
     if info:
-        ns = result.names
-        sh = result.data.shape
-        axs = result.axes
-        click.echo(f"LightResult has {len(ns)} axes: {ns}", err=True)
-        for n, s, a in zip(ns, sh, axs):
-            click.echo(f"  Axis '{n}' has length {s}:", err=True)
-            v = a.values
-            if len(v) < 20:
-                for i, k in enumerate(v):
-                    click.echo(f"  {i: 5d} {k}", err=True)
-            else:
-
-                for i in [0, 1, 2, 3, "...", s-2, s-1]:
-                    if i == "...":
-                        click.echo(f"  {i}", err=True)
-                    else:
-                        click.echo(f"  {i: 5d} {v[i]}", err=True)
-        # print(result.data.shape)
-        # print(result.names)
+        click.echo(result.info(), err=True)
         return None
     filters = dict(metric=metricfilter, sky=skyfilter, point=ptfilter,
                    view=viewfilter, image=imgfilter)
-    # translate metric names to indices
-    axes = [i.name for i in result.axes]
     if metricfilter is not None:
-        ai = axes.index("metric")
-        av = result.axes[ai].values
-        aindices = np.flatnonzero([i in metricfilter for i in av])
+        try:
+            metricfilter = [int(i) for i in metricfilter]
+        except ValueError:
+            av = result.axis("metric").values
+        else:
+            av = list(range(len(result.axis("metric").values)))
         [click.echo(f"Warning! {i} not in LightResult", err=True) for i in
          metricfilter if i not in av]
-        filters["metric"] = aindices
+        filters["metric"] = np.flatnonzero([i in metricfilter for i in av])
     # translate sky index to skydata shape
-    if skyfilter is not None and "sky" in axes:
-        ai = axes.index("sky")
-        av = result.axes[ai].values
-        aindices = np.flatnonzero(np.isin(av, skyfilter))
-        filters["sky"] = aindices
-    if len(result.data.shape) == 2:
-        order = None
-        findices = [slice(None) if imgfilter is None else imgfilter]
+    if skyfilter is not None and "sky" in result.names:
+        av = result.axis("sky").values
+        skyf = np.flatnonzero(np.isin(av, skyfilter))
+        if len(skyf) == 0:
+            click.echo(f"skyfilter leaves no values!", err=True)
+            raise click.Abort
+        filters["sky"] = np.flatnonzero(np.isin(av, skyfilter))
+    pargs = dict(header=header, rowlabel=rowlabel)
+    if skyfill is not None:
+        skydata = SkyData(skyfill)
+        if skyfilter is not None:
+            skydata.mask = skyfilter
     else:
-        findices = [slice(filters[x]) if filters[x] is None else filters[x]
-                    for x in order]
-    result.print(col, aindices=filters[col], findices=findices, order=order,
-                 header=header, rowlabel=rowlabel)
+        skydata = None
+    if ofiles is None:
+        result.print(col, skyfill=skydata, **pargs, **filters)
+    else:
+        if "zone" in result.names and imgzone is not None:
+            result.pull2hdr(imgzone, ofiles, **filters)
+        elif gridhdr:
+            result.pull2hdr(col, ofiles, skyfill=skydata, spd=spd, **filters)
+        else:
+            result.print_serial(col, ofiles, skyfill=skydata, **pargs, **filters)

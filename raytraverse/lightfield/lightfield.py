@@ -97,25 +97,6 @@ class LightField(object):
         d, i = self.kd.query(vecs)
         return i, d
 
-    def query_ball(self, pts, dist=1.0):
-        """return set of vectors within a distance
-
-        Parameters
-        ----------
-        pts: np.array
-            shape (N, 3) vectors to query.
-        dist: int float
-            radius
-
-        Returns
-        -------
-        i: list np.array
-            if vecs is a single vector, a list of indices within radius.
-            if vecs is a set of points an array of lists, one
-            for each is returned.
-        """
-        return self.kd.query_ball_point(pts, dist)
-
     def evaluate(self, *args, **kwargs):
         pass
 

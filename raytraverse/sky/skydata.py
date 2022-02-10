@@ -30,6 +30,9 @@ class SkyData(object):
         (to correct model north, equivalent to clockwise rotation of scene)
     ground_fac: float, optional
         ground reflectance
+    intersky: bool, optional
+        include interreflection between ground and sky (mimics perezlum.cal,
+        not present in gendaymtx)
     skyres: float, optional
         approximate square patch size in degrees
     minalt: float, optional
@@ -38,9 +41,17 @@ class SkyData(object):
         minumum diffuse horizontal irradiance for daylight masking
     """
 
-    def __init__(self, wea, loc=None, skyro=0.0, ground_fac=0.15,
-                 skyres=10.0, minalt=2.0, mindiff=5.0):
+    def __init__(self, wea, loc=None, skyro=0.0, ground_fac=0.2, intersky=True,
+                 skyres=12.0, minalt=2.0, mindiff=5.0, mindir=0.0):
         self.skyres = skyres
+        self.intersky = intersky
+        if wea is None:
+            ground_fac = 1
+            minalt = 0
+            mindiff = 0
+            mindir = 0
+            skyro = 0
+            loc = None
         self.ground_fac = ground_fac
         if loc is None and wea is not None:
             try:
@@ -51,6 +62,7 @@ class SkyData(object):
         self._loc = loc
         self._minalt = minalt
         self._mindiff = mindiff
+        self._mindir = mindir
         self._skyro = skyro
         self._sunproxy = None
         self.skydata = wea
@@ -97,11 +109,12 @@ class SkyData(object):
         npzdata = self._load(wea)
         if npzdata:
             skydata, smtx, sun, daymask = npzdata
-        else:
+        elif wea is not None:
             skydata, md, td = self.format_skydata(wea)
             minz = np.sin(self._minalt * np.pi / 180)
             daymask = np.logical_and(skydata[:, 2] > minz,
                                      skydata[:, 4] > self._mindiff)
+            daymask = np.logical_and(daymask, skydata[:, 3] > self._mindir)
             sxyz = skydata[daymask, 0:3]
             dirdif = skydata[daymask, 3:]
             if md is not None:
@@ -109,12 +122,18 @@ class SkyData(object):
             if hasattr(td, "__len__"):
                 td = td[daymask]
             smtx, grnd, sun = skycalc.sky_mtx(sxyz, dirdif, self.skyres, md=md,
-                                              ground_fac=self.ground_fac, td=td)
+                                              ground_fac=self.ground_fac, td=td,
+                                              intersky=self.intersky)
             # ratio between actual solar disc and patch
             omegar = np.square(0.2665 * np.pi * self.skyres / 180) * .5
             plum = sun[:, -1] * omegar
             sun = np.hstack((sun, plum[:, None]))
             smtx = np.hstack((smtx, grnd[:, None]))
+        else:
+            smtx = np.ones((1, self.skyres**2+1))
+            sun = np.array([[0, 0, 1, 0, 0]])
+            daymask = np.array([True])
+            skydata = np.array([[0, 0, 1, 0, 1]])
         self._smtx = smtx
         self._sun = sun
         self._daymask = daymask
@@ -143,8 +162,12 @@ class SkyData(object):
             smtx = result['smtx']
             sun = result['sun']
             daymask = result['daymask']
-            loc = result['loc']
-            self._loc = (loc[0], loc[1], int(loc[2]))
+            try:
+                loc = result['loc']
+            except ValueError:
+                self._loc = None
+            else:
+                self._loc = (loc[0], loc[1], int(loc[2]))
             self._skyres = int(np.sqrt(smtx.shape[1] - 1))
             return skydata, smtx, sun, daymask
 
@@ -258,14 +281,17 @@ class SkyData(object):
     def sunproxy(self, sxyz):
         self._sunproxy = translate.xyz2skybin(sxyz, self.skyres)
 
-    def smtx_patch_sun(self):
+    def smtx_patch_sun(self, includesky=True):
         """generate smtx with solar energy applied to proxy patch
-        for directly applying to skysampler data (without direct sun components
+        for directly applying to skysampler data (without direct sun components)
         can also be used in a partial mode (with sun view / without sun
-        reflection."""
-        wsun = np.copy(self.smtx)
-        r = range(wsun.shape[0])
-        wsun[range(wsun.shape[0]), self.sunproxy] += self.sun[r, 4]
+        reflection.)"""
+        if includesky:
+            wsun = np.copy(self.smtx)
+        else:
+            wsun = np.zeros_like(self.smtx)
+        r = wsun.shape[0]
+        wsun[range(r), self.sunproxy] += self.sun[:, 4]
         return wsun
 
     def header(self):
@@ -294,7 +320,7 @@ class SkyData(object):
         mask = np.copy(self.daymask)
         mask[self.daymask] = self.mask
         px = np.full((self.skydata.shape[0], *x.shape[1:]), fill_value,
-                     dtype=float)
+                     dtype=x.dtype)
         px[mask] = x
         return px
 
@@ -302,7 +328,8 @@ class SkyData(object):
         j = np.searchsorted(self._maskindices, i)
         return j[self._maskindices[j] == i]
 
-    def sky_description(self, i, prefix="skydata", grid=False, sun=True):
+    def sky_description(self, i, prefix="skydata", grid=False, sun=True,
+                        ground=True):
         """generate radiance scene files to directly render sky data at index i
 
         Parameters
@@ -340,6 +367,8 @@ class SkyData(object):
         f.write(f"void brightdata skyfunc 4 {fun} {outf}.dat {outf}.cal bin 0 "
                 "0\nskyfunc glow skyglow 0 0 4 1 1 1 0\n"
                 "skyglow source sky 0 0 4 0 0 1 180\n")
+        if ground:
+            f.write("skyglow source ground 0 0 4 0 0 -1 180\n")
         if sun:
             c = (self.sun[mi, 3], self.sun[mi, 3], self.sun[mi, 3])
             f.write(RadFmt.get_sundef(self.sun[mi, 0:3], c))

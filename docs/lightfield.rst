@@ -18,10 +18,10 @@ LightPlaneKD
     :undoc-members:
     :show-inheritance:
 
-DayLightPlaneKD
+SunsPlaneKD
 ---------------------------------
 
-.. autoclass:: raytraverse.lightfield.DayLightPlaneKD
+.. autoclass:: raytraverse.lightfield.SunsPlaneKD
     :members:
     :undoc-members:
     :show-inheritance:
@@ -30,6 +30,14 @@ LightResult
 ---------------------------------
 
 .. autoclass:: raytraverse.lightfield.LightResult
+    :members:
+    :undoc-members:
+    :show-inheritance:
+
+ZonalLightResult
+---------------------------------
+
+.. autoclass:: raytraverse.lightfield.ZonalLightResult
     :members:
     :undoc-members:
     :show-inheritance:
@@ -61,10 +69,18 @@ MultiLightPointSet
     :undoc-members:
     :show-inheritance:
 
-LightPlaneSet
-~~~~~~~~~~~~~
+RaggedResult
+------------
 
-.. autoclass:: raytraverse.lightfield.sets.LightPlaneSet
+.. autoclass:: raytraverse.lightfield.RaggedResult
+    :members:
+    :undoc-members:
+    :show-inheritance:
+
+ResultAxis
+------------
+
+.. autoclass:: raytraverse.lightfield.ResultAxis
     :members:
     :undoc-members:
     :show-inheritance:

@@ -9,9 +9,9 @@ import os
 import pickle
 
 import numpy as np
+from scipy.interpolate import LinearNDInterpolator
 
 from scipy.spatial import cKDTree, SphericalVoronoi, Voronoi
-from scipy.interpolate import LinearNDInterpolator
 from shapely.geometry import Polygon
 from clasp.script_tools import try_mkdir
 
@@ -59,11 +59,10 @@ class LightPointKD(object):
     def __init__(self, scene, vec=None, lum=None, vm=None, pt=(0, 0, 0),
                  posidx=0, src='sky', srcn=1, srcdir=(0, 0, 1), calcomega=True,
                  write=True, omega=None, filterviews=True, srcviews=None,
-                 parent=None):
-        if srcviews is None:
-            srcviews = []
-        self.srcviews = [i for i in srcviews
-                         if issubclass(type(i), SrcViewPoint)]
+                 parent=None, srcviewidxs=None):
+        self.srcviews = []
+        self.srcviewidxs = []
+        self.set_srcviews(srcviews, srcviewidxs)
         if vm is None:
             vm = ViewMapper()
         #: raytraverse.mapper.ViewMapper
@@ -107,6 +106,10 @@ class LightPointKD(object):
         self._d_kd, self._vec, self._omega, self._lum = loads[0:4]
         self.srcviews = loads[4]
         self.srcdir = loads[5]
+        try:
+            self.srcviewidxs = loads[6]
+        except IndexError:
+            self.srcviewidxs = [-1] * max(len(self.srcviews), 1)
         self.srcn = self.lum.shape[1]
         f.close()
 
@@ -118,7 +121,8 @@ class LightPointKD(object):
             try_mkdir(f"{self.scene.outdir}/{self.src}")
         f = open(self.file, 'wb')
         pickle.dump((self._d_kd, self._vec, self._omega, self._lum,
-                     self.srcviews, self.srcdir), f, protocol=4)
+                     self.srcviews, self.srcdir, self.srcviewidxs), f,
+                    protocol=4)
         f.close()
 
     @property
@@ -149,6 +153,16 @@ class LightPointKD(object):
         :type: np.array
         """
         return self._omega
+
+    def set_srcviews(self, srcviews, idxs=None):
+        if srcviews is None:
+            srcviews = []
+        self.srcviews = [i for i in srcviews
+                         if issubclass(type(i), SrcViewPoint)]
+        if idxs is None or len(idxs) == 0:
+            self.srcviewidxs = [-1] * max(len(self.srcviews), 1)
+        else:
+            self.srcviewidxs = idxs
 
     def calc_omega(self, write=True):
         """calculate solid angle
@@ -193,15 +207,9 @@ class LightPointKD(object):
                 # area, leaving the duplicates with omega=0 it would be more
                 # efficient downstream to filter these points, but that would
                 # require culling the vecs and lum and rebuilding to kdtree
-                flt = np.full(len(self.vec), True)
                 omega = np.zeros(self.vec.shape[0])
                 tol = 2*np.pi/2**10
-                pairs = self.d_kd.query_ball_tree(self.d_kd, tol)
-                flagged = set()
-                for j, p in enumerate(pairs):
-                    if j not in flagged and len(p) > 1:
-                        flt[p[1:]] = False
-                        flagged.update(p[1:])
+                flt = translate.cull_vectors(self.d_kd, tol)
                 omega[flt] = SphericalVoronoi(self.vec[flt]).calculate_areas()
         self._omega = omega
         if write:
@@ -227,7 +235,8 @@ class LightPointKD(object):
         return np.einsum('ij,kj->ik', c, self.lum)
 
     def add_to_img(self, img, vecs, mask=None, skyvec=1, interp=False,
-                   idx=None, omega=False, vm=None, rnd=False):
+                   idx=None, interpweights=None, omega=False, vm=None,
+                   rnd=False, engine=None, **kwargs):
         """add luminance contributions to image array (updates in place)
 
         Parameters
@@ -241,16 +250,24 @@ class LightPointKD(object):
             is not being updated, such as corners of fisheye)
         skyvec: int float np.array, optional
             source coefficients, shape is (1,) or (srcn,)
-        interp: bool, optional
-            for linear interpolation (falls back to nearest outside of
-            convexhull
+        interp: Union[bool, str], optional
+            if "precomp", use index and interpweights
+            if True and engine is None, linearinterpolation
+            if "fast" and engine: uses content_interp
+            if "high" and engine: uses content_interp_wedge
         idx: np.array, optional
-            precomputed query result (ignored if interp=True)
+            precomputed query/interpolation result
+        interpweights: np.array, optional
+            precomputted interpolation weights
         omega: bool
             if true, add value of ray solid angle instead of luminance
         vm: raytraverse.mapper.ViewMapper, optional
         rnd: bool, optional
             use random values as contribution (for visualizing data shape)
+        engine: raytraverse.renderer.Rtrace, optional
+            engine for content aware interpolation
+        kwargs: dict, optional
+            passed to interpolationn functions
         """
         if rnd:
             val = np.random.rand(1, self.omega.size)
@@ -260,14 +277,20 @@ class LightPointKD(object):
             val = self.apply_coef(skyvec)
         if vm is None:
             vm = self.vm
-        if interp:
-            xyp = vm.xyz2vxy(vecs)
-            xys = vm.xyz2vxy(self.vec)
-            interp = LinearNDInterpolator(xys, val[0], fill_value=-1)
-            lum = interp(xyp[:, 0], xyp[:, 1])
-            neg = lum < 0
-            i, d = self.query_ray(vecs[neg])
-            lum[neg] = val[0, i]
+        if interp == "precomp":
+            lum = self.apply_interp(idx, val[0], interpweights)
+        elif interp == "fast" and engine is not None:
+            i, weights = self.content_interp(engine, vecs, **kwargs)
+            lum = self.apply_interp(i, val[0], weights)
+        elif interp == "high" and engine is not None:
+            i, weights = self.content_interp_wedge(engine, vecs, bandwidth=100,
+                                                   **kwargs)
+            lum = self.apply_interp(i, val[0], weights)
+        elif interp is True:
+            lum = self.linear_interp(vm, val[0], vecs)
+        elif interp:
+            raise ValueError(f"Bad value for interp={interp}, should be boolean"
+                             f", 'precomp', 'fast', or 'high'")
         else:
             if idx is not None:
                 i = idx
@@ -275,11 +298,11 @@ class LightPointKD(object):
                 i, d = self.query_ray(vecs)
             lum = val[:, i]
         img[mask] += np.squeeze(lum)
-        for srcview in self.srcviews:
-            srcview.add_to_img(img, vecs, mask, skyvec[-1], vm)
+        for srcview, srcidx in zip(self.srcviews, self.srcviewidxs):
+            srcview.add_to_img(img, vecs, mask, skyvec[srcidx], vm)
 
     def evaluate(self, skyvec, vm=None, idx=None, srcvecoverride=None,
-                 srconly=False):
+                 srconly=False, blursun=False):
         """return rays within view with skyvec applied. this is the
         analog to add_to_img for metric calculations
 
@@ -325,9 +348,9 @@ class LightPointKD(object):
             lum = self.apply_coef(skyvec)[:, idx].T
         if len(self.srcviews) > 0:
             vrs = []
-            for srcview in self.srcviews:
-                srcvec = np.atleast_2d(skyvec)[:, -1]
-                vrs.append(srcview.evaluate(srcvec, vm))
+            for srcview, srcidx in zip(self.srcviews, self.srcviewidxs):
+                srcvec = np.atleast_2d(skyvec)[:, srcidx]
+                vrs.append(srcview.evaluate(srcvec, vm, blursun=blursun))
             vr, vo, vl = zip(*vrs)
             vl = np.array(vl)
             if srcvecoverride is not None:
@@ -491,11 +514,16 @@ class LightPointKD(object):
             srcn = self.srcn + lf2.srcn
         if src is None:
             src = f"{self.src}_{lf2.src}"
+        svi = [i if i >= 0 else self.srcn + i
+               for i, sv in zip(self.srcviewidxs, self.srcviews)]
+        svi2 = [i + self.srcn if i >= 0 else i
+                for i, sv in zip(self.srcviewidxs, self.srcviews)]
         return type(self)(self.scene, vecs, lums, vm=self.vm, pt=self.pt,
                           posidx=self.posidx, src=src, calcomega=calcomega,
                           srcn=srcn, write=write, srcdir=srcdir,
                           srcviews=self.srcviews + lf2.srcviews,
-                          filterviews=False, parent=self.parent)
+                          srcviewidxs=svi + svi2, filterviews=False,
+                          parent=self.parent)
 
     def update(self, vec, lum, omega=None, calcomega=True, write=True,
                filterviews=False):
@@ -536,3 +564,125 @@ class LightPointKD(object):
             self.calc_omega(False)
         if write:
             self.dump()
+
+    def linear_interp(self, vm, srcvals, destvecs):
+        xyp = vm.xyz2vxy(destvecs)
+        xys = vm.xyz2vxy(self.vec)
+        interp = LinearNDInterpolator(xys, srcvals, fill_value=-1)
+        lum = interp(xyp[:, 0], xyp[:, 1])
+        neg = lum < 0
+        i, d = self.query_ray(destvecs[neg])
+        lum[neg] = srcvals[i]
+        return lum
+
+    @staticmethod
+    def apply_interp(i, srcvals, weights=None):
+        if weights is None:
+            return srcvals[i]
+        else:
+            return np.average(srcvals[i], -1, weights)
+
+    def _c_interp(self, rt, destvecs, bandwidth=10, srfnormtol=0.2,
+                  disttol=0.8):
+
+        pts = np.hstack(np.broadcast_arrays(self.pt[None], self.vec))
+        pts_o = np.hstack(np.broadcast_arrays(self.pt[None], destvecs))
+        d, i = self.d_kd.query(destvecs, bandwidth)
+        # store engine state
+        targs = rt.args
+        tospec = rt.ospec
+
+        rt.set_args(rt.directargs)
+        rt.update_ospec("LNM")
+        sgeo = rt(pts)
+        sgeo_o = rt(pts_o)
+
+        # restore engine state
+        rt.set_args(targs)
+        rt.update_ospec(tospec)
+
+        mods = sgeo[:, 4].astype(int)
+        norms = sgeo[:, 1:4]
+        dist = sgeo[:, 0]
+        mods_o = sgeo_o[:, 4].astype(int)
+        norms_o = sgeo_o[:, 1:4]
+        dist_o = sgeo_o[:, 0]
+
+        mod_match = np.equal(mods[i], mods_o[:, None])
+        norm_match = np.all(
+            np.isclose(norms[i], norms_o[:, None], atol=srfnormtol),
+            axis=2)
+        dist_match = np.abs(dist[i] - dist_o[:, None]) < disttol
+        all_match = np.all((mod_match, norm_match, dist_match), axis=0)
+        # make sure atleast the closest match is flagged true
+        all_match[np.sum(all_match, 1) == 0, 0] = True
+        return all_match, d, i
+
+    def content_interp_wedge(self, rt, destvecs, bandwidth=10, srfnormtol=0.2,
+                             disttol=0.8, dp=2, oversample=2, **kwargs):
+        all_match, d, i = self._c_interp(rt, destvecs,
+                                         bandwidth=bandwidth * oversample,
+                                         srfnormtol=srfnormtol, disttol=disttol)
+        # reduce to bandwidth prioritizing distance and matching
+        no_match = np.logical_not(all_match)
+        ds = np.argsort(d + no_match*3)[:, 0:bandwidth]
+        no_match = np.take_along_axis(no_match, ds, axis=1)
+        d = np.take_along_axis(d, ds, axis=1)
+        i = np.take_along_axis(i, ds, axis=1)
+        # scale distance as weight
+        d = np.power(d, dp)
+        d = d[:, 0:1]/d
+
+        dv = destvecs
+        sv = self.vec
+        # project to interpolation point and calculate theta
+        ymtx, pmtx = translate.rmtx_yp(dv)
+        nv = np.einsum("vij,vkj,vli->vkl", ymtx, sv[i], pmtx)
+        nv[:, 2] = 0
+        ang = np.arctan2(nv[..., 1], nv[..., 0]) + np.pi
+
+        # resort by theta
+        asr = np.argsort(ang)
+        ang = np.take_along_axis(ang, asr, axis=1)
+        d = np.take_along_axis(d, asr, axis=1)
+        i = np.take_along_axis(i, asr, axis=1)
+        no_match = np.take_along_axis(no_match, asr, axis=1)
+
+        # calculate distance matrix between interpolants
+        admx = np.abs(ang[:, None] - ang[:, :, None])
+        # handle cycle
+        admx[admx > np.pi] = 2*np.pi - admx[admx > np.pi]
+        # mask out bad candidates
+        admx[np.broadcast_to(no_match[:, None], admx.shape)] = 6
+        # find the closest alternative as replacement
+        replace = np.argmin(admx, 1)
+        ir = np.take_along_axis(i, replace, axis=1)
+        dr = np.take_along_axis(d, replace, axis=1)
+        i[no_match] = ir[no_match]
+        d[no_match] = dr[no_match]
+
+        # pad array for circular difference calc
+        ang2 = np.hstack((ang[:, -1:] - 2*np.pi, ang, 2*np.pi + ang[:, 0:1]))
+        dw = np.hstack((d[:, -1:], d, d[:, 0:1]))
+
+        # apportion angle based on distance
+        w1 = (ang - ang2[:, :-2])*d/(d + dw[:, :-2])
+        w2 = (ang2[:, 2:] - ang)*d/(d + dw[:, 2:])
+        wedge = (w1 + w2)/(2*np.pi)
+        return i, wedge
+
+    def content_interp(self, rt, destvecs, bandwidth=10, srfnormtol=0.2,
+                       disttol=0.8, **kwargs):
+        all_match, d, i = self._c_interp(rt, destvecs, bandwidth=bandwidth,
+                                         srfnormtol=srfnormtol, disttol=disttol)
+        # weight by the inv. square of distance
+        d = 1/np.square(d)
+        d[np.logical_not(all_match)] = 0
+        # normalize and make cdf based on d
+        d = d/np.sum(d, 1)[:, None]
+        dc = np.cumsum(d, 1)
+        # draw on cdf
+        c = np.random.default_rng().random(len(destvecs))
+        ic = np.array(list(map(np.searchsorted, dc, c)))[:, None]
+        i = np.take_along_axis(i, ic, 1).ravel()
+        return i, None

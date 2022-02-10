@@ -40,6 +40,7 @@ class MaskedPlanMapper(PlanMapper):
         self._sf = pm._sf
         self._path = pm._path
         self._zheight = pm._zheight
+        self._candidates = pm._candidates
         super(PlanMapper, self).__init__(name=pm.name, sf=self._sf,
                                          bbox=self.bbox)
         self._mask = None

@@ -87,7 +87,7 @@ class BaseScene(object):
             if self.outdir is None or (self.reload and
                                        os.path.isfile(self._scene)):
                 pass
-            else:
+            elif scene_files:
                 self._scene = self.formatter.make_scene(scene_files,
                                                         self._scene,
                                                         frozen=self._frozen)

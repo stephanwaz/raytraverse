@@ -97,11 +97,11 @@ class AngularMixin(object):
         cp = np.cross(xb - xa, yb - ya)
         return np.linalg.norm(cp, axis=-1)
 
-    def in_view(self, vec, indices=True):
+    def in_view(self, vec, indices=True, tol=0.0):
         """generate mask for vec that are in the field of view (up to
         180 degrees) if view aspect is 2, only tests against primary view
         direction"""
-        ang = self.radians(vec)
+        ang = self.radians(vec) - tol
         mask = ang < (self._chordfactor * self.viewangle * np.pi / 360)
         if indices:
             return np.unravel_index(np.arange(ang.size)[mask], vec.shape[:-1])
@@ -109,8 +109,12 @@ class AngularMixin(object):
             return mask
 
     def header(self, pt=(0, 0, 0), **kwargs):
+        if np.allclose(self.dxyz, (0, 0, 1)):
+            vup = "0 1 0"
+        else:
+            vup = "0 0 1"
         return ('VIEW= -vta -vv {0} -vh {0} -vd {1} {2} {3} -vp {4} {5} '
-                '{6}'.format(self.viewangle, *self.dxyz, *pt))
+                '{6} -vu {7}'.format(self.viewangle, *self.dxyz, *pt, vup))
 
     def init_img(self, res=512, pt=(0, 0, 0), **kwargs):
         """Initialize an image array with vectors and mask

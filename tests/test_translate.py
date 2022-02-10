@@ -93,13 +93,11 @@ def test_rmtx_world2std():
             assert np.allclose((0,0,1), t2.T[0])
             assert np.allclose(v, t3)
         v = translate.norm1([0, 0, z])
+        ymtx, pmtx = translate.rmtx_yp(v)
+        t = v.reshape(3, -1)
         if z == 0:
-            with pytest.raises(ValueError):
-                ymtx, pmtx = translate.rmtx_yp(v)
-                print(ymtx, pmtx)
+            assert np.any(np.isnan(ymtx))
         else:
-            ymtx, pmtx = translate.rmtx_yp(v)
-            t = v.reshape(3, -1)
             assert np.allclose((0, 0, 1), (pmtx@(ymtx@t)).T[0])
 
 

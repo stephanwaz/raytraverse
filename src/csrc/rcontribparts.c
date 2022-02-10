@@ -260,6 +260,14 @@ trace_contrib(RAY *r)
     error(WARNING, errmsg);
     return;
   }
+  /*TODO: AB 1 OUTPUT!!! to add output after 1 ab, add a second array (contr[3]) then in raycontrib, check
+   * r->rlvl and r->rtype to filter out deeper runs (set to zero?). this will also require
+   * a second table, or a 6 value table. Alternatively, could use one of the color channels and then
+   * only modify raycontrib, which might be best for a proof of concept. This may not work if the ambient rays are
+   * self contained...
+   * then edits would need to be upstream in doambient/samp_hemi? this would start at line 342 in normal.c where
+   * the call to multambient would need to split the result stored in ctmp and added to the reesult... probably
+   * not possible?*/
   raycontrib(contr, r, PRIMARY);		/* compute coefficient */
   if (contrib)
     multcolor(contr, r->rcol);	/* -> contribution */

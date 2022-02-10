@@ -11,9 +11,13 @@
 import numpy as np
 import clasp.script_tools as cst
 
+
 from raytraverse import translate, io
 from raytraverse.evaluate import MetricSet
+from raytraverse.lightpoint import LightPointKD
 from raytraverse.mapper.viewmapper import ViewMapper
+from raytraverse.sampler import draw
+from raytraverse.sampler.basesampler import filterdict
 
 
 def uvarray2hdr(uvarray, imgf, header=None):
@@ -28,6 +32,18 @@ def uvarray2hdr(uvarray, imgf, header=None):
     io.array2hdr(img.reshape(res, res), imgf, header)
 
 
+def hdr2uvarray(imgf, vm=None, res=None):
+    if vm is None:
+        vm = hdr2vm(imgf)
+    imarray = io.hdr2array(imgf)
+    if res is None:
+        res = imarray.shape[0]
+    uv = translate.bin2uv(np.arange(res*res), res)
+    xyz = vm.uv2xyz(uv)
+    pxy = vm.ray2pixel(xyz, imarray.shape[0])
+    return imarray[pxy[:, 1], pxy[:, 0]].reshape(res, res)
+
+
 def hdr2vol(imgf, vm=None):
     ar = io.hdr2array(imgf).T
     if vm is None:
@@ -37,13 +53,15 @@ def hdr2vol(imgf, vm=None):
     return vecs, oga, ar.ravel()
 
 
-def hdr2vm(imgf):
+def hdr2vm(imgf, vpt=False):
     header = cst.pipeline([f"getinfo {imgf}"])
     if "VIEW= -vta" in header:
         vp = header.rsplit("VIEW= -vta", 1)[-1].splitlines()[0].split()
         view_angle = float(vp[vp.index("-vh") + 1])
         vd = vp.index("-vd")
         view_dir = [float(vp[i]) for i in range(vd + 1, vd + 4)]
+        vpi = vp.index("-vp")
+        view_pt = [float(vp[i]) for i in range(vpi + 1, vpi + 4)]
         hd = cst.pipeline([f"getinfo -d {imgf}"]).strip().split()
         x = 1
         y = 1
@@ -52,12 +70,18 @@ def hdr2vm(imgf):
                 x = float(hd[i])
             elif 'Y' in hd[i - 1]:
                 y = float(hd[i])
-        return ViewMapper(view_dir, view_angle * x / y)
+        vm = ViewMapper(view_dir, view_angle * x / y)
     else:
-        return None
+        view_pt = None
+        vm = None
+    if vpt:
+        return vm, view_pt
+    else:
+        return vm
 
 
-def normalize_peak(v, o, l, scale=179, peaka=6.7967e-05, peakt=1e5, peakr=4):
+def normalize_peak(v, o, l, scale=179, peaka=6.7967e-05, peakt=1e5, peakr=4,
+                   blur=1.0):
     pc = np.nonzero(l > peakt / scale)[0]
     if pc.size > 0:
         # first sort descending by luminance
@@ -95,8 +119,8 @@ def normalize_peak(v, o, l, scale=179, peaka=6.7967e-05, peakt=1e5, peakr=4):
         # filter out source rays
         vol = np.delete(np.hstack((v, o[:, None], l[:, None])), pc, axis=0)
         v = np.vstack((vol[:, 0:3], pv))
-        o = np.concatenate((vol[:, 3], [peaka]))
-        l = np.concatenate((vol[:, 4], [peakl]))
+        o = np.concatenate((vol[:, 3], [peaka*blur]))
+        l = np.concatenate((vol[:, 4], [peakl/blur]))
     return v, o, l
 
 
@@ -109,3 +133,60 @@ def imgmetric(imgf, metrics, peakn=False, scale=179, threshold=2000.,
     if peakn:
         v, o, l = normalize_peak(v, o, l, scale, **peakwargs)
     return MetricSet(v, o, l, vm, metrics, scale=scale, threshold=threshold)()
+
+
+def img2lf(imga, imgb, src, scn):
+
+    accuracy = 0.5
+    t0 = 0
+    t1 = .6667
+    levels = 6
+
+    def _threshold(idx, acc):
+        """threshold for determining sample count"""
+        return acc * _linear(idx, t0, t1)
+
+    def _linear(x, x1, x2):
+        if levels <= 2:
+            return (x1, x2)[x]
+        else:
+            return (x2 - x1)/(levels - 1) * x + x1
+
+    vm, vp = hdr2vm(imga, vpt=True)
+    uva = hdr2uvarray(imga, vm, 1024)
+    if imgb is not None:
+        vmb = ViewMapper(vm.dxyz*np.array((-1, -1, -1)), vm.viewangle)
+        uvb = hdr2uvarray(imgb, vmb, 1024)
+        uva = np.stack((uvb, uva), 0).reshape(-1, uvb.shape[1])
+        vm = ViewMapper(vm.dxyz)
+    accuracy *= np.average(uva)
+    uvt = translate.resample(uva, uva.shape, radius=2)
+    ar = int(uva.shape[0]/uva.shape[1])
+    available = np.full(uvt.shape, True)
+    rays = None
+    vals = None
+    for i in range(1, levels+1):
+        res = 2**(levels-i)*1024/2**levels
+        uvt = translate.resample(uvt, (res*ar, res))
+        available = translate.resample(available.astype(float), uvt.shape) > 0.0
+        p = draw.get_detail(uvt, *filterdict['wav']).reshape(uvt.shape)
+        t = _threshold(levels-i, accuracy)
+        p[np.logical_not(available)] = 0
+        mi = p > t
+        available[mi] = False
+        miu = translate.resample(mi, (res*2*ar, res*2), False)
+        uv = vm.idx2uv(np.arange(miu.size)[miu.ravel()], miu.shape, False)
+        uv[:, 0] *= ar
+        ray = vm.uv2xyz(uv)
+        if rays is None:
+            rays = ray
+            vals = uva[miu]
+        else:
+            rays = np.concatenate((rays, ray))
+            vals = np.concatenate((vals, uva[miu]))
+        uva = translate.resample(uva, (res*ar, res))
+    lp = LightPointKD(scn, rays, vals, vm, vp, src=src)
+    lp.direct_view(512)
+
+
+

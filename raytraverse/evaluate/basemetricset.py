@@ -6,6 +6,8 @@
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 # =======================================================================
 import sys
+import warnings
+
 import numpy as np
 import functools
 
@@ -40,6 +42,9 @@ class BaseMetricSet(object):
         scalefactor for luminance
     omega_as_view_area: bool, optional
         take sum(omega) as view area. if false corrects omega to vm.area
+    warnings: bool, optional
+        if False, suppresses numpy warnings (zero div, etc...) when accessed
+        via __call__
     kwargs:
         additional arguments that may be required by additional properties
     """
@@ -48,12 +53,13 @@ class BaseMetricSet(object):
     defaultmetrics = ["illum", "avglum", "loggcr"]
 
     allmetrics = defaultmetrics + ["gcr", "pwgcr", "logpwgcr", "density",
-                                   "avgraylum", "pwavglum"]
+                                   "avgraylum", "pwavglum", "maxlum"]
 
     safe2sum = {"illum", "avglum", "density"}
 
     def __init__(self, vec, omega, lum, vm, metricset=None, scale=179.,
-                 omega_as_view_area=True, guth=True, **kwargs):
+                 omega_as_view_area=True, guth=True, warnings=False,
+                 **kwargs):
         if metricset is not None:
             self.check_metrics(metricset, True)
             self.defaultmetrics = metricset
@@ -69,6 +75,34 @@ class BaseMetricSet(object):
             self.view_mask = slice(None)
         else:
             mask = self.vm.in_view(v, indices=False)
+            # find bright vectors that might overlap the edge of the view
+            stray = np.argwhere(np.all([np.logical_not(mask),
+                                        np.isclose(self.vm.degrees(v),
+                                                   vm.viewangle/2, atol=1),
+                                        lum/np.average(lum) > 10],
+                                       axis=0)).ravel()
+            if len(stray) > 0:
+                ost = np.atleast_1d(omega[stray])
+                vsts = v[stray].reshape(-1, 3)
+                ds = self.vm.radians(vsts)
+                a = self.vm.viewangle * np.pi / 360
+                a2 = np.square(a)
+                b2s = ost/np.pi
+                for s, b2, vst, d in zip(stray, b2s, vsts, ds):
+                    b = np.sqrt(b2)
+                    if a - b < d < a + b:
+                        x = (a2 - b2 + np.square(d)) / (2 * d)
+                        x2 = np.square(x)
+                        y = np.sqrt(a2 - x2)
+                        omega[stray] = (a2*np.arcsin(y/a) + b2*np.arcsin(y/b) -
+                                        y * (x + np.sqrt(b2 - a2 + x2)))
+                        up = np.cross(vst, self.vm.dxyz)
+                        r = d - x
+                        ymtx, pmtx = translate.rmtx_yp(up)
+                        vu = (pmtx@(ymtx@vst[:, None])).T
+                        vu2 = translate.rotate_elem(vu, r, degrees=False)
+                        v[s] = (ymtx.T@(pmtx.T@vu2.T)).T
+                        mask[s] = True
             self.view_mask = mask
             self._vec = v[mask]
             try:
@@ -79,6 +113,7 @@ class BaseMetricSet(object):
             self.omega = omega[mask]
         self.scale = scale
         self.kwargs = kwargs
+        self._warn = warnings
 
     def __call__(self, metrics=None):
         """
@@ -92,7 +127,13 @@ class BaseMetricSet(object):
             metrics = self.defaultmetrics
         else:
             self.check_metrics(metrics, True)
-        return np.array([getattr(self, m) for m in metrics])
+        if self._warn:
+            m = np.array([getattr(self, m) for m in metrics])
+        else:
+            with warnings.catch_warnings():
+                warnings.simplefilter("ignore")
+                m = np.array([getattr(self, m) for m in metrics])
+        return m
 
     @classmethod
     def check_metrics(cls, metrics, raise_error=False):
@@ -204,6 +245,12 @@ class BaseMetricSet(object):
         """average luminance"""
         return (np.einsum('i,i->', self.lum, self.omega) *
                 self.scale/self.view_area)
+
+    @property
+    @functools.lru_cache(1)
+    def maxlum(self):
+        """average luminance"""
+        return np.max(self.lum) * self.scale
 
     @property
     @functools.lru_cache(1)

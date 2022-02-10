@@ -11,6 +11,7 @@
 
 import numpy as np
 from scipy.ndimage.filters import gaussian_filter, uniform_filter
+from scipy.spatial import cKDTree
 
 
 def norm(v):
@@ -318,6 +319,22 @@ def theta2chord(theta):
     return 2*np.sin(theta/2)
 
 
+def ctheta(a, b):
+    """cos(theta) (dot product) between a and b"""
+    a = np.asarray(a)
+    b = np.asarray(b)
+    return np.clip(np.einsum("i,ji->j", a, b.reshape(-1, b.shape[-1])), -1, 1)
+
+
+def radians(a, b):
+    """angle in radians betweeen a and b"""
+    return np.arccos(ctheta(a, b))
+
+
+def degrees(a, b):
+    """angle in degrees  betweeen a and b"""
+    return radians(a, b) * 180/np.pi
+
 ################################################
 # digitize and serialize UV square coordinates #
 ################################################
@@ -415,7 +432,7 @@ def rmtx_yp(v):
 
     Parameters
     ----------
-    v: array-like of size (3,)
+    v: array-like of size (N, 3)
         the vector direction representing the starting coordinate space
 
     Returns
@@ -424,30 +441,76 @@ def rmtx_yp(v):
     ymtx, pmtx: (np.array, np.array)
         two rotation matrices to be premultiplied in order to reverse transform,
         swap order and transpose.
-        Forward: (pmtx@(ymtx@xyz.T)).T
-        Backward: (ymtx.T@(pmtx.T@xyz.T)).T
+
+    Notes
+    -----
+    if N is one:
+    Forward: (pmtx@(ymtx@xyz.T)).T or np.einsum("ij,kj,li->kl", ymtx, xyz, pmtx)
+    Backward: (ymtx.T@(pmtx.T@xyz.T)).T or np.einsum("ji,kj,il-vkl", pmtx, nv, ymtx)
+    else:
+    Forward: np.einsum("vij,vkj,vli->vkl", ymtx, xyz, pmtx)
+    Backward: np.einsum("vji,vkj,vil-vkl", pmtx, nv, ymtx)
     """
-    v = norm1(v)
-    v2 = np.array((0, 0, 1))
-    if np.sum(np.abs(v)) == 0:
-        raise ValueError(f"Vector Normalization Failed: {v}")
-    if np.allclose(v, v2):
-        return np.identity(3), np.identity(3)
-    elif np.allclose(v, -v2):
-        ymtx = np.array([(-1, 0, 0),
-                         (0, -1, 0),
-                         (0, 0, 1)])
-        pmtx = np.array([(1, 0, 0),
-                         (0, -1, 0),
-                         (0, 0, -1)])
-        return ymtx, pmtx
-    tp = xyz2tp(v.reshape(-1, 3))[0]
-    y = 3*np.pi/2 - tp[1]
-    p = -tp[0]
-    ymtx = np.array([(np.cos(y), -np.sin(y), 0),
-                     (np.sin(y), np.cos(y), 0),
-                     (0, 0, 1)])
-    pmtx = np.array([(1, 0, 0),
-                     (0, np.cos(p), -np.sin(p)),
-                     (0, np.sin(p), np.cos(p))])
-    return ymtx, pmtx
+
+    vs = norm(np.asarray(v).reshape(-1, 3))
+    v2 = np.array((0, 0, 1)).reshape(-1, 3)
+    tp = xyz2tp(vs)
+
+    # check for identity or reverse transforms
+    e = np.all(np.isclose(vs, v2), 1)
+    ne = np.all(np.isclose(vs, -v2), 1)
+
+    z = np.zeros(len(vs))
+    o = np.ones(len(vs))
+
+    # yaw matrix
+    y = 3*np.pi/2 - tp[:, 1]
+    cy = np.cos(y)
+    sy = np.sin(y)
+    ymtx = np.stack(((cy, sy, z), (-sy, cy, z), (z, z, o))).T
+    ymtx[e] = np.eye(3)
+    ymtx[ne] = np.array([(-1, 0, 0), (0, -1, 0), (0, 0, 1)])
+
+    # pitch matrix
+    p = -tp[:, 0]
+    cp = np.cos(p)
+    sp = np.sin(p)
+    pmtx = np.stack(((o, z, z), (z, cp, sp), (z, -sp, cp))).T
+    pmtx[e] = np.eye(3)
+    pmtx[ne] = np.array([(1, 0, 0), (0, -1, 0), (0, 0, -1)])
+
+    return np.squeeze(ymtx), np.squeeze(pmtx)
+
+
+def cull_vectors(vecs, tol):
+    """return mask to cull duplicate vectors within tolerance
+
+    Parameters
+    ----------
+    vecs: Union[cKDTree, np.array]
+        prebuilt KDTree or np.array to build a new one. culling keeps
+        first vector in array used to build tree.
+    tol: float
+        tolerance for culling
+
+    Returns
+    -------
+    np.array
+        boolean mask of vecs (or vecs.data) to cull vectors
+    """
+    if type(vecs) != cKDTree:
+        pkd = cKDTree(vecs)
+    else:
+        pkd = vecs
+        vecs = pkd.data
+    pairs = pkd.query_ball_tree(pkd, tol)
+    flt = np.full(len(vecs), True)
+    # keep track of culled indices to avoid removing chains of points
+    flagged = set()
+    for j, p in enumerate(pairs):
+        if j not in flagged and len(p) > 1:
+            # don't purge first or current indices
+            q = [i for i in p[1:] if i != j]
+            flt[q] = False
+            flagged.update(q)
+    return flt

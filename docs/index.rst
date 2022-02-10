@@ -1,8 +1,5 @@
 .. include:: ../README.rst
 
-.. include:: ../raytraverse/example.py
-   :code: py
-
 Command Line Interface
 ----------------------
 
@@ -12,8 +9,7 @@ generate a template::
 
     raytraverse --template > options.cfg
 
-and then edit the options for each file. To duplicate the run shown in
-the example script above save the following to options.cfg::
+and then edit the options for each file. for example::
 
     [raytraverse_scene]
     out = outdir
@@ -75,12 +71,14 @@ and then from the command line run::
    sampler
    lightpoint
    lightfield
+   integrator
    evaluate
    craytraverse
 
    io
    translate
    utility
+   api
 
 Tutorials
 ---------
@@ -99,7 +97,5 @@ Tutorials
    history
    genindex
    search
-   todo
-   git
 
 .. include:: ../ACKNOWLEDGEMENTS.rst

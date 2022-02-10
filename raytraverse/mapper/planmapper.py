@@ -39,7 +39,7 @@ class PlanMapper(Mapper):
     """
 
     def __init__(self, area, ptres=1.0, rotation=0.0, zheight=None,
-                 name="plan"):
+                 name="plan", jitterrate=0.5):
         #: float: ccw rotation (in degrees) for point grid on plane
         self.rotation = rotation
         #: float: point resolution for area look ups and grid
@@ -47,18 +47,20 @@ class PlanMapper(Mapper):
         self._bbox = None
         self._zheight = zheight
         self._path = []
-        self.update_bbox(area, updatez=zheight is None)
-        super().__init__(name=name, sf=self._sf, bbox=self.bbox)
+        self._candidates = None
+        xyz = self.update_bbox(area, updatez=zheight is None)
+        super().__init__(dxyz=xyz, name=name, sf=self._sf, bbox=self.bbox,
+                         jitterrate=jitterrate)
 
     @property
     def dxyz(self):
-        """(float, float, float) central view direction"""
+        """(float, float, float) central view point"""
         return self._dxyz
 
     @dxyz.setter
     def dxyz(self, xyz):
         """set view parameters"""
-        self._dxyz = translate.norm1(np.asarray(xyz).ravel()[0:3])
+        self._dxyz = np.asarray(xyz).ravel()[0:3]
 
     @property
     def rotation(self):
@@ -96,12 +98,14 @@ class PlanMapper(Mapper):
         self._bbox = bbox
         if updatez:
             self._zheight = z
+        xyz = np.concatenate((np.average(self.bbox, 0), [self._zheight]))
         self._sf = self.bbox[1] - self.bbox[0]
         self._path = []
         for pt in paths:
             p = (np.concatenate((pt, [pt[0]])) - bbox[0, 0:2])/self._sf
             xy = Path(p, closed=True)
             self._path.append(xy)
+        return xyz
 
     def uv2xyz(self, uv, stackorigin=False):
         """transform from mapper UV space to world xyz"""
@@ -157,7 +161,7 @@ class PlanMapper(Mapper):
     def shape(self, level=0):
         return np.ceil(self._sf/self.ptres - 1e-4).astype(int)*2**level
 
-    def point_grid(self, jitter=True, level=0, masked=True):
+    def point_grid(self, jitter=True, level=0, masked=True, snap=None):
         """generate a grid of points
 
         Parameters
@@ -169,15 +173,17 @@ class PlanMapper(Mapper):
             sets the resolution of the grid as a power of 2 from ptres
         masked: bool, optional
             apply in_view to points before returning
+        snap: int, optional
+            level to snap samples to when jitter=False should be > level
 
         Returns
         -------
         np.array
             shape (N, 3)
         """
-        return self.uv2xyz(self.point_grid_uv(jitter, level, masked))
+        return self.uv2xyz(self.point_grid_uv(jitter, level, masked, snap))
 
-    def point_grid_uv(self, jitter=True, level=0, masked=True):
+    def point_grid_uv(self, jitter=True, level=0, masked=True, snap=None):
         """add a grid of UV coordinates
 
         Parameters
@@ -189,15 +195,26 @@ class PlanMapper(Mapper):
             sets the resolution of the grid as a power of 2 from ptres
         masked: bool, optional
             apply in_view to points before returning
+        snap: int, optional
+            level to snap samples to when jitter=False should be > level
 
         Returns
         -------
         np.array
             shape (N, 2)
         """
+        # bypasses grid when initialized with points
         shape = self.shape(level)
         idx = np.arange(np.product(shape))
         uv = self.idx2uv(idx, shape, jitter)
+        if level == 0 and not jitter and self._candidates is not None:
+            uvup = self.xyz2uv(self._candidates)
+            uv[:] = self.bbox[1] * 2
+            uv[self.uv2idx(uvup, shape)] = uvup
+        elif not jitter and snap is not None and snap > level:
+            s2 = self.shape(snap)
+            uv -= .5 / s2
+            uv += np.random.default_rng().integers(0, 2, uv.shape)/s2
         if masked:
             return uv[self.in_view_uv(uv, False)]
         else:
@@ -244,6 +261,7 @@ class PlanMapper(Mapper):
 
     def _calc_border(self, points, level=0):
         """generate a border from convex hull of points"""
+        self._candidates = points
         o = self.ptres/2**(level + 1)
         try:
             hull = ConvexHull(points[:, 0:2])
