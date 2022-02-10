@@ -302,7 +302,7 @@ class LightPointKD(object):
             srcview.add_to_img(img, vecs, mask, skyvec[srcidx], vm)
 
     def evaluate(self, skyvec, vm=None, idx=None, srcvecoverride=None,
-                 srconly=False, blursun=1.0):
+                 srconly=False, blursun=False):
         """return rays within view with skyvec applied. this is the
         analog to add_to_img for metric calculations
 

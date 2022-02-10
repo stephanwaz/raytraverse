@@ -43,7 +43,7 @@ class LightResult(object):
 
     def __init__(self, data, *axes):
         self._file = None
-        if not hasattr(data, "shape"):
+        if not hasattr(data, "shape") and type(data) not in (list, tuple):
             if os.path.isfile(data):
                 self._file = data
                 data, axes = self.load(data)
@@ -257,6 +257,17 @@ class LightResult(object):
             rowlabels = self._check_sky_data(col[0], skyfill, rowlabels)
             rt = skyfill.fill_data(rt)
         self._print(file, rt, header, rowlabels, rowlabel)
+
+    def sky_percentile(self, metric, per=(50,), **kwargs):
+        mi = np.flatnonzero([i == metric for i in self.axis("metric").values])
+        rt, labels, names = self.pull(self._index("metric"), self._index("sky"), preserve=2, metric=mi,
+                                      **kwargs)
+        rt = np.squeeze(np.percentile(rt, per, -1), -1).T
+        labels = [[tuple(i)+tuple(j) for i, j in labels[0]], [f"{metric}_{p}"for p in per]]
+        names = [names[0], names[-2]]
+
+        axes = [ResultAxis(la, na) for la, na in zip(labels, names)]
+        return LightResult(rt, *axes)
 
     def _print_serial(self, rt, labels, names, basename, header,
                       rowlabel, skyfill):

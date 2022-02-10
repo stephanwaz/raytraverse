@@ -35,7 +35,7 @@ class Integrator(object):
 
     def make_images(self, skydata, points, vm, viewangle=180., res=512,
                     interp=False, prefix="img", namebyindex=False, suntol=10.0,
-                    blursun=1.0,):
+                    blursun=False):
         """see namebyindex for file naming conventions
 
         Parameters
@@ -105,7 +105,7 @@ class Integrator(object):
 
     def evaluate(self, skydata, points, vm, viewangle=180.,
                  metricclass=MetricSet, metrics=None, datainfo=False,
-                 srconly=False, suntol=10.0, blursun=1.0, **kwargs):
+                 srconly=False, suntol=10.0, blursun=False, **kwargs):
         """apply sky data and view queries to daylightplane to return metrics
         parallelizes and optimizes run order.
 

@@ -613,7 +613,7 @@ rows in wea/epw file using space seperated list or python range notation:
               help="simulation process/integration type"),
  click.option("-resuntol", default=5.0,
               help="tolerance for resampling sun views"),
- click.option("-blursun", default=1.0,
+ click.option("--blursun/--no-blursun", default=False,
               help="for simulating point spread function for direct sun view"),
  click.option("--resampleview/--no-resampleview", default=False,
               help="resample direct sun view directions")
@@ -623,7 +623,7 @@ rows in wea/epw file using space seperated list or python range notation:
 @main.command()
 @clk.shared_decs(eval_opts)
 @click.option("-res", default=800, help="image resolution")
-@click.option("-interpolate", type=click.Choice(['linear', 'fast', 'high', None, False, 'False']))
+@click.option("-interpolate", type=click.Choice(['linear', 'fast', 'high', '', 'None', 'False']))
 @click.option("--namebyindex/--no-namebyindex", default=False,
               help="if False (default), names images by: "
                    "<prefix>_sky-<row>_pt-<x>_<y>_<z>_vd-<dx>_<dy>_<dz>.hdr "
@@ -635,7 +635,7 @@ rows in wea/epw file using space seperated list or python range notation:
 @clk.shared_decs(clk.command_decs(raytraverse.__version__, wrap=True))
 def images(ctx, sensors=None, sdirs=None, viewangle=180., skymask=None,
            basename="results", res=800, interpolate=None, namebyindex=False,
-           simtype="2comp", resuntol=5.0, blursun=1.0, resampleview=False,
+           simtype="2comp", resuntol=5.0, blursun=False, resampleview=False,
            **kwargs):
     """render images
 
@@ -728,7 +728,7 @@ def images(ctx, sensors=None, sdirs=None, viewangle=180., skymask=None,
 @clk.shared_decs(clk.command_decs(raytraverse.__version__, wrap=True))
 def evaluate(ctx, sensors=None, sdirs=None, viewangle=180., skymask=None,
              metrics=None, basename="results", simtype="2comp", npz=True,
-             serr=False, resuntol=5.0, blursun=1.0, resampleview=False,
+             serr=False, resuntol=5.0, blursun=False, resampleview=False,
              **kwargs):
     """evaluate metrics
 
@@ -764,10 +764,9 @@ def evaluate(ctx, sensors=None, sdirs=None, viewangle=180., skymask=None,
     else:
         sunviewengine = None
     skmapper = ctx.obj['skymapper']
-
+    zonal = sensors is None
     itg = api.get_integrator(scn, pm, skmapper.name, simtype,
-                             sunviewengine=sunviewengine)
-
+                             sunviewengine=sunviewengine, zonal=zonal)
     if skymask is not None:
         sd.mask = skymask
     sensors = np.atleast_2d(sensors)
@@ -782,10 +781,12 @@ def evaluate(ctx, sensors=None, sdirs=None, viewangle=180., skymask=None,
         data = np.squeeze(np.concatenate([r.data for r in result], axis=1), 2)
         ptaxis = ResultAxis(sensors, "point")
         result = LightResult(data, result[0].axes[0], ptaxis, result[0].axes[3])
-    elif sdirs is None:
-        raise ValueError("if sensors do not have directions, sdirs cannot be "
-                         "None")
     else:
+        if zonal and sdirs is not None:
+            sensors = pm
+        elif sdirs is None:
+            raise ValueError("if sensors do not have directions, sdirs cannot be "
+                             "None")
         result = itg.evaluate(sd, sensors, sdirs, viewangle=viewangle,
                               suntol=resuntol, metrics=metrics, datainfo=serr,
                               srconly=simtype == 'directview', blursun=blursun)

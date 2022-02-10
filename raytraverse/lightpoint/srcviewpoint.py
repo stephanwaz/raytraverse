@@ -126,12 +126,32 @@ class SrcViewPoint(object):
                 i2 = gaussian_filter(i2, r, truncate=8)
             img += i2
 
-    def evaluate(self, sunval, vm=None, blursun=1.0):
+    @staticmethod
+    def _hpsf(x, fwhm=0.183333):
+        hm = np.square(fwhm/2)
+        return hm/(np.square(x) + hm)
+
+    @staticmethod
+    def _inv_hpsf(y, fwhm=0.183333):
+        hm = np.square(fwhm/2)
+        return np.sqrt(hm/y - hm)
+
+    def _blur_sun(self, lmax, lmin=279.33, fwhm=0.183333):
+        r0 = np.sqrt(self.omega/np.pi) * 180/np.pi
+        lmax = max(min(lmax, lmin/self._hpsf(1)), lmin)
+        r = r0 + self._inv_hpsf(lmin/lmax, fwhm)
+        return np.square(r/r0)
+
+    def evaluate(self, sunval, vm=None, blursun=False):
         tol = np.sqrt(self.omega/np.pi)
         if (vm is None or vm.aspect == 2 or
                 vm.in_view(self.vec, indices=False, tol=tol)[0]):
-            svlm = self.lum * sunval/blursun
-            svo = self.omega * blursun
+            svlm = self.lum * sunval
+            svo = self.omega
+            if blursun:
+                ogas = self._blur_sun(svlm)
+                svlm = svlm / ogas
+                svo = svo * ogas
             return self.vec, svo, svlm
         else:
             return self.vec, 0, 0

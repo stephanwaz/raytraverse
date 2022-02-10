@@ -31,7 +31,7 @@ class RaggedResult(tuple):
             return super(RaggedResult, self).__getitem__(item)
         except TypeError:
             pass
-        if item[0] == Ellipsis:
+        if not hasattr(item[0], 'shape') and item[0] == Ellipsis:
             item = tuple(slice(None) for i in range(1 + len(self.shape) - len(item))) + item[1:]
         try:
             x = super(RaggedResult, self).__getitem__(item[0])

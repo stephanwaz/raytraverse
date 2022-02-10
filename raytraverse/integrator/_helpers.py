@@ -18,7 +18,7 @@ from raytraverse.sampler import SunSamplerPtView
 
 def evaluate_pt(lpts, skyvecs, suns, vm=None, vms=None,
                 metricclass=None, metrics=None, srconly=False,
-                sumsafe=False, suntol=10.0, svengine=None, blursun=1.0,
+                sumsafe=False, suntol=10.0, svengine=None, blursun=False,
                 **kwargs):
     """point by point evaluation suitable for submitting to ProcessPool"""
     if len(lpts) == 0:

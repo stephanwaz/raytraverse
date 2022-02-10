@@ -12,7 +12,7 @@ from raytraverse.evaluate import MetricSet
 from raytraverse.integrator import Integrator
 from raytraverse.lightfield import SunsPlaneKD, ZonalLightResult
 from raytraverse.integrator._helpers import calc_omega
-from raytraverse.lightfield.lightresult import ResultAxis
+from raytraverse.lightfield.lightresult import ResultAxis, LightResult
 from raytraverse.utility import pool_call
 
 
@@ -72,6 +72,9 @@ class ZonalIntegrator(Integrator):
         (tidxs, skydatas, dsns,
          vecs, serr, areas) = self._group_query(skydata, pm, ptfilter=ptfilter,
                                                 stol=stol, minsun=minsun)
+        self.scene.log(self, f"Evaluating {len(metrics)} metrics for {len(vms)}"
+                             f" view directions across zone '{pm.name}' under "
+                             f"{len(skydata.sun)} skies", True)
         fields, isort = self._process_mgr(tidxs, skydatas, dsns,
                                           type(self).evaluate_pt,
                                           message="Evaluating Zones",
@@ -89,22 +92,27 @@ class ZonalIntegrator(Integrator):
                 pmetrics += dinfo
 
         areas = np.broadcast_to(areas[:, None, None], oshape + (1,))
-        fvecs = np.concatenate(vecs, axis=0)
-        fvecs = np.broadcast_to(fvecs[:, None, 3:], oshape + (3,))
-        fields = np.concatenate((fvecs, areas, fields), axis=-1)
-        metrics = pmetrics + metrics
+        axes = [ResultAxis(skydata.maskindices, f"sky"),
+                ResultAxis([pm.name], f"zone"),
+                ResultAxis([v.dxyz for v in vms], "view"),
+                ResultAxis(pmetrics + metrics, "metric")]
 
         cnts = [len(v) for v in vecs]
         strides = np.cumsum(cnts)[:-1]
-        fields = np.split(fields, strides)
-        print("view metrics:", metrics, len(fields), [f.shape for f in fields])
-        print("points", len(vecs), [v.shape for v in vecs])
-        print("skies", skydata.maskindices)
-        axes = (ResultAxis(skydata.maskindices, f"sky"),
-                ResultAxis([pm.name], f"zone"),
-                ResultAxis([v.dxyz for v in vms], "view"),
-                ResultAxis(metrics, "metric"))
-        return ZonalLightResult(fields, *axes, pointmetrics=pmetrics)
+        fl = np.array(cnts)
+        if np.all(fl == fl[0]):
+            axes[1] = ResultAxis(vecs[0][:, 3:], "point")
+            axes[3] = ResultAxis(["area"] + metrics, "metric")
+            fields = np.concatenate((areas, fields), axis=-1)
+            fields = fields.reshape((-1, cnts[0]) + fields.shape[1:])
+            lr = LightResult(fields, *axes)
+        else:
+            fvecs = np.concatenate(vecs, axis=0)
+            fvecs = np.broadcast_to(fvecs[:, None, 3:], oshape + (3,))
+            fields = np.concatenate((fvecs, areas, fields), axis=-1)
+            fields = np.split(fields, strides)
+            lr = ZonalLightResult(fields, *axes, pointmetrics=pmetrics)
+        return lr
 
     def _group_query(self, skydata, pm, ptfilter=.25, stol=10, minsun=1):
         pts = [lp.vecs for lp in self.lightplanes if type(lp) != SunsPlaneKD]
@@ -123,7 +131,7 @@ class ZonalIntegrator(Integrator):
         if len(self._issunplane) == 0 or np.sum(sunmask) == 0:
             tidxs, skydatas, dsns, vecs = super()._group_query(skydata, pts)
             vecs = vecs.reshape(len(skydata.maskindices), -1, 6)
-            areas = np.broadcast_to(skarea, vecs.shape[0:2])
+            areas = np.broadcast_to(skarea, vecs.shape[0:2]).ravel()
             if len(self._issunplane) > 0:
                 tidxs[self._issunplane[0]] = -1
             d = np.zeros(tidxs.shape[1])
