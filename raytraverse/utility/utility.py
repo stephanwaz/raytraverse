@@ -24,14 +24,15 @@ def pool_call(func, args, *fixed_args, cap=None, expandarg=True,
     func: callable
         the function to execute in parallel
     args: Sequence[Sequence]
-        list of arguments (each item is expanded with '*'). first N args of func
+        list of arguments (each item is expanded with '*' unless expandarg
+        is false). first N args of func
     fixed_args: Sequence
         arguments passed to func that are the same for all calls (next N
         arguments  after args)
     cap: int, optional
         execution cap for ProcessPool
     expandarg: bool, optional
-        expand args with * when calling func ( func(*arg) for arg in args )
+        expand args with '*' when calling func
     desc: str, optional
         label for progress bar
     kwargs:

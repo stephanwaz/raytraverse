@@ -97,7 +97,5 @@ Tutorials
    history
    genindex
    search
-   todo
-   git
 
 .. include:: ../ACKNOWLEDGEMENTS.rst

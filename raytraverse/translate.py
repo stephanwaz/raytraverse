@@ -441,14 +441,15 @@ def rmtx_yp(v):
     ymtx, pmtx: (np.array, np.array)
         two rotation matrices to be premultiplied in order to reverse transform,
         swap order and transpose.
-        if N is one:
-        Forward: (pmtx@(ymtx@xyz.T)).T
-                  or np.einsum("ij,kj,li->kl", ymtx, xyz, pmtx)
-        Backward: (ymtx.T@(pmtx.T@xyz.T)).T
-                  or np.einsum("ji,kj,il-vkl", pmtx, nv, ymtx)
-        else:
-        Forward: np.einsum("vij,vkj,vli->vkl", ymtx, xyz, pmtx)
-        Backward: np.einsum("vji,vkj,vil-vkl", pmtx, nv, ymtx)
+
+    Notes
+    -----
+    if N is one:
+    Forward: (pmtx@(ymtx@xyz.T)).T or np.einsum("ij,kj,li->kl", ymtx, xyz, pmtx)
+    Backward: (ymtx.T@(pmtx.T@xyz.T)).T or np.einsum("ji,kj,il-vkl", pmtx, nv, ymtx)
+    else:
+    Forward: np.einsum("vij,vkj,vli->vkl", ymtx, xyz, pmtx)
+    Backward: np.einsum("vji,vkj,vil-vkl", pmtx, nv, ymtx)
     """
 
     vs = norm(np.asarray(v).reshape(-1, 3))

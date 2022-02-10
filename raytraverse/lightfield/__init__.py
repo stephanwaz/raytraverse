@@ -9,10 +9,10 @@
 """sampler objects"""
 
 __all__ = ["LightPlaneKD", "SunsPlaneKD", "LightField",
-           "LightResult", "ResultAxis", "ZonalLightResult"]
+           "LightResult", "ResultAxis", "RaggedResult", "ZonalLightResult"]
 
 from raytraverse.lightfield.lightfield import LightField
 from raytraverse.lightfield.lightplanekd import LightPlaneKD
 from raytraverse.lightfield.sunsplanekd import SunsPlaneKD
 from raytraverse.lightfield.lightresult import ResultAxis, LightResult
-from raytraverse.lightfield.zonallightresult import ZonalLightResult
+from raytraverse.lightfield.zonallightresult import RaggedResult, ZonalLightResult

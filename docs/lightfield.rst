@@ -34,6 +34,14 @@ LightResult
     :undoc-members:
     :show-inheritance:
 
+ZonalLightResult
+---------------------------------
+
+.. autoclass:: raytraverse.lightfield.ZonalLightResult
+    :members:
+    :undoc-members:
+    :show-inheritance:
+
 sets
 ----
 
@@ -57,6 +65,22 @@ MultiLightPointSet
 ~~~~~~~~~~~~~~~~~~
 
 .. autoclass:: raytraverse.lightfield.sets.MultiLightPointSet
+    :members:
+    :undoc-members:
+    :show-inheritance:
+
+RaggedResult
+------------
+
+.. autoclass:: raytraverse.lightfield.RaggedResult
+    :members:
+    :undoc-members:
+    :show-inheritance:
+
+ResultAxis
+------------
+
+.. autoclass:: raytraverse.lightfield.ResultAxis
     :members:
     :undoc-members:
     :show-inheritance:
