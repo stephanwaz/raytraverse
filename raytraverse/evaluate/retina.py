@@ -5,6 +5,56 @@
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 # =======================================================================
+import numpy as np
+
+
+def hpsf(x, fwhm=0.183333):
+    """estimate of human eye point-spread function
+
+    from:
+    Yang, Yr., Wanek, J. & Shahidi, M. Representing the retinal line
+    spread shape with mathematical functions. J. Zhejiang Univ. Sci. B 9,
+    996–1002 (2008). https://doi.org/10.1631/jzus.B0820184
+    """
+    hm = np.square(fwhm/2)
+    return hm/(np.square(x) + hm)
+
+
+def inv_hpsf(y, fwhm=0.183333):
+    """inverse of hpsf"""
+    hm = np.square(fwhm/2)
+    return np.sqrt(hm/y - hm)
+
+
+def blur_sun(omega, lmax, lmin=279.33, fwhm=0.183333):
+    """calculate source correction to small bright source
+
+    returned value should be multiplied by omega and divides luminance
+
+    Parameters
+    ----------
+    omega: Union[float, np.arrray]
+        solid angle in steradians of source
+    lmax: Union[float, np.arrray]
+        maximum radiance in source (cd/m^2)/179
+    lmin: Union[float, np.arrray], optional
+        minimum radiance value to gather after spread (mimic peak extraction
+        of evalglare, but note the different units (cd/m^2)/179
+    fwhm: Union[float, np.arrray], optional
+        full width half max of Lorentzian curve (radius in degrees) default
+        is 11 arcmin.
+
+    Returns
+    -------
+    correction factor: Union[float, np.arrray]
+        value should be multiplied by omega and divides luminance
+
+    """
+    r0 = np.sqrt(omega/np.pi) * 180/np.pi
+    lmax = np.maximum(np.minimum(lmax, lmin/hpsf(1)), lmin)
+    r = r0 + inv_hpsf(lmin/lmax, fwhm)
+    return np.square(r/r0)
+
 
 # code adapted from supplemental materials to:
 # Andrew B. Watson; A formula for human retinal ganglion cell receptive
@@ -16,8 +66,6 @@
 # and
 # Curcio, C. A., & Allen, K. A. (1990). Topography of ganglion cells in
 # human retina. The Journal of comparative neurology, 300 (1), 5 - 25
-
-import numpy as np
 
 
 def rgcf_density_on_meridian(deg, mi):

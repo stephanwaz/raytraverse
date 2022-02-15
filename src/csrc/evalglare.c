@@ -2,9 +2,9 @@
 static const char RCSid[] = "$Id$";
 #endif
 /* EVALGLARE V3.01
- * Evalglare Software License, Version 2.0
+ * Evalglare Software License, Version 3.0
  *
- * Copyright (c) 1995 - 2020 Fraunhofer ISE, EPFL.
+ * Copyright (c) 1995 - 2022 Fraunhofer ISE, EPFL.
  * All rights reserved.
  *
  *
@@ -386,11 +386,14 @@ calculate "illuminance-contribution of zones"
 - change of multi-image-mode. Adding extra scans with scaled image
 syntax now: -Q n_images n_extrascans_per_image n_images*( imagename x y  n_extrascans*(scale) )
   */
+/* evalglare.c, v3.01  2022/02/11
+- correction of position index below line of sight after Takuro Kikuchi's comments in radiance-discourse from Dec 2021.  
+  */
 
 
 #define EVALGLARE
 #define PROGNAME "evalglare"
-#define VERSION "3.01 release 05.01.2022 by J.Wienold, EPFL"
+#define VERSION "3.02 release 11.02.2022 by J.Wienold, EPFL"
 #define RELEASENAME PROGNAME " " VERSION
 
 
@@ -857,7 +860,7 @@ void split_pixel_from_gs(pict * p, int x, int y, int new_gsn, int uniform_gs, do
 float get_posindex(pict * p, float x, float y, int postype)
 {
 	float posindex;
-	double teta, phi, sigma, tau, deg, d, s, r, fact;
+	double teta, beta, phi, sigma, tau, deg, d, s, r, fact;
 
 
 	pict_get_vangle(p, x, y, p->view.vdir, p->view.vup, &phi);
@@ -885,11 +888,7 @@ float get_posindex(pict * p, float x, float y, int postype)
 /* KIM  model */        
         posindex = exp ((sigma-(-0.000009*tau*tau*tau+0.0014*tau*tau+0.0866*tau+21.633))/(-0.000009*tau*tau*tau+0.0013*tau*tau+0.0853*tau+8.772));
         }else{
-/* below line of sight, using Iwata model */
-	if (phi < 0) {
-		tau = 90.0 ;
 
-	}
 /* Guth model, equation from IES lighting handbook */
 	posindex =
 		exp((35.2 - 0.31889 * tau -
@@ -898,6 +897,14 @@ float get_posindex(pict * p, float x, float y, int postype)
 														 0.002963 * tau *
 														 tau) / 100000 *
 			sigma * sigma);
+
+/* below line of sight, using Iwata model, CIE2010, converted coordinate system according to Takuro Kikuchi */
+
+	if (phi < 0) {
+          beta = atan(tan(sigma/deg)* sqrt(1 + 0.3225 * pow(cos(tau/deg),2))) * deg;
+          posindex = exp(6.49 / 1000 * beta + 21.0 / 100000 * beta * beta);
+ 
+	}
 
 		if (posindex > 16)
 		posindex = 16;
@@ -2974,7 +2981,6 @@ if (calcfast ==1 || search_pix <= 1.0 || calcfast == 2 || patchmode > 0) {
 						  omega_z1 += pict_get_omega(p, x, y);
 						  lum_z1_av += pict_get_omega(p, x, y)* lum_actual;
 						  Ez1 += DOT(p->view.vdir, pict_get_cached_dir(p, x, y))* pict_get_omega(p, x, y)* lum_actual;
-
 						  setglcolor(p,x,y,1,1 , 0.66, 0.01 ,0.33);
 /*check if separation gsn already exist */
 
