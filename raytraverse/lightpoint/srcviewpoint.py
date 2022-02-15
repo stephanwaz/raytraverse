@@ -9,6 +9,7 @@
 import numpy as np
 
 from raytraverse import io
+from raytraverse.evaluate import retina
 from raytraverse.mapper import ViewMapper
 from scipy.interpolate import LinearNDInterpolator
 from scipy.spatial import ConvexHull
@@ -149,9 +150,9 @@ class SrcViewPoint(object):
             svlm = self.lum * sunval
             svo = self.omega
             if blursun:
-                ogas = self._blur_sun(svlm)
+                ogas = np.atleast_1d(retina.blur_sun(self.omega, svlm))
                 svlm = svlm / ogas
-                svo = svo * ogas
+                svo = svo * ogas[0]
             return self.vec, svo, svlm
         else:
             return self.vec, 0, 0

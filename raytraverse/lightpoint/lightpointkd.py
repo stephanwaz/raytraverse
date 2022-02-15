@@ -346,6 +346,7 @@ class LightPointKD(object):
             omega = np.atleast_1d(np.squeeze(self.omega[idx]))
             rays = self.vec[idx]
             lum = self.apply_coef(skyvec)[:, idx].T
+
         if len(self.srcviews) > 0:
             vrs = []
             for srcview, srcidx in zip(self.srcviews, self.srcviewidxs):

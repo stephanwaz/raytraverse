@@ -158,14 +158,13 @@ def transform(ctx, d=None, flip=False, reshape=None, cols=None,
                    "position is center of image with a 30 degree field of view")
 @click.option("-scale", default=179.,
               help="scale factor applied to pixel values to convert to cd/m^2")
-@click.option("-blur", default=1.,
-              help="ratio to blur peak (divides luminance and multiplies omega)"
-                   " simple way to apply human eye PSF")
+@click.option("--blursun/--no-blursun", default=False,
+              help="applies human PSF to peak glare source (only if peekn=True")
 @clk.shared_decs(clk.command_decs(raytraverse.__version__, wrap=True))
 def imgmetric(ctx, imgs=None, metrics=None, parallel=True,
               basename="img_metrics", npz=True, peakn=False,
               peaka=6.7967e-05, peakt=1e5, peakr=4.0, threshold=2000.,
-              scale=179., blur=1.0, **kwargs):
+              scale=179., blursun=False, **kwargs):
     """calculate metrics for hdr images, similar to evalglare but without
     glare source grouping, equivalent to -r 0 in evalglare. This ensures that
     all glare source positions are  weighted by the metrics to which they are
@@ -180,7 +179,7 @@ def imgmetric(ctx, imgs=None, metrics=None, parallel=True,
     results = pool_call(imagetools.imgmetric, list(zip(imgs)), metrics, cap=cap,
                         desc="processing images", peakn=peakn,
                         peaka=peaka, peakt=peakt, peakr=peakr,
-                        threshold=threshold, scale=scale, blur=blur)
+                        threshold=threshold, scale=scale, blursun=blursun)
     imgaxis = ResultAxis(imgs, "image")
     metricaxis = ResultAxis(metrics, "metric")
     lr = LightResult(np.asarray(results), imgaxis, metricaxis)
