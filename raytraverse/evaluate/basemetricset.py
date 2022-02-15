@@ -143,7 +143,7 @@ class BaseMetricSet(object):
         if raise_error and len(good) != len(list(metrics)):
             bad = [m for m in metrics if m not in cls.allmetrics]
             raise AttributeError(f"'{bad}' are not defined in "
-                                 f"MetricSet: {cls.allmetrics}")
+                                 f"{cls.__name__}: {cls.allmetrics}")
         return good
 
     @classmethod
@@ -200,18 +200,12 @@ class BaseMetricSet(object):
     @functools.lru_cache(1)
     def ctheta(self):
         """cos angle between ray and view"""
-        # """cos angle between ray and view
-        #         with linear interpolation across omega"""
-        # radius = np.sqrt(self._omega/np.pi)
-        # return .5*(np.cos(self.radians + radius) +
-        #            np.cos(self.radians - radius))
         return self.vm.ctheta(self.vec)
 
     @property
     @functools.lru_cache(1)
     def radians(self):
-        """cos angle between ray and view"""
-        # return np.arccos(self.vm.ctheta(self.vec))
+        """angle between ray and view"""
         rad = np.arccos(self.ctheta)
         return rad
 
