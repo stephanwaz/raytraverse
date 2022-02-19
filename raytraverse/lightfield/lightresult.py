@@ -9,13 +9,15 @@ import os.path
 import re
 
 import numpy as np
+from scipy.spatial import cKDTree
 
+from raytraverse.mapper import PlanMapper
 from raytraverse import io
 
 
 class ResultAxis(object):
 
-    def __init__(self, values, name):
+    def __init__(self, values, name, cols=None):
         self.values = np.asarray(values)
         if len(self.values.shape) == 2:
             dt = type(self.values.flat[0])
@@ -23,6 +25,40 @@ class ResultAxis(object):
                               range(self.values.shape[1])])
             self.values = np.array(list(zip(*self.values.T)), dtype=dtype)
         self.name = name
+        self.cols = cols
+
+    @property
+    def cols(self):
+        return self._cols
+
+    @cols.setter
+    def cols(self, c):
+        pt = ('x', 'y', 'z', 'dx', 'dy', 'dz')
+        col_names = dict(point={2: pt[0:2], 3:pt[0:3],
+                                4: pt[0:3] + ("area",), 6: pt},
+                         view={3: pt[3:]},
+                         sky={3: ('month', 'day', 'hour')})
+        ex = self.values[0]
+        try:
+            if hasattr(ex, "upper"):
+                cnt = 1
+            else:
+                cnt = len(ex)
+        except TypeError:
+            cnt = 1
+        if c is None:
+            if cnt == 1:
+                c = (self.name,)
+            else:
+                try:
+                    c = col_names[self.name][cnt]
+                except KeyError:
+                    c = list(range(cnt))
+        elif not hasattr(c, "__len__") or hasattr(c, "upper"):
+            c = (c,)
+        if len(c) != cnt:
+            raise ValueError(f"cols {c} does not match shape of values {cnt}")
+        self._cols = "\t".join([str(i) for i in c])
 
 
 class LightResult(object):
@@ -219,31 +255,10 @@ class LightResult(object):
             rls.append(f"{name}_{rl}")
         return rls
 
-    def _set_rln(self, row_label_names, axis, labels):
-        try:
-            ptaxis = self.axis(axis).values[0]
-        except IndexError:
-            pass
-        else:
-            if not hasattr(ptaxis, "__len__"):
-                row_label_names[axis] = axis
-            else:
-                ptlabel = labels[0:len(ptaxis)]
-                row_label_names[axis] = "\t".join(ptlabel)
-
     def pull_header(self, names, labels, rowlabel=True):
         h = [str(i) for i in labels[1]]
         if rowlabel:
-            # construct row label format
-            row_label_names = dict(sky="sky", point="x\ty\tz",
-                                   view="dx\tdy\tdz", image="image",
-                                   metric="metric")
-            self._set_rln(row_label_names, "point",
-                          ["x", "y", "z", "dx", "dy", "dz"])
-            self._set_rln(row_label_names, "view",
-                          ["dx", "dy", "dz"])
-            h = [row_label_names[i] for i in names[0].split("_")
-                 if i in row_label_names] + h
+            h = [self.axis(i).cols for i in names[0].split("_")] + h
         return "\t".join(h)
 
     def print(self, col, header=True, rowlabel=True, file=None,
@@ -254,8 +269,11 @@ class LightResult(object):
             header = self.pull_header(names, labels, rowlabel)
         rowlabels = self.row_labels(labels[0])
         if skyfill is not None:
-            rowlabels = self._check_sky_data(col[0], skyfill, rowlabels)
+            self._check_sky_data(col[0], skyfill, rowlabels)
             rt = skyfill.fill_data(rt)
+            rowlabels = self.row_labels(skyfill.rowlabel)
+            if header:
+                header = self.pull_header(["sky"], labels, rowlabel)
         self._print(file, rt, header, rowlabels, rowlabel)
 
     def sky_percentile(self, metric, per=(50,), **kwargs):
@@ -274,13 +292,14 @@ class LightResult(object):
         flabels = self.fmt_names(names[-1], labels[-1])
         rowlabels = self.row_labels(labels[0])
         if skyfill is not None:
-            rowlabels = self._check_sky_data(names[0], skyfill, rowlabels)
+            self._check_sky_data(names[0], skyfill, rowlabels)
         for i, j in enumerate(flabels):
             if skyfill:
                 data = skyfill.fill_data(rt[..., i])
+                rowlabels = self.row_labels(skyfill.rowlabel)
             else:
                 data = rt[..., i]
-            f = open(f"{basename}_{j}.txt", 'w')
+            f = open(f"{basename}_{j}_{names[-2]}.txt", 'w')
             self._print(f, data, header, rowlabels, rowlabel)
             f.close()
 
@@ -294,29 +313,20 @@ class LightResult(object):
         self._print_serial(rt, labels, names, basename, header, rowlabel,
                            skyfill)
 
-    def pull2hdr(self, col, basename, skyfill=None, spd=24,  **kwargs):
-        rt, labels, names = self.pull(*col, preserve=2, **kwargs)
-        if names[-1] == "sky":
-            pts = self.axis("point").values
-            if rt.shape[0] != len(pts):
-                raise ValueError(f"cannot grid {rt.shape[0]} to {len(pts)} "
-                                 "points. make sure non-point axes besides "
-                                 "'col' are filtered to a single value")
-            pts = np.array(list(zip(*pts))).T
-            gshp = (np.unique(pts[:, 0]).size, np.unique(pts[:, 1]).size)
-            gsort = np.lexsort((pts[:, 1], pts[:, 0]))
-            psize = int(500/max(gshp)/2)*2
-            psize = (psize, psize)
-        elif skyfill is None:
-            raise ValueError("'pull2hdr' with 'sky' requires skyfill")
-        elif rt.shape[0] != skyfill.smtx.shape[0]:
-            raise ValueError("SkyData and result do not have the same number "
-                             f"of values ({skyfill.smtx.shape[0]} vs. "
-                             f"{rt.shape[0]}) check that SkyData matches result"
-                             ", and is appropriately masked, or that non-sky "
-                             "axes besides 'col' are filtered to a single "
-                             "value")
-        elif skyfill.skydata.shape[0] % 365 == 0:
+    def _pull2hdr_kdplan(self, pm, basename, rt, flabels0, flabels1):
+        img, vecs, mask, mask2, header = pm.init_img(480)
+        pts = np.asarray([tuple(i) for i in self.axis("point").values])[:, 0:3]
+        kd = cKDTree(pts)
+        err, idx = kd.query(vecs[mask])
+        for i, la0 in enumerate(flabels0):
+            data = rt[..., i]
+            for k, (la, d) in enumerate(zip(flabels1, data.T)):
+                img[mask] = d[idx]
+                io.array2hdr(img, f"{basename}_{la}_{la0}.hdr", header)
+
+    @staticmethod
+    def _pull2hdr_sky(skyfill, basename, spd, rt, flabels0, flabels1):
+        if skyfill.skydata.shape[0] % 365 == 0:
             gshp = (365, int(skyfill.skydata.shape[0]/365))
             hour = np.arange(skyfill.skydata.shape[0])
             gsort = np.lexsort((-np.mod(hour, gshp[1]), np.floor(hour/gshp[1])))
@@ -329,8 +339,6 @@ class LightResult(object):
         else:
             raise ValueError(f"skydata must have 365 days and/or {spd} "
                              f"steps per day")
-        flabels0 = self.fmt_names(names[-1], labels[-1])
-        flabels1 = self.fmt_names(names[-2], labels[-2])
         for i, la0 in enumerate(flabels0):
             if skyfill:
                 data = skyfill.fill_data(rt[..., i])
@@ -342,9 +350,32 @@ class LightResult(object):
                 io.array2hdr(do[-1::-1], f"{basename}_{la}_"
                                          f"{la0}.hdr")
 
+    def pull2hdr(self, col, basename, skyfill=None, spd=24, pm=None, **kwargs):
+        rt, labels, names = self.pull(*col, preserve=2, **kwargs)
+        flabels0 = self.fmt_names(names[-1], labels[-1])
+        flabels1 = self.fmt_names(names[-2], labels[-2])
+        if "sky" in names[-1]:
+            pts = self.axis("point").values
+            if rt.shape[0] != len(pts):
+                raise ValueError(f"cannot grid {rt.shape[0]} to {len(pts)} "
+                                 "points. make sure non-point axes besides "
+                                 "'col' are filtered to a single value")
+            if pm is None:
+                pm = PlanMapper(np.asarray([tuple(i)for i in
+                                            self.axis("point").values])[:, 0:3])
+            return self._pull2hdr_kdplan(pm, basename, rt, flabels0, flabels1)
+        if skyfill is None:
+            raise ValueError("'pull2hdr' with 'sky' requires skyfill")
+        elif rt.shape[0] != skyfill.smtx.shape[0]:
+            raise ValueError("SkyData and result do not have the same number "
+                             f"of values ({skyfill.smtx.shape[0]} vs. "
+                             f"{rt.shape[0]}) check that SkyData matches result"
+                             ", and is appropriately masked, or that non-sky "
+                             "axes besides 'col' are filtered to a single "
+                             "value")
+        return self._pull2hdr_sky(skyfill, basename, spd, rt, flabels0, flabels1)
+
     def _check_sky_data(self, col, skydata, rowlabels):
-        if "sky" in col:
-            raise ValueError("skyfill cannot be used with col='sky'")
         if len(self.data.shape) == 2:
             raise ValueError("skyfill only compatible with 4d lightresults")
         skysize = self.axis("sky").values.size

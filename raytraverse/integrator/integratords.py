@@ -23,7 +23,17 @@ def _prep_ds(lpts, skyvecs):
         return lpts[0:1], skyvecs[0:1]
     skpatch = translate.xyz2skybin(snp.srcdir, int((skp.srcn - 1)**.5))[0]
     skvec = skp.vec
-    sklum = np.maximum((skp.lum[:, skpatch] - skd.lum[:, skpatch]), 0)[:, None]
+    skydlum = np.copy(skd.lum[:, skpatch])
+    # check for rough specular transmission
+    spect = snp.lum[translate.ctheta(snp.srcdir[0], snp.vec) > .999]
+    if len(spect) > 0:
+        spect = np.min(spect)
+        if spect > 0:
+            skyres = np.cos(1.25 * np.pi/int((skp.srcn - 1)**.5))
+            skyres = translate.ctheta(snp.srcdir[0], skd.vec) > skyres
+            skydviews = np.logical_and(skyres, skp.lum[:, skpatch] > spect)
+            skydlum[skydviews] = skp.lum[:, skpatch][skydviews]
+    sklum = np.maximum((skp.lum[:, skpatch] - skydlum), 0)[:, None]
     sklum = np.hstack((skp.lum, sklum))
     ski = LightPointKD(skp.scene, vec=skvec, lum=sklum, vm=skp.vm,
                        pt=skp.pt, posidx=skp.posidx,

@@ -72,9 +72,14 @@ class SkyData(object):
     def skyres(self):
         return self._skyres
 
+    @property
+    def side(self):
+        return self._side
+
     @skyres.setter
     def skyres(self, s):
-        self._skyres = int(np.floor(90/s)*2)
+        self._side = int(np.floor(90/s)*2)
+        self._skyres = s
 
     @property
     def skyro(self):
@@ -90,6 +95,11 @@ class SkyData(object):
     def skydata(self):
         """sun position and dirnorm diffhoriz"""
         return self._skydata
+
+    @property
+    def rowlabel(self):
+        """m,d,h (if known)"""
+        return self._rowlabel
 
     @skydata.setter
     def skydata(self, wea):
@@ -107,10 +117,11 @@ class SkyData(object):
             npz file will rewrite skyres
         """
         npzdata = self._load(wea)
+        rowlabel = None
         if npzdata:
-            skydata, smtx, sun, daymask = npzdata
+            skydata, smtx, sun, daymask, rowlabel = npzdata
         elif wea is not None:
-            skydata, md, td = self.format_skydata(wea)
+            skydata, md, td, rowlabel = self.format_skydata(wea)
             minz = np.sin(self._minalt * np.pi / 180)
             daymask = np.logical_and(skydata[:, 2] > minz,
                                      skydata[:, 4] > self._mindiff)
@@ -121,19 +132,22 @@ class SkyData(object):
                 md = md[daymask]
             if hasattr(td, "__len__"):
                 td = td[daymask]
-            smtx, grnd, sun = skycalc.sky_mtx(sxyz, dirdif, self.skyres, md=md,
+            smtx, grnd, sun = skycalc.sky_mtx(sxyz, dirdif, self.side, md=md,
                                               ground_fac=self.ground_fac, td=td,
                                               intersky=self.intersky)
             # ratio between actual solar disc and patch
-            omegar = np.square(0.2665 * np.pi * self.skyres / 180) * .5
+            omegar = np.square(0.2665 * np.pi * self.side / 180) * .5
             plum = sun[:, -1] * omegar
             sun = np.hstack((sun, plum[:, None]))
             smtx = np.hstack((smtx, grnd[:, None]))
         else:
-            smtx = np.ones((1, self.skyres**2+1))
+            smtx = np.ones((1, self.side**2+1))
             sun = np.array([[0, 0, 1, 0, 0]])
             daymask = np.array([True])
             skydata = np.array([[0, 0, 1, 0, 1]])
+        if rowlabel is None:
+            rowlabel = np.arange(skydata.shape[0]).reshape(-1, 1)
+        self._rowlabel = rowlabel
         self._smtx = smtx
         self._sun = sun
         self._daymask = daymask
@@ -146,7 +160,11 @@ class SkyData(object):
         if scene is not None:
             file = f"{scene.outdir}/{file}"
         kws = dict(skydata=self._skydata, smtx=self._smtx, sun=self._sun,
-                   daymask=self._daymask, loc=self._loc)
+                   daymask=self._daymask)
+        if self.loc is not None:
+            kws["loc"] = self._loc
+        if self.rowlabel.shape[1] > 1:
+            kws["rowlabel"] = self._rowlabel
         if compressed:
             np.savez_compressed(file, **kws)
         else:
@@ -164,12 +182,17 @@ class SkyData(object):
             daymask = result['daymask']
             try:
                 loc = result['loc']
-            except ValueError:
+            except (ValueError, KeyError):
                 self._loc = None
             else:
                 self._loc = (loc[0], loc[1], int(loc[2]))
-            self._skyres = int(np.sqrt(smtx.shape[1] - 1))
-            return skydata, smtx, sun, daymask
+            try:
+                rowlabel = result['rowlabel']
+            except (ValueError, KeyError):
+                rowlabel = None
+            self._side = int(np.sqrt(smtx.shape[1] - 1))
+            self._skyres = 180 / self._side
+            return skydata, smtx, sun, daymask, rowlabel
 
     def format_skydata(self, dat):
         """process dat argument as skydata
@@ -184,6 +207,7 @@ class SkyData(object):
         loc = self._loc
         md = None
         td = 10.9735311509
+        rowlabel = None
         if hasattr(dat, 'shape'):
             skydat = dat
         else:
@@ -208,13 +232,14 @@ class SkyData(object):
                 times = skycalc.row_2_datetime64(skydat[:, 0:3])
                 xyz = skycalc.sunpos_xyz(times, *loc, ro=self._skyro)
                 md = skydat[:, 0:2].astype(int)
+                rowlabel = skydat[:, 0:3]
                 skydat = np.hstack((xyz, skydat[:, 3:]))
         else:
             raise ValueError('input data should be one of the following:'
                              '\n4 col: alt, az, dir, diff'
                              '\n5 col: dx, dy, dz, dir, diff'
                              '\n5 col: m, d, h, dir, diff')
-        return skydat, md, td
+        return skydat, md, td, rowlabel
 
     @property
     def daysteps(self):
@@ -261,7 +286,7 @@ class SkyData(object):
 
     @property
     def smtx(self):
-        """shape (np.sum(daymask), skyres**2 + 1) coefficients for each sky
+        """shape (np.sum(daymask), side**2 + 1) coefficients for each sky
         patch each row is a timestep, coefficients exclude sun"""
         return self._smtx[self.mask]
 
@@ -279,7 +304,7 @@ class SkyData(object):
 
     @sunproxy.setter
     def sunproxy(self, sxyz):
-        self._sunproxy = translate.xyz2skybin(sxyz, self.skyres)
+        self._sunproxy = translate.xyz2skybin(sxyz, self.side)
 
     def smtx_patch_sun(self, includesky=True):
         """generate smtx with solar energy applied to proxy patch
@@ -303,7 +328,7 @@ class SkyData(object):
             hdr = "LOCATION= None"
         return hdr
 
-    def fill_data(self, x, fill_value=0.0):
+    def fill_data(self, x, fill_value=0.0, rowlabels=False):
         """
         Parameters
         ----------
@@ -311,18 +336,27 @@ class SkyData(object):
             first axis size = len(self.daymask[self.mask])
         fill_value: Union[int, float], optional
             value in padded array
+        rowlabels: bool, optional
+            include rowlabels
 
         Returns
         -------
         np.array
             data in x padded with fill value to original shape of skydata
         """
+        x = np.asarray(x)
         mask = np.copy(self.daymask)
         mask[self.daymask] = self.mask
         px = np.full((self.skydata.shape[0], *x.shape[1:]), fill_value,
                      dtype=x.dtype)
         px[mask] = x
+        if rowlabels:
+            px = np.hstack((self.rowlabel, px))
         return px
+
+    def label(self, x):
+        x = np.asarray(x).reshape(self.daysteps, -1)
+        return np.hstack((self.rowlabel[self.daymask], x))
 
     def masked_idx(self, i):
         j = np.searchsorted(self._maskindices, i)
@@ -374,7 +408,7 @@ class SkyData(object):
             f.write(RadFmt.get_sundef(self.sun[mi, 0:3], c))
         f.close()
         f = open(f"{outf}.cal", 'w')
-        f.write(f"side:{self.skyres};\n{translate.scbinscal}")
+        f.write(f"side:{self.side};\n{translate.scbinscal}")
         f.close()
         data = self.smtx[mi]
         nrbins = data.size

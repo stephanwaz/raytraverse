@@ -92,7 +92,7 @@ class ZonalIntegrator(Integrator):
                 pmetrics += dinfo
 
         areas = np.broadcast_to(areas[:, None, None], oshape + (1,))
-        axes = [ResultAxis(skydata.maskindices, f"sky"),
+        axes = [ResultAxis(skydata.rowlabel, f"sky"),
                 ResultAxis([pm.name], f"zone"),
                 ResultAxis([v.dxyz for v in vms], "view"),
                 ResultAxis(pmetrics + metrics, "metric")]

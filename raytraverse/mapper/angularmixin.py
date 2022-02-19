@@ -146,6 +146,9 @@ class AngularMixin(object):
         if self.aspect == 2:
             mask = self.in_view(vecs[0:res])
             mask2 = self.ivm.in_view(vecs[res:])
+            mask = (np.concatenate((mask[0], mask2[0] + res)),
+                    np.concatenate((mask[1], mask2[1])))
+            mask2 = None
         else:
             mask = self.in_view(vecs)
             mask2 = None

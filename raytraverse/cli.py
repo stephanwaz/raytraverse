@@ -632,11 +632,13 @@ rows in wea/epw file using space seperated list or python range notation:
                    "where pidx, vidx refer to the order of points, and vm.")
 @click.option("-basename", default="results",
               help="prefix of namebyindex.")
+@click.option("--directview/--no-directview", default=False,
+              help="if True, ignore sky data and use daylight factors directly")
 @clk.shared_decs(clk.command_decs(raytraverse.__version__, wrap=True))
 def images(ctx, sensors=None, sdirs=None, viewangle=180., skymask=None,
            basename="results", res=800, interpolate=None, namebyindex=False,
            simtype="2comp", resuntol=5.0, blursun=False, resampleview=False,
-           **kwargs):
+           directview=False, **kwargs):
     """render images
 
     Prequisites
@@ -658,13 +660,15 @@ def images(ctx, sensors=None, sdirs=None, viewangle=180., skymask=None,
     if 'skydata' not in ctx.obj:
         clk.invoke_dependency(ctx, skydata, reload=True)
     sd = ctx.obj['skydata']
+    if directview:
+        sd = SkyData(None, skyres=sd.skyres)
     if 'planmapper' not in ctx.obj:
         clk.invoke_dependency(ctx, area)
     pm = ctx.obj['planmapper']
     if 'skymapper' not in ctx.obj:
         clk.invoke_dependency(ctx, suns)
     skmapper = ctx.obj['skymapper']
-    if resampleview:
+    if resampleview or interpolate in ['fast', 'high']:
         if 'sunengine' not in ctx.obj:
             clk.invoke_dependency(ctx, sunengine)
         sunviewengine = ctx.obj['sunengine']['engine']

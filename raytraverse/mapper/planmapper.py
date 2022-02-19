@@ -34,12 +34,29 @@ class PlanMapper(Mapper):
         positive Z rotation for point grid alignment
     zheight: float, optional
         override calculated zheight
-    name str, optional
+    name: str, optional
         plan mapper name used for output file naming
+    jitterrate: float, optional
+        proportion of cell to jitter within
+    autorotate: bool, optional
+        if true set rotation based on long axis of area geometry
+    autogrid: int, optional
+        if given, autoset ptres based on this minimum number of points at
+        level 0 along the minimum dimemsion (width or height)
     """
 
     def __init__(self, area, ptres=1.0, rotation=0.0, zheight=None,
-                 name="plan", jitterrate=0.5):
+                 name="plan", jitterrate=0.5, autorotate=False, autogrid=None):
+        if autorotate:
+            rotation = self.__class__(area, autorotate=False,
+                                      autogrid=None)._auto_rotate()
+        if autogrid is not None:
+            pm = self.__class__(area, autorotate=False, autogrid=None)
+            hv = pm.bbox[1] - pm.bbox[0]
+            if hv[0] > hv[1]:
+                ptres = hv[1]/(autogrid - 1) - 1e-3
+            else:
+                ptres = hv[0]/(autogrid - 1) - 1e-3
         #: float: ccw rotation (in degrees) for point grid on plane
         self.rotation = rotation
         #: float: point resolution for area look ups and grid
@@ -220,6 +237,21 @@ class PlanMapper(Mapper):
         else:
             return uv
 
+    def _auto_rotate(self):
+        v = np.vstack(self.borders())
+        left = np.average(v[np.isclose(self.bbox[0, 0], v[:, 0])], 0)
+        right = np.average(v[np.isclose(self.bbox[1, 0], v[:, 0])], 0)
+        top = np.average(v[np.isclose(self.bbox[1, 1], v[:, 1])], 0)
+        bottom = np.average(v[np.isclose(self.bbox[0, 1], v[:, 1])], 0)
+        vaxis = np.average((top - right, left - bottom), 0)
+        haxis = np.average((right - bottom, top - left), 0)
+        hv = np.linalg.norm((haxis, vaxis), axis=1)
+        if hv[0] > hv[1]:
+            rotation = np.arccos(np.dot(haxis/hv[0], (1, 0, 0)))*180/np.pi
+        else:
+            rotation = np.arccos(np.dot(vaxis/hv[1], (0, 1, 0)))*180/np.pi
+        return rotation
+
     def _rad_scene_to_paths(self, plane):
         """reads a radiance scene for polygons, and sets bounding paths
         zheight of plan (unless PlanMapper initialized with a zheight) will be
@@ -248,15 +280,16 @@ class PlanMapper(Mapper):
                   if not bool(re.match(r'#', i))]
             rad = " ".join(dl).split()
         pgs = [i for i, x in enumerate(rad) if x == "polygon"]
-        z = -1e10
         paths = []
+        zs = []
         for pg in pgs:
             npt = int(int(rad[pg + 4])/3)
             pt = np.reshape([i for i in rad[pg + 5:pg + 5 + npt*3]],
                             (npt, 3)).astype(float)
-            z = max(z, max(pt[:, 2]))
+            zs.append(pt[:, 2])
             pt2 = self.world2view(pt)
             paths.append(pt2[:, 0:2])
+        z = np.median(zs)
         return np.array(paths), z
 
     def _calc_border(self, points, level=0):

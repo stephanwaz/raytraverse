@@ -81,7 +81,10 @@ def load_lp(path, hasparent=True):
     except FileNotFoundError:
         pt = (0, 0, 0)
     else:
-        pt = pts[pidx, -3:]
+        try:
+            pt = pts[pidx, -3:]
+        except IndexError:
+            pt = pts[-3:]
     return LightPointKD(scn, parent=parent, src=ftree[-2], posidx=pidx, pt=pt)
 
 
@@ -128,7 +131,7 @@ def get_integrator(scn, pm, srcname="suns", simtype="2comp", zonal=False,
 
     if simtype in ["1comp", "sunpatch", "skyonly"]:
         return itg(skyplane, includesky=simtype != "sunpatch",
-                          includesun=simtype != "skyonly")
+                          includesun=simtype != "skyonly", sunviewengine=sunviewengine)
     if simtype == "2comp":
         return itg(skyplane, sunplane, sunviewengine=sunviewengine)
     if simtype == "3comp":
@@ -136,5 +139,5 @@ def get_integrator(scn, pm, srcname="suns", simtype="2comp", zonal=False,
     if simtype in ["directview", "sunonly"]:
         return itg(sunplane, includesky=False, sunviewengine=sunviewengine)
     if simtype == "directpatch":
-        return itg(dskplane, includesky=False)
+        return itg(dskplane, includesky=False, sunviewengine=sunviewengine)
     raise ValueError(f"Error loading {simtype}")
