@@ -164,7 +164,7 @@ class Integrator(object):
             sinfo = np.broadcast_to(sinfo, nshape)
             fields = np.concatenate((fields, sinfo), axis=-1)
         # compose axes: (skyaxis, ptaxis, viewaxis, metricaxis)
-        axes = (ResultAxis(skydata.maskindices, f"sky"),
+        axes = (ResultAxis(skydata.rowlabel, f"sky"),
                 ResultAxis(points, "point"),
                 ResultAxis([v.dxyz for v in vms], "view"),
                 ResultAxis(list(metrics) + dinfo, "metric"))

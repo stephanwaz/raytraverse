@@ -44,6 +44,8 @@ def np_load(ctx, param, s):
 
 @clk.pretty_name("NPY, TSV, FLOATS,FLOATS, FILE")
 def np_load_safe(ctx, param, s):
+    if s in [None, "None", ""]:
+        return None
     try:
         return np_load(ctx, param, s)
     except ValueError as ex:
