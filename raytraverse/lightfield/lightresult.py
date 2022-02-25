@@ -19,6 +19,8 @@ class ResultAxis(object):
 
     def __init__(self, values, name, cols=None):
         self.values = np.asarray(values)
+        if len(self.values.shape) == 2 and self.values.shape[-1] == 1:
+            self.values = self.values.ravel()
         if len(self.values.shape) == 2:
             dt = type(self.values.flat[0])
             dtype = np.dtype([(f"f{i}", dt) for i in

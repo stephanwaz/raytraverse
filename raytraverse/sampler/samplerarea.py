@@ -60,6 +60,10 @@ class SamplerArea(BaseSampler):
                  metricset=('avglum', 'loggcr', 'xpeak', 'ypeak'),
                  metricfunc=np.max, **kwargs):
         super().__init__(scene, engine, accuracy, engine.stype, **kwargs)
+        if "sun" in self.stype:
+            self._gcrnorm = 8
+        else:
+            self._gcrnorm = 2
         self.engine._slevel = self._slevel + 1
         self.nlev = nlev
         self.jitter = jitter
@@ -242,6 +246,8 @@ class SamplerArea(BaseSampler):
         if logpoint is not None:
             self.engine._slevel -= 1
             pbar = list(zip(range(*idx), vecs))
+        elif self._slevel > 0:
+            pbar = list(zip(range(*idx), vecs))
         else:
             pbar = self.scene.progress_bar(self, list(zip(range(*idx), vecs)),
                                            level=self._slevel, message=level_desc)
@@ -249,9 +255,10 @@ class SamplerArea(BaseSampler):
             if specguide is not None:
                 sgpt = self._load_specguide(point)
             lp = self.engine.run(point, posidx, specguide=sgpt, lpargs=lpargs,
-                                 log=logpoint, plotp=self._plotpchild)
-            vol = lp.evaluate(1)
-            metric = self.metricclass(*vol, lp.vm,  **kwargs)
+                                 log=logpoint, plotp=self._plotpchild, pfish=False)
+            vol = lp.evaluate(1, includeviews=True)
+            metric = self.metricclass(*vol, lp.vm, gcrnorm=self._gcrnorm,
+                                      **kwargs)
             lums.append(metric())
         if logpoint is not None:
             self.engine._slevel += 1

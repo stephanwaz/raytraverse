@@ -164,7 +164,7 @@ class Integrator(object):
             sinfo = np.broadcast_to(sinfo, nshape)
             fields = np.concatenate((fields, sinfo), axis=-1)
         # compose axes: (skyaxis, ptaxis, viewaxis, metricaxis)
-        axes = (ResultAxis(skydata.rowlabel, f"sky"),
+        axes = (ResultAxis(skydata.rowlabel[skydata.fullmask], f"sky"),
                 ResultAxis(points, "point"),
                 ResultAxis([v.dxyz for v in vms], "view"),
                 ResultAxis(list(metrics) + dinfo, "metric"))
@@ -288,7 +288,7 @@ class Integrator(object):
                                in zip(self.lightplanes, tidxs)], qt))
             desc = f"{message} ({i+1:02d} of {len(slices):02d})"
             fields += pool_call(_load_pts, lptis, eval_fn, tidxs.T, mask_kwargs,
-                                skydatas, dsns, desc=desc, **eval_kwargs)
+                                skydatas, dsns, desc=desc, pbar=self.scene.dolog, **eval_kwargs)
         return fields, tup_isort
 
 

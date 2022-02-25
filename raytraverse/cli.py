@@ -390,7 +390,7 @@ def skyengine(ctx, accuracy=1.0, vlt=0.64, idres=5, rayargs=None,
 @clk.shared_decs(clk.command_decs(raytraverse.__version__, wrap=True))
 def sunengine(ctx, accuracy=1.0, vlt=0.64, idres=5, rayargs=None,
               default_args=True, fdres=10, slimit=0.01, maxspec=0.2,
-              opts=False, debug=False, version=None, **kwargs):
+              speclevel=9, opts=False, debug=False, version=None, **kwargs):
     """initialize engine for sunrun
 
     Effects
@@ -405,7 +405,7 @@ def sunengine(ctx, accuracy=1.0, vlt=0.64, idres=5, rayargs=None,
     maxspec = maxspec*vlt/0.64
     slimit = slimit*vlt/0.64
     ptkwargs = dict(slimit=slimit, maxspec=maxspec, accuracy=accuracy,
-                    idres=idres, fdres=fdres)
+                    idres=idres, fdres=fdres, speclevel=speclevel)
     ctx.obj['sunengine'] = dict(engine=rtrace, ptkwargs=ptkwargs)
 
 
@@ -471,10 +471,11 @@ def skyrun(ctx, accuracy=1.0, nlev=3, jitter=True, overwrite=False, plotp=False,
         skyfield = LightPlaneKD(scn, f"{scn.outdir}/{pm.name}/sky_points"
                                 f".tsv", pm, "sky")
     except OSError:
-        skyfield = skysampler.run(pm, plotp=plotp)
+        skyfield = skysampler.run(pm, plotp=plotp, pfish=False)
     else:
-        click.echo(f"Sky Lightfield reloaded from {scn.outdir}/{pm.name} "
-                   f"use --overwrite to rerun", err=True)
+        if scn.dolog:
+            click.echo(f"Sky Lightfield reloaded from {scn.outdir}/{pm.name} "
+                       f"use --overwrite to rerun", err=True)
     ctx.obj['skyfield'] = skyfield
 
 
@@ -723,6 +724,8 @@ def images(ctx, sensors=None, sdirs=None, viewangle=180., skymask=None,
 @click.option("--npz/--no-npz", default=True,
               help="write LightResult object to .npz, use 'raytraverse pull'"
                    "or LightResult('basename.npz') to access results")
+@click.option("--lowlight/--no-lowlight", default=False,
+              help="use lowlight correction for dgp")
 @click.option("--serr/--no-serr", default=False,
               help="include columns of sampling info/errors columns are: "
                    "sun_pt_err, sun_pt_bin, sky_pt_err, sky_pt_bin, sun_err, "
@@ -733,7 +736,7 @@ def images(ctx, sensors=None, sdirs=None, viewangle=180., skymask=None,
 def evaluate(ctx, sensors=None, sdirs=None, viewangle=180., skymask=None,
              metrics=None, basename="results", simtype="2comp", npz=True,
              serr=False, resuntol=5.0, blursun=False, resampleview=False,
-             **kwargs):
+             lowlight=False, **kwargs):
     """evaluate metrics
 
     Prequisites
@@ -781,7 +784,7 @@ def evaluate(ctx, sensors=None, sdirs=None, viewangle=180., skymask=None,
             vm = ViewMapper(sensor[3:6], viewangle)
             result.append(itg.evaluate(sd, point, vm, metrics=metrics,
                                        datainfo=serr, suntol=resuntol,
-                                       blursun=blursun))
+                                       blursun=blursun, lowlight=lowlight))
         data = np.squeeze(np.concatenate([r.data for r in result], axis=1), 2)
         ptaxis = ResultAxis(sensors, "point")
         result = LightResult(data, result[0].axes[0], ptaxis, result[0].axes[3])
@@ -793,7 +796,8 @@ def evaluate(ctx, sensors=None, sdirs=None, viewangle=180., skymask=None,
                              "None")
         result = itg.evaluate(sd, sensors, sdirs, viewangle=viewangle,
                               suntol=resuntol, metrics=metrics, datainfo=serr,
-                              srconly=simtype == 'directview', blursun=blursun)
+                              srconly=simtype == 'directview', blursun=blursun,
+                              lowlight=lowlight)
     if npz:
         result.write(f"{basename}.npz")
     sd.mask = None

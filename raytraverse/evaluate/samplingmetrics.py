@@ -22,9 +22,10 @@ class SamplingMetrics(BaseMetricSet):
     allmetrics = defaultmetrics
 
     def __init__(self, vec, omega, lum, vm, scale=1., peakthreshold=0.0,
-                 lmin=0, **kwargs):
+                 lmin=0, gcrnorm=8, **kwargs):
         kwargs.update(peakthreshold=peakthreshold)
         lum = np.maximum(lum, lmin)
+        self.gcrnorm = gcrnorm
         super().__init__(vec, omega, lum, vm, scale=scale, **kwargs)
 
     @property
@@ -41,25 +42,25 @@ class SamplingMetrics(BaseMetricSet):
     @property
     @functools.lru_cache(1)
     def xpeak(self):
-        """x-component of avgvec as positive number (in range 0-2)"""
+        """x-component of avgvec as positive number (in range 0-1)"""
         x = self.peakvec[0] + 1
         if np.isnan(x):
             return 1.0
         else:
-            return x
+            return np.clip(x, 0, 2)/2
 
     @property
     @functools.lru_cache(1)
     def ypeak(self):
-        """y-component of avgvec as positive number (in range 0-2)"""
+        """y-component of avgvec as positive number (in range 0-1)"""
         x = self.peakvec[1] + 1
         if np.isnan(x):
             return 1.0
         else:
-            return x
+            return np.clip(x, 0, 2)/2
 
     @property
     @functools.lru_cache(1)
     def loggcr(self):
         """log of global contrast ratio"""
-        return np.log(self.gcr)
+        return np.log(self.gcr)/self.gcrnorm

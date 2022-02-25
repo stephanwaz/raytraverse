@@ -114,15 +114,6 @@ class SamplerPt(BaseSampler):
         self.stype = ostype
         return lp
 
-    def _init4run(self, levels, **kwargs):
-        """(re)initialize object for new run, ensuring properties are cleared
-        prior to executing sampling loop"""
-        leveliter = super()._init4run(levels, **kwargs)
-        if self._slevel == 0:
-            return leveliter
-        return self.scene.progress_bar(self, list(leveliter),
-                                       level=self._slevel)
-
     def _run_callback(self, point, posidx, vm, write=True, **kwargs):
         """handle class specific lightpointKD construction"""
         lightpoint = LightPointKD(self.scene, self.vecs, self.lum,
@@ -146,8 +137,8 @@ class SamplerPt(BaseSampler):
         else:
             detail = translate.resample(ps[-1::-1], outshape, radius=0,
                                         gauss=False)
-            if vm.aspect == 2:
-                detail = np.concatenate((detail[res:], detail[0:res]), 0)
+            # if vm.aspect == 2:
+            #     detail = np.concatenate((detail[res:], detail[0:res]), 0)
             io.array2hdr(detail, outf)
 
     def _plot_p(self, p, level, vm, name, suffix=".hdr", fisheye=True):

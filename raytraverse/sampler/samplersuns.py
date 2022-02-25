@@ -7,6 +7,7 @@
 # =======================================================================
 import numpy as np
 from clasp.script_tools import try_mkdir, sglob
+from scipy.spatial import cKDTree
 
 from raytraverse import io, translate
 from raytraverse.mapper import MaskedPlanMapper
@@ -46,7 +47,7 @@ class SamplerSuns(BaseSampler):
     #: initial sampling threshold coefficient
     t0 = .05
     #: final sampling threshold coefficient
-    t1 = .5
+    t1 = .125
     #: upper bound for drawing from pdf
     ub = 8
 
@@ -54,6 +55,7 @@ class SamplerSuns(BaseSampler):
                  ptkwargs=None, areakwargs=None,
                  metricset=('avglum', 'loggcr')):
         super().__init__(scene, engine, accuracy, stype='sunpositions')
+        self._gcrnorm = 8
         if areakwargs is None:
             areakwargs = {}
         if ptkwargs is None:
@@ -313,7 +315,8 @@ class SamplerSuns(BaseSampler):
                 except KeyError:
                     mc = SamplingMetrics
                 areasampler.lum = lf.evaluate(1, metrics=metrics,
-                                              metricclass=mc)
+                                              metricclass=mc,
+                                              gcrnorm=self._gcrnorm)
                 shp = (*areasampler.sampling_scheme(amapper)[-1],
                        areasampler.features)
             except (ValueError, OSError):
@@ -363,7 +366,8 @@ class SamplerSuns(BaseSampler):
         else:
             cap = None
         lums = pool_call(self._sample_sun, list(zip(range(*idx), vecs,
-                         self._areadraws)), desc=level_desc, cap=cap)
+                         self._areadraws)), desc=level_desc, cap=cap,
+                         pbar=self.scene.dolog)
         lums = np.array(lums)
         # initialize areaweights here now that we know the shape
         if len(self.lum) == 0:

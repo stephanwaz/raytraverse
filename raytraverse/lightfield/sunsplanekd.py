@@ -205,7 +205,7 @@ class SunsPlaneKD(LightField):
 
         """
         result = pool_call(self.query_by_sun, sunvecs, expandarg=False,
-                           desc="finding SunPlane points",
+                           desc="finding SunPlane points", pbar=self.scene.dolog,
                            fixed_points=fixed_points, ptfilter=ptfilter,
                            stol=stol, minsun=minsun)
         vecs, idx, d = zip(*result)

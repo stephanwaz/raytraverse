@@ -92,7 +92,7 @@ class ZonalIntegrator(Integrator):
                 pmetrics += dinfo
 
         areas = np.broadcast_to(areas[:, None, None], oshape + (1,))
-        axes = [ResultAxis(skydata.rowlabel, f"sky"),
+        axes = [ResultAxis(skydata.rowlabel[skydata.fullmask], f"sky"),
                 ResultAxis([pm.name], f"zone"),
                 ResultAxis([v.dxyz for v in vms], "view"),
                 ResultAxis(pmetrics + metrics, "metric")]
@@ -145,7 +145,7 @@ class ZonalIntegrator(Integrator):
                                                minsun=minsun)
         spts = [v[:, 3:] for v in vecs]
         areas = pool_call(calc_omega, spts, pm, expandarg=False,
-                          desc="calculating areas")
+                          desc="calculating areas", pbar=self.scene.dolog)
 
         sundata = (vecs, idx, ds, areas)
         proxies = ("vecs", np.full(len(pts), -1), np.zeros(len(pts)), skarea)

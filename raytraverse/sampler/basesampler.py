@@ -150,8 +150,11 @@ class BaseSampler(object):
         for i in leveliter:
             if hasattr(leveliter, "set_description"):
                 leveliter.set_description(f"Level {i+1} of {len(self.levels)}")
-            allc += self._run_level(mapper, name, i, plotp, detaillog, logerr,
+            a = self._run_level(mapper, name, i, plotp, detaillog, logerr,
                                     pfish)
+            allc += a
+            if a == 0:
+                break
         srate = (allc * self.features /
                  np.prod(self._wshape(self.levels.shape[0] - 1)))
         if detaillog:

@@ -55,7 +55,7 @@ class BaseScene(object):
         except TypeError:
             log = False
         self._logf = f"{self.outdir}/log.txt"
-        self._dolog = log
+        self.dolog = log
         if utc:
             self._tz = timezone.utc
         else:
@@ -106,7 +106,7 @@ class BaseScene(object):
         level: int, optional
             the nested level of the message
         """
-        if self._dolog and level <= self._loglevel:
+        if self.dolog and level <= self._loglevel:
             if level < 0:
                 message = f"{type(instance).__name__}\t{message}"
             else:
@@ -174,5 +174,7 @@ class BaseScene(object):
                 pbar.update(1)
 
         """
+        disable = not self.dolog
         return TStqdm(instance, self._tz, workers=workers, iterable=iterable,
-                      total=total, desc=message, leave=None, position=level)
+                      total=total, desc=message, leave=None, position=level,
+                      disable=disable)

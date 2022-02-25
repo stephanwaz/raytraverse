@@ -125,7 +125,7 @@ class SkyData(object):
             minz = np.sin(self._minalt * np.pi / 180)
             daymask = np.logical_and(skydata[:, 2] > minz,
                                      skydata[:, 4] > self._mindiff)
-            daymask = np.logical_and(daymask, skydata[:, 3] > self._mindir)
+            daymask = np.logical_and(daymask, skydata[:, 3] >= self._mindir)
             sxyz = skydata[daymask, 0:3]
             dirdif = skydata[daymask, 3:]
             if md is not None:

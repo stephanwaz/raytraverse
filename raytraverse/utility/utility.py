@@ -10,7 +10,7 @@ from raytraverse.utility.tstqdm import TStqdm
 
 
 def pool_call(func, args, *fixed_args, cap=None, expandarg=True,
-              desc="processing", **kwargs):
+              desc="processing", workers=True, pbar=True, **kwargs):
     """calls func for a sequence of arguments using a ProcessPool executor
     and a progress bar. result is equivalent to::
 
@@ -42,8 +42,8 @@ def pool_call(func, args, *fixed_args, cap=None, expandarg=True,
     sequence of results from func (order preserved)
     """
     results = []
-    with TStqdm(workers=True, total=len(args), cap=cap,
-                desc=desc) as pbar:
+    with TStqdm(workers=workers, total=len(args), cap=cap,
+                desc=desc, disable=not pbar) as pbar:
         exc = pbar.pool
         futures = []
         # submit asynchronous to process pool

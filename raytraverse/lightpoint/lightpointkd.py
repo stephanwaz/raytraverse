@@ -302,7 +302,7 @@ class LightPointKD(object):
             srcview.add_to_img(img, vecs, mask, skyvec[srcidx], vm)
 
     def evaluate(self, skyvec, vm=None, idx=None, srcvecoverride=None,
-                 srconly=False, blursun=False):
+                 srconly=False, blursun=False, includeviews=True):
         """return rays within view with skyvec applied. this is the
         analog to add_to_img for metric calculations
 
@@ -321,6 +321,8 @@ class LightPointKD(object):
             sampled ray direction directly.
         srconly: bool, optional
             only evaluate direct sources (stored in self.srcviews)
+        includeviews: bool, optional
+            include src views in returned results
 
         Returns
         -------
@@ -347,7 +349,7 @@ class LightPointKD(object):
             rays = self.vec[idx]
             lum = self.apply_coef(skyvec)[:, idx].T
 
-        if len(self.srcviews) > 0:
+        if len(self.srcviews) > 0 and includeviews:
             vrs = []
             for srcview, srcidx in zip(self.srcviews, self.srcviewidxs):
                 srcvec = np.atleast_2d(skyvec)[:, srcidx]
@@ -461,7 +463,11 @@ class LightPointKD(object):
         else:
             outf = self.file.replace("/", "_").replace(".rytpt", ".hdr")
         if srcidx is not None:
-            outf = outf.replace(f"_{self.src}_", f"_{self.src}_{srcidx:04d}_")
+            try:
+                outf = outf.replace(f"_{self.src}_", f"_{self.src}_{srcidx:04d}_")
+            except TypeError:
+                outf = outf.replace(f"_{self.src}_",
+                                    f"_{self.src}_filtered_")
         if showsample:
             img = np.repeat(img[None, ...], 3, 0)
             vi = self.query_ball(vm.dxyz, vm.viewangle * vm.aspect)
