@@ -137,8 +137,6 @@ class SamplerPt(BaseSampler):
         else:
             detail = translate.resample(ps[-1::-1], outshape, radius=0,
                                         gauss=False)
-            # if vm.aspect == 2:
-            #     detail = np.concatenate((detail[res:], detail[0:res]), 0)
             io.array2hdr(detail, outf)
 
     def _plot_p(self, p, level, vm, name, suffix=".hdr", fisheye=True):

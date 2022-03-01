@@ -39,9 +39,11 @@ def evaluate_pt(lpts, skyvecs, suns, vm=None, vms=None,
     else:
         didx = [None]*len(sunskypt)
     srcs = []
+    # loop over lightpoints to sum
     for lpt, di, sx in zip(sunskypt, didx, smtx):
         pts = []
         t_srcview = (lpt.srcviews, lpt.srcviewidxs)
+        # loop over skyvecs to evaluate
         for skyvec, sun in zip(sx, suns):
             if svengine is not None and "sun" in lpt.src:
                 update_src_view(svengine, lpt, sun[0:3], vm, suntol)

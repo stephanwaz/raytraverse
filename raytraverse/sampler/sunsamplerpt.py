@@ -124,7 +124,7 @@ class SunSamplerPt(SamplerPt):
             details = []
             for skykd in specguide:
                 side = int(np.sqrt(skykd.srcn - 1))
-                skybin = translate.xyz2skybin(self.sunpos, side, tol=.125)
+                skybin = translate.xyz2skybin(self.sunpos, side, tol=.25/side)
                 shp = self.levels[self.specidx]
                 si = np.stack(np.unravel_index(np.arange(np.product(shp)), shp))
                 uv = (si.T + .5)/shp[1]

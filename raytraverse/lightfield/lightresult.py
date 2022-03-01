@@ -226,7 +226,7 @@ class LightResult(object):
         if header:
             print(header, file=file)
         for r, rh in zip(rt, rls):
-            rl = "\t".join([f"{i:.05f}" for i in r])
+            rl = "\t".join([f"{i:.05g}" for i in r])
             if rowlabel:
                 rl = rh + "\t" + rl
             print(rl, file=file)

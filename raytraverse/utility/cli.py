@@ -138,20 +138,25 @@ def shared_pull(ctx, lr=None, col=("metric",), ofiles=None, ptfilter=None,
          metricfilter if i not in av]
         filters["metric"] = np.flatnonzero([i in metricfilter for i in av])
     # translate sky index to skydata shape
-    if skyfilter is not None and "sky" in result.names:
-        av = result.axis("sky").values
-        skyf = np.flatnonzero(np.isin(av, skyfilter))
-        if len(skyf) == 0:
-            click.echo(f"skyfilter leaves no values!", err=True)
-            raise click.Abort
-        filters["sky"] = np.flatnonzero(np.isin(av, skyfilter))
-    pargs = dict(header=header, rowlabel=rowlabel)
     if skyfill is not None:
         skydata = SkyData(skyfill)
         if skyfilter is not None:
             skydata.mask = skyfilter
     else:
         skydata = None
+    if skyfilter is not None and "sky" in result.names:
+        av = result.axis("sky").values
+        if skydata is None:
+            skyf = np.flatnonzero(np.isin(av, skyfilter))
+        else:
+            skyf = np.arange(len(av))[skydata.mask]
+        if len(skyf) == 0:
+            click.echo(f"skyfilter leaves no values! include skyfill?", err=True)
+            raise click.Abort
+        filters["sky"] = skyf
+        skydata = None
+    pargs = dict(header=header, rowlabel=rowlabel)
+
     if ofiles is None:
         result.print(col, skyfill=skydata, **pargs, **filters)
     else:

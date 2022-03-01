@@ -721,6 +721,11 @@ def images(ctx, sensors=None, sdirs=None, viewangle=180., skymask=None,
                    '"maxlum"]')
 @click.option("-basename", default="results",
               help="LightResult object is written to basename.npz.")
+@click.option("-threshold", default=2000.,
+              help="same as the evalglare -b option. if factor is larger than "
+                   "100, it is used as constant threshold in cd/m2, else this "
+                   "factor is multiplied by the average task luminance. task "
+                   "position is center of image with a 30 degree field of view")
 @click.option("--npz/--no-npz", default=True,
               help="write LightResult object to .npz, use 'raytraverse pull'"
                    "or LightResult('basename.npz') to access results")
@@ -736,7 +741,7 @@ def images(ctx, sensors=None, sdirs=None, viewangle=180., skymask=None,
 def evaluate(ctx, sensors=None, sdirs=None, viewangle=180., skymask=None,
              metrics=None, basename="results", simtype="2comp", npz=True,
              serr=False, resuntol=5.0, blursun=False, resampleview=False,
-             lowlight=False, **kwargs):
+             lowlight=False, threshold=2000., **kwargs):
     """evaluate metrics
 
     Prequisites
@@ -784,7 +789,7 @@ def evaluate(ctx, sensors=None, sdirs=None, viewangle=180., skymask=None,
             vm = ViewMapper(sensor[3:6], viewangle)
             result.append(itg.evaluate(sd, point, vm, metrics=metrics,
                                        datainfo=serr, suntol=resuntol,
-                                       blursun=blursun, lowlight=lowlight))
+                                       blursun=blursun, lowlight=lowlight, threshold=threshold))
         data = np.squeeze(np.concatenate([r.data for r in result], axis=1), 2)
         ptaxis = ResultAxis(sensors, "point")
         result = LightResult(data, result[0].axes[0], ptaxis, result[0].axes[3])
@@ -797,7 +802,7 @@ def evaluate(ctx, sensors=None, sdirs=None, viewangle=180., skymask=None,
         result = itg.evaluate(sd, sensors, sdirs, viewangle=viewangle,
                               suntol=resuntol, metrics=metrics, datainfo=serr,
                               srconly=simtype == 'directview', blursun=blursun,
-                              lowlight=lowlight)
+                              lowlight=lowlight, threshold=threshold)
     if npz:
         result.write(f"{basename}.npz")
     sd.mask = None

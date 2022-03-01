@@ -128,7 +128,7 @@ def normalize_peak(v, o, l, scale=179, peaka=6.7967e-05, peakt=1e5, peakr=4,
     return v, o, l
 
 
-def imgmetric(imgf, metrics, peakn=False, scale=179, threshold=2000.,
+def imgmetric(imgf, metrics, peakn=False, scale=179, threshold=2000., lowlight=False,
               **peakwargs):
     vm = hdr2vm(imgf)
     if vm is None:
@@ -136,7 +136,7 @@ def imgmetric(imgf, metrics, peakn=False, scale=179, threshold=2000.,
     v, o, l = hdr2vol(imgf, vm)
     if peakn:
         v, o, l = normalize_peak(v, o, l, scale, **peakwargs)
-    return MetricSet(v, o, l, vm, metrics, scale=scale, threshold=threshold)()
+    return MetricSet(v, o, l, vm, metrics, scale=scale, threshold=threshold, lowlight=lowlight)()
 
 
 def img2lf(imga, imgb, src, scn):

@@ -414,9 +414,6 @@ class LightPointKD(object):
         header = [header]
         self.add_to_img(img, pdirs[mask], mask, vm=vm,
                         interp=interp, skyvec=skyvec)
-        if vm.aspect == 2:
-            self.add_to_img(img[res:], pdirs[res:][mask2], mask2, vm=vm.ivm,
-                            interp=interp, skyvec=skyvec)
         if showsample:
             img = np.repeat(img[None, ...], 3, 0)
             vi = self.query_ball(vm.dxyz, vm.viewangle * vm.aspect)
@@ -452,9 +449,6 @@ class LightPointKD(object):
                 skyvec = np.full(self.srcn, scalefactor)
             self.add_to_img(img, pdirs[mask], mask, vm=vm,
                             interp=interp, skyvec=skyvec, omega=omega, rnd=rnd)
-            if vm.aspect == 2:
-                self.add_to_img(img[res:], pdirs[res:][mask2], mask2, vm=vm.ivm,
-                                interp=interp, skyvec=skyvec, omega=omega, rnd=rnd)
             channels = (1, 0, 0)
         else:
             channels = (1, 1, 1)
