@@ -52,5 +52,6 @@ class DeterministicImageSampler(ImageSampler):
     def run(self, point, posidx, mapper=None, lpargs=None, **kwargs):
         if mapper is None:
             mapper = ViewMapper(jitterrate=0)
+        mapper.jitterrate = 0
         return super().run(point, posidx, mapper=mapper, lpargs=lpargs,
                            **kwargs)

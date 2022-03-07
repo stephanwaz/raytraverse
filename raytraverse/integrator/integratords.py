@@ -20,19 +20,10 @@ def _prep_ds(lpts, skyvecs):
         snp = lpts[2]
     except IndexError:
         # this implies the sunpt is not needed (0 direct solar)
-        return lpts[0:1], skyvecs[0:1]
+        return lpts[0:1], skyvecs[0:1], None
     skpatch = translate.xyz2skybin(snp.srcdir, int((skp.srcn - 1)**.5))[0]
     skvec = skp.vec
     skydlum = np.copy(skd.lum[:, skpatch])
-    # check for rough specular transmission
-    spect = snp.lum[translate.ctheta(snp.srcdir[0], snp.vec) > .999]
-    if len(spect) > 0:
-        spect = np.min(spect)
-        if spect > 0:
-            skyres = np.cos(1.25 * np.pi/int((skp.srcn - 1)**.5))
-            skyres = translate.ctheta(snp.srcdir[0], skd.vec) > skyres
-            skydviews = np.logical_and(skyres, skp.lum[:, skpatch] > spect)
-            skydlum[skydviews] = skp.lum[:, skpatch][skydviews]
     sklum = np.maximum((skp.lum[:, skpatch] - skydlum), 0)[:, None]
     sklum = np.hstack((skp.lum, sklum))
     skyvecs = [np.hstack(skyvecs[0:2]), skyvecs[2]]
@@ -47,17 +38,24 @@ def _prep_ds(lpts, skyvecs):
                        srcdir=snp.srcdir,
                        write=False, omega=skp.omega, parent=skp.parent)
     lpts = [ski, snp]
-    return lpts, skyvecs
+    try:
+        refl = np.loadtxt(f"{skp.scene.outdir}/{skp.parent}/"
+                          f"reflection_normals.txt")
+    except OSError:
+        refl = None
+    else:
+        refl = translate.norm(refl.reshape(-1, 3))
+    return lpts, skyvecs, refl
 
 
 def evaluate_pt_ds(lpts, skyvecs, suns, **kwargs):
-    lpts, skyvecs = _prep_ds(lpts, skyvecs)
-    return intg.evaluate_pt(lpts, skyvecs, suns, **kwargs)
+    lpts, skyvecs, refl = _prep_ds(lpts, skyvecs)
+    return intg.evaluate_pt(lpts, skyvecs, suns, refl=refl, **kwargs)
 
 
 def img_pt_ds(lpts, skyvecs, suns, **kwargs):
-    lpts, skyvecs = _prep_ds(lpts, skyvecs)
-    return intg.img_pt(lpts, skyvecs, suns, **kwargs)
+    lpts, skyvecs, refl = _prep_ds(lpts, skyvecs)
+    return intg.img_pt(lpts, skyvecs, suns, refl=refl, **kwargs)
 
 
 class IntegratorDS(Integrator):

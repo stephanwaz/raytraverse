@@ -203,8 +203,8 @@ class AngularMixin(object):
     def ctheta(self, vec):
         """cos(theta) (dot product) between view direction and vec"""
         vec = np.asarray(vec)
-        return np.einsum("i,ji->j", self.dxyz,
-                         vec.reshape(-1, vec.shape[-1]))
+        return np.clip(np.einsum("i,ji->j", self.dxyz,
+                                 vec.reshape(-1, vec.shape[-1])), -1, 1)
 
     def radians(self, vec):
         """angle in radians betweeen vieew direction and vec"""

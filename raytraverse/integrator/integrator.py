@@ -5,6 +5,8 @@
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 # =======================================================================
+import sys
+
 import numpy as np
 
 from raytraverse import translate
@@ -35,7 +37,7 @@ class Integrator(object):
 
     def make_images(self, skydata, points, vm, viewangle=180., res=512,
                     interp=False, prefix="img", namebyindex=False, suntol=10.0,
-                    blursun=False):
+                    blursun=False, resamprad=0.0):
         """see namebyindex for file naming conventions
 
         Parameters
@@ -100,12 +102,14 @@ class Integrator(object):
                                      message="Making Images",
                                      mask_kwargs=mask_kwargs, vms=vms, res=res,
                                      interp=interp, prefix=prefix,
-                                     suntol=suntol, blursun=blursun)
+                                     suntol=suntol, blursun=blursun,
+                                     resamprad=resamprad)
         return sorted([i for j in outfs for i in j])
 
     def evaluate(self, skydata, points, vm, viewangle=180.,
                  metricclass=MetricSet, metrics=None, datainfo=False,
-                 srconly=False, suntol=10.0, blursun=False, **kwargs):
+                 srconly=False, suntol=10.0, blursun=False, coercesumsafe=False,
+                 **kwargs):
         """apply sky data and view queries to daylightplane to return metrics
         parallelizes and optimizes run order.
 
@@ -130,6 +134,10 @@ class Integrator(object):
         suntol: float, optional
             if Integrator has an engine, resample sun views when actual sun
             position error is greater than this many degrees.
+        blursun: bool, optional
+            apply human PSF to small bright sources
+        coercesumsafe: bool, optional
+            attempt to calculate sumsafe metrics
         datainfo: Union[Sized[str], bool], optional
             include information about source data as additional metrics. Valid
             values include: ["pt_err", "pt_idx", "src_err", "src_idx"].
@@ -140,10 +148,11 @@ class Integrator(object):
         raytraverse.lightfield.LightResult
         """
         points = np.atleast_2d(points)
-        vm, vms, metrics, sumsafe = self._check_params(vm, viewangle, metrics,
-                                                       metricclass)
+        (vm, vms, cmetrics, ometrics,
+         sumsafe, needs_post) = self._check_params(vm, viewangle, metrics,
+                                                   metricclass, coercesumsafe)
         tidxs, skydatas, dsns, vecs = self._group_query(skydata, points)
-        oshape = (len(skydata.maskindices), len(points), len(vms), len(metrics))
+        oshape = (len(skydata.maskindices), len(points), len(vms), len(cmetrics))
         self.scene.log(self, f"Evaluating {oshape[3]} metrics for {oshape[2]}"
                              f" view directions at {oshape[1]} points under "
                              f"{oshape[0]} skies", True)
@@ -152,11 +161,35 @@ class Integrator(object):
                                           message="Evaluating Points",
                                           srconly=srconly, sumsafe=sumsafe,
                                           metricclass=metricclass,
-                                          metrics=metrics, vm=vm, vms=vms,
+                                          metrics=cmetrics, vm=vm, vms=vms,
                                           suntol=suntol, blursun=blursun,
                                           **kwargs)
         # sort back to original order and reshape
         fields = np.concatenate(fields, axis=0)[isort].reshape(oshape)
+        if needs_post:
+            ofields = np.zeros(fields.shape[:-1] + (len(ometrics),))
+            for i, m in enumerate(ometrics):
+                if m in cmetrics:
+                    ofields[..., i] = fields[..., cmetrics.index(m)]
+                elif m == "dgp":
+                    illum = fields[..., cmetrics.index("illum")]
+                    pwsl2 = fields[..., cmetrics.index("pwsl2")]
+                    t1 = 5.87 * 10**-5 * illum
+                    t2 = 9.18 * 10**-2 * np.log10(1 + pwsl2/np.power(illum, 1.87))
+                    ll = 1
+                    if "lowlight" in kwargs and kwargs["lowlight"]:
+                        ll = np.where(illum < 500, np.exp(0.024*illum - 4) /
+                                      (1 + np.exp(0.024*illum - 4)), 1)
+                    ofields[..., i] = np.minimum(ll*(t1 + t2 + 0.16), 1.0)
+                elif m == "ugp":
+                    pwsl2 = fields[..., cmetrics.index("pwsl2")]
+                    illum = fields[..., cmetrics.index("illum")]
+                    srcillum = fields[..., cmetrics.index("srcillum")]
+                    backlum = (illum - srcillum) / np.pi
+                    with np.errstate(divide='ignore'):
+                        ugr = np.maximum(0, 8*np.log10( 0.25*pwsl2/backlum))
+                    ofields[..., i] = (1 + 2/7*10**(-(ugr + 5)/40))**-10
+            fields = ofields
         sinfo, dinfo = self._sinfo(datainfo, vecs, tidxs, oshape[0:2])
         if sinfo is not None:
             nshape = list(sinfo.shape)
@@ -167,12 +200,13 @@ class Integrator(object):
         axes = (ResultAxis(skydata.rowlabel[skydata.fullmask], f"sky"),
                 ResultAxis(points, "point"),
                 ResultAxis([v.dxyz for v in vms], "view"),
-                ResultAxis(list(metrics) + dinfo, "metric"))
+                ResultAxis(list(ometrics) + dinfo, "metric"))
         lr = LightResult(fields, *axes)
         return lr
 
     @staticmethod
-    def _check_params(vm, viewangle=180., metrics=None, metricclass=MetricSet):
+    def _check_params(vm, viewangle=180., metrics=None, metricclass=MetricSet,
+                      coercesumsafe=False):
         if hasattr(vm, "dxyz"):
             vms = [vm]
         else:
@@ -181,7 +215,31 @@ class Integrator(object):
             vms = [ViewMapper(d, viewangle) for d in dxyz]
         if metrics is None:
             metrics = metricclass.defaultmetrics
-        return vm, vms, metrics, metricclass.check_safe2sum(metrics)
+        needs_post = False
+        if coercesumsafe:
+            ometrics = []
+            cmetrics = set()
+            s2s = True
+            for m in metrics:
+                if m in metricclass.safe2sum:
+                    cmetrics.add(m)
+                    ometrics.append(m)
+                elif m == "dgp":
+                    cmetrics.update(["illum", "pwsl2"])
+                    ometrics.append(m)
+                    needs_post = True
+                elif m == "ugp":
+                    cmetrics.update(["illum", "pwsl2", "srcillum"])
+                    ometrics.append(m)
+                else:
+                    print(f"could not coerce metric {m} to sumsafe",
+                          file=sys.stderr)
+            cmetrics = list(cmetrics)
+        else:
+            ometrics = metrics
+            cmetrics = metrics
+            s2s = metricclass.check_safe2sum(metrics)
+        return vm, vms, cmetrics, ometrics, s2s, needs_post
 
     def _group_query(self, skydata, points):
         # query and group sun positions

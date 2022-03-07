@@ -66,9 +66,9 @@ class ZonalIntegrator(Integrator):
         -------
         raytraverse.lightfield.LightResultKD
         """
-        vm, vms, metrics, sumsafe = self._check_params(vm, viewangle,
-                                                       metrics,
-                                                       metricclass)
+        (vm, vms, metrics, ometrics,
+         sumsafe, needs_post) = self._check_params(vm, viewangle, metrics,
+                                               metricclass)
         (tidxs, skydatas, dsns,
          vecs, serr, areas) = self._group_query(skydata, pm, ptfilter=ptfilter,
                                                 stol=stol, minsun=minsun)

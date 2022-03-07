@@ -50,7 +50,7 @@ def check_itg(itg, skd):
     vm = [[0, 0, 1], [0, -1, 0]]
     # dxyz = np.asarray(vm).reshape(-1, 3)
     # vms = [ViewMapper(d, 180) for d in dxyz]
-    vm, vms, metrics, sumsafe = itg._check_params(vm)
+    vm, vms, metrics, ometrics, sumsafe, needs_post = itg._check_params(vm)
     tidxs, skydatas, dsns, vecs = itg._group_query(skd, points)
     oshape = (len(skd.maskindices), len(points), len(vms), len(metrics))
 

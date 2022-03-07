@@ -615,8 +615,10 @@ rows in wea/epw file using space seperated list or python range notation:
  click.option("-simtype", default="3comp",
               type=click.Choice(api.stypes),
               help=f"simulation process/integration type:\n\n{api.stypedocstring}"),
- click.option("-resuntol", default=5.0,
+ click.option("-resuntol", default=1.0,
               help="tolerance for resampling sun views"),
+ click.option("-resamprad", default=0.0,
+              help="radius for resampling sun vecs"),
  click.option("--blursun/--no-blursun", default=False,
               help="for simulating point spread function for direct sun view"),
  click.option("--resampleview/--no-resampleview", default=False,
@@ -642,7 +644,7 @@ rows in wea/epw file using space seperated list or python range notation:
 def images(ctx, sensors=None, sdirs=None, viewangle=180., skymask=None,
            basename="results", res=800, interpolate=None, namebyindex=False,
            simtype="2comp", resuntol=5.0, blursun=False, resampleview=False,
-           directview=False, maskfull=True, **kwargs):
+           directview=False, maskfull=True, resamprad=0.0, **kwargs):
     """render images
 
     Prequisites
@@ -702,7 +704,8 @@ def images(ctx, sensors=None, sdirs=None, viewangle=180., skymask=None,
             result.append(itg.make_images(sd, point, vm, res=res,
                                           interp=interpolate, prefix=basename,
                                           namebyindex=namebyindex,
-                                          suntol=resuntol, blursun=blursun))
+                                          suntol=resuntol, blursun=blursun,
+                                          resamprad=resamprad))
         result = np.concatenate(result)
     elif sdirs is None:
         raise ValueError("if sensors do not have directions, sdirs cannot be "
@@ -711,7 +714,7 @@ def images(ctx, sensors=None, sdirs=None, viewangle=180., skymask=None,
         result = itg.make_images(sd, sensors, sdirs, viewangle=viewangle,
                                  res=res, interp=interpolate, prefix=basename,
                                  namebyindex=namebyindex, suntol=resuntol,
-                                 blursun=blursun)
+                                 blursun=blursun,  resamprad=resamprad)
     for d in result:
         print(d)
     sd.mask = None
@@ -737,6 +740,10 @@ def images(ctx, sensors=None, sdirs=None, viewangle=180., skymask=None,
                    "or LightResult('basename.npz') to access results")
 @click.option("--lowlight/--no-lowlight", default=False,
               help="use lowlight correction for dgp")
+@click.option("--coercesumsafe/--no-coercesumsafe", default=False,
+              help="to speed up evaluation, treat sources seperately,"
+                   "only compatible with illum, avglum, ugp (but note this is "
+                   "often WRONG!!!), dgp")
 @click.option("--serr/--no-serr", default=False,
               help="include columns of sampling info/errors columns are: "
                    "sun_pt_err, sun_pt_bin, sky_pt_err, sky_pt_bin, sun_err, "
@@ -747,7 +754,8 @@ def images(ctx, sensors=None, sdirs=None, viewangle=180., skymask=None,
 def evaluate(ctx, sensors=None, sdirs=None, viewangle=180., skymask=None,
              metrics=None, basename="results", simtype="2comp", npz=True,
              serr=False, resuntol=5.0, blursun=False, resampleview=False,
-             lowlight=False, threshold=2000., maskfull=True, **kwargs):
+             lowlight=False, coercesumsafe=False, threshold=2000.,
+             maskfull=True, resamprad=0.0, **kwargs):
     """evaluate metrics
 
     Prequisites
@@ -798,7 +806,9 @@ def evaluate(ctx, sensors=None, sdirs=None, viewangle=180., skymask=None,
             vm = ViewMapper(sensor[3:6], viewangle)
             result.append(itg.evaluate(sd, point, vm, metrics=metrics,
                                        datainfo=serr, suntol=resuntol,
-                                       blursun=blursun, lowlight=lowlight, threshold=threshold))
+                                       blursun=blursun, lowlight=lowlight,
+                                       threshold=threshold, resamprad=resamprad,
+                                       coercesumsafe=coercesumsafe))
         data = np.squeeze(np.concatenate([r.data for r in result], axis=1), 2)
         ptaxis = ResultAxis(sensors, "point")
         result = LightResult(data, result[0].axes[0], ptaxis, result[0].axes[3])
@@ -811,7 +821,8 @@ def evaluate(ctx, sensors=None, sdirs=None, viewangle=180., skymask=None,
         result = itg.evaluate(sd, sensors, sdirs, viewangle=viewangle,
                               suntol=resuntol, metrics=metrics, datainfo=serr,
                               srconly=simtype == 'directview', blursun=blursun,
-                              lowlight=lowlight, threshold=threshold)
+                              lowlight=lowlight, threshold=threshold,
+                              coercesumsafe=coercesumsafe, resamprad=resamprad)
     if npz:
         result.write(f"{basename}.npz")
     sd.mask = None

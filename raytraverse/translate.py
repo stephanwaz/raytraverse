@@ -446,7 +446,7 @@ def rmtx_yp(v):
     -----
     if N is one:
     Forward: (pmtx@(ymtx@xyz.T)).T or np.einsum("ij,kj,li->kl", ymtx, xyz, pmtx)
-    Backward: (ymtx.T@(pmtx.T@xyz.T)).T or np.einsum("ji,kj,il-vkl", pmtx, nv, ymtx)
+    Backward: (ymtx.T@(pmtx.T@xyz.T)).T or np.einsum("ji,kj,il-kl", pmtx, nv, ymtx)
     else:
     Forward: np.einsum("vij,vkj,vli->vkl", ymtx, xyz, pmtx)
     Backward: np.einsum("vji,vkj,vil-vkl", pmtx, nv, ymtx)
