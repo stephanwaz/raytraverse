@@ -111,7 +111,7 @@ class Mapper(object):
             uv coordinates
         """
         si = np.stack(np.unravel_index(idx, shape))
-        if jitter:
+        if jitter and self.jitterrate > 0:
             rng = ((1 - self.jitterrate)/2, (1 + self.jitterrate)/2)
             offset = np.random.default_rng().uniform(*rng, si.shape).T
         else:

@@ -462,7 +462,7 @@ def coeff_lum_perez(sunz, epsilon, delta, catn):
 def perez_apply_coef(coefs, cgamma, dz):
     c = coefs[:, None, :]
     z = np.maximum(dz, 0.01)
-    gamma = np.arccos(cgamma)
+    gamma = np.arccos(np.clip(cgamma, -1, 1))
     lum = ((1 + c[..., 0]*np.exp(c[..., 1]/z[None, :])) *
            (1 + c[..., 2]*np.exp(c[..., 3]*gamma) +
             c[..., 4]*np.square(cgamma)))

@@ -12,9 +12,8 @@ import os
 
 import numpy as np
 
-from raytraverse.integrator import IntegratorDS, ZonalIntegrator, \
-    ZonalIntegratorDS
-from raytraverse.integrator.integrator import Integrator
+from raytraverse.integrator import ZonalIntegrator, ZonalIntegratorDS
+from raytraverse.integrator import Integrator, IntegratorDS
 from raytraverse.scene import Scene
 from raytraverse.sky import SkyData
 from raytraverse.mapper import PlanMapper
@@ -90,6 +89,24 @@ def load_lp(path, hasparent=True):
 
 stypes = ('1comp', '2comp', '3comp', 'directview', 'directpatch', 'sunonly',
           'sunpatch', 'skyonly')
+
+stypedescriptions = {
+    '1comp': "standard DC method, sky patch only, full contribution depending "
+             "on skyengine settings",
+    '2comp': "sky patch for sky contribution, sun run for sun contribution, "
+             "depth of contributions depends on skyengine and sunengine "
+             "settings, no approximation for sun from sky patch",
+    '3comp': "2-phase DDS, sky handles sky+indirect sun, sun handles direct sun"
+             " requires directskyrun -ab 1 and sunrun -ab 0",
+    'directview': "only evaluate srcviewpts (direct views to sun and specular "
+                  "reflections",
+    'directpatch': "only evaluate results from dskyrun",
+    'sunonly': "only evaluate results from sunrun",
+    'sunpatch': "use skyrun results to evaluate sun contribution",
+    'skyonly': "use skyrun to evaluate sky contribution only"
+    }
+
+stypedocstring = "\n".join([f"    - {k}: {v}" for k,v in stypedescriptions.items()])
 
 
 def get_integrator(scn, pm, srcname="suns", simtype="2comp", zonal=False,

@@ -514,3 +514,11 @@ def cull_vectors(vecs, tol):
             flt[q] = False
             flagged.update(q)
     return flt
+
+
+def reflect(ray, normal, returnmasked=False):
+    refl = ray - 2 * normal * np.einsum("ij,kj->ik", ray, normal)
+    n = np.isclose(np.linalg.norm(refl, axis=-1), 1)
+    if returnmasked:
+        return refl[n]
+    return refl, n

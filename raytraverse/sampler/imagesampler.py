@@ -11,6 +11,7 @@ import numpy as np
 
 from raytraverse import io, translate
 from raytraverse.lightpoint import LightPointKD
+from raytraverse.mapper import ViewMapper
 from raytraverse.sampler.samplerpt import SamplerPt
 from raytraverse.renderer import ImageRenderer
 
@@ -48,6 +49,8 @@ class DeterministicImageSampler(ImageSampler):
 
     ub = 1
 
-    def _offset(self, shape, dim):
-        """for modifying jitter behavior of UV direction samples"""
-        return 0.5/dim
+    def run(self, point, posidx, mapper=None, lpargs=None, **kwargs):
+        if mapper is None:
+            mapper = ViewMapper(jitterrate=0)
+        return super().run(point, posidx, mapper=mapper, lpargs=lpargs,
+                           **kwargs)

@@ -5,16 +5,23 @@
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 # =======================================================================
+import os.path
+import re
+import sys
+
 import numpy as np
 from scipy.interpolate import RegularGridInterpolator
 from scipy.spatial import cKDTree
-from clasp.script_tools import try_mkdir
+from clasp.script_tools import try_mkdir, pipeline
 
 from raytraverse import io
+from raytraverse.mapper import ViewMapper
+from raytraverse.renderer import SpRenderer
 from raytraverse.sampler import draw
 from raytraverse.sampler.basesampler import BaseSampler, filterdict
 from raytraverse.evaluate import SamplingMetrics
 from raytraverse.lightfield import LightPlaneKD
+from raytraverse.formatter import RadianceFormatter as Fmt
 
 
 class SamplerArea(BaseSampler):
@@ -93,7 +100,8 @@ class SamplerArea(BaseSampler):
         """calculate sampling scheme"""
         return np.array([mapper.shape(i) for i in range(self.nlev)])
 
-    def run(self, mapper, name=None, specguide=None, plotp=False, **kwargs):
+    def run(self, mapper, name=None, specguide=None, plotp=False,
+            find_reflections=False, **kwargs):
         """adapively sample an area defined by mapper
 
         Parameters
@@ -104,6 +112,10 @@ class SamplerArea(BaseSampler):
         specguide: raytraverse.lightfield.LightPlaneKD
             sky source lightfield to use as specular guide for sampling (used by
             engine of type raytraverse.sampler.SunSamplerPt)
+        plotp: bool, optional
+            plot weights, detail and vectors for each level
+        find_reflections: bool, optional
+            write file for zone with potential reflection normals
         kwargs:
             passed to self.run()
 
@@ -116,12 +128,72 @@ class SamplerArea(BaseSampler):
         try_mkdir(f"{self.scene.outdir}/{name}")
         self._mapper = mapper
         self._name = name
-        self._specguide = specguide
+        reflf = f"{self.scene.outdir}/{name}/reflection_normals.txt"
+        if specguide is True:
+            self._specguide = reflf
+        else:
+            self._specguide = specguide
         levels = self.sampling_scheme(mapper)
         plotpthis = plotp and len(levels) > 1
         self._plotpchild = plotp and not plotpthis
         super().run(mapper, name, levels, plotp=plotpthis, **kwargs)
+        if find_reflections:
+            refl = self.reflection_search(self.vecs)
+            if refl.size > 0:
+                np.savetxt(reflf, refl)
         return LightPlaneKD(self.scene, self.vecs, self._mapper, self.stype)
+
+    def reflection_search(self, vecs, res=5):
+        # plastic reflections do not work in a frozen octree, so need to try
+        # and recompile.
+        octf = f"{self.scene.outdir}/scene_reflections.oct"
+        if not os.path.isfile(octf):
+            header = pipeline([f"getinfo {self.engine.engine.scene}"])
+            oconvf = re.findall(r"\s*oconv (.+)", header)[0]
+            files = [i for i in oconvf.split() if re.match(r".+\.rad", i)]
+            hasoct = [i for i in oconvf.split() if re.match(r".+\.oct", i)]
+            if len(hasoct) == 0 and np.all([os.path.isfile(i) for i in files]):
+                skyf = f"{self.scene.outdir}/reflections_sky.rad"
+                f = open(skyf, 'w')
+                f.write(Fmt.get_skydef((1, 1, 1), ground=False))
+                f.close()
+                pipeline([f"oconv {' '.join(files)} {skyf}"], outfile=octf,
+                         writemode='wb')
+            else:
+                print(f"Warning, scene made from frozen octree or source scene "
+                      f"files can no longer be located, reflection search will"
+                      f"miss specular plastic", file=sys.stderr)
+                octf = self.engine.engine.scene
+        reflengine = SpRenderer("-ab 0 -w -lr 1 -ss 0 -st .001 -otndM -h", octf)
+        vm = ViewMapper()
+        side = 2**res
+        uv = np.stack(np.unravel_index(np.arange(side*side*2),
+                                       (2*side, side))).T/side
+        uv += np.random.default_rng().random(uv.shape) * (.5 / side)
+        xyz = vm.uv2xyz(uv)
+        pvecs = np.concatenate(np.broadcast_arrays(vecs[:, None], xyz[None, :]), 2)
+        a = reflengine(pvecs.reshape(-1, 6))
+        # count tabs to get level
+        level = np.array([len(i) - len(i.lstrip()) for i in a.splitlines(False)])
+        # normal, direction, modifier
+        a = np.array(a.split()).reshape(-1, 7)
+        mod = a[:, -1]
+        a = a[:, 0:6].astype(float)
+        sky = np.argwhere(mod == "skyglow").ravel()
+        skyl = level[sky]
+        leva, levs = np.broadcast_arrays(level, skyl[:, None])
+        idxa, idxs = np.broadcast_arrays(np.arange(len(level)), sky[:, None])
+        # filter indices before sky index in each row
+        leva = np.where(idxa - idxs <= 0, -3, leva)
+        # filter indices not one level up from sky
+        leva = np.where(leva != (levs - 1), -2, leva)
+        # this returns the first value, our candidate reflection
+        candidate = np.argmax(leva, 1)
+        # check if this is a reflection
+        acos = np.einsum("ij,ij->i", a[candidate, 3:], a[sky, 3:])
+        normals = a[candidate, 0:3][acos < .99]
+        # find unique
+        return np.array(list(set(zip(*normals.T))))
 
     def repeat(self, guide, stype):
         """repeat the sampling of a guide LightPlane (to match all rays)
@@ -270,13 +342,16 @@ class SamplerArea(BaseSampler):
 
     def _load_specguide(self, point):
         """find the 3 nearest lightpoints in the specular sampling guide"""
-        if self._specguide is not None:
+        if hasattr(self._specguide, "kd"):
             d, i = self._specguide.kd.query(point, 3)
             idxs = i[d <= self._mapper.ptres * np.sqrt(2)]
             specguide = [self._specguide.data[j] for j in idxs]
             if len(specguide) > 0:
                 return specguide
-        return None
+            else:
+                return None
+        else:
+            return self._specguide
 
     def _update_weights(self, si, lum):
         """only used by _plot_weights, weights are recomputed from spatial

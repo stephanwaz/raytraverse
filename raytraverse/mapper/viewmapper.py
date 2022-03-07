@@ -69,3 +69,26 @@ class ViewMapper(AngularMixin, Mapper):
         else:
             self._ivm = None
 
+    def idx2uv(self, idx, shape, jitter=True):
+        """
+        Parameters
+        ----------
+        idx: flattened index
+        shape:
+            the shape to unravel into
+        jitter: bool, optional
+            randomly offset coordinates within grid
+
+        Returns
+        -------
+        uv: np.array
+            uv coordinates
+        """
+        si = np.stack(np.unravel_index(idx, shape))
+        if jitter and self.jitterrate > 0:
+            rng = ((1 - self.jitterrate)/2, (1 + self.jitterrate)/2)
+            offset = np.random.default_rng().uniform(*rng, si.shape).T
+        else:
+            offset = 0.5
+        uv = (si.T + offset)/shape[1]
+        return uv

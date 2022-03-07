@@ -86,6 +86,7 @@ class BaseSampler(object):
         self.weights = np.empty(0)
         self.features = 1
         self.vecs = None
+        self._mapper = None
         self.lum = []
         self._slevel = samplerlevel
 
@@ -131,6 +132,7 @@ class BaseSampler(object):
         kwargs:
             unused
         """
+        self._mapper = mapper
         detaillog = self._slevel == 0
         logerr = False
         if log == 'scene':
@@ -247,8 +249,7 @@ class BaseSampler(object):
         # index assignment
         si = np.stack(np.unravel_index(pdraws, shape))
         # convert to UV directions and positions
-        uv = si.T/shape[1]
-        uv += self._offset(uv.shape, shape[1])
+        uv = self._mapper.idx2uv(pdraws, shape)
         return si, uv
 
     def sample(self, vecs):
@@ -305,18 +306,6 @@ class BaseSampler(object):
             return (x1, x2)[x]
         else:
             return (x2 - x1)/(len(self.levels) - 1) * x + x1
-
-    def _offset(self, shape, dim):
-        """for modifying jitter behavior of UV direction samples
-
-        Parameters
-        ----------
-        shape: tuple
-            shape of samples to jitter/offset
-        dim: int
-            number of divisions in square side
-        """
-        return np.random.default_rng().random(shape)/dim
 
     def _dump_vecs(self, vecs):
         if self.vecs is None:

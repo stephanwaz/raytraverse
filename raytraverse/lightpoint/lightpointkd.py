@@ -158,7 +158,8 @@ class LightPointKD(object):
         if srcviews is None:
             srcviews = []
         self.srcviews = [i for i in srcviews
-                         if issubclass(type(i), SrcViewPoint)]
+                         if issubclass(type(i), SrcViewPoint) or
+                            issubclass(type(i), LightPointKD)]
         if idxs is None or len(idxs) == 0:
             self.srcviewidxs = [-1] * max(len(self.srcviews), 1)
         else:
@@ -301,8 +302,8 @@ class LightPointKD(object):
         for srcview, srcidx in zip(self.srcviews, self.srcviewidxs):
             srcview.add_to_img(img, vecs, mask, skyvec[srcidx], vm)
 
-    def evaluate(self, skyvec, vm=None, idx=None, srcvecoverride=None,
-                 srconly=False, blursun=False, includeviews=True):
+    def evaluate(self, skyvec, vm=None, idx=None, srconly=False,
+                 blursun=False, includeviews=True):
         """return rays within view with skyvec applied. this is the
         analog to add_to_img for metric calculations
 
@@ -313,12 +314,6 @@ class LightPointKD(object):
         vm: raytraverse.mapper.ViewMapper, optional
         idx: np.array, optional
             precomputed query_ball result
-        srcvecoverride: np.array, optional
-            replace source vector of any source views with this value. For
-            example, by giving the actual sun position, this will improve
-            irradiance calculations (and yield more consistent results when the
-            sampled sun position over an area varies) compared with using the
-            sampled ray direction directly.
         srconly: bool, optional
             only evaluate direct sources (stored in self.srcviews)
         includeviews: bool, optional
@@ -348,23 +343,34 @@ class LightPointKD(object):
             omega = np.atleast_1d(np.squeeze(self.omega[idx]))
             rays = self.vec[idx]
             lum = self.apply_coef(skyvec)[:, idx].T
-
+        lum = np.atleast_1d(np.squeeze(lum))
         if len(self.srcviews) > 0 and includeviews:
             vrs = []
+            vos = []
+            vls = []
             for srcview, srcidx in zip(self.srcviews, self.srcviewidxs):
                 srcvec = np.atleast_2d(skyvec)[:, srcidx]
-                vrs.append(srcview.evaluate(srcvec, vm, blursun=blursun))
-            vr, vo, vl = zip(*vrs)
-            vl = np.array(vl)
-            if srcvecoverride is not None:
-                vr = np.asarray(srcvecoverride).reshape(-1, 3)
-            rays = np.concatenate((rays, vr), 0)
+                vr, vo, vl = srcview.evaluate(srcvec, vm, blursun=blursun)
+                # 4 times sun
+                if vo[0] > 0.00027:
+                    cost = np.argsort(-translate.ctheta(vr[0], rays))
+                    comega = np.cumsum(omega[cost])
+                    cutoff = np.searchsorted(comega, vo[0], 'right')
+                    cutoff = max(cutoff-1, 0)
+                    cost = cost[cutoff:]
+                    rays = rays[cost]
+                    lum = lum[cost]
+                    omega = omega[cost]
+                vrs.append(vr)
+                vos.append(vo)
+                vls.append(vl)
+            rays = np.concatenate([rays] + vrs, axis=0)
             try:
-                omega = np.concatenate((omega, vo), 0)
+                omega = np.concatenate([omega] + vos, 0)
             except ValueError:
-                omega = np.asarray(vo)
-            lum = np.vstack((lum, np.array(vl)))
-        return rays, omega, np.atleast_1d(np.squeeze(lum))
+                omega = np.concatenate(vos, axis=0)
+            lum = np.concatenate([lum] + vls, axis=0)
+        return rays, omega, lum
 
     def query_ray(self, vecs):
         """return the index and distance of the nearest ray to each of vecs

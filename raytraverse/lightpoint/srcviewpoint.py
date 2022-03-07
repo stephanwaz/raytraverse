@@ -153,9 +153,10 @@ class SrcViewPoint(object):
                 ogas = np.atleast_1d(retina.blur_sun(self.omega, svlm))
                 svlm = svlm / ogas
                 svo = svo * ogas[0]
-            return self.vec, svo, svlm
+            svlm = np.atleast_1d(np.squeeze(svlm))
+            return self.vec.reshape(-1, 3), np.array([svo]), svlm
         else:
-            return self.vec, 0, 0
+            return self.vec.reshape(-1, 3), np.zeros(1), np.zeros(1)
 
     def direct_view(self, res=80):
         vm = ViewMapper(self.vec, .666)

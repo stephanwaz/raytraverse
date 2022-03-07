@@ -36,7 +36,7 @@ class PositionIndex(object):
 
         Returns
         -------
-        posidx: np.arrray
+        posidx: np.array
             shape (N,) the position indices
 
         """

@@ -155,7 +155,11 @@ class SamplerSuns(BaseSampler):
         # reset/initialize runtime properties
         self._skymapper = skymapper
         self._areamapper = areamapper
-        self._specguide = specguide
+        reflf = f"{self.scene.outdir}/{areamapper.name}/reflection_normals.txt"
+        if specguide is True:
+            self._specguide = reflf
+        else:
+            self._specguide = specguide
         self._areaweights = None
         levels = self.sampling_scheme(skymapper)
         super().run(skymapper, areamapper.name, levels, **kwargs)

@@ -46,32 +46,41 @@ class SunSamplerPtView(SamplerPt):
         self.lum = []
 
     def run(self, point, posidx, vm=None, plotp=False, log=None, **kwargs):
-        vm = ViewMapper(self.sunpos, 0.533, "sunview")
-        return super().run(point, posidx, vm, plotp=plotp, log=log, **kwargs)
-
-    def _offset(self, shape, dim):
-        """no jitter on sun view because of very fine resolution and potentially
-        large number of samples bog down random number generator"""
-        return 0.5/dim
+        if vm is None:
+            vm = ViewMapper(self.sunpos, 0.533, "sunview", jitterrate=0)
+        if hasattr(vm, "dxyz"):
+            return super().run(point, posidx, vm, plotp=plotp, log=log,
+                               **kwargs)
+        svpts = []
+        args = self.engine.args
+        # temporarily override arguments
+        self.engine.set_args(self.engine.directargs)
+        for v in vm:
+            svpts.append(super().run(point, posidx, v, plotp=plotp, log=log,
+                                     **kwargs))
+        self.engine.set_args(args)
+        return svpts
 
     def _run_callback(self, point, posidx, vm, write=False, **kwargs):
         """post sampling, write full resolution (including interpolated values)
          non zero rays to result file."""
+        keep = self.lum > 1e-7
         skd = LightPointKD(self.scene, self.vecs, self.lum, vm, point, posidx,
                            self.stype, calcomega=False, write=write)
-        shp = self.weights.shape
-        si = np.stack(np.unravel_index(np.arange(np.product(shp)), shp))
-        uv = (si.T + .5)/shp[1]
-        grid = vm.uv2xyz(uv)
-        # print(grid.shape)
-        i = skd.query_ray(grid)[0]
-        lumg = skd.lum[i, 0]
-        keep = lumg > 1e-8
-        if np.sum(keep) > 0:
+        if np.sum(keep) == 0:
+            lightpoint = None
+        else:
+            shp = self.weights.shape
+            si = np.stack(np.unravel_index(np.arange(np.product(shp)), shp))
+            uv = (si.T + .5)/shp[1]
+            grid = vm.uv2xyz(uv)
+            i = skd.query_ray(grid)[0]
+            lumg = skd.lum[i, 0]
+            keep = lumg > 1e-8
             lightpoint = SrcViewPoint(self.scene, grid[keep],
                                       np.average(lumg[keep]), point, posidx,
-                                      self.stype, shp[1])
-        else:
-            lightpoint = None
+                                      self.stype, shp[1], vm.area)
+        self.vecs = None
+        self.lum = []
         return lightpoint
 

@@ -33,20 +33,20 @@ def blur_sun(omega, lmax, lmin=279.33, fwhm=0.183333):
 
     Parameters
     ----------
-    omega: Union[float, np.arrray]
+    omega: Union[float, np.array]
         solid angle in steradians of source
-    lmax: Union[float, np.arrray]
+    lmax: Union[float, np.array]
         maximum radiance in source (cd/m^2)/179
-    lmin: Union[float, np.arrray], optional
+    lmin: Union[float, np.array], optional
         minimum radiance value to gather after spread (mimic peak extraction
         of evalglare, but note the different units (cd/m^2)/179
-    fwhm: Union[float, np.arrray], optional
+    fwhm: Union[float, np.array], optional
         full width half max of Lorentzian curve (radius in degrees) default
         is 11 arcmin.
 
     Returns
     -------
-    correction factor: Union[float, np.arrray]
+    correction factor: Union[float, np.array]
         value should be multiplied by omega and divides luminance
 
     """

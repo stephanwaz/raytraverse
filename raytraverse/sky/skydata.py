@@ -6,7 +6,7 @@
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 # =======================================================================
 import numpy as np
-from raytraverse import translate
+from raytraverse import translate, io
 from raytraverse.sky import skycalc
 from raytraverse.formatter import RadianceFormatter as RadFmt
 
@@ -362,8 +362,32 @@ class SkyData(object):
         j = np.searchsorted(self._maskindices, i)
         return j[self._maskindices[j] == i]
 
+    def radiance_sky_matrix(self, outf, fmt='float', sun=True, sky=True, ncomps=3):
+        if sun:
+            mtx = self.smtx_patch_sun(sky).T
+        else:
+            mtx = self.smtx
+        rows = mtx.shape[0]
+        cols = mtx.shape[1]
+        mtx = np.repeat(mtx, ncomps, 1)
+        header = (f"#?RADIANCE\n{self.header()}\n"
+                  f"NCOMP={ncomps}\nFORMAT={fmt}\nNROWS={rows}\n"
+                  f"NCOLS={cols}\n\n")
+        fmt = fmt.lower()[0]
+        if fmt in ['f', 'd']:
+            data = io.np2bytes(mtx, np.dtype(f"<{fmt}"))
+            f = open(outf, 'w')
+            f.write(header)
+            f.close()
+            f = open(outf, 'ab')
+            f.write(data)
+            f.close()
+        else:
+            np.savetxt(outf, mtx, fmt='%.8e', delimiter="\t", comments="",
+                       header=header)
+
     def sky_description(self, i, prefix="skydata", grid=False, sun=True,
-                        ground=True):
+                        ground=True, sunpatch=False):
         """generate radiance scene files to directly render sky data at index i
 
         Parameters
@@ -410,7 +434,10 @@ class SkyData(object):
         f = open(f"{outf}.cal", 'w')
         f.write(f"side:{self.side};\n{translate.scbinscal}")
         f.close()
-        data = self.smtx[mi]
+        if sunpatch:
+            data = self.smtx_patch_sun()[mi]
+        else:
+            data = self.smtx[mi]
         nrbins = data.size
         header = "1\n0 {} {}\n".format(nrbins - 1, nrbins)
         np.savetxt(f"{outf}.dat", data, delimiter="\n", header=header,

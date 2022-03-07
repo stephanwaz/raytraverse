@@ -63,6 +63,7 @@ class SunSamplerPt(SamplerPt):
         self.specidx = min(speclevel, fdres) - self.idres
         #: np.array: sun position x,y,z
         self.sunpos = np.asarray(sun).flatten()[0:3]
+        self._viewdirections = np.concatenate((self.sunpos, [.533])).reshape(1, 4)
         self.sunbin = sunbin
         # load new source
         f, srcdef = tempfile.mkstemp(dir=f"./{scene.outdir}/", prefix='tmp_src')
@@ -113,11 +114,22 @@ class SunSamplerPt(SamplerPt):
 
         Parameters
         ----------
-        specguide: raytraverse.lightpoint.LightPointKD
+        specguide: str, raytraverse.lightpoint.LightPointKD
         vm: raytraverse.mapper.ViewMappper
         """
         if specguide is None:
             self._specguide = None
+        elif hasattr(specguide, "lower"):
+            try:
+                refl = translate.norm(np.loadtxt(specguide).reshape(-1, 3))
+                sunr = translate.reflect(self.sunpos.reshape(1, 3), refl, True)
+            except (OSError, ValueError):
+                pass
+            else:
+                if len(sunr) > 0:
+                    reflsize = np.full((len(sunr), 1), 1.066)
+                    refl = np.hstack((sunr, reflsize))
+                    self._viewdirections = np.concatenate((self._viewdirections, refl))
         else:
             if not hasattr(specguide, '__len__'):
                 specguide = [specguide]
@@ -135,18 +147,17 @@ class SunSamplerPt(SamplerPt):
             self._specguide = np.max(details, 0)
 
     def _run_callback(self, point, posidx, vm, write=True, **kwargs):
-        args = self.engine.args
-        # temporarily override arguments
-        self.engine.set_args(self.engine.directargs)
         viewsampler = SunSamplerPtView(self.scene, self.engine, self.sunpos,
                                        self.sunbin,
                                        samplerlevel=self._slevel + 1)
-        sunview = viewsampler.run(point, posidx)
-        self.engine.set_args(args)
+        vms = [ViewMapper(j[0:3], j[3], name=f"sunview_{i}", jitterrate=0)
+               for i,j in enumerate(self._viewdirections)]
+        sunview = viewsampler.run(point, posidx, vm=vms)
+        self._viewdirections = np.concatenate((self.sunpos, [.533])).reshape(1, 4)
         lightpoint = LightPointKD(self.scene, self.vecs, self.lum,
                                   srcdir=self.sunpos, src=self.stype, pt=point,
                                   write=write, srcn=self.srcn, posidx=posidx,
-                                  vm=vm, srcviews=[sunview], **kwargs)
+                                  vm=vm, srcviews=sunview, **kwargs)
         return lightpoint
 
 

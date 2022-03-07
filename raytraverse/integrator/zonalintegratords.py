@@ -7,7 +7,7 @@
 # =======================================================================
 import numpy as np
 
-from raytraverse.integrator import IntegratorDS
+from raytraverse.integrator.integratords import IntegratorDS
 from raytraverse.integrator.zonalintegrator import ZonalIntegrator
 
 

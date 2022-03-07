@@ -471,7 +471,8 @@ def skyrun(ctx, accuracy=1.0, nlev=3, jitter=True, overwrite=False, plotp=False,
         skyfield = LightPlaneKD(scn, f"{scn.outdir}/{pm.name}/sky_points"
                                 f".tsv", pm, "sky")
     except OSError:
-        skyfield = skysampler.run(pm, plotp=plotp, pfish=False)
+        skyfield = skysampler.run(pm, plotp=plotp, pfish=False,
+                                  find_reflections=True)
     else:
         if scn.dolog:
             click.echo(f"Sky Lightfield reloaded from {scn.outdir}/{pm.name} "
@@ -524,14 +525,14 @@ def directskyrun(ctx, overwrite=False, opts=False, debug=False, version=None):
 @click.option("--overwrite/--no-overwrite", default=False,
               help="If True, reruns sampler when invoked, otherwise will first"
                    " attempt to load results")
-@click.option("--guided/--no-guided", default=True,
+@click.option("--guided/--no-guided", default=False,
               help="If True, uses skysampling results to guide sun sampling "
                    "this is necessary if the model has any specular "
                    "reflections, will raise an error if skyrun has not been"
                    " called yet.")
 @clk.shared_decs(clk.command_decs(raytraverse.__version__, wrap=True))
 def sunrun(ctx, srcaccuracy=1.0, srcnlev=3, srcjitter=True, recover=False,
-           overwrite=False, guided=True, plotp=False, opts=False, debug=False,
+           overwrite=False, guided=False, plotp=False, opts=False, debug=False,
            version=None, **kwargs):
     """run scene for a set of suns (defined by suns) for a set of points
     (defined by area)
@@ -561,7 +562,7 @@ def sunrun(ctx, srcaccuracy=1.0, srcnlev=3, srcjitter=True, recover=False,
     if guided:
         specguide = ctx.obj['skyfield']
     else:
-        specguide = None
+        specguide = True
     if 'sunengine' not in ctx.obj:
         clk.invoke_dependency(ctx, sunengine)
     snengine = ctx.obj['sunengine']['engine']
@@ -609,9 +610,11 @@ rows in wea/epw file using space seperated list or python range notation:
     - 12:8760:24 (everyday at Noon)
 
 """),
+ click.option("--maskfull/--maskday", default=True,
+              help="if false, skymask assumes daystep indices"),
  click.option("-simtype", default="3comp",
               type=click.Choice(api.stypes),
-              help="simulation process/integration type"),
+              help=f"simulation process/integration type:\n\n{api.stypedocstring}"),
  click.option("-resuntol", default=5.0,
               help="tolerance for resampling sun views"),
  click.option("--blursun/--no-blursun", default=False,
@@ -639,7 +642,7 @@ rows in wea/epw file using space seperated list or python range notation:
 def images(ctx, sensors=None, sdirs=None, viewangle=180., skymask=None,
            basename="results", res=800, interpolate=None, namebyindex=False,
            simtype="2comp", resuntol=5.0, blursun=False, resampleview=False,
-           directview=False, **kwargs):
+           directview=False, maskfull=True, **kwargs):
     """render images
 
     Prequisites
@@ -680,7 +683,10 @@ def images(ctx, sensors=None, sdirs=None, viewangle=180., skymask=None,
                              sunviewengine=sunviewengine)
 
     if skymask is not None:
-        sd.mask = skymask
+        if maskfull:
+            sd.mask = skymask
+        else:
+            sd.mask = sd.maskindices[skymask]
     sensors = np.atleast_2d(sensors)
 
     if interpolate == "linear":
@@ -741,7 +747,7 @@ def images(ctx, sensors=None, sdirs=None, viewangle=180., skymask=None,
 def evaluate(ctx, sensors=None, sdirs=None, viewangle=180., skymask=None,
              metrics=None, basename="results", simtype="2comp", npz=True,
              serr=False, resuntol=5.0, blursun=False, resampleview=False,
-             lowlight=False, threshold=2000., **kwargs):
+             lowlight=False, threshold=2000., maskfull=True, **kwargs):
     """evaluate metrics
 
     Prequisites
@@ -780,7 +786,10 @@ def evaluate(ctx, sensors=None, sdirs=None, viewangle=180., skymask=None,
     itg = api.get_integrator(scn, pm, skmapper.name, simtype,
                              sunviewengine=sunviewengine, zonal=zonal)
     if skymask is not None:
-        sd.mask = skymask
+        if maskfull:
+            sd.mask = skymask
+        else:
+            sd.mask = sd.maskindices[skymask]
     sensors = np.atleast_2d(sensors)
     if sensors.shape[1] == 6:
         result = []
