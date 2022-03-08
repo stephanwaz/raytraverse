@@ -59,7 +59,7 @@ class MetricSet(BaseMetricSet):
                                              "view_area", "backlum_true",
                                              "srcillum", "srcarea", "maxlum"]
 
-    safe2sum = BaseMetricSet.safe2sum.union(('pwsl2',))
+    safe2sum = BaseMetricSet.safe2sum.union(('pwsl2', 'srcillum'))
 
     def __init__(self, vec, omega, lum, vm, metricset=None, scale=179.,
                  threshold=2000., guth=True, tradius=30.0,

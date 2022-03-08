@@ -205,8 +205,10 @@ def update_src_view(engine, lpt, sun, vm=None, tol=1.0, refl=None,
                     vec = np.einsum("ij,kj,li->kl", ymtx[0], lpt.vec[rs], pmtx[0])
                     # rotate back in actual sun space
                     vec = np.einsum("ji,kj,il->kl", pmtx[1], vec, ymtx[1])
-                    vecs.append(vec)
-                    ri.append(rs)
+                    lucky_squirel = sv.degrees(vec) > 0.533/2
+                    if np.sum(lucky_squirel) > 0:
+                        vecs.append(vec[lucky_squirel])
+                        ri.append(np.array(rs)[lucky_squirel])
             if len(ri) > 0:
                 rvecs = np.vstack(vecs)
                 ris = np.concatenate(ri)

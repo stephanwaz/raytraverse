@@ -183,9 +183,7 @@ class Integrator(object):
                     ofields[..., i] = np.minimum(ll*(t1 + t2 + 0.16), 1.0)
                 elif m == "ugp":
                     pwsl2 = fields[..., cmetrics.index("pwsl2")]
-                    illum = fields[..., cmetrics.index("illum")]
-                    srcillum = fields[..., cmetrics.index("srcillum")]
-                    backlum = (illum - srcillum) / np.pi
+                    backlum = fields[..., cmetrics.index("backlum")]
                     with np.errstate(divide='ignore'):
                         ugr = np.maximum(0, 8*np.log10( 0.25*pwsl2/backlum))
                     ofields[..., i] = (1 + 2/7*10**(-(ugr + 5)/40))**-10
@@ -229,7 +227,7 @@ class Integrator(object):
                     ometrics.append(m)
                     needs_post = True
                 elif m == "ugp":
-                    cmetrics.update(["illum", "pwsl2", "srcillum"])
+                    cmetrics.update(["backlum", "pwsl2"])
                     ometrics.append(m)
                 else:
                     print(f"could not coerce metric {m} to sumsafe",
