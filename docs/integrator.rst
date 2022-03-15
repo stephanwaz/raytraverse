@@ -18,6 +18,14 @@ IntegratorDS
     :undoc-members:
     :show-inheritance:
 
+IntegratorDV
+---------------------------------
+
+.. autoclass:: raytraverse.integrator.IntegratorDV
+    :members:
+    :undoc-members:
+    :show-inheritance:
+
 ZonalIntegrator
 ---------------------------------
 
