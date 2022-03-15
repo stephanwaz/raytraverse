@@ -59,7 +59,7 @@ setup_dict = dict(
     test_suite='tests',
     tests_require=test_requirements,
     url='https://github.com/stephanwaz/raytraverse',
-    version='1.2.7',
+    version='1.2.8',
     zip_safe=False,
     )
 
