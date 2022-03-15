@@ -291,11 +291,14 @@ def suns(ctx, loc=None, opts=False, debug=False, version=False, epwloc=False,
               help="minumum direct normal irradiance for daylight masking")
 @click.option("--reload/--no-reload", default=True,
               help="reload saved skydata if it exists in scene directory")
+@click.option("--printdata/--no-printdata", default=False,
+              help="if True, print solar position and dirnorm/diff of loaded "
+                   "data")
 @click.option("-name", default="skydata",
               help="output file name for skydata")
 @clk.shared_decs(clk.command_decs(raytraverse.__version__, wrap=True))
 def skydata(ctx, wea=None, name="skydata", loc=None, reload=True, opts=False,
-            debug=False, version=None, **kwargs):
+            printdata=False, debug=False, version=None, **kwargs):
     """define sky conditions for evaluation
 
     Effects
@@ -318,6 +321,10 @@ def skydata(ctx, wea=None, name="skydata", loc=None, reload=True, opts=False,
     if not reloaded:
         sd.write(name, scn)
     ctx.obj['skydata'] = sd
+    if printdata:
+        for d in sd.skydata[sd.daymask]:
+            print("{: >10.05f} {: >10.05f} {: >10.05f} {: >10.05f} {: >10.05f} "
+                  "".format(*d))
 
 
 @main.command()

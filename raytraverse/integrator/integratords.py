@@ -14,37 +14,15 @@ from raytraverse.lightpoint import LightPointKD
 
 
 def _prep_ds(lpts, skyvecs):
-    skp = lpts[0]
-    skd = lpts[1]
     try:
         snp = lpts[2]
     except IndexError:
         # this implies the sunpt is not needed (0 direct solar)
         return lpts[0:1], skyvecs[0:1], None
-    skpatch = translate.xyz2skybin(snp.srcdir, int((skp.srcn - 1)**.5))[0]
-    skvec = skp.vec
-    skydlum = np.copy(skd.lum[:, skpatch])
-    sklum = np.maximum((skp.lum[:, skpatch] - skydlum), 0)[:, None]
-    sklum = np.hstack((skp.lum, sklum))
     skyvecs = [np.hstack(skyvecs[0:2]), skyvecs[2]]
-    srcn = skp.srcn+1
-    if len(skyvecs[0]) < sklum.shape[1]:
-        sklum = np.einsum('ij,kj->ki', skyvecs[0], sklum)
-        srcn = len(skyvecs[0])
-        skyvecs = [np.eye(len(skyvecs[0])), skyvecs[1]]
-    ski = LightPointKD(skp.scene, vec=skvec, lum=sklum, vm=skp.vm,
-                       pt=skp.pt, posidx=skp.posidx,
-                       src=f'sky_isun{skpatch:04d}', srcn=srcn,
-                       srcdir=snp.srcdir,
-                       write=False, omega=skp.omega, parent=skp.parent)
+    ski, skyvecs, refl = intg.apply_dsky_patch(lpts[0], lpts[1], skyvecs,
+                                               snp.srcdir)
     lpts = [ski, snp]
-    try:
-        refl = np.loadtxt(f"{skp.scene.outdir}/{skp.parent}/"
-                          f"reflection_normals.txt")
-    except OSError:
-        refl = None
-    else:
-        refl = translate.norm(refl.reshape(-1, 3))
     return lpts, skyvecs, refl
 
 

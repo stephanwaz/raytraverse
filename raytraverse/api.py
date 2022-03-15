@@ -13,7 +13,7 @@ import os
 import numpy as np
 
 from raytraverse.integrator import ZonalIntegrator, ZonalIntegratorDS
-from raytraverse.integrator import Integrator, IntegratorDS
+from raytraverse.integrator import Integrator, IntegratorDS, IntegratorDV
 from raytraverse.scene import Scene
 from raytraverse.sky import SkyData
 from raytraverse.mapper import PlanMapper
@@ -87,7 +87,7 @@ def load_lp(path, hasparent=True):
     return LightPointKD(scn, parent=parent, src=ftree[-2], posidx=pidx, pt=pt)
 
 
-stypes = ('1comp', '2comp', '3comp', 'directview', 'directpatch', 'sunonly',
+stypes = ('1comp', '2comp', '3comp', '1compdv', 'directview', 'directpatch', 'sunonly',
           'sunpatch', 'skyonly')
 
 stypedescriptions = {
@@ -98,6 +98,8 @@ stypedescriptions = {
              "settings, no approximation for sun from sky patch",
     '3comp': "2-phase DDS, sky handles sky+indirect sun, sun handles direct sun"
              " requires directskyrun -ab 1 and sunrun -ab 0",
+    '1compdv': "standad DC method, but with direct view replacement of sun and"
+               " specular reflections",
     'directview': "only evaluate srcviewpts (direct views to sun and specular "
                   "reflections",
     'directpatch': "only evaluate results from dskyrun",
@@ -112,17 +114,19 @@ stypedocstring = "\n".join([f"    - {k}: {v}" for k,v in stypedescriptions.items
 def get_integrator(scn, pm, srcname="suns", simtype="2comp", zonal=False,
                    sunviewengine=None):
     req_sun = ('2comp', '3comp', 'directview', 'sunonly')
-    req_sky = ('1comp', '2comp', '3comp', 'sunpatch', 'skyonly')
-    req_dsk = ('3comp', 'directpatch')
+    req_sky = ('1comp', '2comp', '3comp', 'sunpatch', 'skyonly', '1compdv')
+    req_dsk = ('3comp', 'directpatch', '1compdv')
     sunfile = f"{scn.outdir}/{pm.name}/{srcname}_sunpositions.tsv"
     skpoints = f"{scn.outdir}/{pm.name}/sky_points.tsv"
     dskpoints = f"{scn.outdir}/{pm.name}/skydcomp_points.tsv"
     if zonal:
         itg = ZonalIntegrator
         itgds = ZonalIntegratorDS
+        itgdv = IntegratorDV
     else:
         itg = Integrator
         itgds = IntegratorDS
+        itgdv = IntegratorDV
 
     try:
         sunplane = SunsPlaneKD(scn, sunfile, pm, f"{srcname}_sun")
@@ -148,11 +152,13 @@ def get_integrator(scn, pm, srcname="suns", simtype="2comp", zonal=False,
 
     if simtype in ["1comp", "sunpatch", "skyonly"]:
         return itg(skyplane, includesky=simtype != "sunpatch",
-                          includesun=simtype != "skyonly", sunviewengine=sunviewengine)
+                   includesun=simtype != "skyonly", sunviewengine=sunviewengine)
     if simtype == "2comp":
         return itg(skyplane, sunplane, sunviewengine=sunviewengine)
     if simtype == "3comp":
         return itgds(skyplane, dskplane, sunplane, sunviewengine=sunviewengine)
+    if simtype == "1compdv":
+        return itgdv(skyplane, dskplane, sunviewengine=sunviewengine)
     if simtype in ["directview", "sunonly"]:
         return itg(sunplane, includesky=False, sunviewengine=sunviewengine)
     if simtype == "directpatch":

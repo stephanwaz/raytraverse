@@ -14,6 +14,7 @@ from shapely.geometry import Polygon
 from raytraverse import io, translate
 from raytraverse.mapper import ViewMapper
 from raytraverse.sampler import SunSamplerPtView
+from raytraverse.lightpoint import LightPointKD
 
 
 def evaluate_pt(lpts, skyvecs, suns, vm=None, vms=None,
@@ -193,7 +194,6 @@ def update_src_view(engine, lpt, sun, vm=None, tol=1.0, refl=None,
     if len(svm) > 0 and dosamp:
         viewsampler = SunSamplerPtView(lpt.scene, engine, sun, 0)
         svpoints = viewsampler.run(lpt.pt, 0, vm=svm)
-
         lpt.set_srcviews(svpoints)
         if resampvecs is not None and dosamp:
             vecs = []
@@ -205,7 +205,7 @@ def update_src_view(engine, lpt, sun, vm=None, tol=1.0, refl=None,
                     vec = np.einsum("ij,kj,li->kl", ymtx[0], lpt.vec[rs], pmtx[0])
                     # rotate back in actual sun space
                     vec = np.einsum("ji,kj,il->kl", pmtx[1], vec, ymtx[1])
-                    lucky_squirel = sv.degrees(vec) > 0.533/2
+                    lucky_squirel = sv.degrees(vec) > 0.534/2
                     if np.sum(lucky_squirel) > 0:
                         vecs.append(vec[lucky_squirel])
                         ri.append(np.array(rs)[lucky_squirel])
@@ -215,3 +215,36 @@ def update_src_view(engine, lpt, sun, vm=None, tol=1.0, refl=None,
                 rvecs = np.concatenate(np.broadcast_arrays(lpt.pt[None, :],
                                                            rvecs), 1)
                 lpt.lum[ris, -1] = engine(rvecs).ravel()
+
+
+def apply_dsky_patch(skp, skd, skyvecs, skdir, dirlum=None):
+    skpatch = translate.xyz2skybin(skdir, int((skp.srcn - 1)**.5))[0]
+    skvec = skp.vec
+    skydlum = np.copy(skd.lum[:, skpatch])
+    sklum = np.maximum((skp.lum[:, skpatch] - skydlum), 0)[:, None]
+    sklum = np.hstack((skp.lum, sklum))
+
+    srcn = skp.srcn + 1
+    if len(skyvecs[0]) < sklum.shape[1]:
+        sklum = np.einsum('ij,kj->ki', skyvecs[0], sklum)
+        srcn = len(skyvecs[0])
+        skyvecs[0] = np.eye(len(skyvecs[0]))
+
+    if dirlum is not None:
+        srcn += 1
+        sklum = np.hstack((sklum, dirlum))
+        skyvecs = [np.hstack(skyvecs)]
+
+    ski = LightPointKD(skp.scene, vec=skvec, lum=sklum, vm=skp.vm,
+                       pt=skp.pt, posidx=skp.posidx,
+                       src=f'sky_isun{skpatch:04d}', srcn=srcn,
+                       srcdir=skdir,
+                       write=False, omega=skp.omega, parent=skp.parent)
+    try:
+        refl = np.loadtxt(f"{skp.scene.outdir}/{skp.parent}/"
+                          f"reflection_normals.txt")
+    except OSError:
+        refl = None
+    else:
+        refl = translate.norm(refl.reshape(-1, 3))
+    return ski, skyvecs, refl
