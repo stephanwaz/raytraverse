@@ -35,6 +35,7 @@ public:
     void loadscene(char* octname) override;
     py::array_t<double> operator()(py::array_t<double, py::array::c_style> &vecs) override;
     int updateOSpec(char *vs);
+    py::array_t<double> getSources();
     void resetRadiance();
     void loadsrc(char* srcname, int freesrc);
 };

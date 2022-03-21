@@ -307,8 +307,7 @@ class SamplerArea(BaseSampler):
         kwargs = dict(metricset=self.metricset, lmin=1e-8)
         specguide = None
         sgpt = None
-        if hasattr(self.engine, "slimit"):
-            kwargs.update(peakthreshold=self.engine.slimit)
+        if hasattr(self.engine, "_load_specguide"):
             specguide = self._specguide
         level_desc = f"Level {len(self.slices)} of {len(self.levels)}"
         if self.nlev == 1 and len(vecs) == 1:

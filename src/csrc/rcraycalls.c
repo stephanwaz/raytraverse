@@ -26,6 +26,7 @@
 #include <string.h>
 #include <time.h>
 
+#include "rcontrib.h"
 #include  "ray.h"
 #include  "source.h"
 #include  "bsdf.h"
@@ -35,13 +36,6 @@
 #include  "data.h"
 #include  "font.h"
 #include  "pmapray.h"
-
-char	*progname = "unknown_app";	/* caller sets to argv[0] */
-
-char	*octname;			/* octree name we are given */
-int	dimlist[MAXDIM];		/* sampling dimensions */
-char	*amblist[AMBLLEN+1];		/* ambient include/exclude list */
-
 
 static void
 reset_random(void)		/* re-initialize random number generator */

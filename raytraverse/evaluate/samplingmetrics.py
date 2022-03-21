@@ -21,7 +21,7 @@ class SamplingMetrics(BaseMetricSet):
 
     allmetrics = defaultmetrics
 
-    def __init__(self, vec, omega, lum, vm, scale=1., peakthreshold=0.0,
+    def __init__(self, vec, omega, lum, vm, scale=1., peakthreshold=0.0001,
                  lmin=0, gcrnorm=8, **kwargs):
         kwargs.update(peakthreshold=peakthreshold)
         lum = np.maximum(lum, lmin)

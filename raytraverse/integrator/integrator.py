@@ -185,7 +185,7 @@ class Integrator(object):
                     pwsl2 = fields[..., cmetrics.index("pwsl2")]
                     backlum = fields[..., cmetrics.index("backlum")]
                     with np.errstate(divide='ignore'):
-                        ugr = np.maximum(0, 8*np.log10( 0.25*pwsl2/backlum))
+                        ugr = np.maximum(0, 8*np.log10(0.25*pwsl2/backlum))
                     ofields[..., i] = (1 + 2/7*10**(-(ugr + 5)/40))**-10
             fields = ofields
         sinfo, dinfo = self._sinfo(datainfo, vecs, tidxs, oshape[0:2])
@@ -229,6 +229,7 @@ class Integrator(object):
                 elif m == "ugp":
                     cmetrics.update(["backlum", "pwsl2"])
                     ometrics.append(m)
+                    needs_post = True
                 else:
                     print(f"could not coerce metric {m} to sumsafe",
                           file=sys.stderr)

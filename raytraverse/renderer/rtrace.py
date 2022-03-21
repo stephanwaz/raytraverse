@@ -96,7 +96,7 @@ class Rtrace(RadianceRenderer):
 
         """
         super().set_args(args, nproc)
-        ospec = re.findall("-o\w+", cls.args)
+        ospec = re.findall(r"-o\w+", cls.args)
         if len(ospec) > 0:
             cls.update_ospec(ospec[-1][2:])
 
@@ -183,3 +183,8 @@ class Rtrace(RadianceRenderer):
                       f"no new ambfile was specified, stripping {hasamb[-1]} "
                       "from args", file=sys.stderr)
             cls.set_args(args)
+
+    @classmethod
+    def get_sources(cls):
+        """x,y,z,radius,area (x,y,z iis direction for distant sources)"""
+        return cls.instance.get_sources().reshape(-1, 5)

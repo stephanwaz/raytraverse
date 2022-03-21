@@ -30,8 +30,8 @@ def tmpdir(tmp_path_factory):
 
 def test_sample(tmpdir):
     scene = ImageScene('imgsample', "oct21_detail_glz_EW_desk.hdr")
-    sampler = DeterministicImageSampler(scene, idres=5, fdres=10, accuracy=4.0)
-    sampler2 = ImageSampler(scene, idres=5, fdres=10, accuracy=4.0)
+    sampler = DeterministicImageSampler(scene, idres=32, nlev=6, accuracy=4.0)
+    sampler2 = ImageSampler(scene, idres=32, nlev=6, accuracy=4.0)
     vm = ViewMapper(viewangle=180, jitterrate=0)
     lf = sampler.run((0, 0, 0), 0, vm)
     lf2 = sampler2.run((0, 0, 0), 0, vm)

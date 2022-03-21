@@ -30,7 +30,7 @@ extern "C" {
 #include "copyright.h"
 #include <signal.h>
 #include <time.h>
-#include <rcontrib.h>
+#include "rcontrib.h"
 #include "random.h"
 #include "source.h"
 #include "ambient.h"

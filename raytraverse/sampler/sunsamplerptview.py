@@ -31,8 +31,8 @@ class SunSamplerPtView(SamplerPt):
     ub = 1
 
     def __init__(self, scene, engine, sun, sunbin, **kwargs):
-        super().__init__(scene, engine, stype=f"sunview_{sunbin:04d}", idres=4,
-                         fdres=6, **kwargs)
+        super().__init__(scene, engine, stype=f"sunview_{sunbin:04d}", idres=16,
+                         nlev=3, **kwargs)
         self.sunpos = np.asarray(sun).flatten()[0:3]
         # load new source
         f, srcdef = tempfile.mkstemp(dir=f"./{scene.outdir}/", prefix='tmp_src')

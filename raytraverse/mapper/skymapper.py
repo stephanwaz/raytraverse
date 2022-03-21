@@ -54,7 +54,7 @@ class SkyMapper(AngularMixin, Mapper):
     _flipu = False
     _xsign = 1
 
-    def __init__(self, loc=None, skyro=0.0, sunres=20.0, name='sky',
+    def __init__(self, loc=None, skyro=0.0, sunres=9, name='sky',
                  jitterrate=0.5):
         self._viewangle = 180.0
         self._chordfactor = 1.0
@@ -73,14 +73,6 @@ class SkyMapper(AngularMixin, Mapper):
     def skyro(self, ro):
         self._skyro = ro
         self._skyromtx = translate.rmtx_elem(ro)
-
-    @property
-    def sunres(self):
-        return self._sunres
-
-    @sunres.setter
-    def sunres(self, s):
-        self._sunres = int(np.floor(180/s))
 
     @property
     def loc(self):

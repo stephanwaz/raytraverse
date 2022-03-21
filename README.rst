@@ -45,6 +45,8 @@ The easiest way to install raytraverse is with pip::
 or if you have cloned this repository::
 
     cd path/to/this/file
+    git submodule init
+    git submodule update
     pip install .
 
 Usage

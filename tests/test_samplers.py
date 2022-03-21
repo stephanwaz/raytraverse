@@ -50,8 +50,7 @@ def test_skysample(tmpdir):
 
     scene = Scene('skysample', "box.rad", frozen=False)
     rcontrib = Rcontrib('-ab 1 -ad 10000 -c 1 -lw 1e-5', scene.scene)
-    print(rcontrib)
-    sampler = SkySamplerPt(scene, rcontrib, fdres=7)
+    sampler = SkySamplerPt(scene, rcontrib, nlev=3)
     vm = ViewMapper((0, 1, 0), viewangle=180)
     lf = sampler.run((1.5, 1.5, 1.5), 0)
     illum, illumm = img_illum(lf, vm, 176)

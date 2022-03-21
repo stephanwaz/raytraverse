@@ -110,14 +110,9 @@ engine_opts = [
                    "parameter to the expected scene variance. Optional, but "
                    "helpful with, for example, electrochromic glazing or "
                    "shades"),
- click.option('-idres', default=5,
-              help='the initial directional sampling resolution. each side'
-                   ' of the sampling square (representing a hemisphere) will'
-                   ' be subdivided 2^idres, yielding 2^(2*idres) samples and'
-                   ' a resolution of 2^(2*idres)/(2pi) samples/steradian. this'
-                   ' value should be smaller than 1/2 the size of the smallest'
-                   ' view to an aperture that should be captured with 100%'
-                   ' certainty'),
+ click.option('-idres', default=32,
+              help='the initial directional sampling resolution '
+                   '(as sqrt of samples per hemisphere)'),
  click.option('-rayargs',
               help='additional arguments to pass to the  rendering engine'),
  click.option('--default-args/--no-default-args', default=True,
@@ -141,7 +136,7 @@ engine_opts = [
                    "1/2*ptres in which to sample. Note that if static_points"
                    "and zone are both give, static_points is silently ignored")
 @click.option("-ptres", default=1.0,
-              help="initial sampling resolution for points")
+              help="initial sampling resolution for points (in model units")
 @click.option("-rotation", default=0.0,
               help="positive Z rotation for point grid alignment")
 @click.option("-jitterrate", default=0.5,
@@ -215,8 +210,9 @@ candidates within adaptive grid.""")
 @click.option("-skyro", default=0.0,
               help="counterclockwise sky-rotation in degrees (equivalent to "
                    "clockwise project north rotation)")
-@click.option("-sunres", default=20.0,
-              help="initial sampling resolution for suns")
+@click.option("-sunres", default=9,
+              help="initial sampling resolution for suns "
+                   "(as sqrt of samples per hemisphere)")
 @click.option("-jitterrate", default=0.5,
               help="fraction of each axis to jitter over")
 @click.option("-name", default="suns",
@@ -294,11 +290,13 @@ def suns(ctx, loc=None, opts=False, debug=False, version=False, epwloc=False,
 @click.option("--printdata/--no-printdata", default=False,
               help="if True, print solar position and dirnorm/diff of loaded "
                    "data")
+@click.option("--printfull/--no-printfull", default=False,
+              help="with printdata, if True, print full unmasked skydata")
 @click.option("-name", default="skydata",
               help="output file name for skydata")
 @clk.shared_decs(clk.command_decs(raytraverse.__version__, wrap=True))
 def skydata(ctx, wea=None, name="skydata", loc=None, reload=True, opts=False,
-            printdata=False, debug=False, version=None, **kwargs):
+            printdata=False, printfull=False, debug=False, version=None, **kwargs):
     """define sky conditions for evaluation
 
     Effects
@@ -322,9 +320,15 @@ def skydata(ctx, wea=None, name="skydata", loc=None, reload=True, opts=False,
         sd.write(name, scn)
     ctx.obj['skydata'] = sd
     if printdata:
-        for d in sd.skydata[sd.daymask]:
-            print("{: >10.05f} {: >10.05f} {: >10.05f} {: >10.05f} {: >10.05f} "
-                  "".format(*d))
+        ris = np.arange(sd.skydata.shape[0])
+        if printfull:
+            rows = sd.fill_data(sd.skydata[sd.daymask], rowlabels=True)
+        else:
+            rows = sd.label(sd.skydata[sd.daymask])
+            ris = ris[sd.daymask]
+        for j, (ri, r) in enumerate(zip(ris, rows)):
+            ot = " ".join([f"{i: >10.05g}" for i in r])
+            print(f"{ri: >5} {j: >5} {ot}")
 
 
 @main.command()
@@ -335,16 +339,15 @@ def skydata(ctx, wea=None, name="skydata", loc=None, reload=True, opts=False,
                    " So if skyres=10, each patch will be 100 sq. degrees "
                    "(0.03046174197 steradians) and there will be 18 * 18 = "
                    "324 sky patches. Must match argument givein to skydata")
-@click.option('-fdres', default=9,
-              help='the final directional sampling resolution, yielding a'
-                   ' grid of potential samples at 2^fdres x 2^fdres per'
-                   ' hemisphere')
+@click.option('-nlev', default=5,
+              help='number of directional sampling levels, yielding a final'
+                   'resolution of idres^2 * 2^(nlev) samples per hemisphere')
 @click.option('-dcompargs', default='-ab 1',
               help="additional arguments for running direct component. when "
                    "using, set -ab in sunengine.rayargs to this ab minus one.")
 @clk.shared_decs(clk.command_decs(raytraverse.__version__, wrap=True))
-def skyengine(ctx, accuracy=1.0, vlt=0.64, idres=5, rayargs=None,
-              default_args=True, skyres=10.0, fdres=9, dcompargs='-ab 1',
+def skyengine(ctx, accuracy=1.0, vlt=0.64, idres=32, rayargs=None,
+              default_args=True, skyres=10.0, nlev=5, dcompargs='-ab 1',
               usedecomp=False, opts=False, debug=False, version=None, **kwargs):
     """initialize engine for skyrun
 
@@ -365,39 +368,18 @@ def skyengine(ctx, accuracy=1.0, vlt=0.64, idres=5, rayargs=None,
                         default_args=default_args)
     accuracy = accuracy * vlt / 0.64
     ctx.obj['skyengine'] = SkySamplerPt(scn, rcontrib, accuracy=accuracy,
-                                        idres=idres, fdres=fdres)
+                                        idres=idres, nlev=nlev)
 
 
 @main.command()
 @clk.shared_decs(engine_opts)
-@click.option('-fdres', default=10,
-              help='the final directional sampling resolution, yielding a'
-                   ' grid of potential samples at 2^fdres x 2^fdres per'
-                   ' hemisphere')
-@click.option('-speclevel', default=9,
-              help="at this sampling level, pdf is made from brightness of sky "
-                   "sampling rather than progressive variance to look for fine "
-                   "scale specular highlights, this should be atleast 1 level "
-                   "from the end and the resolution of this level should be "
-                   "smaller than the size of the source")
-@click.option('-slimit', default=0.01,
-              help="the minimum value in the specular guide considered as a "
-                   "potential specular reflection source, in the case of low "
-                   "vlt glazing, make sure to set -vlt.")
-@click.option('-maxspec', default=0.2,
-              help="the maximum value in the specular guide considered as a "
-                   "specular reflection source. Above this value it is "
-                   "assumed that these are direct view rays to the source so "
-                   "are not sampled. in the case of low vlt glazing, "
-                   "set -vlt. In mixed (high-low) vlt scenes "
-                   "the specular guide will either over sample (including "
-                   "direct views when maxspec is large) or under sample "
-                   "(miss specular reflections when maxspec is small) "
-                   "depending on this setting.")
+@click.option('-nlev', default=6,
+              help='number of directional sampling levels, yielding a final'
+                   'resolution of idres^2 * 2^(nlev) samples per hemisphere')
 @clk.shared_decs(clk.command_decs(raytraverse.__version__, wrap=True))
-def sunengine(ctx, accuracy=1.0, vlt=0.64, idres=5, rayargs=None,
-              default_args=True, fdres=10, slimit=0.01, maxspec=0.2,
-              speclevel=9, opts=False, debug=False, version=None, **kwargs):
+def sunengine(ctx, accuracy=1.0, vlt=0.64, idres=32, rayargs=None,
+              default_args=True, nlev=6, opts=False,
+              debug=False, version=None, **kwargs):
     """initialize engine for sunrun
 
     Effects
@@ -409,10 +391,7 @@ def sunengine(ctx, accuracy=1.0, vlt=0.64, idres=5, rayargs=None,
     scn = ctx.obj['scene']
     rtrace = Rtrace(rayargs=rayargs, scene=scn.scene, default_args=default_args)
     accuracy = accuracy*vlt/0.64
-    maxspec = maxspec*vlt/0.64
-    slimit = slimit*vlt/0.64
-    ptkwargs = dict(slimit=slimit, maxspec=maxspec, accuracy=accuracy,
-                    idres=idres, fdres=fdres, speclevel=speclevel)
+    ptkwargs = dict(accuracy=accuracy, idres=idres, nlev=nlev)
     ctx.obj['sunengine'] = dict(engine=rtrace, ptkwargs=ptkwargs)
 
 
@@ -521,7 +500,7 @@ def directskyrun(ctx, overwrite=False, opts=False, debug=False, version=None):
                    "sampling)")
 @click.option("-srcnlev", default=3,
               help="number of levels to sample (final resolution will be "
-                   "sunres/2^(nlev-1))")
+                   "sunres*2^(nlev-1))")
 @click.option("--srcjitter/--no-srcjitter", default=True,
               help="jitter solar source within adaptive sampling grid for "
                    "candidate SkyMappers, only affects weighting of selecting"
@@ -532,14 +511,9 @@ def directskyrun(ctx, overwrite=False, opts=False, debug=False, version=None):
 @click.option("--overwrite/--no-overwrite", default=False,
               help="If True, reruns sampler when invoked, otherwise will first"
                    " attempt to load results")
-@click.option("--guided/--no-guided", default=False,
-              help="If True, uses skysampling results to guide sun sampling "
-                   "this is necessary if the model has any specular "
-                   "reflections, will raise an error if skyrun has not been"
-                   " called yet.")
 @clk.shared_decs(clk.command_decs(raytraverse.__version__, wrap=True))
 def sunrun(ctx, srcaccuracy=1.0, srcnlev=3, srcjitter=True, recover=False,
-           overwrite=False, guided=False, plotp=False, opts=False, debug=False,
+           overwrite=False, plotp=False, opts=False, debug=False,
            version=None, **kwargs):
     """run scene for a set of suns (defined by suns) for a set of points
     (defined by area)
@@ -549,7 +523,6 @@ def sunrun(ctx, srcaccuracy=1.0, srcnlev=3, srcjitter=True, recover=False,
         - Invokes scene
         - Invokes area (no effects)
         - Invokes sunengine (no effects)
-        - invokes skyrun (if guided=True)
         - creates outdir/area.name/sun_####_points.tsv
             - contents: 5cols x N rows: [sample_level idx x y z]
         - creates outdir/area.name/sky/sun_####/######.rytpt
@@ -564,12 +537,6 @@ def sunrun(ctx, srcaccuracy=1.0, srcnlev=3, srcjitter=True, recover=False,
     if 'skymapper' not in ctx.obj:
         clk.invoke_dependency(ctx, suns)
     skmapper = ctx.obj['skymapper']
-    if guided and 'skyfield' not in ctx.obj:
-        clk.invoke_dependency(ctx, skyrun, overwrite=False)
-    if guided:
-        specguide = ctx.obj['skyfield']
-    else:
-        specguide = True
     if 'sunengine' not in ctx.obj:
         clk.invoke_dependency(ctx, sunengine)
     snengine = ctx.obj['sunengine']['engine']
@@ -586,9 +553,71 @@ def sunrun(ctx, srcaccuracy=1.0, srcnlev=3, srcjitter=True, recover=False,
             shutil.rmtree(src, ignore_errors=True)
         for src in glob(f"{scn.outdir}/{pm.name}/i_{skmapper.name}_sun_*"):
             shutil.rmtree(src, ignore_errors=True)
-    dfield = sunsampler.run(skmapper, pm, specguide=specguide, recover=recover,
+    dfield = sunsampler.run(skmapper, pm, specguide=True, recover=recover,
                             plotp=plotp, pfish=False)
     ctx.obj['daylightfield'] = dfield
+
+
+@main.command()
+@clk.shared_decs(sample_opts)
+@click.option("-srcfile", default=None, type=click.Path(dir_okay=False),
+              help="scene source description (required)")
+@click.option("-source", default="source", help="name for this source")
+@click.option("--overwrite/--no-overwrite", default=False,
+              help="If True, reruns sampler when invoked, otherwise will first"
+                   " attempt to load results")
+@clk.shared_decs(clk.command_decs(raytraverse.__version__, wrap=True))
+def sourcerun(ctx, srcfile=None, source="source", accuracy=1.0, nlev=3,
+              jitter=True, overwrite=False, plotp=False, edgemode='constant',
+              opts=False, debug=False, version=None):
+    """run scene for a single source (or multiple defined in a single scene file)
+
+    - Do not run as part of the same call as sunrun
+    - make sure rayargs are properly set in sunengine (not -ab 0)
+
+    Effects
+    ~~~~~~~
+        - Invokes scene
+        - Invokes area (no effects)
+        - Invokes sunengine (no effects)
+        - creates outdir/area.name/SOURCE_points.tsv
+            - contents: 5cols x N rows: [sample_level idx x y z]
+        - creates outdir/area.name/sky/SOURCE/######.rytpt
+            - each file is a LightPointKD initialization object
+    """
+    if srcfile is None:
+        click.echo("srcfile is required by sourcerun", err=True)
+        raise click.Abort
+    if 'scene' not in ctx.obj:
+        clk.invoke_dependency(ctx, scene, reload=True, overwrite=False)
+    scn = ctx.obj['scene']
+    if 'planmapper' not in ctx.obj:
+        clk.invoke_dependency(ctx, area)
+    pm = ctx.obj['planmapper']
+    if 'sunengine' not in ctx.obj:
+        clk.invoke_dependency(ctx, sunengine)
+    snengine = ctx.obj['sunengine']['engine']
+    ptkwargs = ctx.obj['sunengine']['ptkwargs']
+    if ctx.obj['static_points']:
+        nlev = 1
+        jitter = False
+    srcengine = SkySamplerPt(scn, snengine, **ptkwargs)
+    srcsampler = SamplerArea(scn, srcengine, accuracy=accuracy, nlev=nlev,
+                             jitter=jitter, edgemode=edgemode)
+    try:
+        if overwrite:
+            raise OSError
+        skyfield = LightPlaneKD(scn, f"{scn.outdir}/{pm.name}/{source}_points"
+                                f".tsv", pm, source)
+    except OSError:
+        skyfield = skysampler.run(pm, plotp=plotp, pfish=False,
+                                  find_reflections=True)
+    else:
+        if scn.dolog:
+            click.echo(f"Source Lightfield reloaded from {scn.outdir}/{pm.name} "
+                       f"use --overwrite to rerun", err=True)
+    ctx.obj[f'{source}_field'] = skyfield
+
 
 
 eval_opts = [

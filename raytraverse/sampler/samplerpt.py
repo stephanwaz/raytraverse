@@ -23,9 +23,9 @@ class SamplerPt(BaseSampler):
     engine: raytraverse.renderer.Renderer
         should inherit from raytraverse.renderer.Renderer
     idres: int, optional
-        initial direction resolution (as log2(res))
-    fdres: int, optional
-        final directional resolution given as log2(res)
+        initial direction resolution (as sqrt of samples per hemisphere)
+    nlev: int, optional
+        number of levels to sample (eeach lvl doubles idres)
     accuracy: float, optional
         parameter to set threshold at sampling level relative to final level
         threshold (smaller number will increase sampling, default is 1.0)
@@ -47,23 +47,24 @@ class SamplerPt(BaseSampler):
 
     _includeorigin = True
 
-    def __init__(self, scene, engine, idres=5, fdres=9, accuracy=1.0,
+    def __init__(self, scene, engine, idres=32, nlev=5, accuracy=1.0,
                  srcn=1, stype='generic', bands=1, samplerlevel=0, **kwargs):
         #: int: number of spectral bands / channels returned by renderer
         #: based on given renderopts (user ensures these agree).
         self.bands = bands
         #: int: number of sources return per vector by run
         self.srcn = srcn
-        #: int: initial direction resolution (as log2(res))
+        #: int: initial direction resolution (as sqrt of samples per hemisphere
+        #: (or view angle)
         self.idres = idres
-        self.fdres = fdres
+        self.nlev = nlev
         super().__init__(scene, engine, accuracy=accuracy, stype=stype,
                          samplerlevel=samplerlevel)
 
     def sampling_scheme(self, a):
         """calculate sampling scheme"""
-        return np.array([(2**i*a, 2**i)
-                         for i in range(self.idres, self.fdres+1, 1)])
+        return np.array([(self.idres*2**i*a, self.idres*2**i)
+                         for i in range(self.nlev)])
 
     def run(self, point, posidx, mapper=None, lpargs=None, **kwargs):
         """sample a single point, poisition index handles file naming

@@ -24,6 +24,7 @@ namespace ray{
 #include "Radiance/src/rt/ray.h"
 #include "csrc/rtinit.h"
     extern "C" {
+#include "Radiance/src/rt/source.h"
 #include "Radiance/src/rt/ambient.h"
 #include "Radiance/src/rt/pmapray.h"
 #include "Radiance/src/rt/func.h"
@@ -67,6 +68,21 @@ int Rtrace::initialize(pybind11::object arglist) {
 
 int Rtrace::updateOSpec(char *vs) {
   return ray::setoutput2(vs);
+}
+
+py::array_t<double> Rtrace::getSources() {
+  py::array_t<double> sources(ray::nsources * 5);
+  py::buffer_info sout = sources.request();
+  auto *sarr = (double *) sout.ptr;
+  for (size_t idx = 0; idx < ray::nsources; idx++) {
+    sarr[idx * 3] = ray::source[idx].sloc[0];
+    sarr[idx * 3 + 1] = ray::source[idx].sloc[1];
+    sarr[idx * 3 + 2] = ray::source[idx].sloc[2];
+    sarr[idx * 3 + 3] = ray::source[idx].srad;
+    sarr[idx * 3 + 4] = ray::source[idx].ss2;
+
+  }
+  return sources;
 }
 
 void Rtrace::loadscene(char *octname) {
@@ -161,6 +177,15 @@ ncomp: int
     number of components renderer will return, or -1 on failure.
 )pbdoc";
 
+const char* doc_get_sources =
+        R"pbdoc(return list of sources in model
+
+Returns
+-------
+ncomp: int
+    number of components renderer will return, or -1 on failure.
+)pbdoc";
+
 
 PYBIND11_MODULE(rtrace_c, m){
   py::class_<Rtrace>(m, "cRtrace", py::module_local(), R"pbdoc(singleton interface to the Radiance rtrace executable.
@@ -232,6 +257,7 @@ See raytraverse.renderer.Rtrace
           .def("initialize", &Rtrace::initialize, "arglist"_a, doc_initialize)
           .def("load_scene", &Rtrace::loadscene, "octree"_a, doc_load_scene)
           .def("load_source", &Rtrace::loadsrc, "srcname"_a, "freesrc"_a=-1, doc_load_src)
+          .def("get_sources", &Rtrace::getSources, doc_get_sources)
           .def("__call__", &Rtrace::operator(), "vecs"_a, doc_call)
           .def("update_ospec", &Rtrace::updateOSpec, "vs"_a, doc_update_ospec)
           .def_property_readonly_static("version", [](py::object) { return ray::VersionID; });

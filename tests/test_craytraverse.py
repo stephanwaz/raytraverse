@@ -233,3 +233,22 @@ def test_ambient_nostore(tmpdir):
     an4 = r(np.repeat(vecs, 2, 0)).reshape(-1, 2).T
     assert (np.allclose(an4[0], an4[1]))
     r.reset()
+
+
+def test_get_sources(tmpdir):
+    formatter = RadianceFormatter()
+    args = "-u- -ab 1 -ad 4000 -aa 0 -as 2000 -I+"
+    renderer.Rtrace.reset()
+    r = renderer.Rtrace(args, "scene.oct", nproc=1)
+
+    def load_sun(sun, val):
+        srcdef = f'tmp_sun.rad'
+        f = open(srcdef, 'w')
+        f.write(formatter.get_sundef(sun, (val, val, val)))
+        f.close()
+        r.load_source(srcdef)
+        os.remove(srcdef)
+
+    load_sun((0, -.5, 1), 1000000)
+    sources = r.get_sources()
+    assert True
