@@ -63,10 +63,11 @@ char  *outvals = "Z";			/* output specification */
 int  hresolu = 0;			/* horizontal (scan) size */
 int  vresolu = 0;			/* vertical resolution */
 
-extern int  castonly;			/* only doing ray-casting? */
+extern int castonly;			/* only doing ray-casting? */
 
-extern int  imm_irrad;			/* compute immediate irradiance? */
+extern int imm_irrad;			/* compute immediate irradiance? */
 int  lim_dist = 0;			/* limit distance? */
+int imm_irrad = 0;
 
 #ifndef	MAXMODLIST
 #define	MAXMODLIST	1024		/* maximum modifiers we'll track */
