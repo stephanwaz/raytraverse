@@ -76,11 +76,14 @@ class BaseMetricSet(object):
         else:
             mask = self.vm.in_view(v, indices=False)
             # find bright vectors that might overlap the edge of the view
-            stray = np.argwhere(np.all([np.logical_not(mask),
-                                        np.isclose(self.vm.degrees(v),
-                                                   vm.viewangle/2, atol=1),
-                                        lum/np.average(lum) > 10],
-                                       axis=0)).ravel()
+            if np.average(lum) > 0:
+                stray = np.argwhere(np.all([np.logical_not(mask),
+                                            np.isclose(self.vm.degrees(v),
+                                                       vm.viewangle/2, atol=1),
+                                            lum/np.average(lum) > 10],
+                                           axis=0)).ravel()
+            else:
+                stray = []
             if len(stray) > 0:
                 ost = np.atleast_1d(omega[stray])
                 vsts = v[stray].reshape(-1, 3)

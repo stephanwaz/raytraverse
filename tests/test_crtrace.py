@@ -74,7 +74,7 @@ def test_rtrace_call(tmpdir):
     assert np.allclose(check2, test3, atol=.03)
     # #
     # # change args
-    r.set_args("-lr 0 -oZ -I")
+    r.set_args("-lr 1 -oZ -I")
     test3 = r(vecs).ravel()
     assert np.allclose([0, 0, 0, 0, np.pi*2], test3, atol=.03)
     # #
@@ -84,7 +84,7 @@ def test_rtrace_call(tmpdir):
     assert np.allclose(check2, test3, atol=.03)
     # #
     # load sources
-    r.set_args("-lr 0")
+    r.set_args("-lr 1")
     r.update_ospec("Z")
     r.load_scene("scene.oct")
     r.load_source("sun.rad")

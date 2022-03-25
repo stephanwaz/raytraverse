@@ -197,8 +197,6 @@ of arguments similar to the command line tool, but with several differences:
   - no -h option.
   - no -x/-y options, shape output data as necessary with np.reshape
   - no -P/-PP modes
-  - -lr 0 behaves differently from radiance, sets a true reflection limit of 0 rather than disabling limit, for behavior
-    approaching radiance, set -lr -1000
   - an additional -c N option repeats each input N times and averages the result. Make sure that uncorrelated sampling
     is used (-U+, default)
   - the default output is -oz, z is an additional output specifier that yields a single photopic brightness per input
@@ -222,7 +220,7 @@ basic usage::
 cRtrace can also update the output specification and/or the settings without reloading the scene geometry::
 
   instance.update_ospec("L") # to query ray distance
-  instance.initialize("rtrace -ab 0 -lr 0".split()) # note this begins with default arguments, it is not additive with previous settings!
+  instance.initialize("rtrace -ab 0 -lr 1".split()) # note this begins with default arguments, it is not additive with previous settings!
   raylength = instance(rays)
 
 but if you are loading new geometry, the instance should be reset::

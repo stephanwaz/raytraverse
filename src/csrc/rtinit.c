@@ -250,7 +250,7 @@ rtinit(int  argc, char  *argv[])
 void
 rtrace_loadscene(char* pyoctnm) {
   /* get octree */
-  char octnm[strlen(pyoctnm)];
+  char octnm[strlen(pyoctnm) + 1];
   strcpy(octnm, pyoctnm);
   extern char  *octname;
   readoct(octname = octnm, loadflags & ~IO_INFO, &thescene, NULL);

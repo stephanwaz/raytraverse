@@ -68,8 +68,6 @@ of arguments similar to the command line tool, but with several differences:</p>
 <li><p>no -h option.</p></li>
 <li><p>no -x/-y options, shape output data as necessary with np.reshape</p></li>
 <li><p>no -P/-PP modes</p></li>
-<li><p>-lr 0 behaves differently from radiance, sets a true reflection limit of 0 rather than disabling limit, for behavior
-approaching radiance, set -lr -1000</p></li>
 <li><p>an additional -c N option repeats each input N times and averages the result. Make sure that uncorrelated sampling
 is used (-U+, default)</p></li>
 <li><p>the default output is -oz, z is an additional output specifier that yields a single photopic brightness per input
@@ -91,7 +89,7 @@ ray.</p></li>
 </div>
 <p>cRtrace can also update the output specification and/or the settings without reloading the scene geometry:</p>
 <div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">instance</span><span class="o">.</span><span class="n">update_ospec</span><span class="p">(</span><span class="s2">&quot;L&quot;</span><span class="p">)</span> <span class="c1"># to query ray distance</span>
-<span class="n">instance</span><span class="o">.</span><span class="n">initialize</span><span class="p">(</span><span class="s2">&quot;rtrace -ab 0 -lr 0&quot;</span><span class="o">.</span><span class="n">split</span><span class="p">())</span> <span class="c1"># note this begins with default arguments, it is not additive with previous settings!</span>
+<span class="n">instance</span><span class="o">.</span><span class="n">initialize</span><span class="p">(</span><span class="s2">&quot;rtrace -ab 0 -lr 1&quot;</span><span class="o">.</span><span class="n">split</span><span class="p">())</span> <span class="c1"># note this begins with default arguments, it is not additive with previous settings!</span>
 <span class="n">raylength</span> <span class="o">=</span> <span class="n">instance</span><span class="p">(</span><span class="n">rays</span><span class="p">)</span>
 </pre></div>
 </div>
@@ -155,6 +153,20 @@ See raytraverse.renderer.Rtrace</p>
 <dt id="raytraverse.crenderer.cRtrace.get_instance">
 <code class="sig-name descname">get_instance</code><span class="sig-paren">(</span><span class="sig-paren">)</span> &#x2192; raytraverse.crenderer.rtrace_c.cRtrace<a class="headerlink" href="#raytraverse.crenderer.cRtrace.get_instance" title="Permalink to this definition">¶</a></dt>
 <dd><p>returns (instantiating if necessary) pointer to Renderer instance.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt id="raytraverse.crenderer.cRtrace.get_sources">
+<code class="sig-name descname">get_sources</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">self</span><span class="p">:</span> <span class="n">raytraverse.crenderer.rtrace_c.cRtrace</span></em><span class="sig-paren">)</span> &#x2192; numpy.ndarray<span class="p">[</span>numpy.float64<span class="p">]</span><a class="headerlink" href="#raytraverse.crenderer.cRtrace.get_sources" title="Permalink to this definition">¶</a></dt>
+<dd><p>return list of sources in model</p>
+<dl class="field-list simple">
+<dt class="field-odd">Returns</dt>
+<dd class="field-odd"><p><strong>ncomp</strong> – number of components renderer will return, or -1 on failure.</p>
+</dd>
+<dt class="field-even">Return type</dt>
+<dd class="field-even"><p>int</p>
+</dd>
+</dl>
 </dd></dl>
 
 <dl class="py method">
@@ -231,7 +243,7 @@ parameters</p>
 
 <dl class="py attribute">
 <dt id="raytraverse.crenderer.cRtrace.version">
-<code class="sig-name descname">version</code><em class="property"> = 'RADIANCE 5.4a (https://github.com/LBNL-ETA/Radiance/tree/c59dce44) compiled 2022-03-01 for raytraverse'</em><a class="headerlink" href="#raytraverse.crenderer.cRtrace.version" title="Permalink to this definition">¶</a></dt>
+<code class="sig-name descname">version</code><em class="property"> = 'RADIANCE 5.4a (https://github.com/LBNL-ETA/Radiance/tree/c59dce44) compiled 2022-03-25 for raytraverse'</em><a class="headerlink" href="#raytraverse.crenderer.cRtrace.version" title="Permalink to this definition">¶</a></dt>
 <dd></dd></dl>
 
 </dd></dl>
@@ -358,7 +370,7 @@ parameters</p>
 
 <dl class="py attribute">
 <dt id="raytraverse.crenderer.cRcontrib.version">
-<code class="sig-name descname">version</code><em class="property"> = 'RADIANCE 5.4a (https://github.com/LBNL-ETA/Radiance/tree/c59dce44) compiled 2022-03-01 for raytraverse'</em><a class="headerlink" href="#raytraverse.crenderer.cRcontrib.version" title="Permalink to this definition">¶</a></dt>
+<code class="sig-name descname">version</code><em class="property"> = 'RADIANCE 5.4a (https://github.com/LBNL-ETA/Radiance/tree/c59dce44) compiled 2022-03-25 for raytraverse'</em><a class="headerlink" href="#raytraverse.crenderer.cRcontrib.version" title="Permalink to this definition">¶</a></dt>
 <dd></dd></dl>
 
 </dd></dl>

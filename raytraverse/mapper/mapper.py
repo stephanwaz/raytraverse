@@ -9,7 +9,7 @@
 import functools
 
 import numpy as np
-from scipy.ndimage.filters import uniform_filter
+from scipy.ndimage import uniform_filter
 
 from raytraverse import translate, io
 

@@ -81,7 +81,7 @@ set(RADIANCE_RT
         m_direct.c m_mirror.c m_mist.c mx_data.c mx_func.c noise3.c normal.c o_cone.c o_face.c
         o_instance.c o_mesh.c p_data.c p_func.c pmap.c pmapamb.c pmapbias.c pmapcontrib.c pmapdata.c
         pmapdiag.c pmapio.c pmapmat.c pmapopt.c pmapparm.c pmaprand.c pmapray.c pmapsrc.c pmaptype.c
-        pmcontrib2.c pmutil.c preload.c renderopts.c source.c sphere.c srcobstr.c srcsamp.c
+        pmcontrib2.c pmutil.c preload.c raytrace.c renderopts.c sphere.c srcobstr.c srcsamp.c
         srcsupp.c t_data.c t_func.c text.c virtuals.c
         )
 
@@ -96,7 +96,7 @@ set(RAYCALLS raycalls.c ${rayp_SOURCES} rayfifo.c)
 # in the radiance source.
 set(RCCALLFILES ${rayp_SOURCES} rayfifo.c)
 
-set(RTFILES duphead.c persist.c source.c pmapray.c)
+set(RTFILES duphead.c persist.c pmapray.c)
 
 #prepend source directories
 list(TRANSFORM rtrad_SOURCES PREPEND Radiance/src/common/)
@@ -105,10 +105,8 @@ list(TRANSFORM RADIANCE_COMMON PREPEND Radiance/src/common/)
 list(TRANSFORM RAYCALLS PREPEND Radiance/src/rt/)
 list(TRANSFORM RCCALLFILES PREPEND Radiance/src/rt/)
 list(TRANSFORM RTFILES PREPEND Radiance/src/rt/)
-#add additional modified sources from parent directory
-#list(APPEND rtrad_SOURCES csrc/calcompcal.c)
-#list(APPEND RADIANCE_RT csrc/func_mod.c)
-list(APPEND RADIANCE_RT csrc/raytrace_lr0.c)
+list(APPEND RADIANCE_RT csrc/source.c)
+list(APPEND RTFILES csrc/source.c)
 
 add_library(rtrad STATIC ${rtrad_SOURCES})
 add_library(radiance STATIC ${VERSION_FILE} ${RADIANCE_COMMON} ${RADIANCE_RT})

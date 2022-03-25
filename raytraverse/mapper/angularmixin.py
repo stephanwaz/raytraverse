@@ -7,7 +7,7 @@
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 # =======================================================================
 import numpy as np
-from scipy.ndimage.filters import uniform_filter
+from scipy.ndimage import uniform_filter
 
 from raytraverse import translate
 

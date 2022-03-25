@@ -13,7 +13,7 @@ from raytraverse.evaluate import retina
 from raytraverse.mapper import ViewMapper
 from scipy.interpolate import LinearNDInterpolator
 from scipy.spatial import ConvexHull
-from scipy.ndimage.filters import gaussian_filter
+from scipy.ndimage import gaussian_filter
 from shapely.geometry import Polygon
 
 
