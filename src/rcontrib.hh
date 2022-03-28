@@ -31,8 +31,10 @@ private:
 
 public:
     static Rcontrib& getInstance();
-    int initialize(pybind11::object arglist);
-    py::array_t<double> operator()(py::array_t<double, py::array::c_style> &vecs) override;
+    int py_initialize(pybind11::object arglist);
+    int initialize(int iargc, char** iargv) override;
+    double* operator()(double* vecs, int rows) override;
+    py::array_t<double> py_call(py::array_t<double, py::array::c_style> &vecs) override;
     void loadscene(char* octname) override;
     static void resetRadiance();
 };

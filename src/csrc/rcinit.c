@@ -335,10 +335,12 @@ rcontrib_init(int argc, char *argv[])
 }
 
 void
-rcontrib_loadscene(char* ocn) {
+rcontrib_loadscene(char* pyoctnm) {
   /* get octree */
-  octname = ocn;
-  readoct(octname, ~(IO_FILES | IO_INFO), &thescene, NULL);
+  char octnm[strlen(pyoctnm) + 1];
+  strcpy(octnm, pyoctnm);
+  readoct(octnm, ~(IO_FILES | IO_INFO), &thescene, NULL);
+  octname = NULL;
   nsceneobjs = nobjects;
 
   /* PMAP: set up & load photon maps */

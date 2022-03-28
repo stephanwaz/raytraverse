@@ -5,6 +5,7 @@
 import os
 import shutil
 
+import clasp.script_tools as cst
 from raytraverse import renderer
 import numpy as np
 import pytest
@@ -28,9 +29,8 @@ def tmpdir(tmp_path_factory):
 def test_rcontrib_call(capfd, tmpdir):
     args = ('-V+ -I+ -ab 2 -ad 60000 -as 30000 -lw 1e-7 -e side:6'
             ' -f scbins.cal -b bin -bn 36 -m skyglow ')
-    # cargs = f"rcontrib -n 5 -h- {args}  sky.oct"
-    # check = cst.pipeline([cargs], inp='rays2.txt',
-    #                      forceinpfile=True)
+    # cargs = f"/Users/stephenwasilewski/dev/raytraverse/src/cmake-build-release/raytcontrib -n 5 {args} sky.oct rays2.txt"
+    # print(cargs)
     check = """0	0	0	0	0	0	0	0	0	0	0	0	0	0	0	0
     0	0	0	0	0	3.856109e-02	3.814993e-02	3.793787e-02
     3.327852e-02	3.296014e-02	3.279520e-02	2.923070e-02
@@ -110,11 +110,17 @@ def test_rcontrib_call(capfd, tmpdir):
     0	0	0"""
     check = np.fromstring(check, sep=' ').reshape(-1, 36, 3)
     check = np.einsum('ikj,j->ik', check, [47.435/179, 119.93/179, 11.635/179])
+
+    # test = cst.pipeline([cargs])
+    # test = np.fromstring(test, sep=' ').reshape(-1, 36)
+    # assert np.allclose(check, test, atol=.03)
+
     r = renderer.Rcontrib(rayargs='-I+ -ab 2 -ad 600 -as 300 -c 100 -lw 1e-5',
                           skyres=30, ground=False, scene="sky.oct")
     vecs = np.loadtxt('rays2.txt')
     test = r(vecs)
-    assert np.allclose(check, test, atol=.03)
     r.reset()
+    assert np.allclose(check, test, atol=.03)
+
 
 

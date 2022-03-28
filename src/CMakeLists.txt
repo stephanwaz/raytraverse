@@ -3,7 +3,8 @@ set(CMAKE_CXX_STANDARD 14)
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 project(raytraverse)
 
-set(PYBIND11_PYTHON_VERSION 3.6)
+set(PYTHON_EXECUTABLE  /usr/local/Cellar/python@3.9/3.9.1_6/bin/python3.9)
+set(PYBIND11_PYTHON_VERSION 3.9)
 
 find_package(X11)
 if(X11_FOUND)
@@ -20,6 +21,7 @@ if("${CMAKE_SYSTEM_NAME}" STREQUAL "Darwin")
     link_directories(/usr/local/lib)
 endif()
 
+#find_package(Python COMPONENTS Interpreter Development REQUIRED)
 add_subdirectory(pybind11)
 include_directories(pybind11/include/pybind11)
 include(pybind11_add_module_libs.cmake)
@@ -143,6 +145,12 @@ endif()
 # target for building 3 craytraverse modules
 ADD_CUSTOM_TARGET(python_all)
 ADD_DEPENDENCIES(python_all rtrace_c rcontrib_c craytraverse)
+
+add_executable(raytcontrib mainrc.cpp render.cpp rcontrib.cpp)
+target_link_libraries(raytcontrib PRIVATE pybind11::embed rcraycalls radiance rtrad rcontribcfiles)
+
+add_executable(rayttrace mainrt.cpp render.cpp rtrace.cpp)
+target_link_libraries(rayttrace PRIVATE pybind11::embed raycalls radiance rtrad rtracecfiles)
 
 # build required radiance executables
 

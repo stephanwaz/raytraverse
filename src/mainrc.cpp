@@ -17,30 +17,24 @@
  * (in ./ray/License.txt) the License is available at
  * https://www.radiance-online.org/download-install/license
  */
-
-#ifndef RAYTRAVERSE_RTRACE_HH
-#define RAYTRAVERSE_RTRACE_HH
-#include "render.hh"
-
-class Rtrace : public Renderer {
-
-private:
-    Rtrace() = default;
-    static Rtrace* renderer;
-
-public:
-    int srcobj = 0;
-    static Rtrace& getInstance();
-    int py_initialize(pybind11::object arglist);
-    int initialize(int iargc, char** iargv) override;
-    double* operator()(double* vecs, int rows) override;
-    py::array_t<double> py_call(py::array_t<double, py::array::c_style> &vecs) override;
-    void loadscene(char* octname) override;
-    int updateOSpec(char *vs);
-    py::array_t<double> getSources();
-    void resetRadiance();
-    void loadsrc(char* srcname, int freesrc);
-};
+#include <iostream>
+#include <pybind11/pybind11.h>
+#include "rcontrib.hh"
 
 
-#endif //RAYTRAVERSE_RTRACE_HH
+int main(int argc, char** argv) {
+  argc -= 2;
+  char *inp = argv[argc + 1];
+
+  Rcontrib& rdr = Rcontrib::getInstance();
+  rdr.initialize(argc, argv);
+  rdr.loadscene(argv[argc]);
+
+  std::vector<double> values;
+  int rows = read_vecs(inp, &values);
+
+  double* buff = rdr(&values[0], rows);
+
+  print_result(buff, rows, rdr.rvc);
+
+}

@@ -47,9 +47,19 @@ void Rcontrib::resetRadiance() {
   rayrc::dcleanup(2);
 }
 
-int Rcontrib::initialize(pybind11::object arglist) {
-  Renderer::initialize(arglist.ptr());
+int Rcontrib::py_initialize(pybind11::object arglist) {
+  Renderer::py_initialize(arglist.ptr());
+//  for(int i = 0; i < argc; i++){
+//    std::cout<<argv[i]<<std::endl;
+//  }
   nproc = rayrc::rcontrib_init(argc, argv);
+  return nproc;
+}
+
+int Rcontrib::initialize(int iargc, char **iargv) {
+  Renderer::initialize(iargc, iargv);
+  nproc = rayrc::rcontrib_init(argc, argv);
+  rvc = rayrc::return_value_count;
   return nproc;
 }
 
@@ -59,15 +69,20 @@ void Rcontrib::loadscene(char* octname) {
   rayrc::rcontrib_loadscene(octree);
 }
 
-py::array_t<double> Rcontrib::operator()(py::array_t<double, py::array::c_style> &vecs) {
+py::array_t<double> Rcontrib::py_call(py::array_t<double, py::array::c_style> &vecs) {
   int rows = vecs.shape(0);
   int cols = rayrc::return_value_count;
   py::buffer_info vbuff = vecs.request();
   auto *vptr = (double *) vbuff.ptr;
   rayrc::rcontrib_call(vptr, rows);
   double* buff = rayrc::output_values;
-
   return py::array_t<double>({rows, cols}, buff);
+}
+
+double* Rcontrib::operator()(double* vecs, int rows){
+  rayrc::rcontrib_call(vecs, rows);
+  double* buff = rayrc::output_values;
+  return buff;
 }
 
 using namespace pybind11::literals;
@@ -101,23 +116,6 @@ Parameters
 ----------
 octee: str
     path to octree file.
-)pbdoc";
-
-const char* doc_load_src =
-        R"pbdoc(arglist (a sequence of strings) must be a member of calling
-instance and persist for duration of program
-
-updates private srcobj parameter for default removing all sources
-
-Parameters
-----------
-srcname: str
-    path to file with source definition.
-freesrc: int, optional
-    number of previous sources to unload (unloads from end of object list
-    only safe if removing sources loaded by this function. If negative removes
-    all sources loaded by this function.
-
 )pbdoc";
 
 const char* doc_call =
@@ -178,9 +176,9 @@ See raytraverse.renderer.Rcontrib
 )pbdoc")
           .def("get_instance", [](){return Rcontrib::getInstance();}, py::return_value_policy::reference, doc_get_instance)
           .def("reset", [](py::args& args){Rcontrib::resetRadiance();}, doc_reset)
-          .def("initialize", &Rcontrib::initialize, "arglist"_a, doc_initialize)
-          .def("load_scene", &Rcontrib::loadscene, "octree"_a, doc_load_src)
-          .def("__call__", &Rcontrib::operator(), "vecs"_a, doc_call)
+          .def("initialize", &Rcontrib::py_initialize, "arglist"_a, doc_initialize)
+          .def("load_scene", &Rcontrib::loadscene, "octree"_a, doc_load_scene)
+          .def("__call__", &Rcontrib::py_call, "vecs"_a, doc_call)
           .def_property_readonly_static("version", [](py::object) { return rayrc::VersionID; });
 
 #ifdef VERSION_INFO

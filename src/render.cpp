@@ -25,7 +25,7 @@
 
 /* -------------------------------------------------------------------------- */
 
-int Renderer::initialize(PyObject *arglist){
+int Renderer::py_initialize(PyObject *arglist){
   //code snippet to convert python sequence of strings to char**
   // from: https://stackoverflow.com/questions/60067092/passing-a-list-of-strings
   // -from-python-to-c-through-pybind11/60068350#60068350
@@ -55,10 +55,20 @@ int Renderer::initialize(PyObject *arglist){
   return 0;
 }
 
+int Renderer::initialize(int iargc, char** iargv) {
+  argc = iargc;
+  argv = iargv;
+  return 0;
+}
+
 void Renderer::loadscene(char* octname) {
   octree = octname;
 }
 
-py::array_t<double> Renderer::operator()(py::array_t<double, py::array::c_style> &vecs) {
+py::array_t<double> Renderer::py_call(py::array_t<double, py::array::c_style> &vecs) {
   return py::array_t<double>();
+}
+
+double* Renderer::operator()(double* vecs, int rows){
+  return vecs;
 }

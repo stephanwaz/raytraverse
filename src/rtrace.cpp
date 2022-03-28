@@ -33,18 +33,6 @@ namespace ray{
 
 Rtrace* Rtrace::renderer = nullptr;
 
-py::array_t<double> Rtrace::operator()(py::array_t<double, py::array::c_style> &vecs) {
-  int rows = vecs.shape(0);
-  int cols = ray::return_value_count;
-  py::buffer_info vbuff = vecs.request();
-  auto *vptr = (double *) vbuff.ptr;
-
-  double* buff = ray::rtrace_call(vptr, nproc, vecs.shape(0));
-
-  return py::array_t<double>({rows, cols}, buff);
-
-}
-
 Rtrace& Rtrace::getInstance() {
   if (not Rtrace::renderer) {
     Rtrace::renderer = new Rtrace;
@@ -59,15 +47,55 @@ void Rtrace::resetRadiance() {
   srcobj = 0;
 }
 
-int Rtrace::initialize(pybind11::object arglist) {
-  Renderer::initialize(arglist.ptr());
+int Rtrace::py_initialize(pybind11::object arglist) {
+  Renderer::py_initialize(arglist.ptr());
   ray::ray_restore(nullptr);
   nproc = ray::rtinit(argc, argv);
   return nproc;
 }
 
+int Rtrace::initialize(int iargc, char **iargv) {
+  Renderer::initialize(iargc, iargv);
+  ray::ray_restore(nullptr);
+  nproc = ray::rtinit(argc, argv);
+  return nproc;
+}
+
+void Rtrace::loadscene(char *octname) {
+  Renderer::loadscene(octname);
+  ray::ray_done(0);
+  nproc = ray::rtinit(argc, argv);
+  rvc = ray::return_value_count;
+  ray::rtrace_loadscene(octree);
+  ray::rtrace_loadsrc(nullptr, 0);
+}
+
+py::array_t<double> Rtrace::py_call(py::array_t<double, py::array::c_style> &vecs) {
+  int rows = vecs.shape(0);
+  int cols = ray::return_value_count;
+  py::buffer_info vbuff = vecs.request();
+  auto *vptr = (double *) vbuff.ptr;
+
+  double* buff = ray::rtrace_call(vptr, nproc, vecs.shape(0));
+
+  return py::array_t<double>({rows, cols}, buff);
+}
+
+double* Rtrace::operator()(double* vecs, int rows){
+  double* buff = ray::rtrace_call(vecs, nproc, rows);
+  return buff;
+}
+
 int Rtrace::updateOSpec(char *vs) {
-  return ray::setoutput2(vs);
+  rvc = ray::setoutput2(vs);
+  return rvc;
+
+}
+
+void Rtrace::loadsrc(char *srcname, int freesrc) {
+  if (freesrc < 0)
+    freesrc = srcobj;
+  srcobj += ray::rtrace_loadsrc(srcname, freesrc);
 }
 
 py::array_t<double> Rtrace::getSources() {
@@ -83,20 +111,6 @@ py::array_t<double> Rtrace::getSources() {
 
   }
   return sources;
-}
-
-void Rtrace::loadscene(char *octname) {
-  Renderer::loadscene(octname);
-  ray::ray_done(0);
-  nproc = ray::rtinit(argc, argv);
-  ray::rtrace_loadscene(octree);
-  ray::rtrace_loadsrc(nullptr, 0);
-}
-
-void Rtrace::loadsrc(char *srcname, int freesrc) {
-  if (freesrc < 0)
-    freesrc = srcobj;
-  srcobj += ray::rtrace_loadsrc(srcname, freesrc);
 }
 
 using namespace pybind11::literals;
@@ -252,11 +266,11 @@ See raytraverse.renderer.Rtrace
 )pbdoc")
           .def("get_instance", [](){return Rtrace::getInstance();}, py::return_value_policy::reference, doc_get_instance)
           .def("reset", &Rtrace::resetRadiance, doc_reset)
-          .def("initialize", &Rtrace::initialize, "arglist"_a, doc_initialize)
+          .def("initialize", &Rtrace::py_initialize, "arglist"_a, doc_initialize)
           .def("load_scene", &Rtrace::loadscene, "octree"_a, doc_load_scene)
           .def("load_source", &Rtrace::loadsrc, "srcname"_a, "freesrc"_a=-1, doc_load_src)
           .def("get_sources", &Rtrace::getSources, doc_get_sources)
-          .def("__call__", &Rtrace::operator(), "vecs"_a, doc_call)
+          .def("__call__", &Rtrace::py_call, "vecs"_a, doc_call)
           .def("update_ospec", &Rtrace::updateOSpec, "vs"_a, doc_update_ospec)
           .def_property_readonly_static("version", [](py::object) { return ray::VersionID; });
 
