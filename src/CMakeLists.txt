@@ -3,9 +3,6 @@ set(CMAKE_CXX_STANDARD 14)
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 project(raytraverse)
 
-set(PYTHON_EXECUTABLE  /usr/local/Cellar/python@3.9/3.9.1_6/bin/python3.9)
-set(PYBIND11_PYTHON_VERSION 3.9)
-
 find_package(X11)
 if(X11_FOUND)
     if(APPLE)
@@ -21,7 +18,7 @@ if("${CMAKE_SYSTEM_NAME}" STREQUAL "Darwin")
     link_directories(/usr/local/lib)
 endif()
 
-#find_package(Python COMPONENTS Interpreter Development REQUIRED)
+find_package(Python COMPONENTS Interpreter Development REQUIRED)
 add_subdirectory(pybind11)
 include_directories(pybind11/include/pybind11)
 include(pybind11_add_module_libs.cmake)
@@ -83,7 +80,7 @@ set(RADIANCE_RT
         m_direct.c m_mirror.c m_mist.c mx_data.c mx_func.c noise3.c normal.c o_cone.c o_face.c
         o_instance.c o_mesh.c p_data.c p_func.c pmap.c pmapamb.c pmapbias.c pmapcontrib.c pmapdata.c
         pmapdiag.c pmapio.c pmapmat.c pmapopt.c pmapparm.c pmaprand.c pmapray.c pmapsrc.c pmaptype.c
-        pmcontrib2.c pmutil.c preload.c raytrace.c renderopts.c sphere.c srcobstr.c srcsamp.c
+        pmcontrib2.c pmutil.c preload.c raytrace.c renderopts.c source.c sphere.c srcobstr.c srcsamp.c
         srcsupp.c t_data.c t_func.c text.c virtuals.c
         )
 
@@ -107,8 +104,17 @@ list(TRANSFORM RADIANCE_COMMON PREPEND Radiance/src/common/)
 list(TRANSFORM RAYCALLS PREPEND Radiance/src/rt/)
 list(TRANSFORM RCCALLFILES PREPEND Radiance/src/rt/)
 list(TRANSFORM RTFILES PREPEND Radiance/src/rt/)
-list(APPEND RADIANCE_RT csrc/source.c)
-list(APPEND RTFILES csrc/source.c)
+
+
+add_library(rtrad_o STATIC ${rtrad_SOURCES})
+add_library(radiance_o STATIC ${VERSION_FILE} ${RADIANCE_COMMON} ${RADIANCE_RT})
+
+# patch
+list(TRANSFORM rtrad_SOURCES REPLACE Radiance/src/common/caldefn.c csrc/caldefncal.c)
+list(TRANSFORM RADIANCE_RT   REPLACE Radiance/src/rt/func.c csrc/funccal.c)
+list(TRANSFORM RADIANCE_RT   REPLACE Radiance/src/rt/source.c csrc/source.c)
+
+
 
 add_library(rtrad STATIC ${rtrad_SOURCES})
 add_library(radiance STATIC ${VERSION_FILE} ${RADIANCE_COMMON} ${RADIANCE_RT})
@@ -116,6 +122,8 @@ add_library(raycalls STATIC ${RAYCALLS})
 add_library(rcraycalls STATIC csrc/rcraycalls.c ${RCCALLFILES})
 add_library(rtracecfiles STATIC csrc/rtinit.c csrc/rtraceparts.c ${RTFILES} ${VERSION_FILE})
 add_library(rcontribcfiles STATIC csrc/rcinit.c csrc/rcontribparts.c csrc/rc3_mod.c csrc/rc2_mod.c ${VERSION_FILE})
+target_include_directories(rtrad_o PRIVATE Radiance/src/rt)
+target_include_directories(radiance_o PRIVATE Radiance/src/rt)
 target_include_directories(rtrad PRIVATE Radiance/src/rt)
 target_include_directories(radiance PRIVATE Radiance/src/rt)
 target_include_directories(raycalls PRIVATE Radiance/src/rt)
@@ -123,12 +131,21 @@ target_include_directories(rcraycalls PRIVATE Radiance/src/rt)
 target_include_directories(rtracecfiles PRIVATE Radiance/src/rt)
 target_include_directories(rcontribcfiles PRIVATE Radiance/src/rt)
 
+set_property(TARGET rtrad_o PROPERTY C_STANDARD 99)
+set_property(TARGET radiance_o PROPERTY C_STANDARD 99)
+set_property(TARGET rtrad PROPERTY C_STANDARD 99)
+set_property(TARGET radiance PROPERTY C_STANDARD 99)
+set_property(TARGET raycalls PROPERTY C_STANDARD 99)
+set_property(TARGET rcraycalls PROPERTY C_STANDARD 99)
+set_property(TARGET rtracecfiles PROPERTY C_STANDARD 99)
+set_property(TARGET rcontribcfiles PROPERTY C_STANDARD 99)
+
 target_link_libraries(rtrad ${LIB_M})
 
 # rtrace and rcontrib are built seperately to avoid namespace conflicts
 pybind11_add_module(craytraverse pyhelpers.cpp)
-pybind11_add_module_libs(rtrace_c MODULE render.cpp rtrace.cpp LINKLIBS raycalls radiance rtrad rtracecfiles)
-pybind11_add_module_libs(rcontrib_c MODULE render.cpp rcontrib.cpp LINKLIBS rcraycalls radiance rtrad rcontribcfiles)
+pybind11_add_module_libs(rtrace_c MODULE render.cpp rtrace.cpp LINKLIBS rtracecfiles raycalls radiance rtrad)
+pybind11_add_module_libs(rcontrib_c MODULE render.cpp rcontrib.cpp LINKLIBS rcontribcfiles rcraycalls radiance rtrad)
 
 if(SKBUILD)
     set_target_properties(craytraverse PROPERTIES LIBRARY_OUTPUT_DIRECTORY "raytraverse/")
@@ -147,10 +164,10 @@ ADD_CUSTOM_TARGET(python_all)
 ADD_DEPENDENCIES(python_all rtrace_c rcontrib_c craytraverse)
 
 add_executable(raytcontrib mainrc.cpp render.cpp rcontrib.cpp)
-target_link_libraries(raytcontrib PRIVATE pybind11::embed rcraycalls radiance rtrad rcontribcfiles)
+target_link_libraries(raytcontrib PRIVATE pybind11::embed rcontribcfiles rcraycalls radiance rtrad)
 
 add_executable(rayttrace mainrt.cpp render.cpp rtrace.cpp)
-target_link_libraries(rayttrace PRIVATE pybind11::embed raycalls radiance rtrad rtracecfiles)
+target_link_libraries(rayttrace PRIVATE pybind11::embed rtracecfiles raycalls radiance rtrad)
 
 # build required radiance executables
 
@@ -158,12 +175,12 @@ target_link_libraries(rayttrace PRIVATE pybind11::embed raycalls radiance rtrad 
 set(RTRACEFILES rtmain.c rtrace.c duphead.c persist.c)
 list(TRANSFORM RTRACEFILES PREPEND Radiance/src/rt/)
 add_executable(rtrace ${RTRACEFILES})
-target_link_libraries(rtrace raycalls radiance rtrad)
+target_link_libraries(rtrace raycalls radiance_o rtrad_o)
 
 set(RCONTRIBFILES rcmain.c rcontrib.c rc2.c rc3.c)
 list(TRANSFORM RCONTRIBFILES PREPEND Radiance/src/rt/)
 add_executable(rcontrib ${RCONTRIBFILES})
-target_link_libraries(rcontrib radiance rtrad)
+target_link_libraries(rcontrib radiance_o rtrad_o)
 
 # from util
 add_executable(getinfo Radiance/src/util/getinfo.c)
@@ -220,28 +237,3 @@ target_link_libraries(gendaylit rtrad ${LIB_M})
 
 add_executable(xform Radiance/src/gen/xform.c)
 target_link_libraries(xform rtrad)
-
-#if(NOT SKBUILD)
-#
-#set(ALLTARGETS rtrad radiance raycalls rcraycalls rtracecfiles rcontribcfiles rtrace_c rcontrib_c
-#        craytraverse rtrace rcontrib  total cnt rcalc getinfo vwrays pvalue pcompos pcomb oconv gendaylit)
-#
-#set(ALLSOURCES)
-#foreach(TGT IN ITEMS ${ALLTARGETS})
-#    get_target_property(TGTSOURCES ${TGT} SOURCES)
-#    foreach(SRC IN ITEMS ${TGTSOURCES})
-#        list(APPEND ALLSOURCES ${SRC})
-#        endforeach()
-#    endforeach()
-#list(REMOVE_DUPLICATES ALLSOURCES)
-#list(FILTER ALLSOURCES EXCLUDE REGEX ^/.*)
-#list(TRANSFORM ALLSOURCES PREPEND src/)
-#
-#foreach(SRC IN ITEMS ${ALLSOURCES})
-#    message(${SRC})
-#endforeach()
-#
-#string(REPLACE ";" "\n" TOWRITE "${ALLSOURCES}")
-#file(WRITE MANIFEST "${TOWRITE}")
-#
-#endif()

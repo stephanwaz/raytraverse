@@ -21,9 +21,9 @@ function(pybind11_add_module_libs target_name)
   endif()
 
   add_library(${target_name} ${lib_type} ${exclude_from_all} ${ARG_UNPARSED_ARGUMENTS})
-
-  target_link_libraries(${target_name} PRIVATE pybind11::module)
   target_link_libraries(${target_name} PRIVATE ${ARG_LINKLIBS})
+  target_link_libraries(${target_name} PRIVATE pybind11::module)
+
 
   if(ARG_SYSTEM)
     message(
