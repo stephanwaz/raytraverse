@@ -29,9 +29,9 @@ class Rcontrib(RadianceRenderer):
     nproc: int, optional
         if None, sets nproc to cpu count, or the RAYTRAVERSE_PROC_CAP
         environment variable
-    skyres: float, optional
-        approximate resolution for skypatch subdivision (in degrees). Patches
-        will have (rounded) size skyres x skyres. So if skyres=10, each patch
+    skyres: int, optional
+        resolution of sky patches (sqrt(patches / hemisphere)).
+        So if skyres=18, each patch
         will be 100 sq. degrees (0.03046174197 steradians) and there will be
         18 * 18 = 324 sky patches.
     modname: str, optional
@@ -54,19 +54,19 @@ class Rcontrib(RadianceRenderer):
     #: raytraverse.crenderer.cRcontrib
     engine = cRcontrib
     ground = True
-    side = 18
+    skyres = 18
     srcn = 325
     modname = "skyglow"
 
     def __init__(self, rayargs=None, scene=None, nproc=None,
-                 skyres=10.0, modname='skyglow', ground=True,
+                 skyres=18, modname='skyglow', ground=True,
                  default_args=True):
         scene = self.setup(scene, ground, modname, skyres)
         super().__init__(rayargs, scene, nproc=nproc,
                          default_args=default_args)
 
     @classmethod
-    def setup(cls, scene=None, ground=True, modname="skyglow", skyres=10.0):
+    def setup(cls, scene=None, ground=True, modname="skyglow", skyres=18):
         """set class attributes for proper argument initialization
 
         Parameters
@@ -78,10 +78,10 @@ class Rcontrib(RadianceRenderer):
         modname: str, optional
             passed the -m option of cRcontrib initialization
         skyres: float, optional
-            approximate resolution for skypatch subdivision (in degrees). Patches
-            will have (rounded) size skyres x skyres. So if skyres=10, each patch
-            will be 100 sq. degrees (0.03046174197 steradians) and there will be
-            18 * 18 = 324 sky patches.
+            resolution of sky patches (sqrt(patches / hemisphere)).
+            So if skyres=10, each patch will be 100 sq. degrees
+            (0.03046174197 steradians) and there will be 18 * 18 = 324 sky
+            patches.
 
         Returns
         -------
@@ -93,8 +93,8 @@ class Rcontrib(RadianceRenderer):
         if scene is not None:
             srcdef = Fmt.get_skydef((1, 1, 1), ground=ground, name=modname)
             scene = Fmt.add_source(scene, srcdef)
-        cls.side = int(np.floor(90/skyres)*2)
-        cls.srcn = cls.side**2 + ground
+        cls.skyres = skyres
+        cls.srcn = cls.skyres**2 + ground
         cls.modname = modname
         return scene
 
@@ -117,6 +117,6 @@ class Rcontrib(RadianceRenderer):
             cpu limit
 
         """
-        args = (f" -V+ {args} -w- -e 'side:{cls.side}' -f scbins.cal "
+        args = (f" -V+ {args} -w- -e 'side:{cls.skyres}' -f scbins.cal "
                 f"-b bin -bn {cls.srcn} -m {cls.modname}")
         super().set_args(args, nproc)

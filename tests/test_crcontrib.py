@@ -116,7 +116,7 @@ def test_rcontrib_call(capfd, tmpdir):
     # assert np.allclose(check, test, atol=.03)
 
     r = renderer.Rcontrib(rayargs='-I+ -ab 2 -ad 600 -as 300 -c 100 -lw 1e-5',
-                          skyres=30, ground=False, scene="sky.oct")
+                          skyres=6, ground=False, scene="sky.oct")
     vecs = np.loadtxt('rays2.txt')
     test = r(vecs)
     r.reset()

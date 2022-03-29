@@ -276,9 +276,8 @@ def suns(ctx, loc=None, opts=False, debug=False, version=False, epwloc=False,
                    "correct model north, equivalent to clockwise rotation of "
                    "scene)")
 @click.option("-ground_fac", default=0.2, help="ground reflectance")
-@click.option("-skyres", default=12.0,
-              help="approximate square patch size in degrees (must match "
-                   "argument given to skyengine)")
+@click.option("-skyres", default=15,
+              help="resolution of sky patches (sqrt(patches / hemisphere)).")
 @click.option("-minalt", default=2.0,
               help="minimum solar altitude for daylight masking")
 @click.option("-mindiff", default=5.0,
@@ -333,12 +332,9 @@ def skydata(ctx, wea=None, name="skydata", loc=None, reload=True, opts=False,
 
 @main.command()
 @clk.shared_decs(engine_opts)
-@click.option("-skyres", default=12.0,
-              help="approximate resolution for skypatch subdivision (in "
-                   "degrees). Patches will have (rounded) size skyres x skyres."
-                   " So if skyres=10, each patch will be 100 sq. degrees "
-                   "(0.03046174197 steradians) and there will be 18 * 18 = "
-                   "324 sky patches. Must match argument givein to skydata")
+@click.option("-skyres", default=15,
+              help="resolution of sky patches (sqrt(patches / hemisphere))."
+                   "Must match argument givein to skydata")
 @click.option('-nlev', default=5,
               help='number of directional sampling levels, yielding a final'
                    'resolution of idres^2 * 2^(nlev) samples per hemisphere')
@@ -347,7 +343,7 @@ def skydata(ctx, wea=None, name="skydata", loc=None, reload=True, opts=False,
                    "using, set -ab in sunengine.rayargs to this ab minus one.")
 @clk.shared_decs(clk.command_decs(raytraverse.__version__, wrap=True))
 def skyengine(ctx, accuracy=1.0, vlt=0.64, idres=32, rayargs=None,
-              default_args=True, skyres=10.0, nlev=5, dcompargs='-ab 1',
+              default_args=True, skyres=15, nlev=5, dcompargs='-ab 1',
               usedecomp=False, opts=False, debug=False, version=None, **kwargs):
     """initialize engine for skyrun
 

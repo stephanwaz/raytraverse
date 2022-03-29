@@ -33,8 +33,8 @@ class SkyData(object):
     intersky: bool, optional
         include interreflection between ground and sky (mimics perezlum.cal,
         not present in gendaymtx)
-    skyres: float, optional
-        approximate square patch size in degrees
+    skyres: int, optional
+        resolution of sky patches (sqrt(patches / hemisphere))
     minalt: float, optional
         minimum solar altitude for daylight masking
     mindiff: float, optional
@@ -42,7 +42,8 @@ class SkyData(object):
     """
 
     def __init__(self, wea, loc=None, skyro=0.0, ground_fac=0.2, intersky=True,
-                 skyres=12.0, minalt=2.0, mindiff=5.0, mindir=0.0):
+                 skyres=15, minalt=2.0, mindiff=5.0, mindir=0.0):
+        #: sky patach resolution
         self.skyres = skyres
         self.intersky = intersky
         if wea is None:
@@ -67,19 +68,6 @@ class SkyData(object):
         self._sunproxy = None
         self.skydata = wea
         self.mask = None
-
-    @property
-    def skyres(self):
-        return self._skyres
-
-    @property
-    def side(self):
-        return self._side
-
-    @skyres.setter
-    def skyres(self, s):
-        self._side = int(np.floor(90/s)*2)
-        self._skyres = s
 
     @property
     def skyro(self):
@@ -132,16 +120,16 @@ class SkyData(object):
                 md = md[daymask]
             if hasattr(td, "__len__"):
                 td = td[daymask]
-            smtx, grnd, sun = skycalc.sky_mtx(sxyz, dirdif, self.side, md=md,
+            smtx, grnd, sun = skycalc.sky_mtx(sxyz, dirdif, self.skyres, md=md,
                                               ground_fac=self.ground_fac, td=td,
                                               intersky=self.intersky)
             # ratio between actual solar disc and patch
-            omegar = np.square(0.2665 * np.pi * self.side / 180) * .5
+            omegar = np.square(0.2665 * np.pi * self.skyres / 180) * .5
             plum = sun[:, -1] * omegar
             sun = np.hstack((sun, plum[:, None]))
             smtx = np.hstack((smtx, grnd[:, None]))
         else:
-            smtx = np.ones((1, self.side**2+1))
+            smtx = np.ones((1, self.skyres**2+1))
             sun = np.array([[0, 0, 1, 0, 0]])
             daymask = np.array([True])
             skydata = np.array([[0, 0, 1, 0, 1]])
@@ -190,8 +178,7 @@ class SkyData(object):
                 rowlabel = result['rowlabel']
             except (ValueError, KeyError):
                 rowlabel = None
-            self._side = int(np.sqrt(smtx.shape[1] - 1))
-            self._skyres = 180 / self._side
+            self.skyres = int(np.sqrt(smtx.shape[1] - 1))
             return skydata, smtx, sun, daymask, rowlabel
 
     def format_skydata(self, dat):
@@ -286,7 +273,7 @@ class SkyData(object):
 
     @property
     def smtx(self):
-        """shape (np.sum(daymask), side**2 + 1) coefficients for each sky
+        """shape (np.sum(daymask), skyres**2 + 1) coefficients for each sky
         patch each row is a timestep, coefficients exclude sun"""
         return self._smtx[self.mask]
 
@@ -304,7 +291,7 @@ class SkyData(object):
 
     @sunproxy.setter
     def sunproxy(self, sxyz):
-        self._sunproxy = translate.xyz2skybin(sxyz, self.side)
+        self._sunproxy = translate.xyz2skybin(sxyz, self.skyres)
 
     def smtx_patch_sun(self, includesky=True):
         """generate smtx with solar energy applied to proxy patch
@@ -400,6 +387,10 @@ class SkyData(object):
             render sky patches with grid lines
         sun: bool, optional
             include sun source in rad file
+        ground: bool, optional
+            include ground source
+        sunpatch: bool, optional
+            include sun energy in sun_patch (sun should be false)
 
         Returns
         -------
@@ -432,7 +423,7 @@ class SkyData(object):
             f.write(RadFmt.get_sundef(self.sun[mi, 0:3], c))
         f.close()
         f = open(f"{outf}.cal", 'w')
-        f.write(f"side:{self.side};\n{translate.scbinscal}")
+        f.write(f"side:{self.skyres};\n{translate.scbinscal}")
         f.close()
         if sunpatch:
             data = self.smtx_patch_sun()[mi]

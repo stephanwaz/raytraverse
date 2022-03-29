@@ -249,7 +249,7 @@ def padsky(ctx, wea=None, loc=None, opts=False,
         raise click.Abort
     if loc is not None:
         loc = (loc[0], loc[1], int(loc[2]))
-    sd = SkyData(wea, loc=loc, skyres=60, **kwargs)
+    sd = SkyData(wea, loc=loc, skyres=3, **kwargs)
     if len(data) != sd.daysteps:
         raise ValueError(f"data has {len(data)} rows, but {sd.daysteps} were "
                          f"expected by SkyData")
