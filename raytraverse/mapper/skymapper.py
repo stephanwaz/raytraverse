@@ -9,7 +9,7 @@
 import numpy as np
 from matplotlib.path import Path
 
-from raytraverse import translate
+from raytraverse import translate, io
 from raytraverse.sky import skycalc
 from raytraverse.mapper.mapper import Mapper
 from raytraverse.mapper.angularmixin import AngularMixin
@@ -258,9 +258,9 @@ class SkyMapper(AngularMixin, Mapper):
 
     def _load_sun_data(self, wea):
         try:
-            dat = np.atleast_2d(np.loadtxt(wea))
+            dat = np.atleast_2d(io.load_txt(wea))
             self._norm_input_data(dat)
-        except (TypeError, AttributeError):
+        except ValueError:
             loc = skycalc.get_loc_epw(wea)
             wdat = skycalc.read_epw(wea)
             times = skycalc.row_2_datetime64(wdat[:, 0:3])[wdat[:, 3] > 0]

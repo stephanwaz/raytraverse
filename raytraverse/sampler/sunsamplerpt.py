@@ -10,7 +10,7 @@ import tempfile
 
 import numpy as np
 
-from raytraverse import translate
+from raytraverse import translate, io
 from raytraverse.lightpoint import LightPointKD
 from raytraverse.mapper import ViewMapper
 from raytraverse.sampler.samplerpt import SamplerPt
@@ -66,9 +66,9 @@ class SunSamplerPt(SamplerPt):
         sunr = []
         if hasattr(specguide, "lower"):
             try:
-                refl = translate.norm(np.loadtxt(specguide).reshape(-1, 3))
+                refl = translate.norm(io.load_txt(specguide).reshape(-1, 3))
                 sunr = translate.reflect(self.sunpos.reshape(1, 3), refl, True)
-            except (OSError, ValueError, FileNotFoundError):
+            except (ValueError, FileNotFoundError):
                 pass
         if len(sunr) > 0:
             reflsize = np.full((len(sunr), 1), 1.066)

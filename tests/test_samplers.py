@@ -71,7 +71,8 @@ def test_skysample(tmpdir):
 def test_sunsample(tmpdir):
 
     def img_illum(lf0, vm0):
-        outf = lf0.direct_view(res=512, showsample=False, scalefactor=285.32)
+        outf = lf0.direct_view(res=512, showsample=False, scalefactor=285.32,
+                               vm=vm0)
         hdr = io.hdr2array(outf)
         vecs = vm0.pixelrays(512)
         pxs = vm0.pixels(512).reshape(-1, 2)

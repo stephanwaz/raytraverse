@@ -8,6 +8,8 @@
 import numpy as np
 from scipy.spatial import cKDTree
 
+from raytraverse import io
+
 
 class LightField(object):
     """collection of light data with KDtree structure for spatial query
@@ -103,8 +105,8 @@ class LightField(object):
     @staticmethod
     def _load_vecs(pt):
         try:
-            pts = np.atleast_2d(np.loadtxt(pt))
-        except (TypeError, AttributeError):
+            pts = np.atleast_2d(io.load_txt(pt))
+        except TypeError:
             pts = pt
         if pts.shape[-1] == 3:
             idx = np.arange(pts.shape[0])

@@ -195,12 +195,12 @@ class SkyData(object):
         md = None
         td = 10.9735311509
         rowlabel = None
-        if hasattr(dat, 'shape'):
+        if isinstance(dat, np.ndarray):
             skydat = dat
         else:
             try:
-                skydat = np.loadtxt(dat)
-            except (ValueError, AttributeError):
+                skydat = io.load_txt(dat)
+            except ValueError:
                 if loc is None:
                     loc = skycalc.get_loc_epw(dat)
                 skydat = skycalc.read_epw(dat)

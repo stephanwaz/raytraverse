@@ -12,6 +12,7 @@ import numpy as np
 from clasp import click
 import clasp.click_ext as clk
 
+from raytraverse import io
 from raytraverse.lightfield import LightResult, ZonalLightResult
 from raytraverse.sky import SkyData
 
@@ -32,9 +33,9 @@ def np_load(ctx, param, s):
             ar = np.load(s)
         except ValueError:
             try:
-                ar = np.loadtxt(s)
-            except (ValueError, AttributeError):
-                ar = np.loadtxt(s, skiprows=1)
+                ar = io.load_txt(s)
+            except ValueError:
+                ar = io.load_txt(s, skiprows=1)
         if len(ar.shape) == 1:
             ar = ar.reshape(1, -1)
         return ar

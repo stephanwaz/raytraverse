@@ -12,6 +12,7 @@ import os
 
 import numpy as np
 
+from raytraverse import io
 from raytraverse.integrator import ZonalIntegrator, ZonalIntegratorDS
 from raytraverse.integrator import Integrator, IntegratorDS, IntegratorDV
 from raytraverse.scene import Scene
@@ -76,8 +77,8 @@ def load_lp(path, hasparent=True):
     scn = Scene(scndir)
     pidx = int(ftree[-1].split(".")[0])
     try:
-        pts = np.loadtxt(path.replace(f"/{ftree[-1]}", "_points.tsv"))
-    except (FileNotFoundError, OSError):
+        pts = io.load_txt(path.replace(f"/{ftree[-1]}", "_points.tsv"))
+    except FileNotFoundError:
         pt = (0, 0, 0)
     else:
         try:

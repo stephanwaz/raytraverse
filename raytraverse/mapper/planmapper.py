@@ -13,7 +13,7 @@ from matplotlib.path import Path
 from shapely.geometry import Polygon
 from scipy.spatial import ConvexHull
 
-from raytraverse import translate
+from raytraverse import translate, io
 from raytraverse.mapper.mapper import Mapper
 
 
@@ -100,9 +100,9 @@ class PlanMapper(Mapper):
     def update_bbox(self, plane, level=0, updatez=True):
         """handle bounding box generation from plane or points"""
         try:
-            points = np.atleast_2d(np.loadtxt(plane))[:, 0:3]
+            points = np.atleast_2d(io.load_txt(plane))[:, 0:3]
             paths, z = self._calc_border(points, level)
-        except (TypeError, AttributeError):
+        except TypeError:
             points = np.atleast_2d(plane)[:, 0:3]
             paths, z = self._calc_border(points, level)
         except ValueError:

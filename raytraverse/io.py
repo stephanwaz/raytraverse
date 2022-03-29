@@ -282,3 +282,40 @@ def rgbe2lum(rgbe):
     rgb = np.where(rgbe[:, 0:3] == 0, 0, (rgbe[:, 0:3] + 0.5) * v)
     # luminance = 179 * (0.265*R + 0.670*G + 0.065*B)
     return rgb2lum(rgb)
+
+
+def load_txt(farray, **kwargs):
+    """consistent error handing of np.loadtxt
+
+    Parameters
+    ----------
+    farray: any
+        candidate to load
+    kwargs:
+        passed to np.loadtxt
+
+    Returns
+    -------
+    np.array
+
+    Raises
+    ------
+    ValueError:
+        file exists, but is not loadable
+    FileNotFoundError:
+        farray is str, but file does not exist
+    TypeError:
+        farray is not str or bytes.
+
+    """
+    if isinstance(farray, (str, bytes)):
+        if os.path.isfile(farray):
+            try:
+                return np.loadtxt(farray, **kwargs)
+            except (ValueError, AttributeError):
+                raise ValueError
+        else:
+            raise FileNotFoundError
+    else:
+        raise TypeError
+
