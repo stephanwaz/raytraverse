@@ -57,7 +57,7 @@ if [ "$answer" != "${answer#[Yy]}" ] ;then
             else
                 bumpversion --tag --commit "$1"
             fi
-            make dist
+            bash dist_versions.sh
             make coverall
             echo -n "ok to push (y/n)? "
             read -r answer

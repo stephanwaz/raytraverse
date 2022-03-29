@@ -13,7 +13,6 @@ if(X11_FOUND)
 
 # for mac os
 if("${CMAKE_SYSTEM_NAME}" STREQUAL "Darwin")
-    set(MACOSX_DEPLOYMENT_TARGET 10.9)
     include_directories(/usr/local/include)
     link_directories(/usr/local/lib)
 endif()
