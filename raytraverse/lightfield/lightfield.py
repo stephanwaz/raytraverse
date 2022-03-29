@@ -104,7 +104,7 @@ class LightField(object):
     def _load_vecs(pt):
         try:
             pts = np.atleast_2d(np.loadtxt(pt))
-        except TypeError:
+        except (TypeError, AttributeError):
             pts = pt
         if pts.shape[-1] == 3:
             idx = np.arange(pts.shape[0])

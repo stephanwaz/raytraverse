@@ -213,7 +213,7 @@ class SkyData(object):
         else:
             try:
                 skydat = np.loadtxt(dat)
-            except ValueError:
+            except (ValueError, AttributeError):
                 if loc is None:
                     loc = skycalc.get_loc_epw(dat)
                 skydat = skycalc.read_epw(dat)

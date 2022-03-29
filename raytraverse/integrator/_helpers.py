@@ -243,7 +243,7 @@ def apply_dsky_patch(skp, skd, skyvecs, skdir, dirlum=None):
     try:
         refl = np.loadtxt(f"{skp.scene.outdir}/{skp.parent}/"
                           f"reflection_normals.txt")
-    except OSError:
+    except (FileNotFoundError, OSError):
         refl = None
     else:
         refl = translate.norm(refl.reshape(-1, 3))

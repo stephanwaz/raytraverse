@@ -33,7 +33,7 @@ def np_load(ctx, param, s):
         except ValueError:
             try:
                 ar = np.loadtxt(s)
-            except ValueError:
+            except (ValueError, AttributeError):
                 ar = np.loadtxt(s, skiprows=1)
         if len(ar.shape) == 1:
             ar = ar.reshape(1, -1)

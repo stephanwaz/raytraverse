@@ -102,7 +102,7 @@ class PlanMapper(Mapper):
         try:
             points = np.atleast_2d(np.loadtxt(plane))[:, 0:3]
             paths, z = self._calc_border(points, level)
-        except TypeError:
+        except (TypeError, AttributeError):
             points = np.atleast_2d(plane)[:, 0:3]
             paths, z = self._calc_border(points, level)
         except ValueError:

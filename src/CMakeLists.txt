@@ -141,6 +141,7 @@ set_property(TARGET rtracecfiles PROPERTY C_STANDARD 99)
 set_property(TARGET rcontribcfiles PROPERTY C_STANDARD 99)
 
 target_link_libraries(rtrad ${LIB_M})
+target_link_libraries(rtrad_o ${LIB_M})
 
 # rtrace and rcontrib are built seperately to avoid namespace conflicts
 pybind11_add_module(craytraverse pyhelpers.cpp)

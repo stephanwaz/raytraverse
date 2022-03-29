@@ -117,7 +117,7 @@ class SamplerSuns(BaseSampler):
                  f"{self.stype}.tsv")
         try:
             suns = np.loadtxt(vfile)
-        except OSError:
+        except (FileNotFoundError, OSError):
             suns = None
         except ValueError:
             suns = None

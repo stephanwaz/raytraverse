@@ -260,7 +260,7 @@ class SkyMapper(AngularMixin, Mapper):
         try:
             dat = np.atleast_2d(np.loadtxt(wea))
             self._norm_input_data(dat)
-        except ValueError:
+        except (TypeError, AttributeError):
             loc = skycalc.get_loc_epw(wea)
             wdat = skycalc.read_epw(wea)
             times = skycalc.row_2_datetime64(wdat[:, 0:3])[wdat[:, 3] > 0]

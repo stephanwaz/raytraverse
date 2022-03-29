@@ -77,7 +77,7 @@ def load_lp(path, hasparent=True):
     pidx = int(ftree[-1].split(".")[0])
     try:
         pts = np.loadtxt(path.replace(f"/{ftree[-1]}", "_points.tsv"))
-    except FileNotFoundError:
+    except (FileNotFoundError, OSError):
         pt = (0, 0, 0)
     else:
         try:

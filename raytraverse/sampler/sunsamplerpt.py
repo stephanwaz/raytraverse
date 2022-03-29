@@ -68,7 +68,7 @@ class SunSamplerPt(SamplerPt):
             try:
                 refl = translate.norm(np.loadtxt(specguide).reshape(-1, 3))
                 sunr = translate.reflect(self.sunpos.reshape(1, 3), refl, True)
-            except (OSError, ValueError):
+            except (OSError, ValueError, FileNotFoundError):
                 pass
         if len(sunr) > 0:
             reflsize = np.full((len(sunr), 1), 1.066)
