@@ -2,6 +2,49 @@
 History
 =======
 
+
+1.3.0 (2022-04-01)
+------------------
+* first version compatible on linux systems
+* changed skyres specification to int (defining side) for consistency with other resolution parameters
+
+1.2.8 (2022-03-15)
+------------------
+* include radius around sun and reflections when resampling view. for 3comp, -ss should be 0 for skyengine
+* handle stray hits when resampling radius around sun
+* new simtype: 1compdv / integratordv
+
+1.2.7 (2022-03-01)
+------------------
+
+* parametric search radius for specguide in sunsamplerpt
+* integratorDS checks whether it is more memory efficient to apply skyvectors before adding points
+* fixed double printing of 360 direct_views
+* exposd lowlight and threshold parameter access to cli (both imgmetric and evaluate)
+* changed to general precision formatting for lightresult printing
+* fixed -skyfilter in pull, needs a skydata file to correctly index, otherwise based on array size
+* new sampling metric normalizations, can now control logging and pbars with scene parameter
+
+1.2.6 (2022-02-19)
+------------------
+
+* add hours when available to skydata
+* proper masking of 360 images
+* integratorDS handles stray roughness from direct patch
+* planmapper, z set to median instead of max, added autorotation/alignment
+* bugs/features/consistency in LightResult, need better usage documentation
+* directviews from cli (only works with sky)
+
+1.2.5 (2022-02-15)
+------------------
+
+* integrated zonal calcs in cli
+* fall back to regular light result when possible (but keep area)
+* fixed bugs in LightResult, ZonalLightResult
+* added physically based point spread calculation that ~matches gregs gblur script, but using acutal lorentzian from reference
+* added blur psf to sources in image evaluation
+
+
 1.2.4 (2021-12-03) (not posted until 2022-02-10)
 ------------------------------------------------
 

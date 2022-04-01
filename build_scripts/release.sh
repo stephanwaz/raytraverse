@@ -30,6 +30,8 @@ printf "\n#######################################################\n"
 echo have you confirmed that directory is ready for release?
 echo make sure docker is running...
 echo bash build_scripts/dist_check.sh
+echo update HISTORY.rst
+
 
 printf "#######################################################\n\n"
 echo if you are giving an explicit version have you run bumpversion?

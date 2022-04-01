@@ -16,3 +16,5 @@ setuptools
 scikit-build
 cmake
 ninja
+coveralls
+pyyaml
