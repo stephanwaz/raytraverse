@@ -1,6 +1,6 @@
 # syntax=docker/dockerfile:1
 
-FROM raytdev:current
+FROM raytmany:latest
 
 SHELL ["/bin/bash", "-c"]
 
@@ -8,7 +8,4 @@ WORKDIR /app
 ADD ./dist/raytraverse-1.3.0.tar.gz ./
 WORKDIR /app/raytraverse-1.3.0
 
-RUN python3 setup.py bdist_wheel
-RUN pip3 install dist/raytraverse-*.whl
-
-CMD ["/bin/bash", "build_scripts/docker_run.sh"]
+CMD ["/bin/bash", "build_scripts/docker_run.sh", "cp37-cp37m", "cp38-cp38" "cp39-cp39" "cp310-cp310"]

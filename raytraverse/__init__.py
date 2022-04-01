@@ -30,5 +30,4 @@ def set_raypath(basefile=__file__, subd="cal"):
         raypath_new = list(dict.fromkeys(raypath_rt + raypath_env))
     os.environ["RAYPATH"] = os.pathsep.join(raypath_new)
 
-
 set_raypath()

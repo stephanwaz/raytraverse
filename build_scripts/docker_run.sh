@@ -1,5 +1,36 @@
-BNAME=$(basename dist/*.whl .whl)
-py.test 1> test_log.txt 
-cp test_log.txt ../../wheelhouse/"$BNAME"_test_log.txt
-cp tests/failures ../../wheelhouse/"$BNAME"_failures.txt
-cp dist/*.whl ../../wheelhouse/
+#!/bin/bash
+set -e -u -x
+
+function repair_wheel {
+    wheel="$1"
+    if ! auditwheel show "$wheel"; then
+        echo "Skipping non-platform wheel $wheel"
+    else
+        auditwheel repair "$wheel" --plat "$AUDITWHEEL_PLAT" -w /wheelhouse/
+    fi
+}
+
+
+
+OLDPATH=${PATH}
+for BNAME in "$@"
+do
+    export PATH="/opt/python/$BNAME/bin:$OLDPATH"
+    pip wheel . --no-deps -w dist/
+    pip install dist/raytraverse-*-"$BNAME"-*.whl
+    pytest tests/test_cr*.py
+    FILE=tests/failures
+    if [ -f "$FILE" ]; then
+        cp tests/failures /wheelhouse/"$BNAME"_linux_failures.txt
+    fi
+    repair_wheel dist/raytraverse-*-"$BNAME"-*.whl
+    
+done
+
+
+
+
+
+
+
+

@@ -3,8 +3,11 @@
 
 import pytest
 import os
+import sys
+import raytraverse
 
 failures = os.path.dirname(__file__) + "/failures"
+
 
 def pytest_addoption(parser):
     parser.addoption(
@@ -14,6 +17,17 @@ def pytest_addoption(parser):
 
 
 def pytest_configure(config):
+    raytraverse.set_raypath()
+
+    path_rt = [os.path.dirname(sys.executable)]
+    try:
+        path_env = os.environ["PATH"].split(os.pathsep)
+    except KeyError:
+        path_new = path_rt
+    else:
+        path_new = list(dict.fromkeys(path_rt + path_env))
+    os.environ["PATH"] = os.pathsep.join(path_new)
+
     if os.path.isfile(failures):
         os.remove(failures)
     config.addinivalue_line("markers", "slow: mark test as slow to run")

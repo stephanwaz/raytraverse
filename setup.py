@@ -83,7 +83,8 @@ if 'sdist' in sys.argv:
     morecmds = len(sys.argv) > 1
 # run the remaining commands with scikit-build
 if morecmds:
-    setup_dict["cmake_minimum_required_version"] = "3.15"
+    setup_dict["cmake_minimum_required_version"] = "3.18"
+    # cmake_executable = CMAKE_DEFAULT_EXECUTABLE
     sksetup(**setup_dict)
 
 # install executables to bin/ with develop install
