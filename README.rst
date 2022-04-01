@@ -14,10 +14,6 @@ raytraverse (1.2.8)
     :target: https://raytraverse.readthedocs.io/en/stable/
     :alt: Read the Docs (version)
 
-.. image:: https://img.shields.io/travis/com/stephanwaz/raytraverse?style=flat-square
-    :target: https://travis-ci.com/github/stephanwaz/raytraverse/builds
-    :alt: Travis (.com)
-
 .. image:: https://img.shields.io/coveralls/github/stephanwaz/raytraverse?style=flat-square
     :target: https://coveralls.io/github/stephanwaz/raytraverse
     :alt: Coveralls github

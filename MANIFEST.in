@@ -5,6 +5,7 @@ include Makefile
 include tox.ini
 include *.in
 include *.sh
+include Dockerfile
 include *.toml
 include MANIFEST
 global-exclude .DS_Store
@@ -16,6 +17,9 @@ recursive-include tests *
 recursive-exclude * __pycache__
 recursive-exclude * *.py[co]
 recursive-exclude * *.so
+
+recursive-include build_scripts *.sh
+recursive-include build_scripts Docker*
 
 recursive-include raytraverse *.cal *.fnt *.bsp
 recursive-include docs *.rst conf.py Makefile make.bat *.jpg *.png *.gif *.css *.html *.txt
@@ -35,3 +39,4 @@ include *.txt
 
 prune src/cmake-*
 prune docs/_build
+prune _skbuild

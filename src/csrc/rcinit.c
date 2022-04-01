@@ -37,7 +37,6 @@ extern "C" {
 #include "pmapray.h"
 #include "pmapcontrib.h"
 #include "rcinit.h"
-#include "caldefncal.h"
 
 int	gargc;				/* global argc */
 char	**gargv;			/* global argv */
@@ -180,7 +179,7 @@ rcontrib_init(int argc, char *argv[])
 #endif
   /* initialize calcomp routines early */
   initfunc();
-  setcontextcal(RCCONTEXT);
+  calcontext(RCCONTEXT);
 
   /* initialize switch variables again in case of reinit */
   header = 1;			/* output header? */

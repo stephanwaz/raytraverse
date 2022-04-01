@@ -28,10 +28,8 @@
 
 printf "\n#######################################################\n"
 echo have you confirmed that directory is ready for release?
-echo make docs
-echo make coverage
-echo make dist
-echo git commit ...
+echo make sure docker is running...
+echo bash build_scripts/dist_check.sh
 
 printf "#######################################################\n\n"
 echo if you are giving an explicit version have you run bumpversion?
@@ -41,6 +39,8 @@ printf "#######################################################\n\n"
 printf "\n#######################################################\n"
 printf "if you want this version archived, make sure repository is\n"
 printf "enabled: https://zenodo.org/account/settings/github/\n"
+printf "then create a release on github\n"
+printf "https://github.com/stephanwaz/raytraverse/releases\n"
 printf "\n#######################################################\n"
 
 echo -n "proceed to release (y/n)? "
@@ -57,12 +57,12 @@ if [ "$answer" != "${answer#[Yy]}" ] ;then
             else
                 bumpversion --tag --commit "$1"
             fi
-            bash dist_versions.sh
+            bash build_scripts/dist_versions.sh
             make coverall
             echo -n "ok to push (y/n)? "
             read -r answer
             if [ "$answer" != "${answer#[Yy]}" ] ;then
-                twine upload dist/*.tar.gz
+                twine upload dist/*.tar.gz dist/*.whl
                 git push
                 git checkout master
                 git merge release

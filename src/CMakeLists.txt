@@ -19,7 +19,6 @@ endif()
 
 find_package(Python COMPONENTS Interpreter Development REQUIRED)
 add_subdirectory(pybind11)
-include_directories(pybind11/include/pybind11)
 include(pybind11_add_module_libs.cmake)
 
 include_directories(Radiance/src/common Radiance/src/util)
@@ -52,8 +51,8 @@ set(rtrad_SOURCES
         ealloc.c eputs.c erf.c error.c expandarg.c ezxml.c face.c falsecolor.c fdate.c fgetline.c
         fgetval.c fgetword.c fixargv0.c fltdepth.c font.c fputword.c free_os.c fropen.c fvect.c
         gethomedir.c getlibpath.c getpath.c header.c hilbert.c idmap.c image.c instance.c interp2d.c
-        invmat4.c lamps.c linregr.c loadbsdf.c loadvars.c lookup.c mat4.c mesh.c modobject.c multisamp.c
-        myhostname.c normcodec.c objset.c octree.c otypes.c paths.c plocate.c portio.c process.c
+        invmat4.c jitteraperture.c lamps.c linregr.c loadbsdf.c loadvars.c lookup.c mat4.c mesh.c modobject.c
+        multisamp.c myhostname.c normcodec.c objset.c octree.c otypes.c paths.c plocate.c portio.c process.c
         quit.c readfargs.c readmesh.c readobj.c readoct.c resolu.c rexpr.c savestr.c savqstr.c
         sceneio.c spec_rgb.c tcos.c timegm.c tmap16bit.c tmapcolrs.c tmapluv.c tmaptiff.c tmesh.c
         tonemap.c triangulate.c urand.c urind.c wordfile.c words.c wputs.c xf.c zeroes.c
@@ -104,25 +103,12 @@ list(TRANSFORM RAYCALLS PREPEND Radiance/src/rt/)
 list(TRANSFORM RCCALLFILES PREPEND Radiance/src/rt/)
 list(TRANSFORM RTFILES PREPEND Radiance/src/rt/)
 
-
-add_library(rtrad_o STATIC ${rtrad_SOURCES})
-add_library(radiance_o STATIC ${VERSION_FILE} ${RADIANCE_COMMON} ${RADIANCE_RT})
-
-# patch
-list(TRANSFORM rtrad_SOURCES REPLACE Radiance/src/common/caldefn.c csrc/caldefncal.c)
-list(TRANSFORM RADIANCE_RT   REPLACE Radiance/src/rt/func.c csrc/funccal.c)
-list(TRANSFORM RADIANCE_RT   REPLACE Radiance/src/rt/source.c csrc/source.c)
-
-
-
 add_library(rtrad STATIC ${rtrad_SOURCES})
 add_library(radiance STATIC ${VERSION_FILE} ${RADIANCE_COMMON} ${RADIANCE_RT})
 add_library(raycalls STATIC ${RAYCALLS})
 add_library(rcraycalls STATIC csrc/rcraycalls.c ${RCCALLFILES})
 add_library(rtracecfiles STATIC csrc/rtinit.c csrc/rtraceparts.c ${RTFILES} ${VERSION_FILE})
 add_library(rcontribcfiles STATIC csrc/rcinit.c csrc/rcontribparts.c csrc/rc3_mod.c csrc/rc2_mod.c ${VERSION_FILE})
-target_include_directories(rtrad_o PRIVATE Radiance/src/rt)
-target_include_directories(radiance_o PRIVATE Radiance/src/rt)
 target_include_directories(rtrad PRIVATE Radiance/src/rt)
 target_include_directories(radiance PRIVATE Radiance/src/rt)
 target_include_directories(raycalls PRIVATE Radiance/src/rt)
@@ -130,22 +116,22 @@ target_include_directories(rcraycalls PRIVATE Radiance/src/rt)
 target_include_directories(rtracecfiles PRIVATE Radiance/src/rt)
 target_include_directories(rcontribcfiles PRIVATE Radiance/src/rt)
 
-set_property(TARGET rtrad_o PROPERTY C_STANDARD 99)
-set_property(TARGET radiance_o PROPERTY C_STANDARD 99)
-set_property(TARGET rtrad PROPERTY C_STANDARD 99)
-set_property(TARGET radiance PROPERTY C_STANDARD 99)
-set_property(TARGET raycalls PROPERTY C_STANDARD 99)
-set_property(TARGET rcraycalls PROPERTY C_STANDARD 99)
+set_property(TARGET rtrad PROPERTY C_STANDARD 90)
+set_property(TARGET radiance PROPERTY C_STANDARD 90)
+set_property(TARGET raycalls PROPERTY C_STANDARD 90)
+set_property(TARGET rcraycalls PROPERTY C_STANDARD 90)
 set_property(TARGET rtracecfiles PROPERTY C_STANDARD 99)
 set_property(TARGET rcontribcfiles PROPERTY C_STANDARD 99)
 
 target_link_libraries(rtrad ${LIB_M})
-target_link_libraries(rtrad_o ${LIB_M})
 
 # rtrace and rcontrib are built seperately to avoid namespace conflicts
 pybind11_add_module(craytraverse pyhelpers.cpp)
 pybind11_add_module_libs(rtrace_c MODULE render.cpp rtrace.cpp LINKLIBS rtracecfiles raycalls radiance rtrad)
 pybind11_add_module_libs(rcontrib_c MODULE render.cpp rcontrib.cpp LINKLIBS rcontribcfiles rcraycalls radiance rtrad)
+target_include_directories(craytraverse PRIVATE pybind11/include/pybind11)
+target_include_directories(rtrace_c PRIVATE pybind11/include/pybind11)
+target_include_directories(rcontrib_c PRIVATE pybind11/include/pybind11)
 
 if(SKBUILD)
     set_target_properties(craytraverse PROPERTIES LIBRARY_OUTPUT_DIRECTORY "raytraverse/")
@@ -175,12 +161,12 @@ target_link_libraries(rayttrace PRIVATE pybind11::embed rtracecfiles raycalls ra
 set(RTRACEFILES rtmain.c rtrace.c duphead.c persist.c)
 list(TRANSFORM RTRACEFILES PREPEND Radiance/src/rt/)
 add_executable(rtrace ${RTRACEFILES})
-target_link_libraries(rtrace raycalls radiance_o rtrad_o)
+target_link_libraries(rtrace raycalls radiance rtrad)
 
 set(RCONTRIBFILES rcmain.c rcontrib.c rc2.c rc3.c)
 list(TRANSFORM RCONTRIBFILES PREPEND Radiance/src/rt/)
 add_executable(rcontrib ${RCONTRIBFILES})
-target_link_libraries(rcontrib radiance_o rtrad_o)
+target_link_libraries(rcontrib radiance rtrad)
 
 # from util
 add_executable(getinfo Radiance/src/util/getinfo.c)
