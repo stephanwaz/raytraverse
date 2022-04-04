@@ -19,7 +19,6 @@ if [ "$answer" != "${answer#[Yy]}" ] ;then
         docker build . --tag rayttest
         docker run -it --name rayt0 --mount type=bind,source="$(pwd)"/dist,target=/wheelhouse rayttest /bin/bash build_scripts/docker_run.sh cp39-cp39
         docker rm rayt0
-        docker image rm rayttest
     fi
 
     ls -l dist

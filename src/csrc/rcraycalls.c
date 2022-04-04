@@ -37,6 +37,10 @@
 #include  "font.h"
 #include  "pmapray.h"
 
+extern void	rterror(int etype, char *emsg);
+#define error rterror   /* avoid Linux library name collision */
+#include "rterror.h"
+
 static void
 reset_random(void)		/* re-initialize random number generator */
 {

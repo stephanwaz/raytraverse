@@ -25,6 +25,11 @@
 extern "C" {
 #endif
 
+#include <errno.h>
+extern void	rterror(int etype, char *emsg);
+#define error rterror   /* avoid Linux library name collision */
+#include "rterror.h"
+
 extern int return_value_count;
 
 static void onsig(int  signo);

@@ -57,6 +57,10 @@ extern "C" {
 #include  "otspecial.h"
 #include  "random.h"
 
+extern void	rterror(int etype, char *emsg);
+#define error rterror   /* avoid Linux library name collision */
+#include "rterror.h"
+
 extern int repeat;  /* RAYTRAVERSE MODIFICATION number of times to repeat ray */
 int return_value_count = 1;
 extern char  *outvals;			/* output values */

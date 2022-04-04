@@ -111,7 +111,7 @@ onsig(				/* fatal signal */
 )
 {
   static int  gotsig = 0;
-
+  error(WARNING, "exiting");
   if (gotsig++)			/* two signals and we're gone! */
     _exit(signo);
 
