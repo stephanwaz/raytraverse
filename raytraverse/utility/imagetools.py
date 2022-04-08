@@ -53,8 +53,29 @@ def hdr2vol(imgf, vm=None):
     return vecs, oga, ar.ravel()
 
 
+def vf_to_vm(view):
+    """view file to ViewMapper"""
+    vl = [i for i in open(view).readlines() if "-vta" in i]
+    if len(vl) == 0:
+        raise ValueError(f"no valid -vta view in file {view}")
+    vp = vl[-1].split()
+    view_angle = float(vp[vp.index("-vh") + 1])
+    vd = vp.index("-vd")
+    view_dir = [float(vp[i]) for i in range(vd + 1, vd + 4)]
+    return ViewMapper(view_dir, view_angle)
+
+
 def hdr2vm(imgf, vpt=False):
-    header = cst.pipeline([f"getinfo {imgf}"])
+    """hdr to ViewMapper"""
+    header, err = cst.pipeline([f"getinfo {imgf}"], caperr=True)
+    try:
+        err = err.decode("utf-8")
+    except AttributeError:
+        pass
+    if "bad header!" in err:
+        raise IOError(f"{err} - wrong file type?")
+    elif "cannot open" in header:
+        raise FileNotFoundError(f"{imgf} not found")
     if "VIEW= -vta" in header:
         vp = header.rsplit("VIEW= -vta", 1)[-1].splitlines()[0].split()
         view_angle = float(vp[vp.index("-vh") + 1])

@@ -66,6 +66,7 @@ class PositionIndex(object):
         else:  # KIM model
             # from src/Radiance/util/evalglare.c
             posidx = self._get_pidx_kim(sigma, tau)
+        posidx = np.nan_to_num(posidx, False, 1, 16, 16)
         return posidx.ravel()
 
     def positions_vec(self, viewvec, srcvec, up=(0, 0, 1)):
