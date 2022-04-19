@@ -1,7 +1,0 @@
-[submodule "src/Radiance"]
-	path = src/Radiance
-	url = https://github.com/LBNL-ETA/Radiance.git
-	branch = master
-[submodule "src/pybind11"]
-	path = src/pybind11
-	url = https://github.com/pybind/pybind11.git
