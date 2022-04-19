@@ -13,8 +13,5 @@ nose
 sphinx-click
 pytest-cov
 setuptools
-scikit-build
-cmake
-ninja
 coveralls
 pyyaml

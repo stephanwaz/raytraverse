@@ -79,10 +79,18 @@ def hdr2vm(imgf, vpt=False):
     if "VIEW= -vta" in header:
         vp = header.rsplit("VIEW= -vta", 1)[-1].splitlines()[0].split()
         view_angle = float(vp[vp.index("-vh") + 1])
-        vd = vp.index("-vd")
-        view_dir = [float(vp[i]) for i in range(vd + 1, vd + 4)]
-        vpi = vp.index("-vp")
-        view_pt = [float(vp[i]) for i in range(vpi + 1, vpi + 4)]
+        try:
+            vd = vp.index("-vd")
+        except ValueError:
+            view_dir = [0.0, 1.0, 0.0]
+        else:
+            view_dir = [float(vp[i]) for i in range(vd + 1, vd + 4)]
+        try:
+            vpi = vp.index("-vp")
+        except ValueError:
+            view_pt = [0.0, 0.0, 0.0]
+        else:
+            view_pt = [float(vp[i]) for i in range(vpi + 1, vpi + 4)]
         hd = cst.pipeline([f"getinfo -d {imgf}"]).strip().split()
         x = 1
         y = 1

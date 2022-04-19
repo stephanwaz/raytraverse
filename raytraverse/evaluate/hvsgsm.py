@@ -93,34 +93,35 @@ def l_b(b, c, phi):
     return c*b/(np.pi*(np.square(np.sin(phi)) + b**2*np.square(np.cos(phi))))
 
 
-def cone_response(e_r, e_a):
-    """calculate local response as a fraction of maximum at current adaptation
-
-    from Vissenberg et al. 2021 equations (2) and (3):
-    (2) V/V_m = E_r^n / (E_r^n + σ^n)
-    V: photoreceptor response
-    V_m: maximum response
-    E_r: local retinal illuminance (apply w to this E_r)
-    n: 0.74
-
-    (3) σ = (5.701055^(1/2.55) + E_a^(1/2.55))^2.55
-    sigma (σ): half-saturation retinal illuminance value
-    """
-    n = 0.74
-    sigma = np.power(5.701055**(1/2.55) + np.power(e_a, 1/2.55), 2.55)
-    ern = np.power(e_r, n)
-    vvm = ern / (ern + sigma**n)
-    return vvm
-
-
 class GSS:
 
-    _emax = 0.12
-    _emin = 0.009
+    # eccentricity min and max scaling for field width in response
+    # (.12, 0.009)
+    emax = 0.12
+    emin = 0.009
 
-    def __init__(self, view=None, gst=4000, age=40, f=16.67, scale=179,
-                 pigmentation=0.0106, contrast=0.8, norm=4, fwidth=10,
-                 calibration=0.455):
+    # coefficients for logistic response function
+    # (22, 0.25)
+    fr_a = 44
+    fr_b = 0.2
+
+    # coeficient for DoG in linear response
+    # 0.67
+    fr_k = 0.67
+
+    # minkowski normalization exponent
+    # 4
+    norm = 4
+
+    # contrast for eye adaptation (higher value, less global adaptation:
+    # 0.8 indoor (medium)
+    # 0.9 outdoor (high) -- maybe daylight is always here?
+    contrast = 0.8
+
+    def __init__(self, view=None, gst=0, age=40, f=16.67, scale=179,
+                 pigmentation=0.106, fwidth=10,
+                 calibration=0.455, shade=True, psf=True, adaptmove=True,
+                 directmove=True):
         """calculate GSS for images with angular fisheye projection
 
         application of model described in:
@@ -174,16 +175,19 @@ class GSS:
                 mean for blue eyes: 0.16
                 brown eyes: 0.106
                 dark brown eyes: 0.056
-        contrast:
-            0.8 indoor (medium)
-            0.9 outdoor (high) -- maybe daylight is always here?
-        norm:
-            minkowski normalization exponent
         fwidth: Union[int, float], optional
             the width of the frame for psf
         calibration: float, optional
             default is the average of 3 sources sizes where UGR~19 in the
             model described in the paper of Vissenberg et al.
+        shade: bool, optional
+            shade incident light according to guth position (.2 @ 16)
+        psf: bool, optional
+            apply pointspread function for light arriving at retina
+        adaptmove: bool, optional
+            apply involuntary eye movement effect on local adaptation
+        directmove: book, optional
+            apply involuntary eye movement effect on direct cone response
 
         Notes
         -----
@@ -214,16 +218,18 @@ class GSS:
         self.f = f
         self.scale = scale
         self.pigmentation = pigmentation
-        self.contrast = contrast
-        self.norm = norm
         self.fwidth = fwidth
         self.calibration = calibration
+        self.shade = shade
+        self._blur = (psf, adaptmove, directmove)
         # initialize properties set when an image is loaded
         self._res = 0
         self._vecs = None
         self._omega = None
         self._mask = None
+        self._nmask = None
         self._lum = None
+        self._eyemask = None
         self._sigma_c = None
         self._pparcmin = None
         if view is None:
@@ -243,20 +249,30 @@ class GSS:
     def adapt(self, ev_eye=None):
         """step 1 in compute, adapt eye to image"""
         if self.lum is None:
-            raise ValueError("cannot compute until an image has been set")
+            raise ValueError("cannot adapt until an image has been set")
         if ev_eye is None:
-            ev_eye = np.einsum('i,i,i->', self.ctheta.flat[self.mask],
-                               self.lum.flat[self.mask],
-                               self.omega.flat[self.mask])
+            if self.shade:
+                ev_eye = np.einsum('i,i,i,i->', self.ctheta.flat[self.mask],
+                                   self.lum.flat[self.mask],
+                                   self.eyemask.flat[self.mask],
+                                   self.omega.flat[self.mask])
+            else:
+                ev_eye = np.einsum('i,i,i->', self.ctheta.flat[self.mask],
+                                   self.lum.flat[self.mask],
+                                   self.omega.flat[self.mask])
         pupa, pupd = self.pupil(ev_eye)
         e_g = self.retinal_irradiance(ev_eye/np.pi, pupa)
         return e_g, pupa, pupd
 
     def get_glare_sources(self):
         """step 2 in compute, isolate glare sources"""
+        if self.lum is None:
+            raise ValueError("cannot get_glare_sources until an image has been "
+                             "set")
         img_gs = np.copy(self.lum, 'C')
-        # img_gs.flat[self._nmask] = 0
         img_gs[self.lum < self.gst] = 0
+        if self.shade:
+            img_gs *= self.eyemask
         return img_gs
 
     def glare_response(self, img_gs, e_g, pupa, pupd, return_arrays=False):
@@ -285,14 +301,25 @@ class GSS:
             keys: retinal_irrad, psf, adapt_eye_movement, direct_eye_movement,
             local_adaptation, response_ratio, response_lin, response_log
         """
+        if self.lum is None:
+            raise ValueError("cannot glare_response until an image has been set")
         e_r = self.retinal_irradiance(img_gs, pupa)
-        e_r_psf = self.apply_psf(e_r, pupd)
-        e_rg = self.apply_eye_movement_1(e_r_psf)
-        e_rc = self.apply_eye_movement_2(e_r_psf, e_g)
+        if self._blur[0]:
+            e_r_psf = self.apply_psf(e_r, pupd)
+        else:
+            e_r_psf = e_r
+        if self._blur[1]:
+            e_rg = self.apply_eye_movement_1(e_r_psf)
+        else:
+            e_rg = e_r_psf
+        if self._blur[2]:
+            e_rc = self.apply_eye_movement_2(e_r_psf, e_g)
+        else:
+            e_rc = e_r_psf
         e_a = self.local_eye_adaptation(e_rg, e_g)
-        vvm = cone_response(e_rc, e_a)
+        vvm = self.cone_response(e_rc, e_a)
         # r_lin
-        r_rf = self.apply_field_response(vvm)
+        r_rf = self.field_response(vvm)
         r_g = self.normalized_field_response(r_rf)
         r_w = self.weight_response(r_g)
         if return_arrays:
@@ -320,7 +347,6 @@ class GSS:
         """
         if self.lum is None:
             raise ValueError("cannot compute until an image has been set")
-
         e_g, pupa, pupd = self.adapt(ev_eye)
         img_gs = self.get_glare_sources()
         r_g = self.glare_response(img_gs, e_g, pupa, pupd)
@@ -342,9 +368,11 @@ class GSS:
             self._omega = self.vm.pixel2omega(self.vm.pixels(r), r)
             self._mask = self.vm.in_view(self._vecs, False)
             self._nmask = np.logical_not(self._mask)
-            self._ctheta = self.vm.ctheta(self._vecs).reshape(self._lum.shape)
+            ct = np.maximum(0, self.vm.ctheta(self._vecs))
+            self._ctheta = ct.reshape(self._lum.shape)
             self._res = r
             self._pparcmin = self.res/(60*self.vm.viewangle)
+            self.eyemask = self._vecs.reshape(-1, 3)
             self.sigma_c = r
 
     @property
@@ -373,27 +401,51 @@ class GSS:
         return self._ctheta
 
     @property
+    def eyemask(self):
+        """face self shading of incident light
+        """
+        return self._eyemask
+
+    @eyemask.setter
+    def eyemask(self, v):
+        """account for eyelid/brow shading applied to incident rays"""
+        p = PositionIndex().positions(self.vm, v)
+        a = 4
+        # center of fade (max posidx = 16)
+        b = 15
+        # minimum shaded contribution
+        c = .2
+        # logistic to ease from 1 (full exposure) to c (shaded)
+        p = (1 - p/(1 + np.exp(-a*(p - b)))*(1 - c)/16)
+        self._eyemask = p.reshape(self.res, self.res)
+
+    @property
     def sigma_c(self):
-        """guth position index scaled to eccentricity .009-.12
-        (used in apply_field_response)
+        """position index scaled to eccentricity .009-.12
+        (used in field_response)
 
         Note that this differs from the implementation dscribed by Vissenberg
-        et al., but incorporates iwata (2010) for better response below horizon
+        et al., and uses ganglion cell field density from:
+
+        Andrew B. Watson; A formula for human retinal ganglion cell receptive
+        field density as a function of visual field location. Journal of
+        Vision 2014;14(7):15. doi: https://doi.org/10.1167/14.7.15.
         """
         return self._sigma_c
 
     @sigma_c.setter
     def sigma_c(self, r):
-        # commented portion mimics model described by vissenberg
         xy = self.vm.xyz2vxy(self._vecs.reshape(-1, 3))*2 - 1
+        # # model described by vissenberg
         # p = np.sqrt(np.square(xy[:, 0]/1.05556) + np.square(xy[:, 1]/0.61111))
-        # use guth/iwata position index instead of simplified ellipse
-        p = PositionIndex().positions(self.vm, self._vecs.reshape(-1, 3))
-        # retinal ganglion cell field density:
+        # # use guth/iwata position index instead of simplified ellipse
+        # p = PositionIndex().positions(self.vm, self._vecs.reshape(-1, 3))
+        # # retinal ganglion cell field density (combined with partial guth
+        # # masking (applied at adapt step):
         p = 1/rgcf_density(xy)
         pex = np.percentile(p, (0, 100))
-        s_c = (p - pex[0])*(self._emax - self._emin)/(
-                pex[1] - pex[0]) + self._emin
+        s_c = (p - pex[0])*(self.emax - self.emin)/(
+                pex[1] - pex[0]) + self.emin
         self._sigma_c = s_c.reshape(r, r)
 
     @property
@@ -503,11 +555,6 @@ class GSS:
         lsf = np.sum([l_b(b, c, lphi) for b, c in zip(bs, cs)], axis=0)
         cap_eg = np.sum(lsf*dlphi)
 
-        # lphi = np.linspace(-90, 90, 10001)
-        # lsf = np.sum([l_b(b, c, lphi*np.pi/180) for b, c in zip(bs, cs)], axis=0)
-        # lsf2 = np.where(np.abs(lphi) > self.fwidth/2, (1 - cap_eg) / (np.pi- self.fwidth * np.pi/180), lsf)
-        # np.savetxt("lsf_approx.txt", np.stack((lphi, lsf, lsf2)).T)
-        # raise ValueError
         # approximate remainder with constant (the flat part)
         e_gs = np.einsum('i,i->', e_r.flat[self.mask],
                          self.omega.flat[self.mask])
@@ -538,6 +585,17 @@ class GSS:
         in radiological diagnosis," in IEEE Transactions on Systems, Man,
         and Cybernetics, vol. SMC-13, no. 5, pp. 944-953, Sept.-Oct. 1983,
         doi: 10.1109/TSMC.1983.6313090.
+
+        Parameters
+        ----------
+        e_r: np.array
+            retinal irradiance (optical correction)
+
+        Returns
+        -------
+        adapt_eye_movement:
+            retinal irradiance (with adaptation scale movement and optical
+            correction)
         """
         # e ^ -1/2 (x/sigma)^2
         a = 0.62
@@ -565,6 +623,18 @@ class GSS:
         (6) w = 2 * sqrt(D * τ)
         D = 30.0 arcmin^2 * s^-1 (occular drift)
         D = 250.0 (micro saccades)
+
+        Parameters
+        ----------
+        e_r: np.array
+            retinal irradiance (optical correction)
+        e_g: float
+            global retinal irrradiance
+
+        Returns
+        -------
+        direct_eye_movement:
+            retinal irradiance (with movement and optical correction)
         """
         t = .1 / np.power(e_g * self.f**2, 0.12)
         # D = 30.0 arcmin^2 * s^-1 (occular drift)
@@ -583,6 +653,17 @@ class GSS:
         log_10(E_a) = p * log_10(E_r) + (1-p) * log_10(E_g)
         E_a: adaptation illuminance
         p: 0.8 (indoor / moderate) - 0.9 (outdoor / strong) contrast
+
+        Parameters
+        ----------
+        e_r: np.array
+            retinal irradiance (optical correction)
+        e_g: float
+            global retinal irrradiance
+
+        Returns
+        -------
+        local_adaptation
         """
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
@@ -592,7 +673,39 @@ class GSS:
         # e_a.flat[self._nmask] = 0
         return e_a
 
-    def apply_field_response(self, vvm):
+    @staticmethod
+    def cone_response(e_r, e_a):
+        """calculate local response as a fraction of maximum at current
+        adaptation
+
+        from Vissenberg et al. 2021 equations (2) and (3):
+        (2) V/V_m = E_r^n / (E_r^n + σ^n)
+        V: photoreceptor response
+        V_m: maximum response
+        E_r: local retinal illuminance (apply w to this E_r)
+        n: 0.74
+
+        (3) σ = (5.701055^(1/2.55) + E_a^(1/2.55))^2.55
+        sigma (σ): half-saturation retinal illuminance value
+
+        Parameters
+        ----------
+        e_r: np.array
+            retinal irradiance (with movement and optical correction)
+        e_a: np.array
+            local adaptation
+
+        Returns
+        -------
+        response_ratio
+        """
+        n = 0.74
+        sigma = np.power(5.701055**(1/2.55) + np.power(e_a, 1/2.55), 2.55)
+        ern = np.power(e_r, n)
+        vvm = ern/(ern + sigma**n)
+        return vvm
+
+    def field_response(self, vvm):
         """receptive field response
 
         from Vissenberg et al. 2021 equation (7):
@@ -603,12 +716,21 @@ class GSS:
         σ_c: gaussian width of center (0.009 (center) - 0.12 (edge FOV) degrees)
         σ_s: gaussian width of surround 3.5 * σ_c
         K: DoG balance factor 0.67
+
+        Parameters
+        ----------
+        vvm: np.array
+            response_ratio (saturation)
+
+        Returns
+        -------
+        response_lin
+            linear, difference of gussians
         """
-        k = 0.67
         rf_c = np.zeros(vvm.shape)
         rf_s = np.zeros(vvm.shape)
         # use a log spacing to better capture greater change in ecc near fovea
-        steps = np.exp(np.linspace(np.log(.009), np.log(.12), 11))
+        steps = np.exp(np.linspace(np.log(self.emin), np.log(self.emax), 11))
         ubounds = np.concatenate(((steps[1:] + steps[:-1])/2, [1]))
         lbounds = np.concatenate(([0], ubounds[:-1]))
         for s, lb, ub in zip(steps, lbounds, ubounds):
@@ -618,7 +740,7 @@ class GSS:
             include = np.logical_and(lb <= self.sigma_c, self.sigma_c < ub)
             rf_c[include] = r_c[include]
             rf_s[include] = r_s[include]
-        return rf_c - k*rf_s
+        return rf_c - self.fr_k*rf_s
 
     def normalized_field_response(self, r):
         """normalized non-linear ganglion response
@@ -628,15 +750,33 @@ class GSS:
         R_G: normalized non-linear ganglion response
         a: slope of logistic = 22
         b: 0.25
+
+        Parameters
+        ----------
+        r: np.array
+            response_lin
+
+        Returns
+        -------
+        response_log
+            logistic
         """
-        a = 22
-        b = 0.25
-        r_g = 1/(1 + np.exp(-a*(r - b)))
+        r_g = 1/(1 + np.exp(-self.fr_a*(r - self.fr_b)))
         r_g.flat[self._nmask] = 0
         return r_g
 
     def weight_response(self, r):
-        """weight rectified response by position index"""
+        """weight rectified response by position index
+
+        Parameters
+        ----------
+        r: np.array
+            response_log
+
+        Returns
+        -------
+        position weighted glare response
+        """
         return r / self.sigma_c
 
     def gss(self, r_g):

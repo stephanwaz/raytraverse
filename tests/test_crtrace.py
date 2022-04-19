@@ -206,6 +206,7 @@ def test_get_sources(tmpdir):
     def load_sun(sun, val):
         srcdef = f'tmp_sun.rad'
         f = open(srcdef, 'w')
+        print(formatter.get_sundef(sun, (val, val, val)))
         f.write(formatter.get_sundef(sun, (val, val, val)))
         f.close()
         r.load_source(srcdef)
@@ -214,5 +215,6 @@ def test_get_sources(tmpdir):
     load_sun((0, -.5, 1), 1000000)
     sources = r.get_sources()
     a = translate.norm([(0, -.5, 1)]).ravel()
+    print(a)
     assert np.allclose(a, sources[0, 0:3])
     assert np.isclose(sources[0, 4], sources[0, 3]**2*np.pi)
