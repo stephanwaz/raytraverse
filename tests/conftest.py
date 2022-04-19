@@ -4,7 +4,7 @@
 import pytest
 import os
 import sys
-import raytraverse
+import craytraverse
 
 failures = os.path.dirname(__file__) + "/failures"
 
@@ -17,7 +17,7 @@ def pytest_addoption(parser):
 
 
 def pytest_configure(config):
-    raytraverse.set_raypath()
+    craytraverse.set_raypath()
 
     path_rt = [os.path.dirname(sys.executable)]
     try:

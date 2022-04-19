@@ -8,7 +8,7 @@
 
 """wavelet and associated probability functions."""
 import numpy as np
-from raytraverse.craytraverse import from_pdf as c_from_pdf
+from craytraverse.craytraverse import from_pdf as c_from_pdf
 from scipy.ndimage import convolve
 
 

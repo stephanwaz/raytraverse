@@ -9,7 +9,7 @@ import re
 import sys
 
 from raytraverse.renderer.radiancerenderer import RadianceRenderer
-from raytraverse.crenderer import cRtrace
+from craytraverse.crenderer import cRtrace
 
 
 class Rtrace(RadianceRenderer):

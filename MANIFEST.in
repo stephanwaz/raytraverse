@@ -5,7 +5,6 @@ include Makefile
 include tox.ini
 include *.in
 include *.sh
-include Dockerfile
 include *.toml
 include MANIFEST
 global-exclude .DS_Store
@@ -18,25 +17,11 @@ recursive-exclude * __pycache__
 recursive-exclude * *.py[co]
 recursive-exclude * *.so
 
-recursive-include build_scripts *.sh
-recursive-include build_scripts Docker*
-
-recursive-include raytraverse *.cal *.fnt *.bsp
+recursive-include raytraverse *.bsp
 recursive-include docs *.rst conf.py Makefile make.bat *.jpg *.png *.gif *.css *.html *.txt
 recursive-exclude src .*
-include src/*.c src/*.h src/*.cpp src/*.hh src/*.txt src/*.cmake src/*.sh src/sparse-checkout
-include src/csrc/*.c src/csrc/*.h
-recursive-include src/pybind11 *.h *.cpp *.hh *.txt *.cmake *.sh
-recursive-include src/Radiance/src/rt *.h *.c *.cmake VERSION
-recursive-include src/Radiance/src/common *.h *.c
-recursive-include src/Radiance/src/cal *.h cnt.c total.c rcalc.c
-recursive-include src/Radiance/src/gen *.h gendaylit.c sun.c xform.c
-recursive-include src/Radiance/src/ot *.h bbox.c initotypes.c o_cone.c o_face.c o_instance.c oconv.c sphere.c writeoct.c
-recursive-include src/Radiance/src/px *.h pvalue.c pcompos.c pcomb.c pf2.c pf3.c pfilt.c
-recursive-include src/Radiance/src/util *.h getinfo.c vwrays.c pictool.c
-include src/Radiance/License.txt
+
 include *.txt
 
-prune src/cmake-*
 prune docs/_build
-prune _skbuild
+

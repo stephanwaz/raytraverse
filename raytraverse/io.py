@@ -16,7 +16,7 @@ from subprocess import Popen, PIPE
 import numpy as np
 
 import raytraverse
-from raytraverse.crenderer import cRtrace
+from craytraverse.crenderer import cRtrace
 
 
 def get_nproc(nproc=None):

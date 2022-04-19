@@ -28,8 +28,9 @@
 
 printf "\n#######################################################\n"
 echo have you confirmed that directory is ready for release?
-echo make sure docker is running...
-echo bash build_scripts/dist_check.sh
+echo make clean
+echo make docs
+echo make coverage
 echo update HISTORY.rst
 
 
@@ -59,7 +60,9 @@ if [ "$answer" != "${answer#[Yy]}" ] ;then
             else
                 bumpversion --tag --commit "$1"
             fi
-            bash build_scripts/dist_versions.sh
+            make clean
+            python setup.py sdist
+            pip wheel . --no-deps -w dist/
             make coverall
             echo -n "ok to push (y/n)? "
             read -r answer

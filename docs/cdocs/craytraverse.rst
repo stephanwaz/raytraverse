@@ -1,4 +1,4 @@
-.. automodule:: raytraverse.craytraverse
+.. automodule:: craytraverse.craytraverse
     :members:
     :undoc-members:
     :show-inheritance:
@@ -6,7 +6,7 @@
 cRtrace
 --------------------------------
 
-.. autoclass:: raytraverse.crenderer.cRtrace
+.. autoclass:: craytraverse.crenderer.cRtrace
     :members:
     :undoc-members:
     :show-inheritance:
@@ -15,7 +15,7 @@ cRtrace
 cRcontrib
 --------------------------------
 
-.. autoclass:: raytraverse.crenderer.cRcontrib
+.. autoclass:: craytraverse.crenderer.cRcontrib
     :members:
     :undoc-members:
     :show-inheritance:

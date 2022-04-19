@@ -8,7 +8,7 @@
 import numpy as np
 
 from raytraverse.renderer.radiancerenderer import RadianceRenderer
-from raytraverse.crenderer import cRcontrib
+from craytraverse.crenderer import cRcontrib
 from raytraverse.formatter import RadianceFormatter as Fmt
 
 

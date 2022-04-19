@@ -9,7 +9,7 @@ import shlex
 
 from raytraverse import io
 from raytraverse.renderer.renderer import Renderer
-from raytraverse.crenderer import cRtrace
+from craytraverse.crenderer import cRtrace
 
 
 class RadianceRenderer(Renderer):
