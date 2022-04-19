@@ -1,5 +1,5 @@
 ===================
-raytraverse (1.3.0)
+raytraverse (1.3.1)
 ===================
 
 .. image:: https://img.shields.io/pypi/v/raytraverse?style=flat-square
@@ -41,8 +41,6 @@ The easiest way to install raytraverse is with pip::
 or if you have cloned this repository::
 
     cd path/to/this/file
-    git submodule init
-    git submodule update
     pip install .
 
 Usage
@@ -55,7 +53,7 @@ nested under the `raytraverse` parent command enter::
 raytraverse also exposes an object oriented API written primarily in python.
 calls to Radiance are made through Renderer objects that wrap the radiance
 c source code in c++ classes, which are made available in python with pybind11.
-see the src/ directory for more.
+see craytraverse.
 
 For complete documentation of the API and the command line interface either
 use the Documentation link included above or::
@@ -65,13 +63,4 @@ use the Documentation link included above or::
 
 to generate local documentation.
 
-Getting Started
----------------
-
-the following example script shows the basic workflow for a complete simulation
-it can be saved to a local file with::
-
-    raytraverse examplescript > example.py
-
-or the file is located at raytraverse/example.py
 
