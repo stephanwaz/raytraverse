@@ -2,6 +2,10 @@
 History
 =======
 
+1.3.1 (2022-04-19)
+------------------
+* moved craytraverse to separate repository, now a requirement
+* implemented glare sensation model, not yet available from CLI
 
 1.3.0 (2022-04-01)
 ------------------
