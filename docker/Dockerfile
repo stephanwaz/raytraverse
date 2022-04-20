@@ -4,6 +4,9 @@
 # docker run -it --name rayt --mount type=bind,source="$(pwd)",target=/working raytraverse /bin/bash
 # docker rm rayt
 
+# for first run
+# FROM python:3.0
+# to update (new version)
 FROM raytraverse
 
 WORKDIR /working
