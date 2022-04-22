@@ -606,7 +606,7 @@ def sourcerun(ctx, srcfile=None, source="source", accuracy=1.0, nlev=3,
         skyfield = LightPlaneKD(scn, f"{scn.outdir}/{pm.name}/{source}_points"
                                 f".tsv", pm, source)
     except OSError:
-        skyfield = skysampler.run(pm, plotp=plotp, pfish=False,
+        skyfield = srcsampler.run(pm, plotp=plotp, pfish=False,
                                   find_reflections=True)
     else:
         if scn.dolog:
@@ -715,7 +715,6 @@ def images(ctx, sensors=None, sdirs=None, viewangle=180., skymask=None,
 
     itg = api.get_integrator(scn, pm, skmapper.name, simtype,
                              sunviewengine=sunviewengine)
-
     if skymask is not None:
         if maskfull:
             sd.mask = skymask

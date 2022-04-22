@@ -2,6 +2,15 @@
 History
 =======
 
+1.3.2
+------------------
+* force 'fork' for multiprocessing to ensure radiance state is copied to processes
+* restructure radiancerrenderers - not singleton, just a stateful class, pickleable with get/set state
+* dummy skydatamask class useful for intializing with lightresult axes to handle fill
+* value_array method added to ResultAxis for easier syntax
+* settable sigma_c method in hvsgsm
+* 
+
 1.3.1 (2022-04-19)
 ------------------
 * moved craytraverse to separate repository, now a requirement

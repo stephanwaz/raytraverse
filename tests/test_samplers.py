@@ -4,7 +4,6 @@
 """Tests for raytraverse.scene"""
 import os
 import shutil
-import sys
 
 import pytest
 import numpy as np

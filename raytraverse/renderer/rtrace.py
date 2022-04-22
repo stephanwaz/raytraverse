@@ -11,6 +11,8 @@ import sys
 from raytraverse.renderer.radiancerenderer import RadianceRenderer
 from craytraverse.crenderer import cRtrace
 
+rtrace_instance = cRtrace.get_instance()
+
 
 class Rtrace(RadianceRenderer):
     """singleton wrapper for c++ raytrraverse.crenderer.cRtrace class
@@ -57,9 +59,7 @@ class Rtrace(RadianceRenderer):
     successive calls to the instance.
     """
     name = 'rtrace'
-    #: raytraverse.crenderer.cRtrace
-    engine = cRtrace
-    # defaultargs = "-av 0 0 0 -aa 0 -ab 7 -ad 128 -as 0 -c 10 -as 0 -lw 1e-5"
+    instance = rtrace_instance
     defaultargs = (f"-u+ -ab 16 -av 0 0 0 -aa 0 -as 0 -dc 1 -dt 0 -lr -14 -ad "
                    f"1000 -lw 0.00004 -st 0 -ss 16 -w-")
     directargs = "-w- -av 0 0 0 -ab 0 -lr 1 -n 1"
@@ -74,6 +74,10 @@ class Rtrace(RadianceRenderer):
         if direct:
             nproc = 1
         super().__init__(rayargs, scene, nproc, default_args=default_args)
+
+    def __setstate__(self, state):
+        super().__setstate__(state)
+        type(self).instance = rtrace_instance
 
     @classmethod
     def get_default_args(cls):

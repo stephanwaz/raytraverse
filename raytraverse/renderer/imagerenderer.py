@@ -11,10 +11,9 @@ from scipy.interpolate import RegularGridInterpolator
 
 from raytraverse import io
 from raytraverse.mapper import ViewMapper
-from raytraverse.renderer import Renderer
 
 
-class ImageRenderer(Renderer):
+class ImageRenderer:
     """interface to treat image data as the source for ray tracing results
 
     not implemented as a singleton, so multiple instances can exist in
@@ -62,3 +61,8 @@ class ImageRenderer(Renderer):
         """
         pxy = self.vm.xyz2vxy(rays[:, 3:6])
         return self.instance(pxy)
+
+    def run(self, *args, **kwargs):
+        """alias for call, for consistency with SamplerPt classes for nested
+        dimensions of evaluation"""
+        return self(args[0])

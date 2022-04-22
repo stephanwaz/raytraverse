@@ -8,19 +8,16 @@
 import shlex
 
 from raytraverse import io
-from raytraverse.renderer.renderer import Renderer
-from craytraverse.crenderer import cRtrace
 
 
-class RadianceRenderer(Renderer):
+class RadianceRenderer:
     """Virtual class for wrapping c++ Radiance renderer executable classes
 
     Do not use directly, either subclass or use existing: Rtrace, Rcontrib
     """
 
     name = "radiance_virtual"
-    #: raytraverse.crenderer.cRtrace
-    engine = cRtrace
+    instance = None
     srcn = 1
     defaultargs = ""
     args = None
@@ -28,7 +25,6 @@ class RadianceRenderer(Renderer):
     nproc = None
 
     def __init__(self, rayargs=None, scene=None, nproc=None, default_args=True):
-        type(self).instance = self.engine.get_instance()
         if default_args:
             if rayargs is None:
                 rayargs = self.get_default_args()
@@ -37,6 +33,29 @@ class RadianceRenderer(Renderer):
         if rayargs is not None and scene is not None:
             self.set_args(rayargs, nproc)
             self.load_scene(scene)
+
+    @classmethod
+    def __call__(cls, rays):
+        return cls.instance(rays)
+
+    def __getstate__(self):
+        state = type(self).__dict__.copy()
+        cms = []
+        state.pop("instance")
+        for k in state.keys():
+            if type(state[k]) == classmethod or k[0:2] == "__":
+                cms.append(k)
+        [state.pop(i) for i in cms]
+        return state
+
+    def __setstate__(self, state):
+        for k in state.keys():
+            setattr(type(self), k, state[k])
+
+    def run(self, *args, **kwargs):
+        """alias for call, for consistency with SamplerPt classes for nested
+        dimensions of evaluation"""
+        return self(args[0])
 
     @classmethod
     def get_default_args(cls):

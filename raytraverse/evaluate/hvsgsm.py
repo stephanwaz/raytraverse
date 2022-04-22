@@ -96,21 +96,21 @@ def l_b(b, c, phi):
 class GSS:
 
     # eccentricity min and max scaling for field width in response
-    # (.12, 0.009)
+    # from Vissenberg et al. (.12, 0.009)
     emax = 0.12
     emin = 0.009
 
     # coefficients for logistic response function
-    # (22, 0.25)
+    # from Vissenberg et al. (22, 0.25)
     fr_a = 44
     fr_b = 0.2
 
     # coeficient for DoG in linear response
-    # 0.67
+    # from Vissenberg et al.  0.67
     fr_k = 0.67
 
     # minkowski normalization exponent
-    # 4
+    # from Vissenberg et al. 4
     norm = 4
 
     # contrast for eye adaptation (higher value, less global adaptation:
@@ -119,8 +119,8 @@ class GSS:
     contrast = 0.8
 
     def __init__(self, view=None, gst=0, age=40, f=16.67, scale=179,
-                 pigmentation=0.106, fwidth=10,
-                 calibration=0.455, shade=True, psf=True, adaptmove=True,
+                 pigmentation=0.106, fwidth=10, eccmethod="density",
+                 calibration=1.0, shade=True, psf=True, adaptmove=True,
                  directmove=True):
         """calculate GSS for images with angular fisheye projection
 
@@ -177,6 +177,12 @@ class GSS:
                 dark brown eyes: 0.056
         fwidth: Union[int, float], optional
             the width of the frame for psf
+        eccmethod: str
+            method for determining positional importance (maps to emin,emax)
+            "density": use retinal ganglion cell field density (Watson, 2014)
+            "guth": use Guth + Iwata (below horizon) position index
+            "ellipse": use elliptical eccentricity acoording to Vissenberg
+            bad value silently ignored and defaults to density
         calibration: float, optional
             default is the average of 3 sources sizes where UGR~19 in the
             model described in the paper of Vissenberg et al.
@@ -220,7 +226,8 @@ class GSS:
         self.pigmentation = pigmentation
         self.fwidth = fwidth
         self.calibration = calibration
-        self.shade = shade
+        self.shade = shade and eccmethod not in ("ellipse", "guth")
+        self.eccmethod = eccmethod
         self._blur = (psf, adaptmove, directmove)
         # initialize properties set when an image is loaded
         self._res = 0
@@ -435,17 +442,20 @@ class GSS:
 
     @sigma_c.setter
     def sigma_c(self, r):
-        xy = self.vm.xyz2vxy(self._vecs.reshape(-1, 3))*2 - 1
-        # # model described by vissenberg
-        # p = np.sqrt(np.square(xy[:, 0]/1.05556) + np.square(xy[:, 1]/0.61111))
-        # # use guth/iwata position index instead of simplified ellipse
-        # p = PositionIndex().positions(self.vm, self._vecs.reshape(-1, 3))
-        # # retinal ganglion cell field density (combined with partial guth
-        # # masking (applied at adapt step):
-        p = 1/rgcf_density(xy)
+        if self.eccmethod == "guth":
+            p = PositionIndex().positions(self.vm, self._vecs.reshape(-1, 3))
+        elif self.eccmethod == "ellipse":
+            # # model described by vissenberg
+            xy = self.vm.xyz2vxy(self._vecs.reshape(-1, 3))*2 - 1
+            p = np.sqrt(np.square(xy[:, 0]/1.05556) +
+                        np.square(xy[:, 1]/0.61111))
+        else:
+            # # retinal ganglion cell field density (combined with partial guth
+            # # masking (applied at adapt step):
+            xy = self.vm.xyz2vxy(self._vecs.reshape(-1, 3))*2 - 1
+            p = 1/rgcf_density(xy)
         pex = np.percentile(p, (0, 100))
-        s_c = (p - pex[0])*(self.emax - self.emin)/(
-                pex[1] - pex[0]) + self.emin
+        s_c = (p - pex[0])*(self.emax - self.emin)/(pex[1] - pex[0]) + self.emin
         self._sigma_c = s_c.reshape(r, r)
 
     @property

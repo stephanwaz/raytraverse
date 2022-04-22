@@ -3,7 +3,7 @@ matplotlib~=3.5.1
 clasp~=1.1.6
 numpy
 scipy
-pybind11
+craytraverse
 sklearn
 tqdm
 

@@ -8,7 +8,8 @@
 
 """scene objects"""
 
-__all__ = ['skycalc', 'SkyData']
+__all__ = ['skycalc', 'SkyData', 'SkyDataMask']
 
 
 from raytraverse.sky.skydata import SkyData
+from raytraverse.sky.skydatamask import SkyDataMask

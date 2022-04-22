@@ -8,10 +8,9 @@
 
 """renderer objects"""
 
-__all__ = ['Renderer', 'RadianceRenderer', 'Rtrace', 'Rcontrib',
+__all__ = ['RadianceRenderer', 'Rtrace', 'Rcontrib',
            'ImageRenderer', 'SpRenderer']
 
-from raytraverse.renderer.renderer import Renderer
 from raytraverse.renderer.radiancerenderer import RadianceRenderer
 from raytraverse.renderer.rtrace import Rtrace
 from raytraverse.renderer.rcontrib import Rcontrib

@@ -13,6 +13,7 @@ from datetime import datetime
 
 from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor
 from concurrent.futures import wait, FIRST_COMPLETED
+from multiprocessing import get_context
 
 from tqdm import tqdm
 from raytraverse import io
@@ -25,8 +26,9 @@ class TStqdm(tqdm):
         if str(workers).lower() in ('thread', 't', 'threads'):
             pool = ThreadPoolExecutor()
         elif workers:
+            context = get_context('fork')
             nproc = io.get_nproc(cap)
-            pool = ProcessPoolExecutor(nproc)
+            pool = ProcessPoolExecutor(nproc, mp_context=context)
         else:
             pool = None
         self._instance = instance

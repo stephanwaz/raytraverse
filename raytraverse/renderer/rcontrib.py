@@ -5,11 +5,11 @@
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 # =======================================================================
-import numpy as np
-
 from raytraverse.renderer.radiancerenderer import RadianceRenderer
 from craytraverse.crenderer import cRcontrib
 from raytraverse.formatter import RadianceFormatter as Fmt
+
+rcontrib_instance = cRcontrib.get_instance()
 
 
 class Rcontrib(RadianceRenderer):
@@ -51,8 +51,7 @@ class Rcontrib(RadianceRenderer):
         # ans.shape -> (vecs.shape[0], 325)
     """
     name = 'rcontrib'
-    #: raytraverse.crenderer.cRcontrib
-    engine = cRcontrib
+    instance = rcontrib_instance
     ground = True
     skyres = 18
     srcn = 325
@@ -64,6 +63,10 @@ class Rcontrib(RadianceRenderer):
         scene = self.setup(scene, ground, modname, skyres)
         super().__init__(rayargs, scene, nproc=nproc,
                          default_args=default_args)
+
+    def __setstate__(self, state):
+        super().__setstate__(state)
+        type(self).instance = rcontrib_instance
 
     @classmethod
     def setup(cls, scene=None, ground=True, modname="skyglow", skyres=18):

@@ -29,6 +29,12 @@ class ResultAxis(object):
         self.name = name
         self.cols = cols
 
+    def value_array(self):
+        if len(self.values.dtype) > 0:
+            return np.asarray([tuple(i) for i in self.values])
+        else:
+            return np.asarray([(i, ) for i in self.values])
+
     @property
     def cols(self):
         return self._cols
@@ -363,8 +369,7 @@ class LightResult(object):
                                  "points. make sure non-point axes besides "
                                  "'col' are filtered to a single value")
             if pm is None:
-                pm = PlanMapper(np.asarray([tuple(i)for i in
-                                            self.axis("point").values])[:, 0:3])
+                pm = PlanMapper(self.axis("point").value_array()[:, 0:3])
             return self._pull2hdr_kdplan(pm, basename, rt, flabels0, flabels1)
         if skyfill is None:
             raise ValueError("'pull2hdr' with 'sky' requires skyfill")
