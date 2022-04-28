@@ -9,7 +9,9 @@ History
 * dummy skydatamask class useful for intializing with lightresult axes to handle fill
 * value_array method added to ResultAxis for easier syntax
 * settable sigma_c method in hvsgsm
-* 
+* make integrator.helpers public for overrides
+* supress warnings from radiance during reflection search
+* implement ZonalIntegratorDV
 
 1.3.1 (2022-04-19)
 ------------------

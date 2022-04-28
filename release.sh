@@ -32,6 +32,7 @@ echo make clean
 echo make docs
 echo make coverage
 echo update HISTORY.rst
+echo git commit
 
 
 printf "#######################################################\n\n"

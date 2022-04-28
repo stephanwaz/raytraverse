@@ -1,14 +1,6 @@
 raytraverse.renderer
 ==========================================================
 
-Renderer
----------------------------
-
-.. autoclass:: raytraverse.renderer.Renderer
-    :members:
-    :undoc-members:
-    :show-inheritance:
-
 RadianceRenderer
 ---------------------------
 
