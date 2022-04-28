@@ -12,7 +12,7 @@ import numpy as np
 from raytraverse import translate
 from raytraverse.evaluate import MetricSet
 from raytraverse.lightfield.lightresult import ResultAxis, LightResult
-import raytraverse.integrator._helpers as intg
+import raytraverse.integrator.helpers as intg
 from raytraverse.mapper import ViewMapper
 from raytraverse.utility import pool_call
 

@@ -9,10 +9,11 @@
 """sampler objects"""
 
 __all__ = ["Integrator", "IntegratorDS", "ZonalIntegrator", "ZonalIntegratorDS",
-           "IntegratorDV"]
+           "IntegratorDV", "ZonalIntegratorDV"]
 
 from raytraverse.integrator.integrator import Integrator
 from raytraverse.integrator.integratords import IntegratorDS
 from raytraverse.integrator.zonalintegrator import ZonalIntegrator
 from raytraverse.integrator.zonalintegratords import ZonalIntegratorDS
 from raytraverse.integrator.integratordv import IntegratorDV
+from raytraverse.integrator.zonalintegratordv import ZonalIntegratorDV

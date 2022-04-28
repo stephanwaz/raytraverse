@@ -13,7 +13,7 @@ import os
 import numpy as np
 
 from raytraverse import io
-from raytraverse.integrator import ZonalIntegrator, ZonalIntegratorDS
+from raytraverse.integrator import ZonalIntegrator, ZonalIntegratorDS, ZonalIntegratorDV
 from raytraverse.integrator import Integrator, IntegratorDS, IntegratorDV
 from raytraverse.scene import Scene
 from raytraverse.sky import SkyData
@@ -123,7 +123,7 @@ def get_integrator(scn, pm, srcname="suns", simtype="2comp", zonal=False,
     if zonal:
         itg = ZonalIntegrator
         itgds = ZonalIntegratorDS
-        itgdv = IntegratorDV
+        itgdv = ZonalIntegratorDV
     else:
         itg = Integrator
         itgds = IntegratorDS

@@ -157,14 +157,15 @@ class SamplerArea(BaseSampler):
                 f = open(skyf, 'w')
                 f.write(Fmt.get_skydef((1, 1, 1), ground=False))
                 f.close()
-                pipeline([f"oconv {' '.join(files)} {skyf}"], outfile=octf,
+                pipeline([f"oconv -w {' '.join(files)} {skyf}"], outfile=octf,
                          writemode='wb')
             else:
                 print(f"Warning, scene made from frozen octree or source scene "
                       f"files can no longer be located, reflection search will"
                       f"miss specular plastic", file=sys.stderr)
                 octf = self.engine.engine.scene
-        reflengine = SpRenderer("-ab 0 -w -lr 1 -ss 0 -st .001 -otndM -h", octf)
+        reflengine = SpRenderer("-ab 0 -w- -lr 1 -ss 0 -st .001 -otndM -h",
+                                octf)
         vm = ViewMapper()
         side = 2**res
         uv = np.stack(np.unravel_index(np.arange(side*side*2),

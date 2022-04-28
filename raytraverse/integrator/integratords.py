@@ -9,7 +9,7 @@ import numpy as np
 
 from raytraverse import translate
 from raytraverse.integrator.integrator import Integrator
-import raytraverse.integrator._helpers as intg
+import raytraverse.integrator.helpers as intg
 from raytraverse.lightpoint import LightPointKD
 
 

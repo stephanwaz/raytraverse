@@ -7,51 +7,15 @@
 # =======================================================================
 import numpy as np
 
-from raytraverse import translate
-from raytraverse.integrator.integrator import Integrator
-import raytraverse.integrator.helpers as intg
+from raytraverse.integrator.integratordv import IntegratorDV
+from raytraverse.integrator.zonalintegrator import ZonalIntegrator
 
 
-def _prep_dv(lpts, skyvecs, skdir):
-    dirlum = np.zeros((len(lpts[0].lum), 1))
-    ski, skyvecs, refl = intg.apply_dsky_patch(lpts[0], lpts[1], skyvecs,
-                                               skdir, dirlum)
-    lpts = [ski]
-    return lpts, skyvecs, refl
-
-
-def evaluate_pt_dv(lpts, skyvecs, suns, **kwargs):
-    side = int((skyvecs[0].shape[1] - 1)**.5)
-    skpatch = translate.xyz2skybin(suns[0], side)[0]
-    skdir = translate.skybin2xyz(skpatch, side)[0]
-    lpts, skyvecs, refl = _prep_dv(lpts, skyvecs, skdir)
-    return intg.evaluate_pt(lpts, skyvecs, suns, refl=refl, **kwargs)
-
-
-def img_pt_dv(lpts, skyvecs, suns, **kwargs):
-    side = int((skyvecs[0].shape[1] - 1)**.5)
-    skpatch = translate.xyz2skybin(suns[0], side)[0]
-    skdir = translate.skybin2xyz(skpatch, side)[0]
-    lpts, skyvecs, refl = _prep_dv(lpts, skyvecs, skdir)
-    return intg.img_pt(lpts, skyvecs, suns, refl=refl, **kwargs)
-
-
-class IntegratorDV(Integrator):
+class ZonalIntegratorDV(IntegratorDV, ZonalIntegrator):
     """specialized integrator for 2-phase Direct Views style calculation. assumes
     first lightplane is sky contrribution, second, direct sky contribution. Uses
     special point functions that combine two sky functions on a per patch basis.
-
-    Parameters
-    ----------
-    skplane: raytraverse.lightfield.LightPlaneKD
-    dskplane: raytraverse.lightfield.LightPlaneKD
     """
-    evaluate_pt = evaluate_pt_dv
-    img_pt = img_pt_dv
-
-    def __init__(self, skplane, dskplane, sunviewengine):
-        super(IntegratorDV, self).__init__(skplane, dskplane,
-                                           sunviewengine=sunviewengine)
 
     def _group_query(self, skydata, points):
         # query and group sun positions
@@ -90,3 +54,10 @@ class IntegratorDV(Integrator):
         # smtx (with sun), (patch sun, sun)
         skydatas = [np.hstack((smtx, dsns[:, 4:])), dsns[:, 3:4]]
         return skydatas, dsns
+
+
+    def _match_ragged(self, smtx, dsns, sunidx, all_vecs):
+        skyq = self.lightplanes[0].query(all_vecs[:, 3:])[0]
+        tidxs = np.stack([skyq, skyq])
+        skydatas = [smtx, dsns[:, 4:]]
+        return tidxs, skydatas

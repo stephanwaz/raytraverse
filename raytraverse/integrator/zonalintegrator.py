@@ -11,7 +11,7 @@ from raytraverse import translate
 from raytraverse.evaluate import MetricSet
 from raytraverse.integrator import Integrator
 from raytraverse.lightfield import SunsPlaneKD, ZonalLightResult
-from raytraverse.integrator._helpers import calc_omega
+from raytraverse.integrator.helpers import calc_omega
 from raytraverse.lightfield.lightresult import ResultAxis, LightResult
 from raytraverse.utility import pool_call
 
