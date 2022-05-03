@@ -16,6 +16,7 @@ import numpy as np
 
 from clasp import click
 import clasp.click_ext as clk
+from clasp.script_tools import try_mkdir
 
 import raytraverse
 from raytraverse import translate
@@ -26,7 +27,8 @@ from raytraverse.mapper import PlanMapper, SkyMapper, ViewMapper
 from raytraverse.utility.cli import np_load, np_load_safe, shared_pull, pull_decs
 from raytraverse.scene import Scene
 from raytraverse.renderer import Rtrace, Rcontrib
-from raytraverse.sampler import SkySamplerPt, SamplerArea, SamplerSuns
+from raytraverse.sampler import SkySamplerPt, SamplerArea, SamplerSuns, \
+    SrcSamplerPt
 from raytraverse.sky import SkyData, skycalc
 
 
@@ -455,6 +457,11 @@ def skyrun(ctx, accuracy=1.0, nlev=3, jitter=True, overwrite=False, plotp=False,
     except OSError:
         skyfield = skysampler.run(pm, plotp=plotp, pfish=False,
                                   find_reflections=True)
+        try_mkdir(f"{scn.outdir}/{pm.name}")
+        reflf = f"{scn.outdir}/{pm.name}/reflection_normals.txt"
+        refl = scn.reflection_search(skyfield.vecs)
+        if refl.size > 0:
+            np.savetxt(reflf, refl)
     else:
         if scn.dolog:
             click.echo(f"Sky Lightfield reloaded from {scn.outdir}/{pm.name} "
@@ -549,6 +556,12 @@ def sunrun(ctx, srcaccuracy=1.0, srcnlev=3, srcjitter=True, recover=False,
             shutil.rmtree(src, ignore_errors=True)
         for src in glob(f"{scn.outdir}/{pm.name}/i_{skmapper.name}_sun_*"):
             shutil.rmtree(src, ignore_errors=True)
+    try_mkdir(f"{scn.outdir}/{pm.name}")
+    reflf = f"{scn.outdir}/{pm.name}/reflection_normals.txt"
+    if not os.path.isfile(reflf):
+        refl = scn.reflection_search(pm.point_grid(False))
+        if refl.size > 0:
+            np.savetxt(reflf, refl)
     dfield = sunsampler.run(skmapper, pm, specguide=True, recover=recover,
                             plotp=plotp, pfish=False)
     ctx.obj['daylightfield'] = dfield
@@ -597,7 +610,7 @@ def sourcerun(ctx, srcfile=None, source="source", accuracy=1.0, nlev=3,
     if ctx.obj['static_points']:
         nlev = 1
         jitter = False
-    srcengine = SkySamplerPt(scn, snengine, **ptkwargs)
+    srcengine = SrcSamplerPt(scn, snengine, srcfile, **ptkwargs)
     srcsampler = SamplerArea(scn, srcengine, accuracy=accuracy, nlev=nlev,
                              jitter=jitter, edgemode=edgemode)
     try:
@@ -606,8 +619,14 @@ def sourcerun(ctx, srcfile=None, source="source", accuracy=1.0, nlev=3,
         skyfield = LightPlaneKD(scn, f"{scn.outdir}/{pm.name}/{source}_points"
                                 f".tsv", pm, source)
     except OSError:
-        skyfield = srcsampler.run(pm, plotp=plotp, pfish=False,
-                                  find_reflections=True)
+        try_mkdir(f"{scn.outdir}/{pm.name}")
+        reflf = f"{scn.outdir}/{pm.name}/reflection_normals.txt"
+        if not os.path.isfile(reflf):
+            refl = scn.reflection_search(pm.point_grid(False))
+            if refl.size > 0:
+                np.savetxt(reflf, refl)
+        # skyfield = srcsampler.run(pm, plotp=plotp, pfish=False,
+        #                           find_reflections=True)
     else:
         if scn.dolog:
             click.echo(f"Source Lightfield reloaded from {scn.outdir}/{pm.name} "

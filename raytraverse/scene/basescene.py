@@ -92,6 +92,9 @@ class BaseScene(object):
                                                         self._scene,
                                                         frozen=self._frozen)
 
+    def reflection_search_scene(self):
+        return self.scene
+
     def log(self, instance, message, err=False, level=0):
         """print a message to the log file or stderr
 

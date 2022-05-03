@@ -5,6 +5,10 @@
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 # =======================================================================
+import os
+
+from clasp import script_tools as cst
+
 from raytraverse.renderer.radiancerenderer import RadianceRenderer
 from craytraverse.crenderer import cRcontrib
 from raytraverse.formatter import RadianceFormatter as Fmt
@@ -95,7 +99,11 @@ class Rcontrib(RadianceRenderer):
         cls.ground = ground
         if scene is not None:
             srcdef = Fmt.get_skydef((1, 1, 1), ground=ground, name=modname)
-            scene = Fmt.add_source(scene, srcdef)
+            ocom = f'oconv -f -i {scene} -'
+            scene = scene.rsplit(".", 1)[0] + "_sky.oct"
+            if not os.path.isfile(scene):
+                f = open(scene, 'wb')
+                cst.pipeline([ocom], outfile=f, inp=srcdef, close=True)
         cls.skyres = skyres
         cls.srcn = cls.skyres**2 + ground
         cls.modname = modname

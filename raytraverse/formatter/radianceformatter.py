@@ -7,11 +7,10 @@
 # =======================================================================
 import re
 import os
-import numpy as np
+
 from clasp import script_tools as cst
 from clasp.click_callbacks import parse_file_list
 
-from raytraverse import io
 from raytraverse.formatter.formatter import Formatter
 
 
@@ -54,21 +53,6 @@ class RadianceFormatter(Formatter):
         return out
 
     @staticmethod
-    def add_source(scene, src, rewrite=False):
-        """add source files to compiled scene"""
-        out = scene.rsplit(".", 1)[0] + "_sky.oct"
-        if os.path.isfile(src):
-            ocom = f'oconv -f -i {scene} {src}'
-            inp = None
-        else:
-            ocom = f'oconv -f -i {scene} -'
-            inp = src
-        if rewrite or not os.path.isfile(out):
-            f = open(out, 'wb')
-            cst.pipeline([ocom], outfile=f, inp=inp, close=True)
-        return out
-
-    @staticmethod
     def get_skydef(color=(.96, 1.004, 1.118), ground=True, name='skyglow',
                    mod="void", groundname=None, groundcolor=(1, 1, 1)):
         """assemble sky definition"""
@@ -91,26 +75,3 @@ class RadianceFormatter(Formatter):
         dec = (f"void light {mat_name} 0 0 3 {color[0]} {color[1]} {color[2]}\n"
                f"{mat_name} source {mat_id} 0 0 4 {d} {size}\n")
         return dec
-
-    @staticmethod
-    def extract_sources(srcdef, accuracy):
-        """scan scene file for sun source definitions"""
-        srcs = []
-        srctxt = cst.pipeline([f"xform {srcdef}"])
-        srclines = re.split(r"[\n\r]+", srctxt)
-        for i, v in enumerate(srclines):
-            if re.match(r"[\d\w]+\s+source\s+[\d\w]+", v):
-                src = " ".join(srclines[i:]).split()
-                srcd = np.array(src[6:10], dtype=float)
-                if srcd[-1] < 3:
-                    modsrc = " ".join(srclines[:i]).split()
-                    modidx = next(j for j in reversed(range(len(modsrc)))
-                                  if modsrc[j] == src[0])
-                    modi = io.rgb2rad(np.array(modsrc[modidx + 4:modidx + 7],
-                                               dtype=float))
-                    srcs.append(np.concatenate((srcd, [modi])))
-                    # 1/(np.square(0.2665 * np.pi / 180) * .5) = 92444
-                    # the ratio of suns area to hemisphere
-                    accuracy = accuracy*modi/92444
-                    break
-        return srcs, accuracy

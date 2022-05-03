@@ -64,7 +64,6 @@ def test_skysample(tmpdir):
     assert np.isclose(fmetric[0], 352.7, atol=1, rtol=.01)
     assert np.isclose(fmetric[1], 570, atol=30)
     Rcontrib.reset()
-    Rcontrib._pyinstance = None
 
 
 def test_sunsample(tmpdir):
@@ -122,4 +121,3 @@ def test_sunviewsample(tmpdir):
         omegat = np.einsum("i,i", omega.ravel(), sun2.ravel())
         assert np.isclose(omegat, lf2.omega, atol=.01, rtol=.01)
     Rtrace.reset()
-    Rtrace._pyinstance = None

@@ -193,6 +193,23 @@ def imgmetric(ctx, imgs=None, metrics=None, parallel=True,
 @main.command()
 @click.option('-out', default="imglf", type=click.Path(file_okay=False),
               help="output directory")
+@click.option("-img", callback=clk.are_files,
+              help="hdr image files, uv anr angular")
+@click.option("--uv2ang/--ang2uv", default=False,
+              help="direction of transform")
+@clk.shared_decs(clk.command_decs(raytraverse.__version__, wrap=True))
+def project(ctx, img=None, uv2ang=False, **kwargs):
+    """read and compress angular fisheye images into lightpoints/lightplane"""
+    if uv2ang:
+        func = imagetools.hdr_uv2ang
+    else:
+        func = imagetools.hdr_ang2uv
+    results = pool_call(func, img, expandarg=False)
+
+
+@main.command()
+@click.option('-out', default="imglf", type=click.Path(file_okay=False),
+              help="output directory")
 @click.option("-imga", callback=clk.are_files,
               help="hdr image files, primary view direction, must be angular "
                    "fisheye projection, view header required")

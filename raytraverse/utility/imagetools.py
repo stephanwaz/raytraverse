@@ -20,6 +20,35 @@ from raytraverse.sampler import draw
 from raytraverse.sampler.basesampler import filterdict
 
 
+def hdr_uv2ang(imgf):
+    imarray = io.hdr2carray(imgf)
+    outf = imgf.rsplit(".", 1)[0] + "_ang.hdr"
+    res = imarray.shape[-1]
+    vm = ViewMapper(viewangle=180)
+    pixelxyz = vm.pixelrays(res)
+    uv = vm.xyz2uv(pixelxyz.reshape(-1, 3))
+    mask = vm.in_view(pixelxyz, indices=False)
+    ij = translate.uv2ij(uv[mask], res)
+    img = np.zeros((3, res*res))
+    img[:, mask] = imarray[:, ij[:, 1], ij[:, 0]]
+    io.carray2hdr(img.reshape(3, res, res)[:, ::-1], outf)
+
+
+def hdr_ang2uv(imgf):
+    vm = hdr2vm(imgf)
+    if vm is None:
+        vm = ViewMapper(viewangle=180)
+    imarray = io.hdr2carray(imgf)
+    outf = imgf.rsplit(".", 1)[0] + "_uv.hdr"
+    res = imarray.shape[-1]
+    uv = translate.bin2uv(np.arange(res*res), res)
+    xyz = vm.uv2xyz(uv)
+    pxy = vm.ray2pixel(xyz, imarray.shape[-1])
+    # img = np.take_along_axis(imarray, pxy.T, 0)
+    img = imarray[:, pxy[:, 1], pxy[:, 0]].reshape(3, res, res)
+    io.carray2hdr(img[:, ::-1], outf)
+
+
 def uvarray2hdr(uvarray, imgf, header=None):
     res = uvarray.shape[0]
     vm = ViewMapper(viewangle=180)
@@ -76,8 +105,12 @@ def hdr2vm(imgf, vpt=False):
         raise IOError(f"{err} - wrong file type?")
     elif "cannot open" in header:
         raise FileNotFoundError(f"{imgf} not found")
+    vp = None
     if "VIEW= -vta" in header:
         vp = header.rsplit("VIEW= -vta", 1)[-1].splitlines()[0].split()
+    elif "rvu -vta" in header:
+        vp = header.rsplit("rvu -vta", 1)[-1].splitlines()[0].split()
+    if vp is not None:
         view_angle = float(vp[vp.index("-vh") + 1])
         try:
             vd = vp.index("-vd")

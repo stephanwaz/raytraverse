@@ -114,7 +114,7 @@ ray.</p></li>
 </pre></div>
 </div>
 <p class="rubric">Notes</p>
-<p>the cRcontrib instance is best managed from a separate class that handles argument generation.
+<p>the cRtrace instance is best managed from a separate class that handles argument generation.
 See raytraverse.renderer.Rtrace</p>
 <dl class="py method">
 <dt class="sig sig-object py" id="craytraverse.crenderer.cRtrace.__call__">
@@ -156,14 +156,15 @@ See raytraverse.renderer.Rtrace</p>
 
 <dl class="py method">
 <dt class="sig sig-object py" id="craytraverse.crenderer.cRtrace.get_sources">
-<span class="sig-name descname"><span class="pre">get_sources</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">self</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="#craytraverse.crenderer.cRtrace" title="craytraverse.crenderer.rtrace_c.cRtrace"><span class="pre">craytraverse.crenderer.rtrace_c.cRtrace</span></a></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">numpy.ndarray</span><span class="p"><span class="pre">[</span></span><span class="pre">numpy.float64</span><span class="p"><span class="pre">]</span></span></span></span><a class="headerlink" href="#craytraverse.crenderer.cRtrace.get_sources" title="Permalink to this definition">¶</a></dt>
+<span class="sig-name descname"><span class="pre">get_sources</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">self</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="#craytraverse.crenderer.cRtrace" title="craytraverse.crenderer.rtrace_c.cRtrace"><span class="pre">craytraverse.crenderer.rtrace_c.cRtrace</span></a></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">tuple</span></span></span><a class="headerlink" href="#craytraverse.crenderer.cRtrace.get_sources" title="Permalink to this definition">¶</a></dt>
 <dd><p>return list of sources in model</p>
 <dl class="field-list simple">
 <dt class="field-odd">Returns</dt>
-<dd class="field-odd"><p><strong>ncomp</strong> – number of components renderer will return, or -1 on failure.</p>
-</dd>
-<dt class="field-even">Return type</dt>
-<dd class="field-even"><p>int</p>
+<dd class="field-odd"><p><ul class="simple">
+<li><p><strong>sources</strong> (<em>np.array</em>) – shape: (N, 4) for each source x,y,z position (or direction) and maximum radiuss</p></li>
+<li><p><strong>distant</strong> (<em>np.array</em>) – shape: (N,) True if source is distant (so x,y,z should be interpreted as direction)</p></li>
+</ul>
+</p>
 </dd>
 </dl>
 </dd></dl>

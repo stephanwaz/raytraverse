@@ -8,6 +8,9 @@
 import re
 import sys
 
+import numpy as np
+
+from raytraverse import translate
 from raytraverse.renderer.radiancerenderer import RadianceRenderer
 from craytraverse.crenderer import cRtrace
 
@@ -59,6 +62,7 @@ class Rtrace(RadianceRenderer):
     successive calls to the instance.
     """
     name = 'rtrace'
+    #: craytraverse.crenderer.cRtrace
     instance = rtrace_instance
     defaultargs = (f"-u+ -ab 16 -av 0 0 0 -aa 0 -as 0 -dc 1 -dt 0 -lr -14 -ad "
                    f"1000 -lw 0.00004 -st 0 -ss 16 -w-")
@@ -190,5 +194,17 @@ class Rtrace(RadianceRenderer):
 
     @classmethod
     def get_sources(cls):
-        """x,y,z,radius,area (x,y,z iis direction for distant sources)"""
-        return cls.instance.get_sources().reshape(-1, 5)
+        """returns source information
+
+        Returns
+        -------
+        sources: np.array
+            x,y,z,v,a
+            distant: direction, view angle, solid angle
+            not distant: location, max radius, area
+        distant: np.arrary
+            booleans, true if source type is distant
+        """
+        srcs, distant = cls.instance.get_sources()
+        srcs[distant, 3] = translate.chord2theta(srcs[distant, 3]) * 360/np.pi
+        return srcs, distant

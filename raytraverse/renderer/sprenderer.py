@@ -5,8 +5,6 @@
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 # =======================================================================
-import os
-import tempfile
 from io import StringIO
 
 import numpy as np
@@ -39,7 +37,8 @@ class SpRenderer(object):
     def __call__(cls, rays):
         s = StringIO()
         np.savetxt(s, rays)
-        out = pipeline([f"{cls.name} -n {cls.nproc} {cls.args} {cls.scene}"], inp=s.getvalue())
+        out = pipeline([f"{cls.name} -n {cls.nproc} {cls.args} {cls.scene}"],
+                       inp=s.getvalue())
         return out
 
     def run(self, *args, **kwargs):

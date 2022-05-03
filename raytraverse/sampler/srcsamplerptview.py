@@ -15,7 +15,7 @@ from raytraverse.sampler.samplerpt import SamplerPt
 from raytraverse.lightpoint import LightPointKD, SrcViewPoint
 
 
-class SunSamplerPtView(SamplerPt):
+class SrcSamplerPtView(SamplerPt):
     """sample view rays to a source.
 
     Parameters
@@ -30,31 +30,17 @@ class SunSamplerPtView(SamplerPt):
     #: deterministic sample draws
     ub = 1
 
-    def __init__(self, scene, engine, sun, sunbin, **kwargs):
-        super().__init__(scene, engine, stype=f"sunview_{sunbin:04d}", idres=16,
-                         nlev=3, **kwargs)
-        self.sunpos = np.asarray(sun).flatten()[0:3]
-        # load new source
-        f, srcdef = tempfile.mkstemp(dir=f"./{scene.outdir}/", prefix='tmp_src')
-        # srcdef = f'{scene.outdir}/tmp_srcdef_{sunbin}.rad'
-        f = open(srcdef, 'w')
-        f.write(scene.formatter.get_sundef(sun, (1, 1, 1)))
-        f.close()
-        self.engine.load_source(srcdef)
-        os.remove(srcdef)
+    def __init__(self, scene, engine, nlev=3, idres=16, **kwargs):
+        super().__init__(scene, engine, idres=idres,
+                         nlev=nlev, **kwargs)
         self.vecs = None
         self.lum = []
 
     def run(self, point, posidx, vm=None, plotp=False, log=None, **kwargs):
+        svpts = []
         args = self.engine.args
         # temporarily override arguments
         self.engine.set_args(self.engine.directargs)
-        if vm is None:
-            vm = ViewMapper(self.sunpos, 0.533, "sunview", jitterrate=0)
-        if hasattr(vm, "dxyz"):
-            return super().run(point, posidx, vm, plotp=plotp, log=log,
-                               **kwargs)
-        svpts = []
         for v in vm:
             svpts.append(super().run(point, posidx, v, plotp=plotp, log=log,
                                      **kwargs))

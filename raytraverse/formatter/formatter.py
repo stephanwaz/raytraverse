@@ -37,22 +37,12 @@ class Formatter(object):
         return out
 
     @staticmethod
-    def add_source(scene, src):
-        """add source files to compiled scene"""
-        pass
-
-    @staticmethod
     def get_skydef(color=None, ground=True, name='skyglow'):
         """assemble sky definition"""
         pass
 
     @staticmethod
-    def get_sundef(vec, color, size=0.5333, mat_name='solar', mat_id='sun',
-                   glow=False):
+    def get_sundef(vec, color, **kwargs):
         """assemble sun definition"""
         pass
 
-    @staticmethod
-    def extract_sources(srcdef, accuracy):
-        """scan scene file for sun source definitions"""
-        return [], accuracy

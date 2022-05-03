@@ -109,9 +109,7 @@ class SamplerArea(BaseSampler):
         mapper: raytraverse.mapper.PlanMapper
             the pointset to build/run
         name: str, optional
-        specguide: raytraverse.lightfield.LightPlaneKD
-            sky source lightfield to use as specular guide for sampling (used by
-            engine of type raytraverse.sampler.SunSamplerPt)
+        specguide: Union[None, bool, str]
         plotp: bool, optional
             plot weights, detail and vectors for each level
         find_reflections: bool, optional
@@ -137,64 +135,7 @@ class SamplerArea(BaseSampler):
         plotpthis = plotp and len(levels) > 1
         self._plotpchild = plotp and not plotpthis
         super().run(mapper, name, levels, plotp=plotpthis, **kwargs)
-        if find_reflections:
-            refl = self.reflection_search(self.vecs)
-            if refl.size > 0:
-                np.savetxt(reflf, refl)
         return LightPlaneKD(self.scene, self.vecs, self._mapper, self.stype)
-
-    def reflection_search(self, vecs, res=5):
-        # plastic reflections do not work in a frozen octree, so need to try
-        # and recompile.
-        octf = f"{self.scene.outdir}/scene_reflections.oct"
-        if not os.path.isfile(octf):
-            header = pipeline([f"getinfo {self.engine.engine.scene}"])
-            oconvf = re.findall(r"\s*oconv (.+)", header)[0]
-            files = [i for i in oconvf.split() if re.match(r".+\.rad", i)]
-            hasoct = [i for i in oconvf.split() if re.match(r".+\.oct", i)]
-            if len(hasoct) == 0 and np.all([os.path.isfile(i) for i in files]):
-                skyf = f"{self.scene.outdir}/reflections_sky.rad"
-                f = open(skyf, 'w')
-                f.write(Fmt.get_skydef((1, 1, 1), ground=False))
-                f.close()
-                pipeline([f"oconv -w {' '.join(files)} {skyf}"], outfile=octf,
-                         writemode='wb')
-            else:
-                print(f"Warning, scene made from frozen octree or source scene "
-                      f"files can no longer be located, reflection search will"
-                      f"miss specular plastic", file=sys.stderr)
-                octf = self.engine.engine.scene
-        reflengine = SpRenderer("-ab 0 -w- -lr 1 -ss 0 -st .001 -otndM -h",
-                                octf)
-        vm = ViewMapper()
-        side = 2**res
-        uv = np.stack(np.unravel_index(np.arange(side*side*2),
-                                       (2*side, side))).T/side
-        uv += np.random.default_rng().random(uv.shape) * (.5 / side)
-        xyz = vm.uv2xyz(uv)
-        pvecs = np.concatenate(np.broadcast_arrays(vecs[:, None], xyz[None, :]), 2)
-        a = reflengine(pvecs.reshape(-1, 6))
-        # count tabs to get level
-        level = np.array([len(i) - len(i.lstrip()) for i in a.splitlines(False)])
-        # normal, direction, modifier
-        a = np.array(a.split()).reshape(-1, 7)
-        mod = a[:, -1]
-        a = a[:, 0:6].astype(float)
-        sky = np.argwhere(mod == "skyglow").ravel()
-        skyl = level[sky]
-        leva, levs = np.broadcast_arrays(level, skyl[:, None])
-        idxa, idxs = np.broadcast_arrays(np.arange(len(level)), sky[:, None])
-        # filter indices before sky index in each row
-        leva = np.where(idxa - idxs <= 0, -3, leva)
-        # filter indices not one level up from sky
-        leva = np.where(leva != (levs - 1), -2, leva)
-        # this returns the first value, our candidate reflection
-        candidate = np.argmax(leva, 1)
-        # check if this is a reflection
-        acos = np.einsum("ij,ij->i", a[candidate, 3:], a[sky, 3:])
-        normals = a[candidate, 0:3][acos < .99]
-        # find unique
-        return np.array(list(set(zip(*normals.T))))
 
     def repeat(self, guide, stype):
         """repeat the sampling of a guide LightPlane (to match all rays)
@@ -306,10 +247,6 @@ class SamplerArea(BaseSampler):
         lums = []
         lpargs = dict(parent=self._name)
         kwargs = dict(metricset=self.metricset, lmin=1e-8)
-        specguide = None
-        sgpt = None
-        if hasattr(self.engine, "_load_specguide"):
-            specguide = self._specguide
         level_desc = f"Level {len(self.slices)} of {len(self.levels)}"
         if self.nlev == 1 and len(vecs) == 1:
             logpoint = 'err'
@@ -324,9 +261,7 @@ class SamplerArea(BaseSampler):
             pbar = self.scene.progress_bar(self, list(zip(range(*idx), vecs)),
                                            level=self._slevel, message=level_desc)
         for posidx, point in pbar:
-            if specguide is not None:
-                sgpt = self._load_specguide(point)
-            lp = self.engine.run(point, posidx, specguide=sgpt, lpargs=lpargs,
+            lp = self.engine.run(point, posidx, specguide=self._specguide, lpargs=lpargs,
                                  log=logpoint, plotp=self._plotpchild, pfish=False)
             vol = lp.evaluate(1, includeviews=True)
             metric = self.metricclass(*vol, lp.vm, gcrnorm=self._gcrnorm,
@@ -339,19 +274,6 @@ class SamplerArea(BaseSampler):
         else:
             self.lum = np.concatenate((self.lum, lums), 0)
         return np.array(lums)
-
-    def _load_specguide(self, point):
-        """find the 3 nearest lightpoints in the specular sampling guide"""
-        if hasattr(self._specguide, "kd"):
-            d, i = self._specguide.kd.query(point, 3)
-            idxs = i[d <= self._mapper.ptres * np.sqrt(2)]
-            specguide = [self._specguide.data[j] for j in idxs]
-            if len(specguide) > 0:
-                return specguide
-            else:
-                return None
-        else:
-            return self._specguide
 
     def _update_weights(self, si, lum):
         """only used by _plot_weights, weights are recomputed from spatial

@@ -135,7 +135,7 @@ class SamplerSuns(BaseSampler):
             the mapping for drawing suns
         areamapper: raytraverse.mapper.PlanMapper
             the mapping for drawing points
-        specguide: raytraverse.lightfield.LightPlaneKD
+        specguide: Union[raytraverse.lightfield.LightPlaneKD, Bool]
             sky source lightfield to use as specular guide for sampling
         recover: continue run on top of existing files, if false, overwrites
             previous run.
@@ -294,7 +294,7 @@ class SamplerSuns(BaseSampler):
 
     def _sample_sun(self, suni, sunpos, adraws):
         """this function is for calling with a process pool, by declaring the
-        sun sampler point after the child process is forked/spawned the
+        sun sampler point after the child process is forked the
         call to engine.load_source happens on an isolated memory instance,
         allowing for concurrency on different scenes, despite the singleton/
         global namespace issues of the cRtrace instance."""
