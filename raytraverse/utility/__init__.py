@@ -7,7 +7,7 @@
 # =======================================================================
 
 """utilities"""
-__all__ = ['pool_call', 'cli', 'TStqdm', 'imagetools']
+__all__ = ['pool_call', 'cli', 'TStqdm', 'imagetools', 'pool_call']
 
 from raytraverse.utility.tstqdm import TStqdm
 from raytraverse.utility.utility import pool_call

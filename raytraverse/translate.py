@@ -517,7 +517,12 @@ def cull_vectors(vecs, tol):
 
 
 def reflect(ray, normal, returnmasked=False):
-    refl = ray - 2 * normal * np.einsum("ij,kj->ik", ray, normal)
+    refl = (ray[:, None] -
+            2 * normal[None] * np.einsum("ij,kj->ik", ray, normal)[..., None])
+    try:
+        refl = np.squeeze(refl, 0)
+    except ValueError:
+        pass
     n = np.isclose(np.linalg.norm(refl, axis=-1), 1)
     if returnmasked:
         return refl[n]

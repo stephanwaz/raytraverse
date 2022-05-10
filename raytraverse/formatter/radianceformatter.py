@@ -8,8 +8,10 @@
 import re
 import os
 
+import numpy as np
 from clasp import script_tools as cst
 from clasp.click_callbacks import parse_file_list
+from clasp.script_tools import pipeline
 
 from raytraverse.formatter.formatter import Formatter
 
@@ -51,6 +53,34 @@ class RadianceFormatter(Formatter):
                 os.remove(out)
                 raise ChildProcessError(err.decode(cst.encoding))
         return out
+
+    @staticmethod
+    def get_scene(scene):
+        """recover scene file paths from compiled octree
+
+        Parameters
+        ----------
+        scene: octree file
+
+        Returns
+        -------
+        files: string to use in new octree generation. -i prepended before
+        each actree
+        frozen: if result will be a frozen octree
+        """
+        header = pipeline([f"getinfo {scene}"])
+        oconvf = re.findall(r"\s*oconv (.+)", header)[0]
+        files = [i for i in oconvf.split() if re.match(r".+\.rad", i)]
+        hasoct = [i for i in oconvf.split() if re.match(r".+\.oct", i)]
+        frozen = True
+        if not np.all([os.path.isfile(i) for i in files + hasoct]):
+            files = f"-i {scene}"
+        elif len(hasoct) == 0:
+            frozen = False
+            files = f"{' '.join(files)}"
+        else:
+            files = f"-i {' -i '.join(hasoct)} {' '.join(files)}"
+        return files, frozen
 
     @staticmethod
     def get_skydef(color=(.96, 1.004, 1.118), ground=True, name='skyglow',

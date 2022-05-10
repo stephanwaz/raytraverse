@@ -44,22 +44,16 @@ class Scene(BaseScene):
         if os.path.isfile(octf):
             self._refl_scene = octf
         elif self._refl_scene is None:
-            header = pipeline([f"getinfo {self.scene}"])
-            oconvf = re.findall(r"\s*oconv (.+)", header)[0]
-            files = [i for i in oconvf.split() if re.match(r".+\.rad", i)]
-            hasoct = [i for i in oconvf.split() if re.match(r".+\.oct", i)]
-            if len(hasoct) == 0 and np.all([os.path.isfile(i) for i in files]):
-                skyf = f"{self.outdir}/reflections_sky.rad"
-                f = open(skyf, 'w')
-                f.write(self.formatter.get_skydef((1, 1, 1), ground=False))
-                f.close()
-                pipeline([f"oconv -w {' '.join(files)} {skyf}"], outfile=octf,
-                         writemode='wb')
-            else:
+            skyf = f"{self.outdir}/reflections_sky.rad"
+            f = open(skyf, 'w')
+            f.write(self.formatter.get_skydef((1, 1, 1), ground=False))
+            f.close()
+            files, frozen = self.formatter.get_scene(self.scene)
+            if frozen:
                 print(f"Warning, scene made from frozen octree or source scene "
                       f"files can no longer be located, reflection search will"
                       f"miss specular plastic", file=sys.stderr)
-                octf = self.scene
+            pipeline([f"oconv -w {files} {skyf}"], outfile=octf, writemode='wb')
             self._refl_scene = octf
         return self._refl_scene
 
@@ -100,3 +94,9 @@ class Scene(BaseScene):
         normals = a[candidate, 0:3][acos < .99]
         # find unique
         return np.array(list(set(zip(*normals.T))))
+
+    def source_scene(self, srcfile, srcname):
+        files, frozen = self.formatter.get_scene(self.scene)
+        octf = f"{self.outdir}/scene_{srcname}.oct"
+        pipeline([f"oconv -w {files} {srcfile}"], outfile=octf, writemode='wb')
+        return octf

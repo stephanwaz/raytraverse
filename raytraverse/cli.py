@@ -107,11 +107,6 @@ engine_opts = [
                    ' variance to sample. A value of 1 will have a sample count'
                    ' at the final sampling level equal to the number of'
                    ' directions with a contribution variance greater than .25'),
- click.option("-vlt", default=0.64,
-              help="primary transmitting vlt, used to scale the accuracy "
-                   "parameter to the expected scene variance. Optional, but "
-                   "helpful with, for example, electrochromic glazing or "
-                   "shades"),
  click.option('-idres', default=32,
               help='the initial directional sampling resolution '
                    '(as sqrt of samples per hemisphere)'),
@@ -257,7 +252,8 @@ def suns(ctx, loc=None, opts=False, debug=False, version=False, epwloc=False,
         else:
             xyz = sm.uv2xyz(sm.solarbounds.vertices)
             xyz = xyz[np.logical_not(np.isnan(xyz[:, 0]))]
-        click.echo("columns: 0:x 1:y 2:z 3:x(anglular) 4:y(angular) 5:u 6:v", err=True)
+        click.echo("columns: 0:x 1:y 2:z 3:x(anglular) 4:y(angular) 5:u 6:v",
+                   err=True)
         uv = sm.xyz2uv(xyz)
         axy = translate.xyz2xy(xyz)
         for x, u, a in zip(xyz, uv, axy):
@@ -343,6 +339,11 @@ def skydata(ctx, wea=None, name="skydata", loc=None, reload=True, opts=False,
 @click.option('-dcompargs', default='-ab 1',
               help="additional arguments for running direct component. when "
                    "using, set -ab in sunengine.rayargs to this ab minus one.")
+@click.option("-vlt", default=0.64,
+              help="primary transmitting vlt, used to scale the accuracy "
+                   "parameter to the expected scene variance. Optional, but "
+                   "helpful with, for example, electrochromic glazing or "
+                   "shades")
 @clk.shared_decs(clk.command_decs(raytraverse.__version__, wrap=True))
 def skyengine(ctx, accuracy=1.0, vlt=0.64, idres=32, rayargs=None,
               default_args=True, skyres=15, nlev=5, dcompargs='-ab 1',
@@ -374,6 +375,11 @@ def skyengine(ctx, accuracy=1.0, vlt=0.64, idres=32, rayargs=None,
 @click.option('-nlev', default=6,
               help='number of directional sampling levels, yielding a final'
                    'resolution of idres^2 * 2^(nlev) samples per hemisphere')
+@click.option("-vlt", default=0.64,
+              help="primary transmitting vlt, used to scale the accuracy "
+                   "parameter to the expected scene variance. Optional, but "
+                   "helpful with, for example, electrochromic glazing or "
+                   "shades")
 @clk.shared_decs(clk.command_decs(raytraverse.__version__, wrap=True))
 def sunengine(ctx, accuracy=1.0, vlt=0.64, idres=32, rayargs=None,
               default_args=True, nlev=6, opts=False,
@@ -386,11 +392,55 @@ def sunengine(ctx, accuracy=1.0, vlt=0.64, idres=32, rayargs=None,
     """
     if 'scene' not in ctx.obj:
         clk.invoke_dependency(ctx, scene, reload=True, overwrite=False)
+    if 'sourceengine' in ctx.obj:
+        ctx.obj['sourceengine']['engine'].reset()
+        ctx.obj.pop('sourceengine')
     scn = ctx.obj['scene']
     rtrace = Rtrace(rayargs=rayargs, scene=scn.scene, default_args=default_args)
     accuracy = accuracy*vlt/0.64
     ptkwargs = dict(accuracy=accuracy, idres=idres, nlev=nlev)
     ctx.obj['sunengine'] = dict(engine=rtrace, ptkwargs=ptkwargs)
+
+
+@main.command()
+@clk.shared_decs(engine_opts)
+@click.option("-srcfile", default=None, type=click.Path(dir_okay=False),
+              help="scene source description (required)")
+@click.option("-source", default="source", help="name for this source")
+@click.option('-nlev', default=6,
+              help='number of directional sampling levels, yielding a final'
+                   'resolution of idres^2 * 2^(nlev) samples per hemisphere')
+@click.option("-vlt", default=1.0,
+              help="Leave at 1.0 for interior light sources. primary "
+                   "transmitting vlt, used to scale the accuracy "
+                   "parameter to the expected scene variance. Optional, but "
+                   "helpful with, for example, electrochromic glazing or "
+                   "shades")
+@clk.shared_decs(clk.command_decs(raytraverse.__version__, wrap=True))
+def sourceengine(ctx, srcfile=None, source="source", accuracy=1.0, vlt=1.0,
+                 idres=32, rayargs=None, default_args=True, nlev=6, opts=False,
+                 debug=False, version=None, **kwargs):
+    """initialize engine for sunrun
+
+    Effects
+    ~~~~~~~
+        - Invokes scene
+    """
+    if srcfile is None:
+        click.echo("srcfile is required by sourcerun", err=True)
+        raise click.Abort
+    if 'scene' not in ctx.obj:
+        clk.invoke_dependency(ctx, scene, reload=True, overwrite=False)
+    if 'sunengine' in ctx.obj:
+        ctx.obj['sunengine']['engine'].reset()
+        ctx.obj.pop('sunengine')
+    scn = ctx.obj['scene']
+    srcscn = scn.source_scene(srcfile, source)
+    rtrace = Rtrace(rayargs=rayargs, scene=srcscn, default_args=default_args)
+    accuracy = accuracy*vlt/0.64
+    ptkwargs = dict(accuracy=accuracy, idres=idres, nlev=nlev, stype=source)
+    ctx.obj['sourceengine'] = dict(engine=rtrace, ptkwargs=ptkwargs,
+                                   source=(srcfile, source))
 
 
 sample_opts = [
@@ -455,8 +505,7 @@ def skyrun(ctx, accuracy=1.0, nlev=3, jitter=True, overwrite=False, plotp=False,
         skyfield = LightPlaneKD(scn, f"{scn.outdir}/{pm.name}/sky_points"
                                 f".tsv", pm, "sky")
     except OSError:
-        skyfield = skysampler.run(pm, plotp=plotp, pfish=False,
-                                  find_reflections=True)
+        skyfield = skysampler.run(pm, plotp=plotp, pfish=False)
         try_mkdir(f"{scn.outdir}/{pm.name}")
         reflf = f"{scn.outdir}/{pm.name}/reflection_normals.txt"
         refl = scn.reflection_search(skyfield.vecs)
@@ -569,15 +618,12 @@ def sunrun(ctx, srcaccuracy=1.0, srcnlev=3, srcjitter=True, recover=False,
 
 @main.command()
 @clk.shared_decs(sample_opts)
-@click.option("-srcfile", default=None, type=click.Path(dir_okay=False),
-              help="scene source description (required)")
-@click.option("-source", default="source", help="name for this source")
 @click.option("--overwrite/--no-overwrite", default=False,
               help="If True, reruns sampler when invoked, otherwise will first"
                    " attempt to load results")
 @clk.shared_decs(clk.command_decs(raytraverse.__version__, wrap=True))
-def sourcerun(ctx, srcfile=None, source="source", accuracy=1.0, nlev=3,
-              jitter=True, overwrite=False, plotp=False, edgemode='constant',
+def sourcerun(ctx, accuracy=1.0, nlev=3, jitter=True, overwrite=False,
+              plotp=False, edgemode='constant',
               opts=False, debug=False, version=None):
     """run scene for a single source (or multiple defined in a single scene file)
 
@@ -594,23 +640,21 @@ def sourcerun(ctx, srcfile=None, source="source", accuracy=1.0, nlev=3,
         - creates outdir/area.name/sky/SOURCE/######.rytpt
             - each file is a LightPointKD initialization object
     """
-    if srcfile is None:
-        click.echo("srcfile is required by sourcerun", err=True)
-        raise click.Abort
     if 'scene' not in ctx.obj:
         clk.invoke_dependency(ctx, scene, reload=True, overwrite=False)
     scn = ctx.obj['scene']
     if 'planmapper' not in ctx.obj:
         clk.invoke_dependency(ctx, area)
     pm = ctx.obj['planmapper']
-    if 'sunengine' not in ctx.obj:
-        clk.invoke_dependency(ctx, sunengine)
-    snengine = ctx.obj['sunengine']['engine']
-    ptkwargs = ctx.obj['sunengine']['ptkwargs']
+    if 'sourceengine' not in ctx.obj:
+        clk.invoke_dependency(ctx, sourceengine)
+    srcrtrace = ctx.obj['sourceengine']['engine']
+    ptkwargs = ctx.obj['sourceengine']['ptkwargs']
+    srcfile, source = ctx.obj['sourceengine']['source']
     if ctx.obj['static_points']:
         nlev = 1
         jitter = False
-    srcengine = SrcSamplerPt(scn, snengine, srcfile, **ptkwargs)
+    srcengine = SrcSamplerPt(scn, srcrtrace, srcfile, **ptkwargs)
     srcsampler = SamplerArea(scn, srcengine, accuracy=accuracy, nlev=nlev,
                              jitter=jitter, edgemode=edgemode)
     try:
@@ -625,8 +669,8 @@ def sourcerun(ctx, srcfile=None, source="source", accuracy=1.0, nlev=3,
             refl = scn.reflection_search(pm.point_grid(False))
             if refl.size > 0:
                 np.savetxt(reflf, refl)
-        # skyfield = srcsampler.run(pm, plotp=plotp, pfish=False,
-        #                           find_reflections=True)
+        skyfield = srcsampler.run(pm, plotp=plotp, pfish=False,
+                                  specguide=True)
     else:
         if scn.dolog:
             click.echo(f"Source Lightfield reloaded from {scn.outdir}/{pm.name} "

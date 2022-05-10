@@ -101,7 +101,7 @@ class SamplerArea(BaseSampler):
         return np.array([mapper.shape(i) for i in range(self.nlev)])
 
     def run(self, mapper, name=None, specguide=None, plotp=False,
-            find_reflections=False, **kwargs):
+            **kwargs):
         """adapively sample an area defined by mapper
 
         Parameters
@@ -112,8 +112,6 @@ class SamplerArea(BaseSampler):
         specguide: Union[None, bool, str]
         plotp: bool, optional
             plot weights, detail and vectors for each level
-        find_reflections: bool, optional
-            write file for zone with potential reflection normals
         kwargs:
             passed to self.run()
 

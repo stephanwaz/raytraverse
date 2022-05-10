@@ -20,6 +20,8 @@ from shapely.geometry import Polygon
 class SrcViewPoint(object):
     """interface for sun view data"""
 
+    isdistant = True
+
     @staticmethod
     def offset(points, target):
         hull = ConvexHull(points)
@@ -33,7 +35,7 @@ class SrcViewPoint(object):
         return hull.points[hull.vertices]
 
     def __init__(self, scene, vecs, lum, pt=(0, 0, 0), posidx=0, src='sunview',
-                 res=64, srcomega=6.796702357283834e-05):
+                 res=64, srcomega=6.796702357283834e-05, isdistant=True):
         #: raytraverse.scene.Scene
         self.scene = scene
         #: int: index for point
@@ -51,6 +53,7 @@ class SrcViewPoint(object):
         # 2*np.pi*(1 - np.cos(0.533*np.pi/360))
         self.omega = srcomega*vecs.shape[0]/(res * res)
         self.vec = np.average(vecs, 0)
+        self.isdistant = isdistant
 
     @property
     def vm(self):
@@ -95,36 +98,40 @@ class SrcViewPoint(object):
         if atv <= vm.viewangle/2:
             px, omegap, cnt = self._to_pix(atv, vm, res)
             omegasp = self.omega / self.raster.shape[0]
-            hullpoints = self._smudge(px, cnt, omegap, omegasp)
             clum = coefs * self.lum*cnt*omegasp/omegap
             i2 = np.zeros(img.shape)
-            if hullpoints is not None:
-                ppix = vm.ray2pixel(vecs, res, integer=False)
-                pomega = vm.pixel2omega(ppix, res)
+            if self.isdistant:
+                hullpoints = self._smudge(px, cnt, omegap, omegasp)
+                if hullpoints is not None:
+                    ppix = vm.ray2pixel(vecs, res, integer=False)
+                    pomega = vm.pixel2omega(ppix, res)
 
-                # interpolate within original bounds
-                interp = LinearNDInterpolator(px, clum, fill_value=0)
-                luma = interp(ppix).reshape(img[mask].shape)
-                # interpolate within expanded bounds to find perimeter
-                clum = np.concatenate((clum, np.full(len(hullpoints),
-                                                     coefs * self.lum)))
-                xy = np.concatenate((px, hullpoints))
-                interp = LinearNDInterpolator(xy, clum, fill_value=0)
-                lumb = interp(ppix).reshape(img[mask].shape)
-                # isolate perimeter
-                corona = np.logical_and(lumb > 0, luma == 0)
-
-                target = self.omega*self.lum*coefs
-                current = np.sum(pomega*luma)
-                gap = (target - current)/np.sum(pomega[corona])
-                luma[corona] = gap * coefs * self.lum
-                i2[mask] = luma
+                    # interpolate within original bounds
+                    interp = LinearNDInterpolator(px, clum, fill_value=0)
+                    luma = interp(ppix).reshape(img[mask].shape)
+                    # interpolate within expanded bounds to find perimeter
+                    clum = np.concatenate((clum, np.full(len(hullpoints),
+                                                         coefs * self.lum)))
+                    xy = np.concatenate((px, hullpoints))
+                    interp = LinearNDInterpolator(xy, clum, fill_value=0)
+                    lumb = interp(ppix).reshape(img[mask].shape)
+                    # isolate perimeter
+                    corona = np.logical_and(lumb > 0, luma == 0)
+                    if np.sum(corona) > 0:
+                        target = self.omega*self.lum*coefs
+                        current = np.sum(pomega*luma)
+                        gap = (target - current)/np.sum(pomega[corona])
+                        luma[corona] = gap * coefs * self.lum
+                    i2[mask] = luma
+                else:
+                    px = tuple(zip(*px))
+                    i2[px] += clum
+                if vm.viewangle >= 10:
+                    r = res/vm.viewangle*.0625
+                    i2 = gaussian_filter(i2, r, truncate=8)
             else:
                 px = tuple(zip(*px))
                 i2[px] += clum
-            if vm.viewangle >= 10:
-                r = res/vm.viewangle*.0625
-                i2 = gaussian_filter(i2, r, truncate=8)
             img += i2
 
     @staticmethod

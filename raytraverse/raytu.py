@@ -13,7 +13,7 @@ from clasp import click
 import clasp.click_ext as clk
 
 import raytraverse
-from raytraverse import translate
+from raytraverse import translate, api
 from raytraverse.lightfield import ResultAxis
 from raytraverse.lightfield import LightResult
 from raytraverse.sky import SkyData, skycalc
@@ -230,6 +230,23 @@ def img2lf(ctx, imga=None, imgb=None, out="imglf", **kwargs):
     scene = ImageScene(out)
     srcs = [f"img{i:03d}" for i in range(len(imga))]
     results = pool_call(imagetools.img2lf, list(zip(imga, imgb, srcs)), scn=scene)
+
+
+def _dview(x):
+    lpt = api.load_lp(x)
+    lpt.direct_view(res=800)
+    return lpt.lum.shape[0]
+
+@main.command()
+@click.option('-lp', callback=clk.are_files, required=True,
+              help="path to lightpoint(s)")
+@clk.shared_decs(clk.command_decs(raytraverse.__version__, wrap=True))
+def lp2img(ctx, lp=None, **kwargs):
+    """make hdr directview of lightpoint"""
+    rays = pool_call(_dview, lp, expandarg=False)
+    click.echo("lightpoint \t samples")
+    for r, l in zip(rays, lp):
+        click.echo(f"{l} \t {r}")
 
 @main.command()
 @clk.shared_decs(pull_decs)

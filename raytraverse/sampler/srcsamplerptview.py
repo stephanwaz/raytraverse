@@ -5,12 +5,9 @@
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 # =======================================================================
-import os
-import tempfile
-
 import numpy as np
 
-from raytraverse.mapper import ViewMapper
+from raytraverse import io
 from raytraverse.sampler.samplerpt import SamplerPt
 from raytraverse.lightpoint import LightPointKD, SrcViewPoint
 
@@ -36,26 +33,36 @@ class SrcSamplerPtView(SamplerPt):
         self.vecs = None
         self.lum = []
 
-    def run(self, point, posidx, vm=None, plotp=False, log=None, **kwargs):
+    def run(self, point, posidx, vm=None, plotp=False, log=None, isdistant=True,
+            **kwargs):
+        if vm is None:
+            return []
+        if type(isdistant) == bool:
+            isdistant = [isdistant] * len(vm)
+        if len(isdistant) < len(vm):
+            raise ValueError("if isdistant is a sequence, it must be the same"
+                             f" length as vm. vm has len: {len(vm)}, but "
+                             f"isdistant has len: {len(isdistant)}")
         svpts = []
         args = self.engine.args
         # temporarily override arguments
         self.engine.set_args(self.engine.directargs)
-        for v in vm:
+        for v, isd in zip(vm, isdistant):
+            lpargs = dict(isdistant=isd)
             svpts.append(super().run(point, posidx, v, plotp=plotp, log=log,
-                                     **kwargs))
-        self.engine.set_args(args)
+                                     lpargs=lpargs, **kwargs))
+        self.engine.set_args(args, io.get_nproc())
         return svpts
 
-    def _run_callback(self, point, posidx, vm, write=False, **kwargs):
+    def _run_callback(self, point, posidx, vm, write=False, isdistant=True,
+                      **kwargs):
         """post sampling, write full resolution (including interpolated values)
          non zero rays to result file."""
-        keep = self.lum > 1e-7
-        skd = LightPointKD(self.scene, self.vecs, self.lum, vm, point, posidx,
-                           self.stype, calcomega=False, write=write)
-        if np.sum(keep) == 0:
+        if np.sum(self.lum > 1e-7) == 0:
             lightpoint = None
         else:
+            skd = LightPointKD(self.scene, self.vecs, self.lum, vm, point,
+                               posidx, self.stype, calcomega=False, write=write)
             shp = self.weights.shape
             si = np.stack(np.unravel_index(np.arange(np.product(shp)), shp))
             uv = (si.T + .5)/shp[1]
@@ -65,7 +72,8 @@ class SrcSamplerPtView(SamplerPt):
             keep = lumg > 1e-8
             lightpoint = SrcViewPoint(self.scene, grid[keep],
                                       np.average(lumg[keep]), point, posidx,
-                                      self.stype, shp[1], vm.area)
+                                      self.stype, shp[1], vm.area,
+                                      isdistant=isdistant)
         self.vecs = None
         self.lum = []
         return lightpoint

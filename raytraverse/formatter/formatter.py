@@ -37,6 +37,10 @@ class Formatter(object):
         return out
 
     @staticmethod
+    def get_scene(scene):
+        return scene, False
+
+    @staticmethod
     def get_skydef(color=None, ground=True, name='skyglow'):
         """assemble sky definition"""
         pass
