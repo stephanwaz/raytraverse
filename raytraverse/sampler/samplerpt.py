@@ -37,8 +37,8 @@ class SamplerPt(BaseSampler):
         path or string with source definition to add to scene
     plotp: bool, optional
         show probability distribution plots at each level (first point only)
-    bands: int, optional
-        number of spectral bands returned by the engine
+    features: int, optional
+        number of values evaluated for detail
     engine_args: str, optional
         command line arguments used to initialize engine
     nproc: int, optional
@@ -48,10 +48,7 @@ class SamplerPt(BaseSampler):
     _includeorigin = True
 
     def __init__(self, scene, engine, idres=32, nlev=5, accuracy=1.0,
-                 srcn=1, stype='generic', bands=1, samplerlevel=0, **kwargs):
-        #: int: number of spectral bands / channels returned by renderer
-        #: based on given renderopts (user ensures these agree).
-        self.bands = bands
+                 srcn=1, stype='generic', features=1, samplerlevel=0, **kwargs):
         #: int: number of sources return per vector by run
         self.srcn = srcn
         #: int: initial direction resolution (as sqrt of samples per hemisphere
@@ -59,7 +56,7 @@ class SamplerPt(BaseSampler):
         self.idres = idres
         self.nlev = nlev
         super().__init__(scene, engine, accuracy=accuracy, stype=stype,
-                         samplerlevel=samplerlevel)
+                         samplerlevel=samplerlevel, features=features)
 
     def sampling_scheme(self, a):
         """calculate sampling scheme"""
@@ -67,7 +64,7 @@ class SamplerPt(BaseSampler):
                          for i in range(self.nlev)])
 
     def run(self, point, posidx, mapper=None, lpargs=None, **kwargs):
-        """sample a single point, poisition index handles file naming
+        """sample a single point, position index handles file naming
 
         Parameters
         ----------
@@ -120,7 +117,7 @@ class SamplerPt(BaseSampler):
         lightpoint = LightPointKD(self.scene, self.vecs, self.lum,
                                   src=self.stype, pt=point, write=write,
                                   srcn=self.srcn, posidx=posidx, vm=vm,
-                                  **kwargs)
+                                  features=self.engine.features, **kwargs)
         return lightpoint
 
     @staticmethod
@@ -141,7 +138,7 @@ class SamplerPt(BaseSampler):
             io.array2hdr(detail, outf)
 
     def _plot_p(self, p, level, vm, name, suffix=".hdr", fisheye=True):
-        ps = p.reshape(self.weights.shape)
+        ps = p.reshape(self.weights.shape[-2:])
         outp = (f"{self.scene.outdir}_{name}_{self.stype}_detail_"
                 f"{level:02d}{suffix}")
         self._plot_dist(ps, vm, outp, fisheye)
@@ -149,7 +146,11 @@ class SamplerPt(BaseSampler):
     def _plot_weights(self, level, vm, name, suffix=".hdr", fisheye=True):
         outw = (f"{self.scene.outdir}_{name}_{self.stype}_weights_"
                 f"{level:02d}{suffix}")
-        self._plot_dist(self.weights, vm, outw, fisheye)
+        if self.features > 1:
+            w = np.average(self.weights, 0)
+        else:
+            w = self.weights
+        self._plot_dist(w, vm, outw, fisheye)
 
     def _plot_vecs(self, vecs, level, vm, name, suffix=".hdr", fisheye=True):
         outshape = (512*vm.aspect, 512)

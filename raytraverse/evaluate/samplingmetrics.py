@@ -43,21 +43,21 @@ class SamplingMetrics(BaseMetricSet):
     @functools.lru_cache(1)
     def xpeak(self):
         """x-component of avgvec as positive number (in range 0-1)"""
-        x = self.peakvec[0] + 1
+        x = self.peakvec[0]
         if np.isnan(x):
             return 1.0
         else:
-            return np.clip(x, 0, 2)/2
+            return 1 - np.arccos(x)/np.pi
 
     @property
     @functools.lru_cache(1)
     def ypeak(self):
         """y-component of avgvec as positive number (in range 0-1)"""
-        x = self.peakvec[1] + 1
+        x = self.peakvec[1]
         if np.isnan(x):
             return 1.0
         else:
-            return np.clip(x, 0, 2)/2
+            return 1 - np.arccos(x)/np.pi
 
     @property
     @functools.lru_cache(1)

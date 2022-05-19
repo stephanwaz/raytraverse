@@ -14,6 +14,7 @@ import clasp.click_ext as clk
 
 from raytraverse import io
 from raytraverse.lightfield import LightResult, ZonalLightResult
+from raytraverse.mapper import PlanMapper
 from raytraverse.sky import SkyData
 
 
@@ -164,6 +165,8 @@ def shared_pull(ctx, lr=None, col=("metric",), ofiles=None, ptfilter=None,
         if "zone" in result.names and imgzone is not None:
             result.pull2hdr(imgzone, ofiles, **filters)
         elif gridhdr:
-            result.pull2hdr(col, ofiles, skyfill=skydata, spd=spd, **filters)
+            if imgzone is not None:
+                imgzone = PlanMapper(imgzone)
+            result.pull2hdr(col, ofiles, skyfill=skydata, spd=spd, pm=imgzone, **filters)
         else:
             result.print_serial(col, ofiles, skyfill=skydata, **pargs, **filters)

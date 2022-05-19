@@ -330,7 +330,7 @@ class LightResult(object):
             data = rt[..., i]
             for k, (la, d) in enumerate(zip(flabels1, data.T)):
                 img[mask] = d[idx]
-                io.array2hdr(img, f"{basename}_{la}_{la0}.hdr", header)
+                io.array2hdr(img, f"{basename}_{la}_{la0}.hdr", [header])
 
     @staticmethod
     def _pull2hdr_sky(skyfill, basename, spd, rt, flabels0, flabels1):

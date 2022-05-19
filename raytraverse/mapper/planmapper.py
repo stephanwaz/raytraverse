@@ -161,6 +161,9 @@ class PlanMapper(Mapper):
         """
         return self.in_view_uv(self.xyz2uv(vec), indices)
 
+    def header(self, **kwargs):
+        return 'VIEW= -vtl -vv 1 -vh 1'
+
     def borders(self):
         """world coordinate vertices of planmapper boundaries"""
         return [self.uv2xyz(p.vertices) for p in self._path]

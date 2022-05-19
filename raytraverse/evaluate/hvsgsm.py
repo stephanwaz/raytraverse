@@ -102,8 +102,8 @@ class GSS:
 
     # coefficients for logistic response function
     # from Vissenberg et al. (22, 0.25)
-    fr_a = 44
-    fr_b = 0.2
+    fr_a = 22
+    fr_b = 0.25
 
     # coeficient for DoG in linear response
     # from Vissenberg et al.  0.67
@@ -743,9 +743,28 @@ class GSS:
         Returns
         -------
         position weighted glare response
+
+        Notes
+        -----
+        fit on guth data using BCD = 2843.58 * e^(x + 1.5 * x^2) / 179
+        with a 2.12 degree source and 34.26 cd/m^2 background
+
+        numpy.polynomial.Polynomial.fit(x, y, 6)
+        where x = eccentricity (.009 -.12 from 0 to 55 degree vertical angle
+        and y = 1/unweighted GSS
+
+        results:
+        17.060279705323932 - 15.450379752947917·x¹ + 14.844105609186975·x²
+        - 4.65660006956826·x³ - 9.01372966405947·x⁴ + 6.635852582447937·x⁵
+        + 0.31811754006737725·x⁶
+        [-1.  1.] [0.00698182 0.12201818]
         """
-        return r #* (27-180*self.sigma_c-1700*np.square(self.sigma_c)
-                   # + 15200*np.power(self.sigma_c, 3))
+        p = np.polynomial.Polynomial((17.060279705323932, -15.450379752947917,
+                                      14.844105609186975, -4.65660006956826,
+                                      -9.01372966405947, 6.635852582447937,
+                                      0.31811754006737725),
+                                     domain=[0.00698182, 0.12201818])
+        return r * p(self.sigma_c)
 
     # Step 14
     def gss(self, r_g):

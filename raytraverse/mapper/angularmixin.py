@@ -116,7 +116,7 @@ class AngularMixin(object):
         return ('VIEW= -vta -vv {0} -vh {0} -vd {1} {2} {3} -vp {4} {5} '
                 '{6} -vu {7}'.format(self.viewangle, *self.dxyz, *pt, vup))
 
-    def init_img(self, res=512, pt=(0, 0, 0), **kwargs):
+    def init_img(self, res=512, pt=(0, 0, 0), features=1, **kwargs):
         """Initialize an image array with vectors and mask
 
         Parameters
@@ -135,24 +135,27 @@ class AngularMixin(object):
         mask: np.array
             indices of flattened img that are in view
         mask2: np.array None
-            if ViewMapper is 360 degree, include mask for opposite view to use::
-
-                add_to_img(img, vecs[mask], mask)
-                add_to_img(img[res:], vecs[res:][mask2], mask2)
+            if features > 1, use mask 2 fro color images
         header: str
         """
-        img = np.zeros((res*self.aspect, res))
+        if features > 1:
+            img = np.zeros((features, res*self.aspect, res))
+        else:
+            img = np.zeros((res*self.aspect, res))
         vecs = self.pixelrays(res)
         if self.aspect == 2:
             mask = self.in_view(vecs[0:res])
             mask2 = self.ivm.in_view(vecs[res:])
             mask = (np.concatenate((mask[0], mask2[0] + res)),
                     np.concatenate((mask[1], mask2[1])))
-            mask2 = None
         else:
             mask = self.in_view(vecs)
-            mask2 = None
         header = self.header(pt, **kwargs)
+        if features > 1:
+            mask2 = (np.tile(np.arange(features), len(mask[0])),
+                     np.repeat(mask[0], features), np.repeat(mask[1], features))
+        else:
+            mask2 = mask
         return img, vecs, mask, mask2, header
 
     def add_vecs_to_img(self, img, v, channels=(1, 0, 0), grow=0, fisheye=True):

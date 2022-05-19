@@ -2,7 +2,17 @@
 History
 =======
 
-1.3.2
+1.3.3
+-----
+* static light source sampler, directly samples electric lights at appropriate level, 
+  will use lots of extra samples with very long thin fixtures
+* color support in lightPointKD and samplers, but for now only works with imagesampler and 
+  sourcesampler because need to update skydata to work with color (and handle mixed data)
+* use scene detail in sampler (in this case image reconstruction works better WITHOUT
+  scene detail, new interpolation keywords fastc and highc for context interpolation)
+
+
+1.3.2 (2022-04-28)
 ------------------
 * force 'fork' for multiprocessing to ensure radiance state is copied to processes
 * restructure radiancerrenderers - not singleton, just a stateful class, pickleable with get/set state

@@ -164,4 +164,10 @@ def get_integrator(scn, pm, srcname="suns", simtype="2comp", zonal=False,
         return itg(sunplane, includesky=False, sunviewengine=sunviewengine)
     if simtype == "directpatch":
         return itg(dskplane, includesky=False, sunviewengine=sunviewengine)
-    raise ValueError(f"Error loading {simtype}")
+    try:
+        srcpoints = f"{scn.outdir}/{pm.name}/{simtype}_points.tsv"
+        srcplane = LightPlaneKD(scn, srcpoints, pm, simtype)
+    except OSError:
+        raise ValueError(f"Error loading {simtype}")
+    else:
+        return itg(srcplane, sunviewengine=sunviewengine)

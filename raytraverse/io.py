@@ -186,6 +186,8 @@ def array2hdr(ar, imgf, header=None):
     -------
     imgf
     """
+    if len(ar.shape) > 2:
+        return carray2hdr(ar, imgf, header)
     pval = f'pvalue -r -b -h -H -df -o -y {ar.shape[1]} +x {ar.shape[0]}'
     return _array2hdr(ar[-1::-1, -1::-1].T, imgf, header, pval)
 

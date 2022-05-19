@@ -81,7 +81,7 @@ class Integrator(object):
         self.scene.log(self, f"Making Images for {oshape[2]}"
                              f" view directions at {oshape[1]} points under "
                              f"{oshape[0]} skies", True)
-        skylabs = [f"sky-{si:04d}" for si in skydata.maskindices]
+        skylabs = [f"{skydata.srcname}-{si:04d}" for si in skydata.maskindices]
         if namebyindex:
             ptlabs = [f"pt-{i:03d}" for i in range(len(points))]
             viewlabs = [f"vd-{i:03d}" for i in range(len(vms))]

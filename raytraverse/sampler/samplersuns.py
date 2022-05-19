@@ -62,7 +62,7 @@ class SamplerSuns(BaseSampler):
             ptkwargs = {}
         areakwargs.update(samplerlevel=self._slevel + 1)
         self._areakwargs = dict(metricset=('avglum', 'loggcr', 'xpeak',
-                                           'ypeak'), metricfunc=np.max)
+                                           'ypeak'), featurefunc=np.max)
         self._areakwargs.update(areakwargs)
         self._ptkwargs = ptkwargs
         self.nlev = nlev
@@ -241,7 +241,7 @@ class SamplerSuns(BaseSampler):
                 emode = 'constant'
             det = draw.get_detail(nweights,
                                   *filterdict[self.detailfunc], mode=emode)
-            mfunc = self._areakwargs['metricfunc']
+            mfunc = self._areakwargs['featurefunc']
             det = np.transpose(det.reshape(self._areaweights.shape),
                                (3, 4, 0, 1, 2))
             det = mfunc(det, axis=2)

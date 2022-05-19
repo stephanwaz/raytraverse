@@ -12,20 +12,20 @@ from clasp.script_tools import try_mkdir
 
 from raytraverse import io
 from raytraverse.sampler import draw
-from raytraverse.sampler.basesampler import BaseSampler, filterdict
-from raytraverse.evaluate import SamplingMetrics
+from raytraverse.sampler.basesampler import filterdict
+from raytraverse.sampler.samplerarea import SamplerArea
 from raytraverse.lightfield import LightPlaneKD
 
 
-class SamplerArea(BaseSampler):
+class ISamplerArea(SamplerArea):
     """wavelet based area sampling class
 
     Parameters
     ----------
     scene: raytraverse.scene.Scene
         scene class containing geometry and formatter compatible with engine
-    engine: raytraverse.sampler.SamplerPt
-        point sampler
+    engine: raytraverse.renderer.Renderer
+        renderer
     accuracy: float, optional
         parameter to set threshold at sampling level relative to final level
         threshold (smaller number will increase sampling, default is 1.0)
@@ -37,30 +37,21 @@ class SamplerArea(BaseSampler):
         default: 'constant', if 'constant' value is set to -self.t1, so edge is
         always seen as detail. Internal edges (resulting from PlanMapper
         borders) will behave like 'nearest' for all options except 'constant'
-    metricclass: raytraverse.evaluate.BaseMetricSet, optional
-        the metric calculator used to compute weights
-    metricset: iterable, optional
-        list of metrics (must be recognized by metricclass. metrics containing
-        "lum" will be normalized to 0-1)
     """
 
-    #: initial sampling threshold coefficient
-    t0 = .1
-    #: final sampling threshold coefficient
-    t1 = .9
-    #: upper bound for drawing from pdf
-    ub = 100
+    t0 = 2**-8
+    t1 = .0625
+
+    lb = .25
+    ub = 8
 
     def __init__(self, scene, engine, accuracy=1.0, nlev=3, jitter=True,
-                 edgemode='constant', metricclass=SamplingMetrics,
-                 metricset=('avglum', 'loggcr', 'xpeak', 'ypeak'),
+                 edgemode='constant', stype="illum", features=1, srcn=1,
                  **kwargs):
-        super().__init__(scene, engine, accuracy, engine.stype, **kwargs)
-        if "sun" in self.stype:
-            self._gcrnorm = 8
-        else:
-            self._gcrnorm = 2
-        self.engine._slevel = self._slevel + 1
+        super(SamplerArea, self).__init__(scene, engine, accuracy, **kwargs)
+        self.features = features
+        #: int: number of sources return per vector by run
+        self.srcn = srcn
         self.nlev = nlev
         self.jitter = jitter
         #: raytraverse.mapper.PlanMapper
@@ -70,25 +61,12 @@ class SamplerArea(BaseSampler):
         if edgemode not in modes:
             raise ValueError(f"edgemode={edgemode} not a valid option"
                              " must be one of: {modes}")
-        self._specguide = None
         self._edgemode = edgemode
         self._mask = slice(None)
         self._candidates = None
-        self._plotpchild = False
         self.slices = []
-        #: raytraverse.evaluate.BaseMetricSet
-        self.metricclass = metricclass
-        #: iterable
-        self.metricset = metricset
-        #: int:
-        self.features = len(metricset)
 
-    def sampling_scheme(self, mapper):
-        """calculate sampling scheme"""
-        return np.array([mapper.shape(i) for i in range(self.nlev)])
-
-    def run(self, mapper, name=None, specguide=None, plotp=False,
-            **kwargs):
+    def run(self, mapper, name=None, plotp=False, **kwargs):
         """adapively sample an area defined by mapper
 
         Parameters
@@ -111,15 +89,8 @@ class SamplerArea(BaseSampler):
         try_mkdir(f"{self.scene.outdir}/{name}")
         self._mapper = mapper
         self._name = name
-        reflf = f"{self.scene.outdir}/{name}/reflection_normals.txt"
-        if specguide is True:
-            self._specguide = reflf
-        else:
-            self._specguide = specguide
         levels = self.sampling_scheme(mapper)
-        plotpthis = plotp and len(levels) > 1
-        self._plotpchild = plotp and not plotpthis
-        super().run(mapper, name, levels, plotp=plotpthis, **kwargs)
+        super().run(mapper, name, levels, plotp=plotp, **kwargs)
         return LightPlaneKD(self.scene, self.vecs, self._mapper, self.stype)
 
     def repeat(self, guide, stype):
@@ -177,13 +148,6 @@ class SamplerArea(BaseSampler):
             nweights = self._normed_weights(mask=self._edgemode == 'constant')
             p = draw.get_detail(nweights, *filterdict[self.detailfunc],
                                 mode=self._edgemode, cval=-self.t1)
-            p = self.featurefunc(p.reshape(self.weights.shape), axis=0)
-            # zero out cells of previous samples
-            if self.vecs is not None:
-                pxy = self._mapper.ray2pixel(self.vecs, self.weights.shape[1:])
-                x = self.weights.shape[1] - 1 - pxy[:, 0]
-                y = pxy[:, 1]
-                p[x, y] = 0
             # zero out oob
             p = p.ravel()
             p[np.logical_not(self._mask)] = 0

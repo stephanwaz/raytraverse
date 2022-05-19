@@ -69,7 +69,6 @@ class Rtrace(RadianceRenderer):
     directargs = "-w- -av 0 0 0 -ab 0 -lr 1 -n 1"
     usedirect = False
     ospec = "Z"
-    ocnt = 1
 
     def __init__(self, rayargs=None, scene=None, nproc=None,
                  default_args=True, direct=False):
@@ -148,7 +147,7 @@ class Rtrace(RadianceRenderer):
             raise ValueError(f"Could not update {cls.__name__} with "
                              f"outputs: '{vs}'")
         cls.ospec = vs
-        cls.ocnt = outcnt
+        cls.features = outcnt
         return outcnt
 
     @classmethod

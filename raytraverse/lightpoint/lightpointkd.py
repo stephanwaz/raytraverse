@@ -59,7 +59,7 @@ class LightPointKD(object):
     def __init__(self, scene, vec=None, lum=None, vm=None, pt=(0, 0, 0),
                  posidx=0, src='sky', srcn=1, srcdir=(0, 0, 1), calcomega=True,
                  write=True, omega=None, filterviews=True, srcviews=None,
-                 parent=None, srcviewidxs=None):
+                 parent=None, srcviewidxs=None, features=1):
         self.srcviews = []
         self.srcviewidxs = []
         self.set_srcviews(srcviews, srcviewidxs)
@@ -85,11 +85,15 @@ class LightPointKD(object):
         #: str: relative path to disk storage
         self.file = f"{outdir}/{self.src}/{self.posidx:06d}.rytpt"
         self._vec = np.empty((0, 3))
-        self._lum = np.empty((0, srcn))
+        if features > 1:
+            self._lum = np.empty((0, srcn, features))
+        else:
+            self._lum = np.empty((0, srcn))
         self._d_kd = None
         self._omega = None
         if vec is not None and lum is not None:
             self.srcn = srcn
+            self.features = features
             self.update(vec, lum, omega=omega, calcomega=calcomega,
                         write=write, filterviews=filterviews)
         elif os.path.isfile(self.file):
@@ -111,6 +115,10 @@ class LightPointKD(object):
         except IndexError:
             self.srcviewidxs = [-1] * max(len(self.srcviews), 1)
         self.srcn = self.lum.shape[1]
+        try:
+            self.features = self.lum.shape[2]
+        except IndexError:
+            self.features = 1
         f.close()
 
     def dump(self):
@@ -229,6 +237,12 @@ class LightPointKD(object):
         alum: np.array
             shape (N, self.vec.shape[0])
         """
+        if self.features > 1:
+            try:
+                c = np.asarray(coefs).reshape(-1, self.srcn, self.features)
+            except ValueError:
+                c = np.broadcast_to(coefs, (1, self.srcn, self.features))
+            return np.einsum('ijf,kjf->ikf', c, self.lum)
         try:
             c = np.asarray(coefs).reshape(-1, self.srcn)
         except ValueError:
@@ -254,8 +268,12 @@ class LightPointKD(object):
         interp: Union[bool, str], optional
             if "precomp", use index and interpweights
             if True and engine is None, linearinterpolation
-            if "fast" and engine: uses content_interp
-            if "high" and engine: uses content_interp_wedge
+            if "fastc" and engine: uses content_interp (best after sampling w/o
+                                   detail)
+            if "highc" and engine: uses content_interp_wedge (best after
+                                   sampling w/o detail)
+            if "fast": use interp_fast (pair with sampling w/ detail)
+            if "high": use interp_wedge (pair with sampling w/ detail)
         idx: np.array, optional
             precomputed query/interpolation result
         interpweights: np.array, optional
@@ -280,12 +298,17 @@ class LightPointKD(object):
             vm = self.vm
         if interp == "precomp":
             lum = self.apply_interp(idx, val[0], interpweights)
-        elif interp == "fast" and engine is not None:
+        elif interp == "fastc" and engine is not None:
             i, weights = self.content_interp(engine, vecs, **kwargs)
             lum = self.apply_interp(i, val[0], weights)
-        elif interp == "high" and engine is not None:
-            i, weights = self.content_interp_wedge(engine, vecs, bandwidth=100,
-                                                   **kwargs)
+        elif interp == "highc" and engine is not None:
+            i, weights = self.content_interp_wedge(engine, vecs, **kwargs)
+            lum = self.apply_interp(i, val[0], weights)
+        elif interp == "fast":
+            i, weights = self.interp_fast(engine, vecs, **kwargs)
+            lum = self.apply_interp(i, val[0], weights)
+        elif interp == "high":
+            i, weights = self.interp_wedge(engine, vecs, **kwargs)
             lum = self.apply_interp(i, val[0], weights)
         elif interp is True:
             lum = self.linear_interp(vm, val[0], vecs)
@@ -298,7 +321,7 @@ class LightPointKD(object):
             else:
                 i, d = self.query_ray(vecs)
             lum = val[:, i]
-        img[mask] += np.squeeze(lum)
+        img[mask] += np.ravel(lum)
         for srcview, srcidx in zip(self.srcviews, self.srcviewidxs):
             srcview.add_to_img(img, vecs, mask, skyvec[srcidx], vm)
 
@@ -344,6 +367,8 @@ class LightPointKD(object):
             rays = self.vec[idx]
             lum = self.apply_coef(skyvec)[:, idx].T
         lum = np.atleast_1d(np.squeeze(lum))
+        if len(lum.shape) > 1:
+            lum = io.rgb2rad(lum.T)
         if len(self.srcviews) > 0 and includeviews:
             vrs = []
             vos = []
@@ -416,15 +441,18 @@ class LightPointKD(object):
                    showsample=False):
         if vm is None:
             vm = self.vm
-        img, pdirs, mask, mask2, header = vm.init_img(res, self.pt)
+        img, pdirs, mask, mask2, header = vm.init_img(res, self.pt, self.features)
         header = [header]
-        self.add_to_img(img, pdirs[mask], mask, vm=vm,
+        self.add_to_img(img, pdirs[mask], mask2, vm=vm,
                         interp=interp, skyvec=skyvec)
         if showsample:
-            img = np.repeat(img[None, ...], 3, 0)
+            if len(img.shape) < 3:
+                img = np.repeat(img[None, ...], 3, 0)
             vi = self.query_ball(vm.dxyz, vm.viewangle * vm.aspect)
             v = self.vec[vi[0]]
             img = vm.add_vecs_to_img(img, v)
+            io.carray2hdr(img, outf, header)
+        elif len(img.shape) == 3:
             io.carray2hdr(img, outf, header)
         else:
             io.array2hdr(img, outf, header)
@@ -437,7 +465,8 @@ class LightPointKD(object):
         if vm is None:
             vm = self.vm
         if fisheye:
-            img, pdirs, mask, mask2, header = vm.init_img(res, self.pt)
+            img, pdirs, mask, mask2, header = vm.init_img(res, self.pt,
+                                                          features=self.features)
             header = [header]
         else:
             outshape = (res*vm.aspect, res)
@@ -453,7 +482,7 @@ class LightPointKD(object):
                 skyvec[srcidx] = scalefactor
             else:
                 skyvec = np.full(self.srcn, scalefactor)
-            self.add_to_img(img, pdirs[mask], mask, vm=vm,
+            self.add_to_img(img, pdirs[mask], mask2, vm=vm,
                             interp=interp, skyvec=skyvec, omega=omega, rnd=rnd)
             channels = (1, 0, 0)
         else:
@@ -469,11 +498,14 @@ class LightPointKD(object):
                 outf = outf.replace(f"_{self.src}_",
                                     f"_{self.src}_filtered_")
         if showsample:
-            img = np.repeat(img[None, ...], 3, 0)
+            if len(img.shape) < 3:
+                img = np.repeat(img[None, ...], 3, 0)
             vi = self.query_ball(vm.dxyz, vm.viewangle * vm.aspect)
             v = self.vec[vi[0]]
             img = vm.add_vecs_to_img(img, v, channels=channels,
                                      fisheye=fisheye)
+            io.carray2hdr(img, outf, header)
+        elif len(img.shape) == 3:
             io.carray2hdr(img, outf, header)
         else:
             io.array2hdr(img, outf, header)
@@ -557,7 +589,11 @@ class LightPointKD(object):
             delete rays near sourceviews
         """
         self._vec = np.vstack((self.vec, vec[:, -3:]))
-        self._lum = np.vstack((self.lum, lum.reshape(-1, self.srcn)))
+        if self.features > 1:
+            self._lum = np.vstack((self.lum, lum.reshape(-1, self.srcn,
+                                                         self.features)))
+        else:
+            self._lum = np.vstack((self.lum, lum.reshape(-1, self.srcn)))
         self._d_kd = cKDTree(self.vec)
         if filterviews and len(self.srcviews) > 0:
             for sv in self.srcviews:
@@ -577,7 +613,10 @@ class LightPointKD(object):
         xys = vm.xyz2vxy(self.vec)
         interp = LinearNDInterpolator(xys, srcvals, fill_value=-1)
         lum = interp(xyp[:, 0], xyp[:, 1])
-        neg = lum < 0
+        if len(lum.shape) > 1:
+            neg = np.min(lum, 1) < 0
+        else:
+            neg = lum < 0
         i, d = self.query_ray(destvecs[neg])
         lum[neg] = srcvals[i]
         return lum
@@ -587,11 +626,10 @@ class LightPointKD(object):
         if weights is None:
             return srcvals[i]
         else:
-            return np.average(srcvals[i], -1, weights)
+            return np.average(srcvals[i], 1, weights)
 
-    def _c_interp(self, rt, destvecs, bandwidth=10, srfnormtol=0.2,
-                  disttol=0.8):
-
+    def _c_interp(self, rt, destvecs, bandwidth=10, srfnormtol=5.0,
+                  disttol=0.5):
         pts = np.hstack(np.broadcast_arrays(self.pt[None], self.vec))
         pts_o = np.hstack(np.broadcast_arrays(self.pt[None], destvecs))
         d, i = self.d_kd.query(destvecs, bandwidth)
@@ -609,24 +647,25 @@ class LightPointKD(object):
         rt.update_ospec(tospec)
 
         mods = sgeo[:, 4].astype(int)
-        norms = sgeo[:, 1:4]
+        norms = np.arccos(sgeo[:, 1:4])
         dist = sgeo[:, 0]
         mods_o = sgeo_o[:, 4].astype(int)
-        norms_o = sgeo_o[:, 1:4]
+        norms_o = np.arccos(sgeo_o[:, 1:4])
         dist_o = sgeo_o[:, 0]
 
         mod_match = np.equal(mods[i], mods_o[:, None])
         norm_match = np.all(
-            np.isclose(norms[i], norms_o[:, None], atol=srfnormtol),
+            np.isclose(norms[i], norms_o[:, None], atol=srfnormtol*np.pi/180),
             axis=2)
         dist_match = np.abs(dist[i] - dist_o[:, None]) < disttol
+
         all_match = np.all((mod_match, norm_match, dist_match), axis=0)
         # make sure atleast the closest match is flagged true
         all_match[np.sum(all_match, 1) == 0, 0] = True
         return all_match, d, i
 
-    def content_interp_wedge(self, rt, destvecs, bandwidth=10, srfnormtol=0.2,
-                             disttol=0.8, dp=2, oversample=2, **kwargs):
+    def content_interp_wedge(self, rt, destvecs, bandwidth=10, srfnormtol=5.0,
+                             disttol=0.5, oversample=2, **kwargs):
         all_match, d, i = self._c_interp(rt, destvecs,
                                          bandwidth=bandwidth * oversample,
                                          srfnormtol=srfnormtol, disttol=disttol)
@@ -636,8 +675,28 @@ class LightPointKD(object):
         no_match = np.take_along_axis(no_match, ds, axis=1)
         d = np.take_along_axis(d, ds, axis=1)
         i = np.take_along_axis(i, ds, axis=1)
+
+        d, i, ang, asr = self._sort_wedge(destvecs, d, i)
+
+        # calculate distance matrix between interpolants
+        admx = np.abs(ang[:, None] - ang[:, :, None])
+        # handle cycle
+        admx[admx > np.pi] = 2*np.pi - admx[admx > np.pi]
+
+        # mask out bad candidates
+        admx[np.broadcast_to(no_match[:, None], admx.shape)] = 6
+        # find the closest alternative as replacement
+        replace = np.argmin(admx, 1)
+        ir = np.take_along_axis(i, replace, axis=1)
+        dr = np.take_along_axis(d, replace, axis=1)
+
+        no_match = np.take_along_axis(no_match, asr, axis=1)
+        i[no_match] = ir[no_match]
+        d[no_match] = dr[no_match]
+        return self._weight_wedge(ang, d, i)
+
+    def _sort_wedge(self, destvecs, d, i):
         # scale distance as weight
-        d = np.power(d, dp)
         d = d[:, 0:1]/d
 
         dv = destvecs
@@ -653,21 +712,9 @@ class LightPointKD(object):
         ang = np.take_along_axis(ang, asr, axis=1)
         d = np.take_along_axis(d, asr, axis=1)
         i = np.take_along_axis(i, asr, axis=1)
-        no_match = np.take_along_axis(no_match, asr, axis=1)
+        return d, i, ang, asr
 
-        # calculate distance matrix between interpolants
-        admx = np.abs(ang[:, None] - ang[:, :, None])
-        # handle cycle
-        admx[admx > np.pi] = 2*np.pi - admx[admx > np.pi]
-        # mask out bad candidates
-        admx[np.broadcast_to(no_match[:, None], admx.shape)] = 6
-        # find the closest alternative as replacement
-        replace = np.argmin(admx, 1)
-        ir = np.take_along_axis(i, replace, axis=1)
-        dr = np.take_along_axis(d, replace, axis=1)
-        i[no_match] = ir[no_match]
-        d[no_match] = dr[no_match]
-
+    def _weight_wedge(self, ang, d, i):
         # pad array for circular difference calc
         ang2 = np.hstack((ang[:, -1:] - 2*np.pi, ang, 2*np.pi + ang[:, 0:1]))
         dw = np.hstack((d[:, -1:], d, d[:, 0:1]))
@@ -676,15 +723,18 @@ class LightPointKD(object):
         w1 = (ang - ang2[:, :-2])*d/(d + dw[:, :-2])
         w2 = (ang2[:, 2:] - ang)*d/(d + dw[:, 2:])
         wedge = (w1 + w2)/(2*np.pi)
+        if self.features > 1:
+            wedge = np.broadcast_to(wedge[..., None], wedge.shape +
+                                    (self.features,))
         return i, wedge
 
-    def content_interp(self, rt, destvecs, bandwidth=10, srfnormtol=0.2,
-                       disttol=0.8, **kwargs):
-        all_match, d, i = self._c_interp(rt, destvecs, bandwidth=bandwidth,
-                                         srfnormtol=srfnormtol, disttol=disttol)
-        # weight by the inv. square of distance
-        d = 1/np.square(d)
-        d[np.logical_not(all_match)] = 0
+    def interp_wedge(self, destvecs, bandwidth=5, **kwargs):
+        d, i = self.d_kd.query(destvecs, bandwidth)
+        d, i, ang, _ = self._sort_wedge(destvecs, d, i)
+        return self._weight_wedge(ang, d, i)
+
+    @staticmethod
+    def _interp_fast(destvecs, d, i):
         # normalize and make cdf based on d
         d = d/np.sum(d, 1)[:, None]
         dc = np.cumsum(d, 1)
@@ -693,3 +743,19 @@ class LightPointKD(object):
         ic = np.array(list(map(np.searchsorted, dc, c)))[:, None]
         i = np.take_along_axis(i, ic, 1).ravel()
         return i, None
+
+    def content_interp(self, rt, destvecs, bandwidth=10, srfnormtol=5.0,
+                       disttol=0.5, **kwargs):
+        all_match, d, i = self._c_interp(rt, destvecs, bandwidth=bandwidth,
+                                         srfnormtol=srfnormtol, disttol=disttol)
+        # weight by the inv. square of distance
+        d = 1/np.square(d)
+        d[np.logical_not(all_match)] = 0
+        return self._interp_fast(destvecs, d, i)
+
+    def interp_fast(self, destvecs, bandwidth=10, **kwargs):
+        d, i = self.d_kd.query(destvecs, bandwidth)
+        # weight by the inv. square of distance
+        d = 1/np.square(d)
+        return self._interp_fast(destvecs, d, i)
+

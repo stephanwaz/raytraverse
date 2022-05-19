@@ -6,6 +6,7 @@
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 # =======================================================================
 import os
+import re
 
 from clasp import script_tools as cst
 
@@ -130,4 +131,16 @@ class Rcontrib(RadianceRenderer):
         """
         args = (f" -V+ {args} -w- -e 'side:{cls.skyres}' -f scbins.cal "
                 f"-b bin -bn {cls.srcn} -m {cls.modname}")
+        bright = True
+        for z in re.findall(r"-Z.?", args):
+            if z[-1] in "Z ":
+                bright = not bright
+            elif z[-1] in "+yYtT1":
+                bright = True
+            else:
+                bright = False
+        if bright:
+            cls.features = 1
+        else:
+            cls.features = 3
         super().set_args(args, nproc)

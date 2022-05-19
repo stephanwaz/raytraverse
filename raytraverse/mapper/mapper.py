@@ -143,14 +143,19 @@ class Mapper(object):
             yres = int(round(res/self.aspect))
         return xres, yres
 
-    def pixels(self, res):
+    def pixels(self, res, jitter=0.0):
         """generate pixel coordinates for image space"""
         xres, yres = self.framesize(res)
-        return np.stack(np.mgrid[0:xres, 0:yres], 2) + .5
+        if jitter > 0:
+            rng = ((1 - jitter)/2, (1 + jitter)/2)
+            offset = np.random.default_rng().uniform(*rng, (xres, yres)).T
+        else:
+            offset = 0.5
+        return np.stack(np.mgrid[0:xres, 0:yres], 2) + offset
 
-    def pixelrays(self, res):
+    def pixelrays(self, res, jitter=0.0):
         """world xyz coordinates for pixels in view image space"""
-        pxy = self.pixels(res)
+        pxy = self.pixels(res, jitter=jitter)
         return self.pixel2ray(pxy, res)
 
     def ray2pixel(self, xyz, res, integer=True):
@@ -192,13 +197,15 @@ class Mapper(object):
     def header(self, **kwargs):
         return 'VIEW= -vtl -vv 1 -vh 1'
 
-    def init_img(self, res=512, **kwargs):
+    def init_img(self, res=512, jitter=0.0, **kwargs):
         """Initialize an image array with vectors and mask
 
         Parameters
         ----------
         res: int, optional
             image array resolution
+        jitter: float, optional
+            pixel jitter rate
         kwargs:
             passed to self.header
 
@@ -218,9 +225,9 @@ class Mapper(object):
         header: str
         """
         img = np.zeros(self.framesize(res))
-        vecs = self.pixelrays(res)
+        vecs = self.pixelrays(res, jitter=jitter)
         mask = self.in_view(vecs)
-        mask2 = None
+        mask2 = mask
         header = self.header(**kwargs)
         return img, vecs, mask, mask2, header
 

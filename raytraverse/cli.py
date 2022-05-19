@@ -416,10 +416,11 @@ def sunengine(ctx, accuracy=1.0, vlt=0.64, idres=32, rayargs=None,
                    "parameter to the expected scene variance. Optional, but "
                    "helpful with, for example, electrochromic glazing or "
                    "shades")
+@click.option("--color/--no-color", default=True)
 @clk.shared_decs(clk.command_decs(raytraverse.__version__, wrap=True))
 def sourceengine(ctx, srcfile=None, source="source", accuracy=1.0, vlt=1.0,
-                 idres=32, rayargs=None, default_args=True, nlev=6, opts=False,
-                 debug=False, version=None, **kwargs):
+                 idres=32, rayargs=None, default_args=True, nlev=6, color=True,
+                 opts=False, debug=False, version=None, **kwargs):
     """initialize engine for sunrun
 
     Effects
@@ -437,6 +438,8 @@ def sourceengine(ctx, srcfile=None, source="source", accuracy=1.0, vlt=1.0,
     scn = ctx.obj['scene']
     srcscn = scn.source_scene(srcfile, source)
     rtrace = Rtrace(rayargs=rayargs, scene=srcscn, default_args=default_args)
+    if color:
+        rtrace.update_ospec("v")
     accuracy = accuracy*vlt/0.64
     ptkwargs = dict(accuracy=accuracy, idres=idres, nlev=nlev, stype=source)
     ctx.obj['sourceengine'] = dict(engine=rtrace, ptkwargs=ptkwargs,
@@ -621,10 +624,20 @@ def sunrun(ctx, srcaccuracy=1.0, srcnlev=3, srcjitter=True, recover=False,
 @click.option("--overwrite/--no-overwrite", default=False,
               help="If True, reruns sampler when invoked, otherwise will first"
                    " attempt to load results")
+@click.option("--scenedetail/--no-scenedetail", default=False,
+              help="If True, includes scene details (distance, surface normal,"
+                   "and modifier as features). Increases sampling rate to"
+                   " improve image reconstruction")
+@click.option("-distance", default=0.5,
+              help="when using scene detail, the difference in ray length "
+                   "equivalent to final sampling luminance threshold")
+@click.option("-normal", default=5.0,
+              help="when using scene detail, the difference in surface normal "
+                   "(degrees) equivalent to final sampling luminance threshold")
 @clk.shared_decs(clk.command_decs(raytraverse.__version__, wrap=True))
 def sourcerun(ctx, accuracy=1.0, nlev=3, jitter=True, overwrite=False,
-              plotp=False, edgemode='constant',
-              opts=False, debug=False, version=None):
+              plotp=False, edgemode='constant', scenedetail=False, distance=0.5,
+              normal=5.0, opts=False, debug=False, version=None):
     """run scene for a single source (or multiple defined in a single scene file)
 
     - Do not run as part of the same call as sunrun
@@ -654,7 +667,8 @@ def sourcerun(ctx, accuracy=1.0, nlev=3, jitter=True, overwrite=False,
     if ctx.obj['static_points']:
         nlev = 1
         jitter = False
-    srcengine = SrcSamplerPt(scn, srcrtrace, srcfile, **ptkwargs)
+    srcengine = SrcSamplerPt(scn, srcrtrace, srcfile, scenedetail=scenedetail,
+                             distance=distance, normal=normal, **ptkwargs)
     srcsampler = SamplerArea(scn, srcengine, accuracy=accuracy, nlev=nlev,
                              jitter=jitter, edgemode=edgemode)
     try:
@@ -708,8 +722,9 @@ rows in wea/epw file using space seperated list or python range notation:
  click.option("--maskfull/--maskday", default=True,
               help="if false, skymask assumes daystep indices"),
  click.option("-simtype", default="3comp",
-              type=click.Choice(api.stypes),
-              help=f"simulation process/integration type:\n\n{api.stypedocstring}"),
+              help=f"simulation process/integration type:\n\n"
+                   f"{api.stypedocstring}\n\nor source name (overrides "
+                   f"--rresampleview, --directview, etc."),
  click.option("-resuntol", default=1.0,
               help="tolerance for resampling sun views"),
  click.option("-resamprad", default=0.0,
@@ -724,7 +739,9 @@ rows in wea/epw file using space seperated list or python range notation:
 @main.command()
 @clk.shared_decs(eval_opts)
 @click.option("-res", default=800, help="image resolution")
-@click.option("-interpolate", type=click.Choice(['linear', 'fast', 'high', '', 'None', 'False']))
+@click.option("-interpolate", type=click.Choice(['linear', 'fast', 'high',
+                                                 'fastc', 'highc', '', 'None',
+                                                 'False']))
 @click.option("--namebyindex/--no-namebyindex", default=False,
               help="if False (default), names images by: "
                    "<prefix>_sky-<row>_pt-<x>_<y>_<z>_vd-<dx>_<dy>_<dz>.hdr "
@@ -758,25 +775,39 @@ def images(ctx, sensors=None, sdirs=None, viewangle=180., skymask=None,
     if 'scene' not in ctx.obj:
         clk.invoke_dependency(ctx, scene, reload=True, overwrite=False)
     scn = ctx.obj['scene']
-    if 'skydata' not in ctx.obj:
-        clk.invoke_dependency(ctx, skydata, reload=True)
-    sd = ctx.obj['skydata']
-    if directview:
-        sd = SkyData(None, skyres=sd.skyres)
     if 'planmapper' not in ctx.obj:
         clk.invoke_dependency(ctx, area)
     pm = ctx.obj['planmapper']
-    if 'skymapper' not in ctx.obj:
-        clk.invoke_dependency(ctx, suns)
-    skmapper = ctx.obj['skymapper']
-    if resampleview or interpolate in ['fast', 'high']:
-        if 'sunengine' not in ctx.obj:
-            clk.invoke_dependency(ctx, sunengine)
-        sunviewengine = ctx.obj['sunengine']['engine']
+    if simtype not in api.stypes:
+        sd = SkyData(None, skyres=1, ground=False, srcname=simtype)
+        resampleview = False
+        skymask = None
+        srcname = simtype
+        if interpolate in ['fastc', 'highc']:
+            if 'sourceengine' not in ctx.obj:
+                clk.invoke_dependency(ctx, sourceengine)
+            sunviewengine = ctx.obj['sourceengine']['engine']
+        else:
+            sunviewengine = None
     else:
-        sunviewengine = None
-
-    itg = api.get_integrator(scn, pm, skmapper.name, simtype,
+        if 'skydata' not in ctx.obj:
+            clk.invoke_dependency(ctx, skydata, reload=True)
+        sd = ctx.obj['skydata']
+        if 'skymapper' not in ctx.obj:
+            clk.invoke_dependency(ctx, suns)
+        skmapper = ctx.obj['skymapper']
+        if resampleview or interpolate in ['fastc', 'highc']:
+            if 'sunengine' not in ctx.obj:
+                clk.invoke_dependency(ctx, sunengine)
+            sunviewengine = ctx.obj['sunengine']['engine']
+        else:
+            sunviewengine = None
+        if directview:
+            sd = SkyData(None, skyres=sd.skyres)
+        srcname = skmapper.name
+    if not resampleview:
+        resuntol = 180
+    itg = api.get_integrator(scn, pm, srcname, simtype,
                              sunviewengine=sunviewengine)
     if skymask is not None:
         if maskfull:
@@ -787,7 +818,7 @@ def images(ctx, sensors=None, sdirs=None, viewangle=180., skymask=None,
 
     if interpolate == "linear":
         interpolate = True
-    elif interpolate not in ['fast', 'high']:
+    elif interpolate not in ['fastc', 'highc', 'fast', 'high']:
         interpolate = False
 
     if sensors.shape[1] == 6:

@@ -42,7 +42,10 @@ class SkyData(object):
     """
 
     def __init__(self, wea, loc=None, skyro=0.0, ground_fac=0.2, intersky=True,
-                 skyres=15, minalt=2.0, mindiff=5.0, mindir=0.0):
+                 skyres=15, minalt=2.0, mindiff=5.0, mindir=0.0, ground=True,
+                 srcname="sky"):
+        self.srcname = srcname
+        self.ground = ground
         #: sky patach resolution
         self.skyres = skyres
         self.intersky = intersky
@@ -127,9 +130,10 @@ class SkyData(object):
             omegar = np.square(0.2665 * np.pi * self.skyres / 180) * .5
             plum = sun[:, -1] * omegar
             sun = np.hstack((sun, plum[:, None]))
-            smtx = np.hstack((smtx, grnd[:, None]))
+            if self.ground:
+                smtx = np.hstack((smtx, grnd[:, None]))
         else:
-            smtx = np.ones((1, self.skyres**2+1))
+            smtx = np.ones((1, self.skyres**2 + self.ground))
             sun = np.array([[0, 0, 1, 0, 0]])
             daymask = np.array([True])
             skydata = np.array([[0, 0, 1, 0, 1]])

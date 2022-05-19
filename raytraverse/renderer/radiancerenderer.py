@@ -19,6 +19,7 @@ class RadianceRenderer:
     name = "radiance_virtual"
     instance = None
     srcn = 1
+    features = 1
     defaultargs = ""
     args = None
     _args = None

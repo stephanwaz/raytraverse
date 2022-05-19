@@ -47,6 +47,12 @@ class BaseSampler(object):
         threshold (smaller number will increase sampling, default is 1.0)
     stype: str, optional
         sampler type (prefixes output files)
+    featurefunc: func, optional
+        takes detail array as an argument, shape: (features,N, M) and an
+        axis=0 keyword argument, returns shape (N, M). could be np.max, np.sum
+        np.average or us custom function following the same pattern.
+    features: int, optional
+        number of values evaluated for detail
     """
 
     #: initial sampling threshold coefficient
@@ -70,7 +76,8 @@ class BaseSampler(object):
     _includeorigin = False
 
     def __init__(self, scene, engine, accuracy=1.0, stype='generic',
-                 samplerlevel=0):
+                 samplerlevel=0, featurefunc=np.max, features=1,
+                 weightfunc=np.max):
         self.engine = engine
         #: raytraverse.scene.Scene: scene information
         self.scene = scene
@@ -84,11 +91,16 @@ class BaseSampler(object):
         self._levels = None
         #: np.array: holds weights for self.draw
         self.weights = np.empty(0)
-        self.features = 1
+        self.features = features
         self.vecs = None
         self._mapper = None
         self.lum = []
         self._slevel = samplerlevel
+        #: func takes weights and axis=0 argument to reduce detail
+        self.featurefunc = featurefunc
+        #: func takes weights and axis=1 argument to reduce output from
+        #: engine when engine produces more features than sampler needs
+        self.weightfunc = weightfunc
 
     @property
     def levels(self):
@@ -215,14 +227,16 @@ class BaseSampler(object):
         # sample all if weights is not set or all even
         if level == 0 and np.var(self.weights) < 1e-9:
             pdraws = np.arange(int(np.prod(dres)))
-            p = np.ones(self.weights.shape)
+            p = np.ones(len(pdraws))
         else:
             # use weights directly on first pass
             if level == 0:
                 p = self.weights.ravel()
             else:
                 p = draw.get_detail(self.weights, *filterdict[self.detailfunc])
-            # draw on pdf
+            if self.features > 1:
+                p = self.featurefunc(p.reshape(self.weights.shape),
+                                     axis=0).ravel()
             pdraws = draw.from_pdf(p, self._threshold(level),
                                    lb=self.lb, ub=self.ub)
         return pdraws, p
@@ -266,9 +280,23 @@ class BaseSampler(object):
             array of shape (N,) to update weights
         """
         self._dump_vecs(vecs)
-        lum = self.engine.run(np.copy(vecs, 'C')).ravel()
-        self.lum = np.concatenate((self.lum, lum))
-        return lum
+        lum = self.engine.run(np.copy(vecs, 'C'))
+        slum, dlum = self._process_features(lum)
+        if len(self.lum) == 0:
+            self.lum = slum
+        else:
+            self.lum = np.concatenate((self.lum, slum), 0)
+        return dlum
+
+    def _process_features(self, lum):
+        if self.features == 1 and (self.engine.features > 1 or
+                                   self.engine.srcn > 1):
+            return lum, self.weightfunc(lum, axis=tuple(i for i in
+                                                        range(1, lum.ndim)))
+        elif self.features > 1:
+            return lum, lum
+        else:
+            return lum, lum.ravel()
 
     #: filter banks for calculating detail choices:
     #:
@@ -289,13 +317,16 @@ class BaseSampler(object):
             values to update with
 
         """
-        self.weights[tuple(si)] = lum
+        self.weights.T[tuple(si[::-1])] = lum
 
     def _lift_weights(self, level):
         self.weights = translate.resample(self.weights, self._wshape(level))
 
     def _wshape(self, level):
-        return self.levels[level]
+        if self.features > 1:
+            return np.concatenate(([self.features], self.levels[level]))
+        else:
+            return self.levels[level]
 
     def _threshold(self, idx):
         """threshold for determining sample count"""

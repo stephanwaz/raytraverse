@@ -29,14 +29,27 @@ class SrcSamplerPt(SamplerPt):
     scene: raytraverse.scene.Scene
         scene class containing geometry, location and analysis plane
     engine: raytraverse.renderer.Rtrace
-        initialized renderer instance (with scene loaded, no sources)
+        initialized renderer instance (with scene loaded, including sources)
     source: str
         single scene file containing sources (including sky, lights, sun, etc)
     sunbin: int
         sun bin
     """
 
-    def __init__(self, scene, engine, source, stype="source", **kwargs):
+    def __init__(self, scene, engine, source, stype="source", scenedetail=False,
+                 distance=0.5, normal=5.0, **kwargs):
+        if scenedetail:
+            self.t1 *= .25
+            # use deterministic sampler (take all points above threshold
+            # otherwise luminance detail gets undersanmpled
+            self.ub = 0.5
+        self._scenedetail = scenedetail
+        self._distance = distance
+        self._normal = normal * np.pi/180
+        self._oospec = engine.ospec
+        if scenedetail:
+            engine.update_ospec(engine.ospec + "LNM")
+            kwargs.update(features=engine.features)
         super().__init__(scene, engine, stype=stype, **kwargs)
         # update parameters post init
         #: path to source scene file
@@ -60,13 +73,13 @@ class SrcSamplerPt(SamplerPt):
         self._samplelevels = [[] for i in range(self.nlev)]
         self._refl = None
 
-    def run(self, point, posidx, specguide=None, mapper=None, **kwargs):
+    def run(self, point, posidx, specguide=None, mapper=None, upaxis=2, **kwargs):
         if mapper is None:
             mapper = ViewMapper()
         mapper.jitterrate = 0.8
         self._mapper = mapper
         point = np.asarray(point).flatten()[0:3]
-        self._set_normalization(point)
+        self._set_normalization(point, 2)
         self._load_specguide(point, specguide)
         return super().run(point, posidx, mapper=mapper, **kwargs)
 
@@ -84,7 +97,7 @@ class SrcSamplerPt(SamplerPt):
         # sample all if weights is not set or all even
         if level == 0 and np.var(self.weights) < 1e-9:
             pdraws = np.arange(int(np.prod(dres)))
-            p = np.ones(self.weights.shape)
+            p = np.ones(len(pdraws))
         else:
             # use weights directly on first pass
             if level == 0:
@@ -96,22 +109,65 @@ class SrcSamplerPt(SamplerPt):
                     uv = self._mapper.idx2uv(np.arange(int(np.prod(dres))),
                                              dres, False)
                     insrc = vm.in_view(self._mapper.uv2xyz(uv), False)
-                    p[insrc] = self.t1 * 2 * self.ub
-            # draw on pdf
+                    insrc = np.tile(insrc, self.weights.shape[0])
+                    # definite draw on source region
+                    p[0:len(insrc)][insrc] = self.t1 * 2 * self.ub
+            if self.features > 1:
+                p = self.featurefunc(p.reshape(self.weights.shape),
+                                     axis=0).ravel()
             pdraws = draw.from_pdf(p, self._threshold(level),
                                    lb=self.lb, ub=self.ub)
         return pdraws, p
 
-    def _set_normalization(self, point):
+    def _process_features(self, lum):
+        if self._scenedetail:
+            slum = lum[:, :-5]
+            # scale to definite draw at thresholds
+            afac = self.t1 * self.accuracy * self.ub
+            d = lum[:, -5:-4] * afac / self._distance
+            n = np.arccos(lum[:, -4:-1]) * afac / self._normal
+            # always draw on material difference
+            m = lum[:, -1:] * 2 * afac
+            dlum = np.hstack((slum, d, n, m))
+            return slum, dlum
+        else:
+            return super()._process_features(lum)
+
+    def _set_normalization(self, point, upaxis=2):
         f, srcoct = tempfile.mkstemp(dir=f"./{self.scene.outdir}/",
                                      prefix='tmp_src')
         pipeline([f"oconv -w {self.sourcefile}"], outfile=srcoct,
                  writemode='wb')
-        icheck = SpRenderer("-h -ab 1 -ad 10000 -lw 1e-5 -av 0 0 0 -I+ -w "
-                            "-dc 1 -ds 0 -dt 0 -dj 0", srcoct, 1)
-        ray = np.concatenate((point, [0, 0, 1])).reshape(-1, 6)
-        illum = io.rgb2rad([float(i) for i in icheck(ray).split()])
-        self.accuracy = self.accuracy * max(1.08173E-05, illum/np.pi)
+        afac = 0.0
+        if self.lights.size > 0:
+            # make rays point at center of sources from 6 cardinal directions
+            box = np.vstack((np.eye(3), -np.eye(3))) * .001
+            brays = self.lights[:, None, 0:3] + box[None]
+            bdirs = np.broadcast_to(-box[None], brays.shape)
+            brays = np.concatenate((brays, bdirs), axis=2).reshape(-1, 6)
+            # render direct luminance
+            icheck = SpRenderer("-h -ab 0 -lw 1e-5 -av 0 0 0 -w "
+                                "-dc 1 -ds 0 -dt 0 -dj 0", srcoct, 1)
+            lums = np.array([float(i) for i in
+                             icheck(brays).split()]).reshape(-1, 3)
+            # get the max luminance for each source
+            llum = np.max(io.rgb2rad(lums).reshape(len(self.lights), -1), 1)
+            # find the distance along upaxis
+            dray = np.abs(self.lights[:, 0:3] - point[None])[:, upaxis]
+            radius = np.sqrt(self.lights[:, 4] / np.pi)
+            # add up direct normal irradiance (lum * omega), but cap at max(lum)
+            afac += np.min((np.sum(llum * (1 - np.cos(np.arctan(radius/dray)))),
+                            np.max(llum)))
+        if self.sources.size > 0:
+            # get illuminnance of distant sources to also calibrate accuracy
+            icheck = SpRenderer("-h -ab 1 -ad 10000 -lw 1e-5 -av 0 0 0 -I+ -w "
+                                "-dc 1 -ds 0 -dt 0 -dj 0", srcoct, 1)
+            # hopefully this is above any light source geometry
+            ray = np.array([0, 0, 1e7, 0, 0, 1]).reshape(-1, 6)
+            illum = io.rgb2rad([float(i) for i in icheck(ray).split()])
+            afac += illum / np.pi
+        if afac > 0:
+            self.accuracy = self.accuracy * afac
         os.remove(srcoct)
 
     def _reflect(self, sources):
@@ -134,7 +190,9 @@ class SrcSamplerPt(SamplerPt):
         """
         if hasattr(specguide, "lower"):
             try:
-                self._refl = translate.norm(io.load_txt(specguide).reshape(-1, 3))
+                # load reflection normals (from scene.reflection_search)
+                normals = io.load_txt(specguide).reshape(-1, 3)
+                self._refl = translate.norm(normals)
             except (ValueError, FileNotFoundError):
                 pass
         ires = self.idres*180/self._mapper.viewangle
@@ -143,11 +201,14 @@ class SrcSamplerPt(SamplerPt):
         if self.sources.size > 0:
             minres = 180/self.sources[:, 3]
             level_idx = np.searchsorted(level_res, minres)
+            # allocate direct source sampling to level below nyquist limit
             for idx, src in zip(level_idx, self.sources):
                 if self._refl is not None:
                     rsrc = self._reflect(src[None])
                 else:
                     rsrc = []
+                # ensure atleast 2 levels of source "clean-up" else use
+                # a srcviewsampler
                 if idx >= len(self._samplelevels) - 2:
                     self._viewdirections.append(src[0:4])
                     self._viewdirections += rsrc
@@ -156,17 +217,26 @@ class SrcSamplerPt(SamplerPt):
                     self._samplelevels[idx].append(src[0:4])
                     self._samplelevels[idx] += rsrc
         if self.lights.size > 0:
+            # distance to source
             lightdist = np.linalg.norm(self.lights[:, 0:3] - point[None],
                                        axis=1)
+            # direction to source
             lightdir = translate.norm(self.lights[:, 0:3] - point[None])
+            # apparent size (degrees diameter) of light
             appsize = np.arctan(self.lights[:, 3]/lightdist)*360/np.pi
+            # aspect ratio of light
             aterm = 4 - np.minimum(4, np.pi**2*np.square(self._fillratio))
+            # minimum side
             minside = np.sqrt(2 - np.sqrt(aterm))*self.lights[:, 3]/lightdist
+            # apparent size (degrees diameter) of min-side
             minsize = np.arctan(minside*0.5)*360/np.pi
             minres = 180/minsize
             level_idx = np.searchsorted(level_res, minres)
+            # allocate direct source sampling to level below nyquist limit
             for idx, light, size in zip(level_idx, lightdir, appsize):
                 li = np.concatenate((light, [size]))
+                # only srcviewsample lights if beyond limit of sampling
+                # (no clean-up)
                 if idx >= len(self._samplelevels):
                     self._viewdirections.append(li)
                     self._isdistant.append(False)
@@ -175,6 +245,8 @@ class SrcSamplerPt(SamplerPt):
         self._viewdirections = np.array(self._viewdirections)
 
     def _run_callback(self, point, posidx, vm, write=True, **kwargs):
+        if self._scenedetail:
+            self.engine.update_ospec(self._oospec)
         if self._viewdirections is None or len(self._viewdirections) == 0:
             srcview = None
         else:
@@ -188,11 +260,13 @@ class SrcSamplerPt(SamplerPt):
         lightpoint = LightPointKD(self.scene, self.vecs, self.lum,
                                   src=self.stype, pt=point, write=write,
                                   srcn=self.srcn, posidx=posidx,
-                                  vm=vm, srcviews=srcview, **kwargs)
+                                  vm=vm, srcviews=srcview,
+                                  features=self.engine.features, **kwargs)
+        # reset run() modified parameters
         self.accuracy = self._normaccuracy
         self._viewdirections = []
         self._isdistant = []
-        self._samplelevels = [[] for i in range(self.nlev)]
+        self._samplelevels = [[] for _ in range(self.nlev)]
         self._refl = None
         return lightpoint
 

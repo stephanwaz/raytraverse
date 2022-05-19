@@ -29,20 +29,26 @@ class ImageRenderer:
         passed to scipy.interpolate.RegularGridInterpolator
     """
 
-    def __init__(self, scene, viewmapper=None, method="linear"):
+    def __init__(self, scene, viewmapper=None, method="linear", color=False):
+        self.srcn = 1
         if viewmapper is None:
             self.vm = ViewMapper(viewangle=180)
         else:
             self.vm = viewmapper
-        self.scene = io.hdr2array(scene)
-        res = self.scene.shape[0]
+        if color:
+            self.features = 3
+            self.scene = io.hdr2carray(scene)
+        else:
+            self.features = 1
+            self.scene = io.hdr2array(scene)
+        fimg = self.scene[..., -1::-1].T
+        res = fimg.shape[0]
         of = .5/res
         self.args = f"interpolation: {method}"
         x = np.linspace(of, 1-of, res)
-        fv = np.median(np.concatenate((self.scene[0], self.scene[-1],
-                                       self.scene[:,0], self.scene[:, -1])))
-        self.instance = RegularGridInterpolator((x, x),
-                                                self.scene[:, -1::-1].T,
+        fv = np.median(np.concatenate((fimg[0], fimg[-1], fimg[:, 0],
+                                       fimg[:, -1]), 0), 0)
+        self.instance = RegularGridInterpolator((x, x), fimg,
                                                 bounds_error=False,
                                                 method=method,
                                                 fill_value=fv)

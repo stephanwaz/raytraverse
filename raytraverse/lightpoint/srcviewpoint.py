@@ -62,13 +62,15 @@ class SrcViewPoint(object):
     def _to_pix(self, atv, vm, res):
         if atv > 90:
             ppix = vm.ivm.ray2pixel(self.raster, res)
+            omegap = vm.ivm.pixel2omega(ppix + .5, res)
             ppix[:, 0] += res
         else:
             ppix = vm.ray2pixel(self.raster, res)
+            omegap = vm.pixel2omega(ppix + .5, res)
         rec = np.core.records.fromarrays(ppix.T)
         px, i, cnt = np.unique(rec, return_index=True, return_counts=True)
         cnt = cnt.astype(float)
-        omegap = vm.pixel2omega(ppix[i] + .5, res)
+        omegap = omegap[i]
         px = px.tolist()
         return px, omegap, cnt
 
@@ -93,19 +95,18 @@ class SrcViewPoint(object):
     def add_to_img(self, img, vecs, mask=None, coefs=1, vm=None):
         if vm is None:
             vm = ViewMapper(self.vec, .533)
-        res = img.shape[1]
+        res = img.shape[-1]
         atv = vm.degrees(self.vec)[0]
-        if atv <= vm.viewangle/2:
+        if atv <= vm.viewangle * vm.aspect / 2:
             px, omegap, cnt = self._to_pix(atv, vm, res)
             omegasp = self.omega / self.raster.shape[0]
             clum = coefs * self.lum*cnt*omegasp/omegap
-            i2 = np.zeros(img.shape)
+            i2 = np.zeros(img.shape[-2:])
             if self.isdistant:
                 hullpoints = self._smudge(px, cnt, omegap, omegasp)
                 if hullpoints is not None:
                     ppix = vm.ray2pixel(vecs, res, integer=False)
                     pomega = vm.pixel2omega(ppix, res)
-
                     # interpolate within original bounds
                     interp = LinearNDInterpolator(px, clum, fill_value=0)
                     luma = interp(ppix).reshape(img[mask].shape)

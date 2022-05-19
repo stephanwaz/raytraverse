@@ -81,13 +81,20 @@ def img_pt(lpts, skyvecs, suns, vms=None,  combos=None,
 
     vinfos = []
     for i, v in enumerate(vms):
-        img, pdirs, mask, mask2, header = v.init_img(res)
-        if interp == "high":
+        img, pdirs, mask, mask2, header = v.init_img(res, jitter=.5,
+                                                     features=lpts[0].features)
+        if interp == "highc":
             lp_is, w = lpts[0].content_interp_wedge(svengine, pdirs[mask],
-                                                    bandwidth=10, **kwargs)
+                                                    **kwargs)
+            lp_is = (lp_is,)
+        elif interp == "high":
+            lp_is, w = lpts[0].interp_wedge(pdirs[mask], **kwargs)
+            lp_is = (lp_is,)
+        elif interp == "fastc":
+            lp_is, w = lpts[0].content_interp(svengine, pdirs[mask], **kwargs)
             lp_is = (lp_is,)
         elif interp == "fast":
-            lp_is, w = lpts[0].content_interp(svengine, pdirs[mask], **kwargs)
+            lp_is, w = lpts[0].interp_fast(pdirs[mask], **kwargs)
             lp_is = (lp_is,)
         elif interp:
             lp_is = [None] * len(lpts)
@@ -95,19 +102,20 @@ def img_pt(lpts, skyvecs, suns, vms=None,  combos=None,
         else:
             lp_is = [lpt.query_ray(pdirs[mask])[0] for lpt in lpts]
             w = None
-        vinfos.append((i, v, pdirs, mask, lp_is, w))
-    if interp in ['high', 'fast']:
+        vinfos.append((i, v, img, pdirs, mask, mask2, lp_is, w))
+    if interp in ['high', 'fast', 'highc', 'fastc']:
         interp = 'precomp'
     resampi, resampvecs = prep_resamp(lpts, refl, resamprad)
     for j, (c, info, qpt, sun) in enumerate(zip(combos, skinfo, qpts, suns)):
-        for i, v, pdirs, mask, lp_is, w in vinfos:
+        for i, v, img, pdirs, mask, mask2, lp_is, w in vinfos:
             header = [v.header(qpt), "SKYCOND= sunpos: ({:.3f}, {:.3f}, {:.3f})"
                       " dirnorm: {} diffhoriz: {}".format(*info)] + lpinfo
             for ri, (lp_i, lp, svec) in enumerate(zip(lp_is, lpts, skyvecs)):
                 if svengine is not None and ri == resampi:
                     update_src_view(svengine, lp, sun[0:3], v, suntol,
-                                    refl=refl, resampvecs=resampvecs, resamprad=resamprad)
-                lp.add_to_img(img, pdirs[mask], mask, vm=v, interp=interp,
+                                    refl=refl, resampvecs=resampvecs,
+                                    resamprad=resamprad)
+                lp.add_to_img(img, pdirs[mask], mask2, vm=v, interp=interp,
                               idx=lp_i, skyvec=svec[j], engine=svengine,
                               interpweights=w)
                 if np.min(svec) < 0:

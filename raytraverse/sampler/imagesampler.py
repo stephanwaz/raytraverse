@@ -29,9 +29,10 @@ class ImageSampler(SamplerPt):
     """
 
     def __init__(self, scene, vm=None, scalefac=None, method='linear',
-                 **kwargs):
-        engine = ImageRenderer(scene.scene, vm, method)
-        super().__init__(scene, engine, stype="image",  **kwargs)
+                 color=False, **kwargs):
+        engine = ImageRenderer(scene.scene, vm, method, color=color)
+        super().__init__(scene, engine, features=engine.features,
+                         stype="image", **kwargs)
         if scalefac is None:
             img = io.hdr2array(scene.scene)
             scalefac = np.average(img[img > 0])
@@ -42,7 +43,7 @@ class ImageSampler(SamplerPt):
     def _run_callback(self, point, posidx, vm, write=False, **kwargs):
         return LightPointKD(self.scene, self.vecs, self.lum, vm=vm, pt=point,
                             posidx=posidx, src=self.stype, write=write,
-                            **kwargs)
+                            features=self.features, **kwargs)
 
 
 class DeterministicImageSampler(ImageSampler):

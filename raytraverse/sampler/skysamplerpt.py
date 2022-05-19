@@ -30,27 +30,6 @@ class SkySamplerPt(SamplerPt):
         super().__init__(scene, engine, srcn=engine.srcn, stype='sky',
                          **kwargs)
 
-    def sample(self, vecs):
-        """call rendering engine to sample rays
-
-        Parameters
-        ----------
-        vecs: np.array
-            sample vectors (subclasses can choose which to use)
-
-        Returns
-        -------
-        lum: np.array
-            array of shape (N,) to update weights
-        """
-        self._dump_vecs(vecs)
-        lum = self.engine.run(np.copy(vecs, 'C'))
-        if len(self.lum) == 0:
-            self.lum = lum
-        else:
-            self.lum = np.concatenate((self.lum, lum), 0)
-        return np.max(lum, 1)
-
     def _run_callback(self, point, posidx, vm, write=True, **kwargs):
         """include sky patch source dirs"""
         srcdirs = translate.skybin2xyz(np.arange(self.srcn), self.engine.skyres)
