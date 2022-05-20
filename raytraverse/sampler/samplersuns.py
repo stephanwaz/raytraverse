@@ -361,6 +361,18 @@ class SamplerSuns(BaseSampler):
         self._dump_vecs(vecs)
         idx = self.slices[-1].indices(self.slices[-1].stop)
         level_desc = f"Level {len(self.slices)} of {len(self.levels)}"
+
+        lums = self._run_sample(idx, vecs, level_desc)
+        # initialize areaweights here now that we know the shape
+        if len(self.lum) == 0:
+            self.lum = lums
+            self._areaweights = np.zeros((*self.lum.shape[1:],
+                                          *self._wshape(0)))
+        else:
+            self.lum = np.concatenate((self.lum, lums), 0)
+        return lums
+
+    def _run_sample(self, idx, vecs, level_desc):
         # if engine is configured for internal multiprocessing run on one
         # process, else use environment cap. Generally, if -ab > 0 then run
         # with rtrace -n X for better memory efficiency, else, use processpool
@@ -370,17 +382,10 @@ class SamplerSuns(BaseSampler):
         else:
             cap = None
         lums = pool_call(self._sample_sun, list(zip(range(*idx), vecs,
-                         self._areadraws)), desc=level_desc, cap=cap,
+                                                    self._areadraws)),
+                         desc=level_desc, cap=cap,
                          pbar=self.scene.dolog)
-        lums = np.array(lums)
-        # initialize areaweights here now that we know the shape
-        if len(self.lum) == 0:
-            self.lum = lums
-            self._areaweights = np.zeros((*self.lum.shape[1:],
-                                          *self._wshape(0)))
-        else:
-            self.lum = np.concatenate((self.lum, lums), 0)
-        return lums
+        return np.array(lums)
 
     def _update_weights(self, si, lum):
         """only need to update areaweights, base weights are only masked"""

@@ -38,16 +38,14 @@ class SrcSamplerPt(SamplerPt):
 
     def __init__(self, scene, engine, source, stype="source", scenedetail=False,
                  distance=0.5, normal=5.0, **kwargs):
-        if scenedetail:
-            self.t1 *= .25
-            # use deterministic sampler (take all points above threshold
-            # otherwise luminance detail gets undersanmpled
-            self.ub = 0.5
         self._scenedetail = scenedetail
         self._distance = distance
         self._normal = normal * np.pi/180
         self._oospec = engine.ospec
         if scenedetail:
+            # use deterministic sampler (take all points above threshold
+            # otherwise luminance detail gets undersanmpled
+            self.ub = 1
             engine.update_ospec(engine.ospec + "LNM")
             kwargs.update(features=engine.features)
         super().__init__(scene, engine, stype=stype, **kwargs)
@@ -123,7 +121,7 @@ class SrcSamplerPt(SamplerPt):
         if self._scenedetail:
             slum = lum[:, :-5]
             # scale to definite draw at thresholds
-            afac = self.t1 * self.accuracy * self.ub
+            afac = self.t1 * self.accuracy
             d = lum[:, -5:-4] * afac / self._distance
             n = np.arccos(lum[:, -4:-1]) * afac / self._normal
             # always draw on material difference

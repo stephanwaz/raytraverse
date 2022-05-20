@@ -5,8 +5,10 @@
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 # =======================================================================
+import os
 import re
 import sys
+import tempfile
 
 import numpy as np
 
@@ -106,6 +108,8 @@ class Rtrace(RadianceRenderer):
         ospec = re.findall(r"-o\w+", cls.args)
         if len(ospec) > 0:
             cls.update_ospec(ospec[-1][2:])
+        else:
+            cls.update_ospec("Z")
 
     @classmethod
     def update_ospec(cls, vs):
@@ -190,6 +194,17 @@ class Rtrace(RadianceRenderer):
                       f"no new ambfile was specified, stripping {hasamb[-1]} "
                       "from args", file=sys.stderr)
             cls.set_args(args)
+
+    @classmethod
+    def load_solar_source(cls, scene, sun, ambfile=None, intens=1):
+        # load new source
+        f, srcdef = tempfile.mkstemp(dir=f"./{scene.outdir}/", prefix='tmp_src')
+        # srcdef = f'{scene.outdir}/tmp_srcdef_{sunbin}.rad'
+        f = open(srcdef, 'w')
+        f.write(scene.formatter.get_sundef(sun, (intens, intens, intens)))
+        f.close()
+        cls.load_source(srcdef, ambfile=ambfile)
+        os.remove(srcdef)
 
     @classmethod
     def get_sources(cls):

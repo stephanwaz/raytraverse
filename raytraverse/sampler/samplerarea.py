@@ -65,7 +65,6 @@ class SamplerArea(BaseSampler):
         self.jitter = jitter
         #: raytraverse.mapper.PlanMapper
         self._mapper = None
-        self._name = None
         modes = ('reflect', 'constant', 'nearest', 'mirror', 'wrap')
         if edgemode not in modes:
             raise ValueError(f"edgemode={edgemode} not a valid option"
@@ -87,7 +86,7 @@ class SamplerArea(BaseSampler):
         """calculate sampling scheme"""
         return np.array([mapper.shape(i) for i in range(self.nlev)])
 
-    def run(self, mapper, name=None, specguide=None, plotp=False,
+    def run(self, mapper, specguide=None, plotp=False,
             **kwargs):
         """adapively sample an area defined by mapper
 
@@ -95,7 +94,6 @@ class SamplerArea(BaseSampler):
         ----------
         mapper: raytraverse.mapper.PlanMapper
             the pointset to build/run
-        name: str, optional
         specguide: Union[None, bool, str]
         plotp: bool, optional
             plot weights, detail and vectors for each level
@@ -106,11 +104,9 @@ class SamplerArea(BaseSampler):
         -------
         raytraverse.lightlplane.LightPlaneKD
         """
-        if name is None:
-            name = mapper.name
+        name = mapper.name
         try_mkdir(f"{self.scene.outdir}/{name}")
         self._mapper = mapper
-        self._name = name
         reflf = f"{self.scene.outdir}/{name}/reflection_normals.txt"
         if specguide is True:
             self._specguide = reflf
@@ -136,7 +132,6 @@ class SamplerArea(BaseSampler):
 
         """
         self._mapper = guide.pm
-        self._name = self._mapper.name
         if stype == guide.src:
             raise ValueError("stype cannot match guide.src, as it would "
                              "overwrite data")
@@ -230,7 +225,7 @@ class SamplerArea(BaseSampler):
         self._dump_vecs(vecs)
         idx = self.slices[-1].indices(self.slices[-1].stop)
         lums = []
-        lpargs = dict(parent=self._name)
+        lpargs = dict(parent=self._mapper.name)
         kwargs = dict(metricset=self.metricset, lmin=1e-8)
         level_desc = f"Level {len(self.slices)} of {len(self.levels)}"
         if self.nlev == 1 and len(vecs) == 1:
@@ -279,7 +274,11 @@ class SamplerArea(BaseSampler):
         if self.vecs is not None:
             wvecs = self._mapper.uv2xyz(self._candidates)
             d, idx = cKDTree(self.vecs).query(wvecs)
-            weights = self.lum[idx].reshape(*self.levels[i], self.features)
+            if self.lum.ndim == 4:
+                slum = self.weightfunc(self.lum, axis=2)
+            else:
+                slum = self.lum
+            weights = slum[idx].reshape(*self.levels[i], self.features)
             self.weights = np.moveaxis(weights, 2, 0)
 
     def _normed_weights(self, mask=False):
@@ -306,7 +305,7 @@ class SamplerArea(BaseSampler):
             self.vecs = np.concatenate((self.vecs, vecs))
             v0 = self.slices[-1].stop
         self.slices.append(slice(v0, v0 + len(vecs)))
-        vfile = (f"{self.scene.outdir}/{self._name}/{self.stype}"
+        vfile = (f"{self.scene.outdir}/{self._mapper.name}/{self.stype}"
                  f"_points.tsv")
         idx = np.arange(len(self.vecs))[:, None]
         level = np.zeros_like(idx, dtype=int)

@@ -43,15 +43,8 @@ class SunSamplerPt(SamplerPt):
         self.sunpos = np.asarray(sun).flatten()[0:3]
         self._viewdirections = np.concatenate((self.sunpos, [.533])).reshape(1, 4)
         self.sunbin = sunbin
-        # load new source
-        f, srcdef = tempfile.mkstemp(dir=f"./{scene.outdir}/", prefix='tmp_src')
-        # srcdef = f'{scene.outdir}/tmp_srcdef_{sunbin}.rad'
-        f = open(srcdef, 'w')
-        f.write(scene.formatter.get_sundef(sun, (1, 1, 1)))
-        f.close()
         ambfile = f"{scene.outdir}/{stype}_{sunbin:04d}.amb"
-        self.engine.load_source(srcdef, ambfile=ambfile)
-        os.remove(srcdef)
+        self.engine.load_solar_source(scene, sun, ambfile)
 
     def run(self, point, posidx, specguide=None, **kwargs):
         self._load_specguide(specguide)
