@@ -15,8 +15,6 @@ from raytraverse import io
 from raytraverse.utility import imagetools as itl
 from raytraverse.utility import pool_call
 from raytraverse.mapper import ViewMapper
-from raytraverse.evaluate import PositionIndex
-from raytraverse.evaluate.retina import rgcf_density
 
 
 def gss_compute(imgs, illums=None, save=False, suffix="_rg.hdr", outdir=None,
@@ -674,9 +672,11 @@ class GSS:
     def field_response(self, vvm):
         """receptive field response
 
-        from Vissenberg et al. 2021 equation (7):
-        R_RF(r) = e^(-r^2/(2σ_c^2)) / (2πσ_c^2) -
-                        K * e^(-r^2/(2σ_s^2)) / (2πσ_s^2)
+        from Vissenberg et al. 2021 equation (7)::
+
+            R_RF(r) = e^(-r^2/(2σ_c^2)) / (2πσ_c^2)
+                      - K * e^(-r^2/(2σ_s^2)) / (2πσ_s^2)
+
         R_RF: receptive field response
         r: distance to receptive field center (degrees)
         σ_c: gaussian width of center (0.009 (center) - 0.12 (edge FOV) degrees)
@@ -753,11 +753,12 @@ class GSS:
         where x = eccentricity (.009 -.12 from 0 to 55 degree vertical angle
         and y = 1/unweighted GSS
 
-        results:
-        17.060279705323932 - 15.450379752947917·x¹ + 14.844105609186975·x²
-        - 4.65660006956826·x³ - 9.01372966405947·x⁴ + 6.635852582447937·x⁵
-        + 0.31811754006737725·x⁶
-        [-1.  1.] [0.00698182 0.12201818]
+        results::
+
+            17.060279705323932 - 15.450379752947917·x¹ + 14.844105609186975·x²
+            - 4.65660006956826·x³ - 9.01372966405947·x⁴ + 6.635852582447937·x⁵
+            + 0.31811754006737725·x⁶
+            [-1.  1.] [0.00698182 0.12201818]
         """
         p = np.polynomial.Polynomial((17.060279705323932, -15.450379752947917,
                                       14.844105609186975, -4.65660006956826,

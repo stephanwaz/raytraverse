@@ -7,6 +7,7 @@
 # =======================================================================
 import functools
 
+import numpy as np
 
 from raytraverse.lightpoint import LightPointKD
 
@@ -54,3 +55,12 @@ class MultiLightPointSet(LightSet):
                               posidx=self.idx[item, 1], src=source,
                               srcdir=self.points[item, 0:3], **self.kwargs)
 
+
+class SensorPointSet(LightSet):
+
+    def __init__(self, data, idx, **kwargs):
+        self.data = np.concatenate(data, axis=0)
+        super().__init__(None, None, None, idx)
+
+    def __getitem__(self, item):
+        return self.data[item]

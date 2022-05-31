@@ -62,7 +62,8 @@ class SamplerSuns(BaseSampler):
             ptkwargs = {}
         areakwargs.update(samplerlevel=self._slevel + 1)
         self._areakwargs = dict(metricset=('avglum', 'loggcr', 'xpeak',
-                                           'ypeak'), featurefunc=np.max)
+                                           'ypeak'), featurefunc=np.max,
+                                edgemode=-self.t0)
         self._areakwargs.update(areakwargs)
         self._ptkwargs = ptkwargs
         self.nlev = nlev

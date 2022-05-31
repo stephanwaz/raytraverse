@@ -9,35 +9,10 @@ Integrator
     :undoc-members:
     :show-inheritance:
 
+helpers
+-------
 
-IntegratorDS
----------------------------------
-
-.. autoclass:: raytraverse.integrator.IntegratorDS
-    :members:
-    :undoc-members:
-    :show-inheritance:
-
-IntegratorDV
----------------------------------
-
-.. autoclass:: raytraverse.integrator.IntegratorDV
-    :members:
-    :undoc-members:
-    :show-inheritance:
-
-ZonalIntegrator
----------------------------------
-
-.. autoclass:: raytraverse.integrator.ZonalIntegrator
-    :members:
-    :undoc-members:
-    :show-inheritance:
-
-ZonalIntegratorDS
----------------------------------
-
-.. autoclass:: raytraverse.integrator.ZonalIntegratorDS
+.. automodule:: raytraverse.integrator.helpers
     :members:
     :undoc-members:
     :show-inheritance:

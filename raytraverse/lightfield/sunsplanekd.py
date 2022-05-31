@@ -5,12 +5,6 @@
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 # =======================================================================
-import os
-import shutil
-import sys
-from concurrent.futures import wait, FIRST_COMPLETED
-
-
 import numpy as np
 from scipy.spatial import cKDTree, distance_matrix
 
@@ -104,7 +98,7 @@ class SunsPlaneKD(LightField):
             by the average chord-length between leveel 0 sun samples divided by
             the PlanMapper ptres * sqrt(2).
         """
-        weighted_vecs = np.copy(np.atleast_2d(vecs))
+        weighted_vecs = np.copy(np.atleast_2d(vecs)).astype(float)
         weighted_vecs[:, 3:] *= self._normalization
         d, i = self.kd.query(weighted_vecs)
         return i, d
@@ -141,38 +135,9 @@ class SunsPlaneKD(LightField):
             angle (in degrees) between queried sunvec and returned index
 
         """
-        # find suns within tolerance or minimum number
-        i = self.sunkd.query_ball_point(np.ravel(sunvec),
-                                        theta2chord(stol*np.pi/180))
-        if len(i) < minsun:
-            d, i = self.sunkd.query(sunvec, minsun)
-            if minsun == 1:
-                i = [i]
-
-        # filter points corresponding to these suns
-        sunfilt = np.isin(self.data.idx[:, 0], i)
-        vecs = self.vecs[sunfilt]
-        idx = np.argwhere(sunfilt).ravel()
-
-        # prepend fixed_points
-        if fixed_points is not None:
-            fixed_points = np.atleast_2d(fixed_points)
-            pkd = cKDTree(vecs[:, 3:])
-            d, i = pkd.query(fixed_points)
-            fvecs = np.hstack((vecs[i, 0:3], fixed_points))
-            vecs = np.concatenate((fvecs, vecs), axis=0)
-            idx = np.concatenate((idx[i], idx))
-
-        # sort points by ascending by sunerror
-        sund = np.linalg.norm(vecs[:, 0:3] - np.atleast_2d(sunvec), axis=1)
-        sorti = np.argsort(sund, kind='stable')
-
-        # cull points within tolerance prioritizing minimum sun error
-        flt = translate.cull_vectors(vecs[sorti, 3:], ptfilter)
-        # sort back to original order and return indices with sun errors
-        flt = flt[np.argsort(sorti, kind='stable')]
-        d = chord2theta(sund[flt]) * 180/np.pi
-        return vecs[flt], idx[flt], d
+        return _query_by_sun(sunvec, self.sunkd, self.vecs, self.data.idx[:, 0],
+                             fixed_points=fixed_points, ptfilter=ptfilter,
+                             stol=stol, minsun=minsun)
 
     def query_by_suns(self, sunvecs, fixed_points=None, ptfilter=.25, stol=10,
                       minsun=1):
@@ -204,9 +169,46 @@ class SunsPlaneKD(LightField):
             list of np.array, one for each sunvec (see query_by_sun)
 
         """
-        result = pool_call(self.query_by_sun, sunvecs, expandarg=False,
+        result = pool_call(_query_by_sun, sunvecs, self.sunkd, self.vecs,
+                           self.data.idx[:, 0], expandarg=False,
                            desc="finding SunPlane points",
                            pbar=self.scene.dolog, fixed_points=fixed_points,
                            ptfilter=ptfilter, stol=stol, minsun=minsun)
         vecs, idx, d = zip(*result)
         return vecs, idx, d
+
+
+def _query_by_sun(sunvec, sunkd, svecs, sidx, fixed_points=None,
+                  ptfilter=.25, stol=10, minsun=1):
+    """for finding vectors across zone, sun vector based query"""
+    # find suns within tolerance or minimum number
+    i = sunkd.query_ball_point(np.ravel(sunvec), theta2chord(stol*np.pi/180))
+    if len(i) < minsun:
+        d, i = sunkd.query(sunvec, minsun)
+        if minsun == 1:
+            i = [i]
+
+    # filter points corresponding to these suns
+    sunfilt = np.isin(sidx, i)
+    vecs = svecs[sunfilt]
+    idx = np.argwhere(sunfilt).ravel()
+
+    # prepend fixed_points
+    if fixed_points is not None:
+        fixed_points = np.atleast_2d(fixed_points)
+        pkd = cKDTree(vecs[:, 3:])
+        d, i = pkd.query(fixed_points)
+        fvecs = np.hstack((vecs[i, 0:3], fixed_points))
+        vecs = np.concatenate((fvecs, vecs), axis=0)
+        idx = np.concatenate((idx[i], idx))
+
+    # sort points by ascending by sunerror
+    sund = np.linalg.norm(vecs[:, 0:3] - np.atleast_2d(sunvec), axis=1)
+    sorti = np.argsort(sund, kind='stable')
+
+    # cull points within tolerance prioritizing minimum sun error
+    flt = translate.cull_vectors(vecs[sorti, 3:], ptfilter)
+    # sort back to original order and return indices with sun errors
+    flt = flt[np.argsort(sorti, kind='stable')]
+    d = chord2theta(sund[flt]) * 180/np.pi
+    return vecs[flt], idx[flt], d

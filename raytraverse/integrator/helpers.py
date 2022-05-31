@@ -127,6 +127,52 @@ def img_pt(lpts, skyvecs, suns, vms=None,  combos=None,
     return outfs
 
 
+def prep_ds(lpts, skyvecs):
+    try:
+        snp = lpts[2]
+    except IndexError:
+        # this implies the sunpt is not needed (0 direct solar)
+        return lpts[0:1], skyvecs[0:1], None
+    skyvecs = [np.hstack(skyvecs[0:2]), skyvecs[2]]
+    ski, skyvecs, refl = apply_dsky_patch(lpts[0], lpts[1], skyvecs, snp.srcdir)
+    lpts = [ski, snp]
+    return lpts, skyvecs, refl
+
+
+def evaluate_pt_ds(lpts, skyvecs, suns, **kwargs):
+    lpts, skyvecs, refl = prep_ds(lpts, skyvecs)
+    return evaluate_pt(lpts, skyvecs, suns, refl=refl, **kwargs)
+
+
+def img_pt_ds(lpts, skyvecs, suns, **kwargs):
+    lpts, skyvecs, refl = prep_ds(lpts, skyvecs)
+    return img_pt(lpts, skyvecs, suns, refl=refl, **kwargs)
+
+
+def _prep_dv(lpts, skyvecs, skdir):
+    dirlum = np.zeros((len(lpts[0].lum), 1))
+    ski, skyvecs, refl = apply_dsky_patch(lpts[0], lpts[1], skyvecs, skdir,
+                                          dirlum)
+    lpts = [ski]
+    return lpts, skyvecs, refl
+
+
+def evaluate_pt_dv(lpts, skyvecs, suns, **kwargs):
+    side = int((skyvecs[0].shape[1] - 1)**.5)
+    skpatch = translate.xyz2skybin(suns[0], side)[0]
+    skdir = translate.skybin2xyz(skpatch, side)[0]
+    lpts, skyvecs, refl = _prep_dv(lpts, skyvecs, skdir)
+    return evaluate_pt(lpts, skyvecs, suns, refl=refl, **kwargs)
+
+
+def img_pt_dv(lpts, skyvecs, suns, **kwargs):
+    side = int((skyvecs[0].shape[1] - 1)**.5)
+    skpatch = translate.xyz2skybin(suns[0], side)[0]
+    skdir = translate.skybin2xyz(skpatch, side)[0]
+    lpts, skyvecs, refl = _prep_dv(lpts, skyvecs, skdir)
+    return img_pt(lpts, skyvecs, suns, refl=refl, **kwargs)
+
+
 def prep_resamp(lpts, refl=None, resamprad=0.0):
     sunpt = [i for i, s in enumerate(lpts) if "_sun_" in s.src]
     sunpt2 = [i for i, s in enumerate(lpts) if "sun" in s.src]

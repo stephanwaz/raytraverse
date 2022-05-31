@@ -37,16 +37,11 @@ class LightPlaneKD(LightField):
         :setter: sets areas
         :type: np.array
         """
-        return self._omega
-
-    @omega.setter
-    def omega(self, oga):
-        """calculate area"""
-        if oga is None:
+        if self._omega is None:
             pm = self.pm
             # border capture any infinite edges
             bordered = np.concatenate((self.vecs,
-                                       pm.bbox_vertices(pm.area**.5 * 10)))
+                                       pm.bbox_vertices(pm.area**.5*10)))
             vor = Voronoi(bordered[:, 0:2])
             omega = []
             for i in range(len(self.vecs)):
@@ -58,8 +53,12 @@ class LightPlaneKD(LightField):
                     area += p.intersection(mask).area
                 omega.append(area)
             self._omega = np.asarray(omega)
-        else:
-            self._omega = np.zeros(self.vecs.shape[0])
+        return self._omega
+
+    @omega.setter
+    def omega(self, oga):
+        """wait to calculate area until needed"""
+        self._omega = None
 
     def evaluate(self, skyvec, points=None, vm=None, metricclass=MetricSet,
                  metrics=None, mask=True, **kwargs):

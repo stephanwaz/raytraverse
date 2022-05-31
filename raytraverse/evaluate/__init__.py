@@ -10,7 +10,7 @@
 
 __all__ = ['BaseMetricSet', 'MetricSet', 'MetricSet', 'FieldMetric',
            'PositionIndex', 'retina', 'SamplingMetrics',
-           'MultiLumMetricSet']
+           'MultiLumMetricSet', 'GSS', 'hvsgsm']
 
 from raytraverse.evaluate.basemetricset import BaseMetricSet
 from raytraverse.evaluate.metricset import MetricSet
@@ -18,3 +18,4 @@ from raytraverse.evaluate.fieldmetric import FieldMetric
 from raytraverse.evaluate.positionindex import PositionIndex
 from raytraverse.evaluate.samplingmetrics import SamplingMetrics
 from raytraverse.evaluate.multilummetricset import MultiLumMetricSet
+from raytraverse.evaluate.hvsgsm import GSS

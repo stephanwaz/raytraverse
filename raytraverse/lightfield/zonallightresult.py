@@ -27,14 +27,18 @@ class RaggedResult(tuple):
         self.items = tuple([len(i) for i in self])
 
     def __getitem__(self, item):
+        # 1D indexing, return subarray at item
         try:
             return super(RaggedResult, self).__getitem__(item)
         except TypeError:
             pass
+        # pad items with empty slices when Ellipsis is Present
         if not hasattr(item[0], 'shape') and item[0] == Ellipsis:
             item = tuple(slice(None) for i in range(1 + len(self.shape) - len(item))) + item[1:]
+        # first item is integer, grab subarray for further slicing
         try:
             x = super(RaggedResult, self).__getitem__(item[0])
+        #
         except TypeError:
             x = [super(RaggedResult, self).__getitem__(i) for i in item[0]]
         if type(item[0]) == int:
@@ -162,21 +166,26 @@ class ZonalLightResult(LightResult):
             super()._print_serial(rt, labels, names, basename, header,
                                   rowlabel, None)
 
-    def pull2hdr(self, imgzone, basename, **kwargs):
+    def pull2hdr(self, imgzone, basename, showsample=False, **kwargs):
         pm = PlanMapper(imgzone)
-        img, vecs, mask, mask2, header = pm.init_img(480)
-        print(img.shape, vecs[mask].shape, img[mask].shape)
+        zimg, vecs, mask, mask2, header = pm.init_img(480)
         if "metric" in kwargs and kwargs["metric"] is not None:
             kwargs["metric"] = np.unique(np.concatenate(([0, 1, 2], kwargs["metric"])))
         rt, labels, names = self.pull("metric", preserve=2, **kwargs)
         flabels0 = self.fmt_names(names[-1], labels[-1])
         flabels1 = self.fmt_names(names[-2], labels[-2][3:])
-        print(flabels1)
         for i, la0 in enumerate(flabels0):
             data = rt[i]
             kd = cKDTree(data[:, 0:3])
             data = data[:, 3:]
             err, idx = kd.query(vecs[mask])
             for k, (la, d) in enumerate(zip(flabels1, data.T)):
+                img = np.copy(zimg)
                 img[mask] = d[idx]
-                io.array2hdr(img, f"{basename}_{la}_{la0}.hdr", header)
+                if showsample:
+                    if len(img.shape) < 3:
+                        img = np.repeat(img[None, ...], 3, 0)
+                    img = pm.add_vecs_to_img(img, kd.data)
+                    io.carray2hdr(img, f"{basename}_{la}_{la0}.hdr", [header])
+                else:
+                    io.array2hdr(img, f"{basename}_{la}_{la0}.hdr", [header])

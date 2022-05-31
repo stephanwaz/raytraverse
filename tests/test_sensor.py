@@ -8,6 +8,7 @@ import shutil
 import pytest
 import numpy as np
 
+from raytraverse import io
 from raytraverse.renderer import Rtrace, Rcontrib
 from raytraverse.scene import Scene
 from raytraverse.sampler import Sensor, ISamplerArea, ISamplerSuns, SamplerSuns
@@ -29,6 +30,7 @@ def tmpdir(tmp_path_factory):
 
 
 def test_rtrace_sensor(tmpdir):
+    Rtrace.reset()
     scene = Scene('skysample', "box.rad", frozen=False)
     rtrace = Rtrace("-I+ -ab 1 -aa 0 -ad 10000 -lw 1e-6 -u+", scene=scene.scene)
     rtrace.load_source("sky.rad")
@@ -42,6 +44,7 @@ def test_rtrace_sensor(tmpdir):
 
 
 def test_rcontrib_sensor(tmpdir):
+    Rcontrib.reset()
     scene = Scene('skysample', "box.rad", frozen=False)
     rcontrib = Rcontrib("-I+ -ab 1 -aa 0 -ad 10000 -lw 1e-6 -u+",
                         scene=scene.scene, skyres=2)
@@ -56,6 +59,7 @@ def test_rcontrib_sensor(tmpdir):
 
 
 def test_isamplerarea(tmpdir):
+    Rtrace.reset()
     sm = PlanMapper('plane.rad', ptres=.25)
     scene = Scene('skysample', "box.rad", frozen=False)
     # return color
@@ -64,35 +68,48 @@ def test_isamplerarea(tmpdir):
     rtrace.load_source("sky.rad")
     sensor = Sensor(rtrace, ((0, -1, 0), (0, 1, 0), (0, 0, 1), (1, 0, 0)))
     sampler = ISamplerArea(scene, sensor)
-    sampler.run(sm)
+    slp = sampler.run(sm, log=False)
     rtrace.reset()
+    assert np.isclose(np.average(slp.omega), 0.023, atol=.01)
+    illum = io.rgb2rad(slp.evaluate(1))
+    allum = np.einsum("ijk,j->k", illum, slp.omega)/np.sum(slp.omega)
+    expected = [0., 1.614, 0.535, 0.451]
+    assert np.allclose(expected, allum, atol=.01)
 
 
 def test_isamplerarearc(tmpdir):
+    Rcontrib.reset()
     sm = PlanMapper('plane.rad', ptres=.25)
     scene = Scene('skysample', "box.rad", frozen=False)
     rcontrib = Rcontrib("-I+ -ab 1 -aa 0 -ad 10000 -lw 1e-6 -u+",
-                        scene=scene.scene)
+                        scene=scene.scene, skyres=18)
     sensor = Sensor(rcontrib, ((0, -1, 0), (0, 1, 0), (0, 0, 1), (1, 0, 0)))
-    sampler = ISamplerArea(scene, sensor, weightfunc=np.sum, stype='sky')
-    sampler.run(sm)
+    sampler = ISamplerArea(scene, sensor, weightfunc=np.sum, stype='sky',
+                           jitter=False)
+    slp = sampler.run(sm, log=False)
     rcontrib.reset()
+    assert np.isclose(np.average(slp.omega), 0.023, atol=.01)
+    illum = slp.evaluate(1)
+    allum = np.einsum("ijkl,j->k", illum, slp.omega)/np.sum(slp.omega)
+    expected = [0., 1.614, 0.535, 0.451]
+    assert np.allclose(expected, allum, atol=.01)
 
 
 def test_isunsampler(tmpdir):
+    Rtrace.reset()
     sm = SkyMapper((-30, 0, 0), sunres=9)
     scene = Scene('skysample', "box.rad", frozen=False)
     rtrace = Rtrace("-I+ -ab 0", scene=scene.scene)
     pm = PlanMapper('plane.rad', ptres=.25)
     sensor = Sensor(rtrace, ((0, -1, 0), (0, 1, 0), (0, 0, 1), (1, 0, 0)))
     sampler = ISamplerSuns(scene, sensor, nlev=2)
-    sampler.run(sm, pm)
+    slp = sampler.run(sm, pm)
+    rtrace.reset()
+    v, i, d = slp.query_by_sun([0, 0, 1])
+    val = np.sum(slp.data[i], (1, 2, 3))
+    v = v[val > 0]
+    i = i[val > 0]
 
+    j, d = slp.query(v)
+    assert np.alltrue(i == j)
 
-# def test_sunsampler(tmpdir):
-#     sm = SkyMapper((-30, 0, 0), sunres=8)
-#     scene = Scene('ssample', "box.rad", frozen=False)
-#     rtrace = Rtrace("-I+ -ab 0", scene=scene.scene)
-#     pm = PlanMapper('plane.rad', ptres=1)
-#     sampler = SamplerSuns(scene, rtrace, nlev=2, areakwargs=dict(nlev=1))
-#     sampler.run(sm, pm, recover=False)

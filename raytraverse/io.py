@@ -245,7 +245,6 @@ def hdr2carray(imgf, stdin=None):
     Returns
     -------
     ar: np.array
-
     """
     pval = f'pvalue -n -h -df -o {imgf}'
     p = Popen(shlex.split(pval), stdin=stdin, stdout=PIPE)
@@ -255,14 +254,11 @@ def hdr2carray(imgf, stdin=None):
 
 
 def rgb2rad(rgb):
-    try:
-        return np.einsum('ij,j', rgb, [0.265, 0.670, 0.065])
-    except ValueError:
-        return np.einsum('j,j', rgb, [0.265, 0.670, 0.065])
+    return np.einsum('...j,j->...', rgb, [0.265, 0.670, 0.065])
 
 
 def rgb2lum(rgb):
-    return np.einsum('ij,j', rgb, [47.435, 119.93, 11.635])
+    return np.einsum('...j,j->...', rgb, [47.435, 119.93, 11.635])
 
 
 def rgbe2lum(rgbe):
@@ -317,7 +313,7 @@ def load_txt(farray, **kwargs):
             except (ValueError, AttributeError):
                 raise ValueError
         else:
-            raise FileNotFoundError
+            raise FileNotFoundError(f"{farray}")
     else:
         raise TypeError
 

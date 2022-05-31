@@ -162,7 +162,11 @@ class PlanMapper(Mapper):
         return self.in_view_uv(self.xyz2uv(vec), indices)
 
     def header(self, **kwargs):
-        return 'VIEW= -vtl -vv 1 -vh 1'
+        vp = self.dxyz
+        vu = self.view2world([0, 1, 0])[0]
+        vs = self.bbox[1] - self.bbox[0]
+        return ("VIEW= -vtl -vp {} {} {} -vu {} {} {} ".format(*vp, *vu) +
+                "-vd 0 0 -1 -vh {} -vv {}".format(vs[0], vs[1]))
 
     def borders(self):
         """world coordinate vertices of planmapper boundaries"""

@@ -11,7 +11,8 @@ import numpy as np
 
 from raytraverse import translate
 from raytraverse.evaluate import MetricSet
-from raytraverse.lightfield.lightresult import ResultAxis, LightResult
+from raytraverse.lightfield import SunsPlaneKD, ZonalLightResult
+from raytraverse.lightfield import ResultAxis, LightResult
 import raytraverse.integrator.helpers as intg
 from raytraverse.mapper import ViewMapper
 from raytraverse.utility import pool_call
@@ -24,13 +25,38 @@ class Integrator(object):
     ----------
     lightplanes: Sequence[raytraverse.lightfield.LightPlaneKD]
     """
-    evaluate_pt = intg.evaluate_pt
-    img_pt = intg.img_pt
 
     def __init__(self, *lightplanes, includesky=True, includesun=True,
-                 sunviewengine=None):
-        self.scene = lightplanes[0].scene
+                 sunviewengine=None, ds=False, dv=False):
         self.lightplanes = lightplanes
+        self._issunplane = [i for i, lp in enumerate(self.lightplanes)
+                            if isinstance(lp, SunsPlaneKD)]
+        self.integration_method = "default"
+        # setup special integrators
+        if ds:
+            self.integration_method = "ds"
+            if len(lightplanes) != 3:
+                raise ValueError("ds=True requires 3 lightplanes: sky, "
+                                 "directsky, directsun")
+            if len(self._issunplane) != 1 or self._issunplane[0] != 2:
+                raise ValueError("ds=True requirees 3rd argument is sunplane")
+            self.evaluate_pt = intg.evaluate_pt_ds
+            self. img_pt = intg.img_pt_ds
+        elif dv:
+            self.integration_method = "dv"
+            if len(lightplanes) != 2:
+                raise ValueError("dv=True requires 2 lightplanes: sky, "
+                                 "directsky")
+            if sunviewengine is None:
+                raise ValueError("dv=True requires a sunviewengine")
+            if len(self._issunplane) > 0:
+                raise ValueError("dv=True is not compatible it sunplane")
+            self.evaluate_pt = intg.evaluate_pt_dv
+            self.img_pt = intg.img_pt_dv
+        else:
+            self.evaluate_pt = intg.evaluate_pt
+            self.img_pt = intg.img_pt
+        self.scene = lightplanes[0].scene
         self.includesky = includesky
         self.includesun = includesun
         self._sunviewengine = sunviewengine
@@ -98,7 +124,7 @@ class Integrator(object):
         s = (*oshape[0:2], skinfo.shape[1])
         skinfo = np.broadcast_to(skinfo[:, None, :], s).reshape(-1, s[-1])
         mask_kwargs = dict(combos=combos, qpts=vecs[:, 3:], skinfo=skinfo)
-        outfs, _ = self._process_mgr(idxs, skydatas, dsns, type(self).img_pt,
+        outfs, _ = self._process_mgr(idxs, skydatas, dsns, self.img_pt,
                                      message="Making Images",
                                      mask_kwargs=mask_kwargs, vms=vms, res=res,
                                      interp=interp, prefix=prefix,
@@ -109,7 +135,7 @@ class Integrator(object):
     def evaluate(self, skydata, points, vm, viewangle=180.,
                  metricclass=MetricSet, metrics=None, datainfo=False,
                  srconly=False, suntol=10.0, blursun=False, coercesumsafe=False,
-                 **kwargs):
+                 ptfilter=.25, stol=10,  minsun=1, **kwargs):
         """apply sky data and view queries to daylightplane to return metrics
         parallelizes and optimizes run order.
 
@@ -142,22 +168,44 @@ class Integrator(object):
             include information about source data as additional metrics. Valid
             values include: ["pt_err", "pt_idx", "src_err", "src_idx"].
             If True, includes all.
+        ptfilter: Union[float, int], optional
+            minimum seperation for returned points (zonal)
+        stol: Union[float, int], optional
+            maximum angle (in degrees) for matching sun vectors (zonal)
+        minsun: int, optional
+            if atleast these many suns are not returned based on stol, directly
+            query for this number of results (regardless of sun error) (zonal)
 
         Returns
         -------
         raytraverse.lightfield.LightResult
         """
-        points = np.atleast_2d(points)
+        if (points is None and len(self._issunplane) > 0 and
+                np.any(skydata.sun[:, 3] > 0)):
+            return self.zonal_evaluate(skydata, self.lightplanes[0].pm, vm,
+                            viewangle=viewangle, metricclass=metricclass,
+                            metrics=metrics, datainfo=datainfo,
+                            srconly=srconly, suntol=suntol,
+                            blursun=blursun, coercesumsafe=coercesumsafe,
+                            ptfilter=ptfilter, stol=stol,  minsun=minsun,
+                            **kwargs)
+        if points is None:
+            points, skarea = self._get_fixed_points(self.lightplanes[0].pm,
+                                                    ptfilter)
+        else:
+            points = np.atleast_2d(points)
+
         (vm, vms, cmetrics, ometrics,
          sumsafe, needs_post) = self._check_params(vm, viewangle, metrics,
                                                    metricclass, coercesumsafe)
         tidxs, skydatas, dsns, vecs = self._group_query(skydata, points)
         oshape = (len(skydata.maskindices), len(points), len(vms), len(cmetrics))
-        self.scene.log(self, f"Evaluating {oshape[3]} metrics for {oshape[2]}"
-                             f" view directions at {oshape[1]} points under "
-                             f"{oshape[0]} skies", True)
+
+        self.scene.log(self, f"Evaluating {len(ometrics)} metrics for "
+                             f"{oshape[2]} view directions at {oshape[1]} "
+                             f"points under {oshape[0]} skies", True)
         fields, isort = self._process_mgr(tidxs, skydatas, dsns,
-                                          type(self).evaluate_pt,
+                                          self.evaluate_pt,
                                           message="Evaluating Points",
                                           srconly=srconly, sumsafe=sumsafe,
                                           metricclass=metricclass,
@@ -167,27 +215,8 @@ class Integrator(object):
         # sort back to original order and reshape
         fields = np.concatenate(fields, axis=0)[isort].reshape(oshape)
         if needs_post:
-            ofields = np.zeros(fields.shape[:-1] + (len(ometrics),))
-            for i, m in enumerate(ometrics):
-                if m in cmetrics:
-                    ofields[..., i] = fields[..., cmetrics.index(m)]
-                elif m == "dgp":
-                    illum = fields[..., cmetrics.index("illum")]
-                    pwsl2 = fields[..., cmetrics.index("pwsl2")]
-                    t1 = 5.87 * 10**-5 * illum
-                    t2 = 9.18 * 10**-2 * np.log10(1 + pwsl2/np.power(illum, 1.87))
-                    ll = 1
-                    if "lowlight" in kwargs and kwargs["lowlight"]:
-                        ll = np.where(illum < 500, np.exp(0.024*illum - 4) /
-                                      (1 + np.exp(0.024*illum - 4)), 1)
-                    ofields[..., i] = np.minimum(ll*(t1 + t2 + 0.16), 1.0)
-                elif m == "ugp":
-                    pwsl2 = fields[..., cmetrics.index("pwsl2")]
-                    backlum = fields[..., cmetrics.index("backlum")]
-                    with np.errstate(divide='ignore'):
-                        ugr = np.maximum(0, 8*np.log10(0.25*pwsl2/backlum))
-                    ofields[..., i] = (1 + 2/7*10**(-(ugr + 5)/40))**-10
-            fields = ofields
+            fields = self._post_process_metrics(fields, ometrics, cmetrics,
+                                                **kwargs)
         sinfo, dinfo = self._sinfo(datainfo, vecs, tidxs, oshape[0:2])
         if sinfo is not None:
             nshape = list(sinfo.shape)
@@ -201,6 +230,113 @@ class Integrator(object):
                 ResultAxis(list(ometrics) + dinfo, "metric"))
         lr = LightResult(fields, *axes)
         return lr
+
+    def zonal_evaluate(self, skydata, pm, vm, viewangle=180.,
+                       metricclass=MetricSet, metrics=None, srconly=False,
+                       suntol=10.0, blursun=False, coercesumsafe=False,
+                       ptfilter=.25, stol=10,  minsun=1, datainfo=False,
+                       **kwargs):
+        """apply sky data and view queries to daylightplane to return metrics
+        parallelizes and optimizes run order.
+
+        Parameters
+        ----------
+        see evaluate
+
+        Returns
+        -------
+        raytraverse.lightfield.ZonalLightResult
+        """
+        # delegate back to evaluate
+        if len(self._issunplane) == 0 or np.all(skydata.sun[:, 3] == 0):
+            return self.evaluate(skydata, None, vm, viewangle=viewangle,
+                                 metricclass=metricclass, metrics=metrics,
+                                 datainfo=datainfo, srconly=srconly,
+                                 suntol=suntol, blursun=blursun,
+                                 coercesumsafe=coercesumsafe,
+                                 ptfilter=ptfilter, stol=stol, minsun=minsun,
+                                 **kwargs)
+
+        (vm, vms, cmetrics, ometrics,
+         sumsafe, needs_post) = self._check_params(vm, viewangle, metrics,
+                                                   metricclass, coercesumsafe)
+        (tidxs, skydatas, dsns, vecs, serr,
+         areas, pts, cnts) = self._zonal_group_query(skydata, pm,
+                                                     ptfilter=ptfilter,
+                                                     stol=stol, minsun=minsun)
+
+        self.scene.log(self, f"Evaluating {len(ometrics)} metrics for {len(vms)}"
+                             f" view directions across zone '{pm.name}' under "
+                             f"{len(skydata.sun)} skies", True)
+        fields, isort = self._process_mgr(tidxs, skydatas, dsns,
+                                          self.evaluate_pt,
+                                          message="Evaluating Points",
+                                          srconly=srconly, sumsafe=sumsafe,
+                                          metricclass=metricclass,
+                                          metrics=cmetrics, vm=vm, vms=vms,
+                                          suntol=suntol, blursun=blursun,
+                                          **kwargs)
+
+        fields = np.concatenate(fields, axis=0)[isort]
+        if needs_post:
+            fields = self._post_process_metrics(fields, ometrics, cmetrics,
+                                                **kwargs)
+        oshape = (len(fields), len(vms))
+        pmetrics = ['x', 'y', 'z', 'area']
+        if datainfo:
+            sinfo, dinfo = self._zonal_sinfo(serr, tidxs, oshape + (2,))
+            if sinfo is not None:
+                fields = np.concatenate((sinfo, fields), axis=-1)
+                pmetrics += dinfo
+
+        areas = np.broadcast_to(areas[:, None, None], oshape + (1,))
+        axes = [ResultAxis(skydata.rowlabel[skydata.fullmask], f"sky"),
+                ResultAxis([pm.name], f"zone"),
+                ResultAxis([v.dxyz for v in vms], "view"),
+                ResultAxis(pmetrics + ometrics, "metric")]
+
+        strides = np.cumsum(cnts)[:-1]
+        fvecs = np.broadcast_to(vecs[:, None, 3:], oshape + (3,))
+        fields = np.concatenate((fvecs, areas, fields), axis=-1)
+        fields = np.split(fields, strides)
+        return ZonalLightResult(fields, *axes, pointmetrics=pmetrics)
+
+    @staticmethod
+    def _post_process_metrics(fields, ometrics, cmetrics, **kwargs):
+        ofields = np.zeros(fields.shape[:-1] + (len(ometrics),))
+        for i, m in enumerate(ometrics):
+            if m in cmetrics:
+                ofields[..., i] = fields[..., cmetrics.index(m)]
+            elif m == "dgp":
+                illum = fields[..., cmetrics.index("illum")]
+                pwsl2 = fields[..., cmetrics.index("pwsl2")]
+                t1 = 5.87*10**-5*illum
+                t2 = 9.18*10**-2*np.log10(1 + pwsl2/np.power(illum, 1.87))
+                ll = 1
+                if "lowlight" in kwargs and kwargs["lowlight"]:
+                    ll = np.where(illum < 500, np.exp(0.024*illum - 4)/
+                                  (1 + np.exp(0.024*illum - 4)), 1)
+                ofields[..., i] = np.minimum(ll*(t1 + t2 + 0.16), 1.0)
+            elif m == "ugp":
+                pwsl2 = fields[..., cmetrics.index("pwsl2")]
+                backlum = fields[..., cmetrics.index("backlum")]
+                with np.errstate(divide='ignore'):
+                    ugr = np.maximum(0, 8*np.log10(0.25*pwsl2/backlum))
+                ofields[..., i] = (1 + 2/7*10**(-(ugr + 5)/40))**-10
+        return ofields
+
+    def _get_fixed_points(self, pm, ptfilter=.25):
+        pts = [lp.vecs for lp in self.lightplanes if
+               not isinstance(lp, SunsPlaneKD)]
+        if len(pts) > 0:
+            pts = np.vstack(pts)
+            pts = pts[pm.in_view(pts, False)]
+            pts = pts[translate.cull_vectors(pts, ptfilter)]
+            skarea = intg.calc_omega(pts, pm)
+        else:
+            pts = pm.dxyz.reshape(1, 3)
+            skarea = np.array([pm.area])
+        return pts, skarea
 
     @staticmethod
     def _check_params(vm, viewangle=180., metrics=None, metricclass=MetricSet,
@@ -233,6 +369,10 @@ class Integrator(object):
                 else:
                     print(f"could not coerce metric {m} to sumsafe",
                           file=sys.stderr)
+                    ometrics = metrics
+                    cmetrics = metrics
+                    s2s = metricclass.check_safe2sum(metrics)
+                    break
             cmetrics = list(cmetrics)
         else:
             ometrics = metrics
@@ -254,7 +394,32 @@ class Integrator(object):
             else:
                 idx, err = lp.query(points)
                 idxs.append(np.broadcast_to(idx, gshape).ravel())
+        if self.integration_method == "dv":
+            idxs.append(np.broadcast_to(skydata.sunproxy[:, None],
+                                        gshape).ravel())
         return np.stack(idxs), skydatas, dsns, vecs
+
+    def _zonal_group_query(self, skydata, pm, ptfilter=.25, stol=10, minsun=1):
+        pts, skarea = self._get_fixed_points(pm, ptfilter)
+        # only look for suns when relevant
+        sunmask = skydata.sun[:, 3] > 0
+        suns = skydata.sun
+        sunplane = self.lightplanes[self._issunplane[0]]
+        # for each sun, matching vectors, indices, and solar errors
+        vecs, idx, ds = sunplane.query_by_suns(suns[sunmask, 0:3],
+                                               fixed_points=pts,
+                                               ptfilter=ptfilter, stol=stol,
+                                               minsun=minsun)
+        spts = [v[:, 3:] for v in vecs]
+        areas = pool_call(intg.calc_omega, spts, pm, expandarg=False,
+                          desc="calculating areas", pbar=self.scene.dolog)
+
+        sundata = (vecs, idx, ds, areas)
+        result = self._unmask_data(skydata, sunmask, suns, pts, sundata, skarea)
+        smtx, dsns, all_vecs, sunidx, d, areas, cnts = result
+
+        tidxs, skydatas = self._match_ragged(smtx, dsns, sunidx, all_vecs)
+        return tidxs, skydatas, dsns, all_vecs, d, areas, pts, cnts
 
     def _sinfo(self, datainfo, vecs, idxs, oshape):
         """error and bin information for evaluate queries"""
@@ -292,12 +457,59 @@ class Integrator(object):
                     dinfo2.append(f"{lp.src}_{di}")
         return np.array(sinfo).T.reshape(*oshape, 1, -1), dinfo2
 
+    def _zonal_sinfo(self, serr, idxs, oshape):
+        """error and bin information for evaluate queries"""
+        if len(self._issunplane) > 0:
+            dinfo = ["src_err", "src_idx"]
+            lp = self.lightplanes[self._issunplane[0]]
+            idx = idxs[self._issunplane[0]]
+            srcidx = np.full(len(idx), -1)
+            mask = idx >= 0
+            srcidx[mask] = lp.data.idx[idx[mask], 0]
+            sinfo = np.broadcast_to(np.stack((serr, srcidx)).T[:, None],
+                                    oshape)
+        else:
+            dinfo = []
+            sinfo = None
+        return sinfo, dinfo
+
+    def _match_ragged(self, smtx, dsns, sunidx, all_vecs):
+        if self.integration_method == "ds":
+            skyq = self.lightplanes[0].query(all_vecs[:, 3:])[0]
+            tidxs = np.stack([skyq, skyq, sunidx])
+            skydatas = [smtx, dsns[:, 4:], dsns[:, 3:4]]
+        elif self.integration_method == "dv":
+            skyq = self.lightplanes[0].query(all_vecs[:, 3:])[0]
+            tidxs = np.stack([skyq, skyq])
+            skydatas = [smtx, dsns[:, 4:]]
+        else:
+            tidxs = []
+            skydatas = []
+            for i, lp in enumerate(self.lightplanes):
+                if i == self._issunplane[0]:
+                    tidxs.append(sunidx)
+                    skydatas.append(dsns[:, 3:4])
+                else:
+                    tidxs.append(lp.query(all_vecs[:, 3:])[0])
+                    skydatas.append(smtx)
+            tidxs = np.stack(tidxs)
+        return tidxs, skydatas
+
     def _unroll_sky_grid(self, skydata, oshape):
+
         # broadcast skydata to match full indexing
         s = (*oshape, skydata.smtx.shape[1])
         smtx = np.broadcast_to(skydata.smtx[:, None, :], s).reshape(-1, s[-1])
         ds = (*oshape, skydata.sun.shape[1])
         dsns = np.broadcast_to(skydata.sun[:, None, :], ds).reshape(-1, ds[-1])
+
+        if self.integration_method == "ds":
+            skydatas = [smtx, dsns[:, 4:], dsns[:, 3:4]]
+            return skydatas, dsns
+
+        if self.integration_method == "dv":
+            skydatas = [np.hstack((smtx, dsns[:, 4:])), dsns[:, 3:4]]
+            return skydatas, dsns
 
         skydatas = []
         # generic, assumes sun and/or sky, uses patch sun when no sun present
@@ -315,6 +527,41 @@ class Integrator(object):
             dprx = np.broadcast_to(dprx[:, None, :], s).reshape(-1, s[-1])
             skydatas[skyi] = dprx
         return skydatas, dsns
+
+    @staticmethod
+    def _unmask_data(skydata, sunmask, suns, pts, sundata, skarea):
+        # calculate size of return arrays
+        cnts = np.full(len(sunmask), len(pts))
+        cnts[sunmask] = [len(s) for s in sundata[0]]
+        tcnt = np.sum(cnts)
+        all_vecs = np.zeros((tcnt, 6))
+        sunidx = np.full(tcnt, -1, dtype=np.int64)
+        d = np.zeros(tcnt)
+        areas = np.zeros(tcnt)
+        smtx = np.zeros((tcnt, skydata.smtx.shape[1]))
+        dsns = np.zeros((tcnt, suns.shape[1]))
+        # track suns (one for each True sunmask
+        j = 0
+        # track return array slices
+        ci = 0
+        # loop over timesteps and allocate point/sun sky combos
+        for i, sm in enumerate(sunmask):
+            if sm:
+                cnt = len(sundata[0][j])
+                all_vecs[ci:ci + cnt] = sundata[0][j]
+                sunidx[ci:ci + cnt] = sundata[1][j]
+                d[ci:ci + cnt] = sundata[2][j]
+                areas[ci:ci + cnt] = sundata[3][j]
+                j += 1
+            else:
+                cnt = len(pts)
+                all_vecs[ci:ci + cnt, 0:3] = suns[i, 0:3]
+                all_vecs[ci:ci + cnt, 3:6] = pts
+                areas[ci:ci + cnt] = skarea
+            smtx[ci:ci + cnt] = skydata.smtx[i]
+            dsns[ci:ci + cnt] = suns[i]
+            ci += cnt
+        return smtx, dsns, all_vecs, sunidx, d, areas, cnts
 
     @staticmethod
     def _sort_run_data(tidxs):

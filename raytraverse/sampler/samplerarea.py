@@ -65,12 +65,8 @@ class SamplerArea(BaseSampler):
         self.jitter = jitter
         #: raytraverse.mapper.PlanMapper
         self._mapper = None
-        modes = ('reflect', 'constant', 'nearest', 'mirror', 'wrap')
-        if edgemode not in modes:
-            raise ValueError(f"edgemode={edgemode} not a valid option"
-                             " must be one of: {modes}")
         self._specguide = None
-        self._edgemode = edgemode
+        self.edgemode = edgemode
         self._mask = slice(None)
         self._candidates = None
         self._plotpchild = False
@@ -81,6 +77,24 @@ class SamplerArea(BaseSampler):
         self.metricset = metricset
         #: int:
         self.features = len(metricset)
+
+    @property
+    def edgemode(self):
+        return self._edgemode
+
+    @edgemode.setter
+    def edgemode(self, e):
+        modes = ('reflect', 'constant', 'nearest', 'mirror', 'wrap')
+        self._cval = -self.t1
+        self._edgemode = e
+        if e not in modes:
+            try:
+                self._cval = np.asarray(e, dtype=float).ravel()[0]
+            except ValueError:
+                raise ValueError(f"edgemode={e} not a valid option"
+                                 f" must be one of: {modes}")
+            else:
+                self._edgemode = 'constant'
 
     def sampling_scheme(self, mapper):
         """calculate sampling scheme"""
@@ -116,6 +130,9 @@ class SamplerArea(BaseSampler):
         plotpthis = plotp and len(levels) > 1
         self._plotpchild = plotp and not plotpthis
         super().run(mapper, name, levels, plotp=plotpthis, **kwargs)
+        return self._run_callback()
+
+    def _run_callback(self):
         return LightPlaneKD(self.scene, self.vecs, self._mapper, self.stype)
 
     def repeat(self, guide, stype):
@@ -124,7 +141,7 @@ class SamplerArea(BaseSampler):
         Parameters
         ----------
         guide: LightPlaneKD
-        stype: str, optional
+        stype: str
             alternate stype name for samplerpt. raises a ValueError if it
             matches the guide.
         Returns
@@ -148,7 +165,7 @@ class SamplerArea(BaseSampler):
         for posidx, point in pbar:
             gpt = guide.data[posidx]
             self.engine.repeat(gpt, stype)
-        lp = LightPlaneKD(self.scene, self.vecs, self._mapper, self.stype)
+        lp = self._run_callback()
         self.stype = ostype
         return lp
 
@@ -169,9 +186,9 @@ class SamplerArea(BaseSampler):
             p = np.ones(dres).ravel()
             p[np.logical_not(self._mask)] = 0
         else:
-            nweights = self._normed_weights(mask=self._edgemode == 'constant')
+            nweights = self._normed_weights(mask=self.edgemode == 'constant')
             p = draw.get_detail(nweights, *filterdict[self.detailfunc],
-                                mode=self._edgemode, cval=-self.t1)
+                                mode=self.edgemode, cval=self._cval)
             p = self.featurefunc(p.reshape(self.weights.shape), axis=0)
             # zero out cells of previous samples
             if self.vecs is not None:
@@ -294,7 +311,7 @@ class SamplerArea(BaseSampler):
             # points before calculating detail
             mk = self._mapper.in_view_uv(self._candidates, False, usemask=False)
             for nw in nweights:
-                nw.flat[np.logical_not(mk)] = -self.t1
+                nw.flat[np.logical_not(mk)] = self._cval
         return nweights
 
     def _dump_vecs(self, vecs):

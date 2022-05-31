@@ -7,7 +7,7 @@ import shutil
 
 from raytraverse import api
 from raytraverse.evaluate import MetricSet
-from raytraverse.integrator import IntegratorDS, Integrator
+from raytraverse.integrator import Integrator
 from raytraverse.lightfield import ResultAxis
 from raytraverse.mapper import ViewMapper
 from raytraverse.sky import SkyData
@@ -75,13 +75,13 @@ def check_itg(itg, skd):
 def test_3comp(tmpdir):
     scn, pm, skd = api.auto_reload("result", "plane.rad", ptres=1.2)
     itg = api.get_integrator(scn, pm, simtype="3comp")
-    assert type(itg) == IntegratorDS
+    assert itg.integration_method == "ds"
     check_itg(itg, skd)
 
 
 def test_2comp(tmpdir):
     scn, pm, skd = api.auto_reload("result", "plane.rad", ptres=1.2)
     itg = api.get_integrator(scn, pm, simtype="2comp")
-    assert type(itg) == Integrator
+    assert itg.integration_method == "default"
     check_itg(itg, skd)
 

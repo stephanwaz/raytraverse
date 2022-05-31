@@ -4,13 +4,17 @@ History
 
 1.3.3
 -----
-* static light source sampler, directly samples electric lights at appropriate level, 
+* static light source sampler, directly samples electric lights at appropriate level,
   will use lots of extra samples with very long thin fixtures
-* color support in lightPointKD and samplers, but for now only works with imagesampler and 
+* color support in lightPointKD and samplers, but for now only works with imagesampler and
   sourcesampler because need to update skydata to work with color (and handle mixed data)
 * use scene detail in sampler (in this case image reconstruction works better WITHOUT
   scene detail, new interpolation keywords fastc and highc for context interpolation)
-
+* consolidated integrator/zonalintegrator and special methods dv/ds into one class
+* SensorIntegrator to process sensorplane results
+* manage stranded open OS file descriptors
+* wait to calculate omega on demand in lightplaneKD
+* removed img2lf iin imagetools, creates circular reference, need to add to different module
 
 1.3.2 (2022-04-28)
 ------------------

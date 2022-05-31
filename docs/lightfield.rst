@@ -26,6 +26,23 @@ SunsPlaneKD
     :undoc-members:
     :show-inheritance:
 
+SensorPlaneKD
+---------------------------------
+
+.. autoclass:: raytraverse.lightfield.SensorPlaneKD
+    :members:
+    :undoc-members:
+    :show-inheritance:
+
+SunSensorPlaneKD
+---------------------------------
+
+.. autoclass:: raytraverse.lightfield.SunSensorPlaneKD
+    :members:
+    :undoc-members:
+    :show-inheritance:
+
+
 LightResult
 ---------------------------------
 
@@ -65,6 +82,14 @@ MultiLightPointSet
 ~~~~~~~~~~~~~~~~~~
 
 .. autoclass:: raytraverse.lightfield.sets.MultiLightPointSet
+    :members:
+    :undoc-members:
+    :show-inheritance:
+
+SensorPointSet
+~~~~~~~~~~~~~~
+
+.. autoclass:: raytraverse.lightfield.sets.SensorPointSet
     :members:
     :undoc-members:
     :show-inheritance:

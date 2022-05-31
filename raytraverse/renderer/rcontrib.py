@@ -58,12 +58,12 @@ class Rcontrib(RadianceRenderer):
     name = 'rcontrib'
     instance = rcontrib_instance
     ground = True
-    skyres = 18
-    srcn = 325
+    skyres = 15
+    srcn = 226
     modname = "skyglow"
 
     def __init__(self, rayargs=None, scene=None, nproc=None,
-                 skyres=18, modname='skyglow', ground=True,
+                 skyres=15, modname='skyglow', ground=True,
                  default_args=True):
         scene = self.setup(scene, ground, modname, skyres)
         super().__init__(rayargs, scene, nproc=nproc,

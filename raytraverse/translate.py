@@ -503,7 +503,7 @@ def cull_vectors(vecs, tol):
     else:
         pkd = vecs
         vecs = pkd.data
-    pairs = pkd.query_ball_tree(pkd, tol)
+    pairs = pkd.query_ball_tree(pkd, tol, 2)
     flt = np.full(len(vecs), True)
     # keep track of culled indices to avoid removing chains of points
     flagged = set()
@@ -527,3 +527,37 @@ def reflect(ray, normal, returnmasked=False):
     if returnmasked:
         return refl[n]
     return refl, n
+
+
+def simple_take(ar, *slices, axes=None):
+    """consistent array indexing with arrays, lists, tuples and slices
+
+    Parameters
+    ----------
+    ar: np.array
+        the multidimensional arary to index
+    slices: tuple
+        if sequence, takes those indices along axis, if None, take whole
+        dimension, if slice, applies to index array before take
+    axes: Union[Sequence, int], optional
+        when None, slices are automatically taken starting on axes 0. Use this
+        argument to only operate on a subset of dimensions.
+
+    Returns
+    -------
+    np.array
+        matches ndims of ar
+    """
+    if axes is None:
+        axes = np.arange(len(slices))
+    else:
+        axes = np.ravel(axes)
+    for i, j in zip(slices, axes):
+        if i is None:
+            pass
+        elif type(i) == slice:
+            k = np.arange(ar.shape[j])[i]
+            ar = np.take(ar, k, j)
+        else:
+            ar = np.take(ar, np.ravel(i), j)
+    return ar

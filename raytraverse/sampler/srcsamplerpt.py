@@ -132,10 +132,10 @@ class SrcSamplerPt(SamplerPt):
             return super()._process_features(lum)
 
     def _set_normalization(self, point, upaxis=2):
-        f, srcoct = tempfile.mkstemp(dir=f"./{self.scene.outdir}/",
-                                     prefix='tmp_src')
-        pipeline([f"oconv -w {self.sourcefile}"], outfile=srcoct,
-                 writemode='wb')
+        fd, srcoct = tempfile.mkstemp(dir=f"./{self.scene.outdir}/",
+                                      prefix='tmp_src')
+        with os.fdopen(fd) as f:
+            pipeline([f"oconv -w {self.sourcefile}"], outfile=f)
         afac = 0.0
         if self.lights.size > 0:
             # make rays point at center of sources from 6 cardinal directions

@@ -11,7 +11,7 @@ from clasp.script_tools import try_mkdir
 from raytraverse.mapper import MaskedPlanMapper
 from raytraverse.sampler import ISamplerArea, Sensor
 from raytraverse.sampler.samplersuns import SamplerSuns
-from raytraverse.lightfield import LightField
+from raytraverse.lightfield import SunSensorPlaneKD
 from raytraverse.utility import pool_call
 
 
@@ -42,11 +42,11 @@ class ISamplerSuns(SamplerSuns):
     def __init__(self, scene, engine, accuracy=1.0, nlev=3, jitter=True,
                  areakwargs=None):
         super(SamplerSuns, self).__init__(scene, engine, accuracy,
-                                          stype=f'sunpositions_{engine.name}')
+                                          stype=f'sunpositions')
         if areakwargs is None:
             areakwargs = {}
         areakwargs.update(samplerlevel=self._slevel + 1)
-        self._areakwargs = dict(featurefunc=np.max)
+        self._areakwargs = dict(featurefunc=np.max, edgemode=0.0)
         self._areakwargs.update(areakwargs)
         self.nlev = nlev
         self.jitter = jitter
@@ -91,8 +91,8 @@ class ISamplerSuns(SamplerSuns):
         levels = self.sampling_scheme(skymapper)
         super(SamplerSuns, self).run(skymapper, areamapper.name, levels,
                                      **kwargs)
-        return LightField(self.scene, self.vecs, self._areamapper,
-                          f"{self._skymapper.name}_sun")
+        src = f"{self.engine.name}_{self._skymapper.name}_sun"
+        return SunSensorPlaneKD(self.scene, self.vecs, self._areamapper, src)
 
     def _init4run(self, levels, **kwargs):
         """(re)initialize object for new run, ensuring properties are cleared
@@ -105,7 +105,8 @@ class ISamplerSuns(SamplerSuns):
         else:
             cap = None
 
-        sk = dict(dirs=self.engine.dirs, offsets=self.engine.offsets)
+        sk = dict(dirs=self.engine.dirs, offsets=self.engine.offsets,
+                  name=self.engine.name)
         stype = f"{self._skymapper.name}_sun"
         lums = pool_call(_sample_sun, list(zip(range(*idx), vecs,
                                                self._areadraws)), self.scene,
@@ -123,6 +124,24 @@ class ISamplerSuns(SamplerSuns):
         else:
             nweights = self._areaweights
         return nweights
+
+    def _dump_vecs(self, vecs):
+        if self.vecs is None:
+            self.vecs = vecs
+            v0 = 0
+        else:
+            self.vecs = np.concatenate((self.vecs, vecs))
+            v0 = self.slices[-1].stop
+        self.slices.append(slice(v0, v0 + len(vecs)))
+        vfile = (f"{self.scene.outdir}/{self._areamapper.name}/"
+                 f"{self.engine.name}_{self._skymapper.name}_{self.stype}.tsv")
+        idx = np.arange(len(self.vecs))[:, None]
+        level = np.zeros_like(idx, dtype=int)
+        for sl in self.slices[1:]:
+            level[sl.start:] += 1
+        idxvecs = np.hstack((level, idx, self.vecs))
+        # file format: level idx sx sy sz
+        np.savetxt(vfile, idxvecs, ("%d", "%d", "%.4f", "%.4f", "%.4f"))
 
     def _plot_weights(self, level, vm, name, suffix=".hdr", fisheye=True,
                       **kwargs):
@@ -154,7 +173,7 @@ def _sample_sun(suni, sunpos, adraws, scene, engine, mapper, stype="sun",
         amapper = MaskedPlanMapper(mapper, adraws, 0)
     else:
         amapper = mapper
-
+    # amapper = mapper
     lf = areasampler.run(amapper, log=False)
     shp = (*areasampler.levels[-1], areasampler.features)
     # build weights based on final sampling

@@ -266,14 +266,16 @@ class LightPointKD(object):
         skyvec: int float np.array, optional
             source coefficients, shape is (1,) or (srcn,)
         interp: Union[bool, str], optional
-            if "precomp", use index and interpweights
-            if True and engine is None, linearinterpolation
-            if "fastc" and engine: uses content_interp (best after sampling w/o
-                                   detail)
-            if "highc" and engine: uses content_interp_wedge (best after
-                                   sampling w/o detail)
-            if "fast": use interp_fast (pair with sampling w/ detail)
-            if "high": use interp_wedge (pair with sampling w/ detail)
+
+            - if "precomp", use index and interpweights
+            - if True and engine is None, linearinterpolation
+            - if "fastc" and engine: uses content_interp (best after sampling w/o
+              detail)
+            - if "highc" and engine: uses content_interp_wedge (best after
+              sampling w/o detail)
+            - if "fast": use interp_fast (pair with sampling w/ detail)
+            - if "high": use interp_wedge (pair with sampling w/ detail)
+
         idx: np.array, optional
             precomputed query/interpolation result
         interpweights: np.array, optional

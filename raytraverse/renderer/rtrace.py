@@ -198,13 +198,15 @@ class Rtrace(RadianceRenderer):
     @classmethod
     def load_solar_source(cls, scene, sun, ambfile=None, intens=1):
         # load new source
-        f, srcdef = tempfile.mkstemp(dir=f"./{scene.outdir}/", prefix='tmp_src')
-        # srcdef = f'{scene.outdir}/tmp_srcdef_{sunbin}.rad'
-        f = open(srcdef, 'w')
-        f.write(scene.formatter.get_sundef(sun, (intens, intens, intens)))
-        f.close()
-        cls.load_source(srcdef, ambfile=ambfile)
-        os.remove(srcdef)
+        fd, srcdef = tempfile.mkstemp(dir=f"./{scene.outdir}/",
+                                      prefix='tmp_src')
+        try:
+            with os.fdopen(fd, 'w') as f:
+                f.write(scene.formatter.get_sundef(sun, (intens, intens,
+                                                         intens)))
+            cls.load_source(srcdef, ambfile=ambfile)
+        finally:
+            os.remove(srcdef)
 
     @classmethod
     def get_sources(cls):

@@ -14,10 +14,7 @@ import clasp.script_tools as cst
 
 from raytraverse import translate, io
 from raytraverse.evaluate import MetricSet, retina
-from raytraverse.lightpoint import LightPointKD
 from raytraverse.mapper.viewmapper import ViewMapper
-from raytraverse.sampler import draw
-from raytraverse.sampler.basesampler import filterdict
 
 
 def hdr_uv2ang(imgf):
@@ -201,58 +198,61 @@ def imgmetric(imgf, metrics, peakn=False, scale=179, threshold=2000., lowlight=F
     return MetricSet(v, o, l, vm, metrics, scale=scale, threshold=threshold, lowlight=lowlight)()
 
 
-def img2lf(imga, imgb, src, scn):
-
-    accuracy = 0.5
-    t0 = 0
-    t1 = .6667
-    levels = 6
-
-    def _threshold(idx, acc):
-        """threshold for determining sample count"""
-        return acc * _linear(idx, t0, t1)
-
-    def _linear(x, x1, x2):
-        if levels <= 2:
-            return (x1, x2)[x]
-        else:
-            return (x2 - x1)/(levels - 1) * x + x1
-
-    vm, vp = hdr2vm(imga, vpt=True)
-    uva = hdr2uvarray(imga, vm, 1024)
-    if imgb is not None:
-        vmb = ViewMapper(vm.dxyz*np.array((-1, -1, -1)), vm.viewangle)
-        uvb = hdr2uvarray(imgb, vmb, 1024)
-        uva = np.stack((uvb, uva), 0).reshape(-1, uvb.shape[1])
-        vm = ViewMapper(vm.dxyz)
-    accuracy *= np.average(uva)
-    uvt = translate.resample(uva, uva.shape, radius=2)
-    ar = int(uva.shape[0]/uva.shape[1])
-    available = np.full(uvt.shape, True)
-    rays = None
-    vals = None
-    for i in range(1, levels+1):
-        res = 2**(levels-i)*1024/2**levels
-        uvt = translate.resample(uvt, (res*ar, res))
-        available = translate.resample(available.astype(float), uvt.shape) > 0.0
-        p = draw.get_detail(uvt, *filterdict['wav']).reshape(uvt.shape)
-        t = _threshold(levels-i, accuracy)
-        p[np.logical_not(available)] = 0
-        mi = p > t
-        available[mi] = False
-        miu = translate.resample(mi, (res*2*ar, res*2), False)
-        uv = vm.idx2uv(np.arange(miu.size)[miu.ravel()], miu.shape, False)
-        uv[:, 0] *= ar
-        ray = vm.uv2xyz(uv)
-        if rays is None:
-            rays = ray
-            vals = uva[miu]
-        else:
-            rays = np.concatenate((rays, ray))
-            vals = np.concatenate((vals, uva[miu]))
-        uva = translate.resample(uva, (res*ar, res))
-    lp = LightPointKD(scn, rays, vals, vm, vp, src=src)
-    lp.direct_view(512)
+# from raytraverse.lightpoint import LightPointKD
+# from raytraverse.sampler import draw
+# from raytraverse.sampler.basesampler import filterdict
+# def img2lf(imga, imgb, src, scn):
+#
+#     accuracy = 0.5
+#     t0 = 0
+#     t1 = .6667
+#     levels = 6
+#
+#     def _threshold(idx, acc):
+#         """threshold for determining sample count"""
+#         return acc * _linear(idx, t0, t1)
+#
+#     def _linear(x, x1, x2):
+#         if levels <= 2:
+#             return (x1, x2)[x]
+#         else:
+#             return (x2 - x1)/(levels - 1) * x + x1
+#
+#     vm, vp = hdr2vm(imga, vpt=True)
+#     uva = hdr2uvarray(imga, vm, 1024)
+#     if imgb is not None:
+#         vmb = ViewMapper(vm.dxyz*np.array((-1, -1, -1)), vm.viewangle)
+#         uvb = hdr2uvarray(imgb, vmb, 1024)
+#         uva = np.stack((uvb, uva), 0).reshape(-1, uvb.shape[1])
+#         vm = ViewMapper(vm.dxyz)
+#     accuracy *= np.average(uva)
+#     uvt = translate.resample(uva, uva.shape, radius=2)
+#     ar = int(uva.shape[0]/uva.shape[1])
+#     available = np.full(uvt.shape, True)
+#     rays = None
+#     vals = None
+#     for i in range(1, levels+1):
+#         res = 2**(levels-i)*1024/2**levels
+#         uvt = translate.resample(uvt, (res*ar, res))
+#         available = translate.resample(available.astype(float), uvt.shape) > 0.0
+#         p = draw.get_detail(uvt, *filterdict['wav']).reshape(uvt.shape)
+#         t = _threshold(levels-i, accuracy)
+#         p[np.logical_not(available)] = 0
+#         mi = p > t
+#         available[mi] = False
+#         miu = translate.resample(mi, (res*2*ar, res*2), False)
+#         uv = vm.idx2uv(np.arange(miu.size)[miu.ravel()], miu.shape, False)
+#         uv[:, 0] *= ar
+#         ray = vm.uv2xyz(uv)
+#         if rays is None:
+#             rays = ray
+#             vals = uva[miu]
+#         else:
+#             rays = np.concatenate((rays, ray))
+#             vals = np.concatenate((vals, uva[miu]))
+#         uva = translate.resample(uva, (res*ar, res))
+#     lp = LightPointKD(scn, rays, vals, vm, vp, src=src)
+#     lp.direct_view(512)
 
 
 

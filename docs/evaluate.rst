@@ -56,3 +56,20 @@ retina
     :members:
     :undoc-members:
     :show-inheritance:
+
+hvsgsm
+------
+
+.. automodule:: raytraverse.evaluate.hvsgsm
+    :members:
+    :undoc-members:
+    :exclude-members: GSS
+    :show-inheritance:
+
+GSS
+---
+
+.. autoclass:: raytraverse.evaluate.GSS
+    :members:
+    :undoc-members:
+    :show-inheritance:

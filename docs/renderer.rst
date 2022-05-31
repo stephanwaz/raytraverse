@@ -32,3 +32,11 @@ ImageRenderer
     :members:
     :undoc-members:
     :show-inheritance:
+
+SpRenderer
+--------------------------------
+
+.. autoclass:: raytraverse.renderer.SpRenderer
+    :members:
+    :undoc-members:
+    :show-inheritance:

@@ -17,6 +17,22 @@ BaseSampler
     :undoc-members:
     :show-inheritance:
 
+ISamplerArea
+---------------------------
+
+.. autoclass:: raytraverse.sampler.ISamplerArea
+    :members:
+    :undoc-members:
+    :show-inheritance:
+
+ISamplerSuns
+---------------------------
+
+.. autoclass:: raytraverse.sampler.ISamplerSuns
+    :members:
+    :undoc-members:
+    :show-inheritance:
+
 SamplerSuns
 ---------------------------
 .. autoclass:: raytraverse.sampler.SamplerSuns

@@ -16,3 +16,12 @@ SkyData
     :members:
     :undoc-members:
     :show-inheritance:
+
+
+SkyDataMask
+---------------------------------
+
+.. autoclass:: raytraverse.sky.SkyDataMask
+    :members:
+    :undoc-members:
+    :show-inheritance:

@@ -48,7 +48,7 @@ def test_skysample(tmpdir):
         return np.sum(hdr.flatten()*omega*cost)*179, illumm0
 
     scene = Scene('skysample', "box.rad", frozen=False)
-    rcontrib = Rcontrib('-ab 1 -ad 10000 -c 1 -lw 1e-5', scene.scene)
+    rcontrib = Rcontrib('-ab 1 -ad 10000 -c 1 -lw 1e-5', scene.scene, skyres=18)
     sampler = SkySamplerPt(scene, rcontrib, nlev=3)
     vm = ViewMapper((0, 1, 0), viewangle=180)
     lf = sampler.run((1.5, 1.5, 1.5), 0)
