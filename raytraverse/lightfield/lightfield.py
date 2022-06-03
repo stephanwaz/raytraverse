@@ -48,6 +48,8 @@ class LightField(object):
 
     @vecs.setter
     def vecs(self, pt):
+        if pt is None:
+            pt = f"{self.scene.outdir}/{self.pm.name}/{self.src}_points.tsv"
         pts, idx, samplelevel = self._load_vecs(pt)
         self._vecs = pts
         self.data = idx

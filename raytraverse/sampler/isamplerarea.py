@@ -113,7 +113,10 @@ class ISamplerArea(SamplerArea):
             lum = self.lum[..., None, :]
         else:
             lum = self.lum
-        np.savez_compressed(file, vecs=self.vecs, lum=lum,
+        level = np.zeros(len(self.vecs), dtype=int)
+        for sl in self.slices[1:]:
+            level[sl.start:] += 1
+        np.savez_compressed(file, vecs=self.idxvecs(), lum=lum,
                             sensors=self.engine.sensors)
         # always initialize SensorPlaneKD with file
         return SensorPlaneKD(self.scene, file, self._mapper, stype)
@@ -147,8 +150,11 @@ class ISamplerArea(SamplerArea):
     def _dump_vecs(self, vecs):
         if self.vecs is None:
             self.vecs = vecs
+            v0 = 0
         else:
             self.vecs = np.concatenate((self.vecs, vecs))
+            v0 = self.slices[-1].stop
+        self.slices.append(slice(v0, v0 + len(vecs)))
 
     def _plot_weights(self, level, vm, name, suffix=".hdr", **kwargs):
         normw = self._normed_weights()

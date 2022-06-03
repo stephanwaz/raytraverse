@@ -36,7 +36,11 @@ class SensorPlaneKD(LightPlaneKD):
             self._sensors = result['sensors']
             self.data = result['lum']
         self._kd = None
-        self._samplelevel = np.zeros(len(self.vecs))
+        if self._vecs.shape[-1] > 3:
+            self._samplelevel = self.vecs[:, 0]
+            self._vecs = self._vecs[:, -3:]
+        else:
+            self._samplelevel = np.zeros(len(self.vecs))
         self.omega = None
 
     @property

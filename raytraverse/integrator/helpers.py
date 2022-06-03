@@ -8,8 +8,6 @@
 
 """parallelization functions for integration"""
 import numpy as np
-from scipy.spatial import Voronoi
-from shapely.geometry import Polygon
 
 from raytraverse import io, translate
 from raytraverse.mapper import ViewMapper
@@ -195,24 +193,6 @@ def prep_resamp(lpts, refl=None, resamprad=0.0):
     else:
         resampvecs = None
     return resampi, resampvecs
-
-
-def calc_omega(vecs, pm):
-    """calculate area"""
-    # border capture any infinite edges
-    bordered = np.concatenate((vecs,
-                               pm.bbox_vertices(pm.area**.5 * 10)))
-    vor = Voronoi(bordered[:, 0:2])
-    omega = []
-    for i in range(len(vecs)):
-        region = vor.regions[vor.point_region[i]]
-        p = Polygon(vor.vertices[region])
-        area = 0
-        for bord in pm.borders():
-            mask = Polygon(bord)
-            area += p.intersection(mask).area
-        omega.append(area)
-    return np.asarray(omega)
 
 
 def _in_view(vm, suna, sunb, tol=0.533):

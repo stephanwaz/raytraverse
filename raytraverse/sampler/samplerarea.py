@@ -132,8 +132,13 @@ class SamplerArea(BaseSampler):
         super().run(mapper, name, levels, plotp=plotpthis, **kwargs)
         return self._run_callback()
 
+    def _init4run(self, levels, **kwargs):
+        self.slices = []
+        return super()._init4run(levels, **kwargs)
+
     def _run_callback(self):
-        return LightPlaneKD(self.scene, self.vecs, self._mapper, self.stype)
+        return LightPlaneKD(self.scene, self.idxvecs(), self._mapper,
+                            self.stype)
 
     def repeat(self, guide, stype):
         """repeat the sampling of a guide LightPlane (to match all rays)
@@ -157,6 +162,7 @@ class SamplerArea(BaseSampler):
 
         self.vecs = None
         self.lum = []
+        self.slices = []
 
         gvecs = guide.vecs
         self._dump_vecs(gvecs)
@@ -324,12 +330,14 @@ class SamplerArea(BaseSampler):
         self.slices.append(slice(v0, v0 + len(vecs)))
         vfile = (f"{self.scene.outdir}/{self._mapper.name}/{self.stype}"
                  f"_points.tsv")
+        np.savetxt(vfile, self.idxvecs(), ("%d", "%d", "%.4f", "%.4f", "%.4f"))
+
+    def idxvecs(self):
         idx = np.arange(len(self.vecs))[:, None]
         level = np.zeros_like(idx, dtype=int)
         for sl in self.slices[1:]:
             level[sl.start:] += 1
-        idxvecs = np.hstack((level, idx, self.vecs))
-        np.savetxt(vfile, idxvecs, ("%d", "%d", "%.4f", "%.4f", "%.4f"))
+        return np.hstack((level, idx, self.vecs))
 
     def _wshape(self, level):
         return np.concatenate(([self.features], self.levels[level]))

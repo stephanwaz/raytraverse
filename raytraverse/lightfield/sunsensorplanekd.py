@@ -6,7 +6,6 @@
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 # =======================================================================
 import numpy as np
-from scipy.spatial import distance_matrix
 
 from raytraverse.lightfield.sensorplanekd import SensorPlaneKD
 from raytraverse.lightfield.sets import SensorPointSet
@@ -23,47 +22,23 @@ class SunSensorPlaneKD(SunsPlaneKD):
     def sensors(self):
         return self._sensors
 
-    @property
-    def vecs(self):
-        """indexing vectors (sx, sy, sz, px, py, pz)"""
-        return self._vecs
-
-    @vecs.setter
-    def vecs(self, pt):
-        if pt is None:
-            pt = f"{self.scene.outdir}/{self.pm.name}/{self.src}positions.tsv"
-        pts, idx, samplelevel = self._load_vecs(pt)
-        # calculate sun sampling resolution for weighting query vecs
-        s0 = pts[samplelevel == 0]
-        dm = distance_matrix(s0, s0)
-        cm = np.ma.MaskedArray(dm, np.eye(dm.shape[0]))
-        sund = np.average(np.min(cm, axis=0).data)
-        self._normalization = sund / (self.pm.ptres / 2 * 2**.5)
-        s_pts = []
-        s_idx = []
-        s_lev = []
-        data = []
+    def _load_points(self, idx, pts, samplelevel):
         self._sensors = None
-        for i, pt, sl in zip(idx, pts, samplelevel):
-            stype = f"{self.src}_{i:04d}"
-            file = f"{self.scene.outdir}/{self.pm.name}/{stype}.npz"
-            slp = SensorPlaneKD(self.scene, file, self.pm, stype)
-            if self._sensors is None:
-                self._sensors = slp.sensors
-            spt = slp.vecs
-            sidx = np.arange(slp.vecs.shape[0])
-            slev = slp.samplelevel
-            data.append(slp.data)
-            s_pts.append(np.hstack((np.broadcast_to(pt[None], spt.shape), spt)))
-            s_idx.append(np.stack((np.broadcast_to([i], sidx.shape), sidx)).T)
-            s_lev.append(np.stack((np.broadcast_to([sl], slev.shape), slev)).T)
-        self._vecs = np.concatenate(s_pts)
-        self._kd = None
-        self._suns = pts
-        self._sunkd = None
-        self._samplelevel = np.concatenate(s_lev)
-        self.omega = None
-        self.data = (data, np.concatenate(s_idx))
+        self._dataload = []
+        s_pts, s_lev, s_idx, nmz = super()._load_points(idx, pts, samplelevel)
+        s_idx = (self._dataload, s_idx)
+        self._dataload = None
+        return s_pts, s_lev, s_idx, nmz
+
+    def _load_point(self, source):
+        slp = SensorPlaneKD(self.scene, None, self.pm, source)
+        if self._sensors is None:
+            self._sensors = slp.sensors
+        self._dataload.append(slp.data)
+        spt = slp.vecs
+        sidx = np.arange(slp.vecs.shape[0])
+        slev = slp.samplelevel
+        return spt, sidx, slev
 
     @property
     def suns(self):

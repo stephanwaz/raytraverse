@@ -137,6 +137,7 @@ class SrcSamplerPt(SamplerPt):
         with os.fdopen(fd) as f:
             pipeline([f"oconv -w {self.sourcefile}"], outfile=f)
         afac = 0.0
+        srcoct = f"./{self.scene.outdir}/" + srcoct.rsplit("/")[-1]
         if self.lights.size > 0:
             # make rays point at center of sources from 6 cardinal directions
             box = np.vstack((np.eye(3), -np.eye(3))) * .001

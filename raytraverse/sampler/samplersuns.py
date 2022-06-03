@@ -164,13 +164,14 @@ class SamplerSuns(BaseSampler):
         self._areaweights = None
         levels = self.sampling_scheme(skymapper)
         super().run(skymapper, areamapper.name, levels, **kwargs)
-        return SunsPlaneKD(self.scene, self.vecs, self._areamapper,
+        return SunsPlaneKD(self.scene, self.idxvecs(), self._areamapper,
                            f"{self._skymapper.name}_sun")
 
     def _init4run(self, levels, **kwargs):
         """(re)initialize object for new run, ensuring properties are cleared
         prior to executing sampling loop"""
         leveliter = super()._init4run(levels)
+        self.slices = []
         if self._recovery_data is None:
             return leveliter
         levels2run = []
@@ -434,13 +435,15 @@ class SamplerSuns(BaseSampler):
         self.slices.append(slice(v0, v0 + len(vecs)))
         vfile = (f"{self.scene.outdir}/{self._areamapper.name}/"
                  f"{self._skymapper.name}_{self.stype}.tsv")
+        # file format: level idx sx sy sz
+        np.savetxt(vfile, self.idxvecs(), ("%d", "%d", "%.4f", "%.4f", "%.4f"))
+
+    def idxvecs(self):
         idx = np.arange(len(self.vecs))[:, None]
         level = np.zeros_like(idx, dtype=int)
         for sl in self.slices[1:]:
             level[sl.start:] += 1
-        idxvecs = np.hstack((level, idx, self.vecs))
-        # file format: level idx sx sy sz
-        np.savetxt(vfile, idxvecs, ("%d", "%d", "%.4f", "%.4f", "%.4f"))
+        return np.hstack((level, idx, self.vecs))
 
     @staticmethod
     def _plot_dist(ps, vm, outf, fisheye=True):

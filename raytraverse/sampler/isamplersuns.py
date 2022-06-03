@@ -92,12 +92,9 @@ class ISamplerSuns(SamplerSuns):
         super(SamplerSuns, self).run(skymapper, areamapper.name, levels,
                                      **kwargs)
         src = f"{self.engine.name}_{self._skymapper.name}_sun"
-        return SunSensorPlaneKD(self.scene, self.vecs, self._areamapper, src)
 
-    def _init4run(self, levels, **kwargs):
-        """(re)initialize object for new run, ensuring properties are cleared
-        prior to executing sampling loop"""
-        return super()._init4run(levels)
+        return SunSensorPlaneKD(self.scene, self.idxvecs(), self._areamapper,
+                                src)
 
     def _run_sample(self, idx, vecs, level_desc):
         if self.engine.nproc is None or self.engine.nproc > 1:
@@ -135,13 +132,8 @@ class ISamplerSuns(SamplerSuns):
         self.slices.append(slice(v0, v0 + len(vecs)))
         vfile = (f"{self.scene.outdir}/{self._areamapper.name}/"
                  f"{self.engine.name}_{self._skymapper.name}_{self.stype}.tsv")
-        idx = np.arange(len(self.vecs))[:, None]
-        level = np.zeros_like(idx, dtype=int)
-        for sl in self.slices[1:]:
-            level[sl.start:] += 1
-        idxvecs = np.hstack((level, idx, self.vecs))
         # file format: level idx sx sy sz
-        np.savetxt(vfile, idxvecs, ("%d", "%d", "%.4f", "%.4f", "%.4f"))
+        np.savetxt(vfile, self.idxvecs(), ("%d", "%d", "%.4f", "%.4f", "%.4f"))
 
     def _plot_weights(self, level, vm, name, suffix=".hdr", fisheye=True,
                       **kwargs):

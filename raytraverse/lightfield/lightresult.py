@@ -255,7 +255,7 @@ class LightResult(object):
             tl = False
         for rh in labels:
             if tl:
-                rl = "_".join(f"{i:.02f}" for i in rh)
+                rl = "_".join(f"{i:05.02f}" for i in rh)
             elif np.issubdtype(type(rh), np.integer):
                 rl = f"{rh:04d}"
             else:

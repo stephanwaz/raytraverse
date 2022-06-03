@@ -92,6 +92,91 @@ def l_b(b, c, phi):
 
 
 class GSS:
+    """calculate GSS for images with angular fisheye projection
+
+    application of model described in:
+
+        A GENERIC GLARE SENSATION MODEL BASED ON THE HUMAN VISUAL SYSTEM
+        Vissenberg, M.C.J.M., Perz, M., Donners, M.A.H., Sekulovski, D.
+        Signify Research, Eindhoven, THE NETHERLANDS
+        gilles.vissenberg@signify.com
+        DOI 10.25039/x48.2021.0P23
+
+    see methods for citations associated with each step in model.
+
+    the model requires the following steps:
+
+    Done when setting an image with a new resolution:
+    1. calculate solid angle of pixels
+    2. calculate eccentricity from guth position idx
+
+    Steps for applying model to an image:
+    1. calculate eye illuminance from image
+    2. mask non-glare source pixels (not described in model, fixed thresh)
+    3. calculate pupil area and diameter
+    4. calculate global retinal irradiance
+    5. calculate incident retinal irradiance of glare sources
+    6. apply PSF to (5)
+    7. apply movement affecting adaptation to (6)
+    8. apply movement affecting direct response to (6)
+    9. calculate local adaptation using (7)
+    10. calculate V/V_m photoreceptor response (8)
+    11. calculate receptor field response to (10) as DoG
+    12. normalize field response with logistic
+    13. apply position weighting
+    14. sum GSS
+
+    Parameters
+    ----------
+    view:
+        can be None, a view file, a ViewMapperr, or an hdrimage with
+        a valid view specification (must be -vta)
+    gst:
+        glare source threshold (cd/m^2)
+    age:
+        age of observer
+    f:
+        eye focal length
+    scale:
+        factor to apply to raw pixel values to convert to cd/m^2
+    pigmentation:
+        from Ijspeert et al. 1993:
+            mean for blue eyes: 0.16
+            brown eyes: 0.106
+            dark brown eyes: 0.056
+    fwidth: Union[int, float], optional
+        the width of the frame for psf
+    psf: bool, optional
+        apply pointspread function for light arriving at retina
+    adaptmove: bool, optional
+        apply involuntary eye movement effect on local adaptation
+    directmove: book, optional
+        apply involuntary eye movement effect on direct cone response
+
+    Notes
+    -----
+    set self.lum, either by initializing with an image, or with the
+    parameter setter, then compute::
+
+        gss = GSS("img.hdr")
+        gss.lum = "img.hdr"
+        score = gss.compute()
+
+    additional images can be loaded and computed with the parameter setter
+    by calling images with the same resolution and view size on an
+    initialized object, subsantial re-computation can be avoided.
+
+    Alternatively, to get access to process arrays or to override pupil
+    adaptation and or isolating glare sources::
+
+        e_g, pupa, pupd = self.adapt(ev_eye)
+        img_gs = self.get_glare_sources()
+        r_g, parrays = self.glare_response(img_gs, e_g, pupa, pupd,
+        return_arrays=True)
+
+    For processing multiple images with the same GSS initialization in
+    parallel, see hvsgsm.gss_compute()
+    """
 
     # eccentricity min and max scaling for field width in response
     # from Vissenberg et al. (.12, 0.009)
@@ -118,93 +203,7 @@ class GSS:
 
     def __init__(self, view=None, gst=0, age=40, f=16.67, scale=179,
                  pigmentation=0.106, fwidth=10, psf=True, adaptmove=True,
-                 directmove=True):
-        """calculate GSS for images with angular fisheye projection
-
-        application of model described in:
-         A GENERIC GLARE SENSATION MODEL BASED ON THE HUMAN VISUAL SYSTEM
-        Vissenberg, M.C.J.M., Perz, M., Donners, M.A.H., Sekulovski, D.
-        Signify Research, Eindhoven, THE NETHERLANDS
-        gilles.vissenberg@signify.com
-        DOI 10.25039/x48.2021.0P23
-
-        see methods for citations associated with each step in model.
-
-        the model requires the following steps:
-
-        Done when setting an image with a new resolution:
-        1. calculate solid angle of pixels
-        2. calculate eccentricity from guth position idx
-
-        Steps for applying model to an image:
-        1. calculate eye illuminance from image
-        2. mask non-glare source pixels (not described in model, fixed thresh)
-        3. calculate pupil area and diameter
-        4. calculate global retinal irradiance
-        5. calculate incident retinal irradiance of glare sources
-        6. apply PSF to (5)
-        7. apply movement affecting adaptation to (6)
-        8. apply movement affecting direct response to (6)
-        9. calculate local adaptation using (7)
-        10. calculate V/V_m photoreceptor response (8)
-        11. calculate receptor field response to (10) as DoG
-        12. normalize field response with logistic
-        13. apply position weighting* - using guth/iwata, not calibrated values
-            as discribed in Vissenberg et al.
-        14. sum GSS and apply manually set calibration factor (Vissenberg et
-            al. factor not published)
-
-        Parameters
-        ----------
-        view:
-            can be None, a view file, a ViewMapperr, or an hdrimage with
-            a valid view specification (must be -vta)
-        gst:
-            glare source threshold (cd/m^2)
-        age:
-            age of observer
-        f:
-            eye focal length
-        scale:
-            factor to apply to raw pixel values to convert to cd/m^2
-        pigmentation:
-            from Ijspeert et al. 1993:
-                mean for blue eyes: 0.16
-                brown eyes: 0.106
-                dark brown eyes: 0.056
-        fwidth: Union[int, float], optional
-            the width of the frame for psf
-        psf: bool, optional
-            apply pointspread function for light arriving at retina
-        adaptmove: bool, optional
-            apply involuntary eye movement effect on local adaptation
-        directmove: book, optional
-            apply involuntary eye movement effect on direct cone response
-
-        Notes
-        -----
-        set self.lum, either by initializing with an image, or with the
-        parameter setter, then compute::
-
-            gss = GSS("img.hdr")
-            gss.lum = "img.hdr"
-            score = gss.compute()
-
-        additional images can be loaded and computed with the parameter setter
-        by calling images with the same resolution and view size on an
-        initialized object, subsantial re-computation can be avoided.
-
-        Alternatively, to get access to process arrays or to override pupil
-        adaptation and or isolating glare sources::
-
-            e_g, pupa, pupd = self.adapt(ev_eye)
-            img_gs = self.get_glare_sources()
-            r_g, parrays = self.glare_response(img_gs, e_g, pupa, pupd,
-            return_arrays=True)
-
-        For processing multiple images with the same GSS initialization in
-        parallel, see hvsgsm.gss_compute()
-        """
+                 directmove=True, raw=False):
         self.gst = gst
         self.age = age
         self.f = f
@@ -212,6 +211,7 @@ class GSS:
         self.pigmentation = pigmentation
         self.fwidth = fwidth
         self._blur = (psf, adaptmove, directmove)
+        self._raw = raw
         # initialize properties set when an image is loaded
         self._res = 0
         self._vecs = None
@@ -284,30 +284,40 @@ class GSS:
         """
         if self.lum is None:
             raise ValueError("cannot glare_response until an image has been set")
+        parrays = dict()
         e_r = self.retinal_irradiance(img_gs, pupa)
+        parrays["01_retinal_irrad"] = e_r
         if self._blur[0]:
             e_r_psf = self.apply_psf(e_r, pupd)
+            parrays["02_psf"] = e_r_psf
         else:
             e_r_psf = e_r
         if self._blur[1]:
             e_rg = self.apply_eye_movement_1(e_r_psf)
+            parrays["03_adapt_eye_movement"] = e_rg
         else:
             e_rg = e_r_psf
         if self._blur[2]:
             e_rc = self.apply_eye_movement_2(e_r_psf, e_g)
+            parrays["04_direct_eye_movement"] = e_rc
         else:
             e_rc = e_r_psf
         e_a = self.local_eye_adaptation(e_rg, e_g)
+        parrays["05_local_adaptation"] = e_a
         vvm = self.cone_response(e_rc, e_a)
+        parrays["06_response_ratio"] = vvm
         # r_lin
         r_rf = self.field_response(vvm)
+        parrays["07_response_lin"] = r_rf
         r_g = self.normalized_field_response(r_rf)
-        r_w = self.weight_response(r_g)
+        bfill = np.zeros(r_g.shape[1:])
+        parrays["08_response_log"] = np.stack((*r_g, bfill))
+        if self._raw:
+            r_w = r_g
+        else:
+            r_w = self.weight_response(r_g)
+            parrays["09_weighted_response"] = np.stack((*r_g, bfill))
         if return_arrays:
-            parrays = dict(retinal_irrad=e_r, psf=e_r_psf, response_lin=r_rf,
-                           response_log=r_g,
-                           adapt_eye_movement=e_rg, direct_eye_movement=e_rc,
-                           local_adaptation=e_a, response_ratio=vvm)
             return r_w, parrays
         else:
             return r_w
@@ -332,7 +342,8 @@ class GSS:
         img_gs = self.get_glare_sources()
         r_g = self.glare_response(img_gs, e_g, pupa, pupd)
         if save is not None:
-            io.array2hdr(r_g, save)
+            r_gc = np.stack((*r_g, np.zeros(r_g.shape[1:])))
+            io.carray2hdr(r_gc, save)
         return self.gss(r_g)
 
     @property
@@ -695,7 +706,10 @@ class GSS:
         """
         rf_c = np.zeros(vvm.shape)
         rf_s = np.zeros(vvm.shape)
-        steps = np.linspace(self.emin, self.emax, 21)
+        # relative change in eccentricity is more important, so log is more
+        # efficient
+        steps = np.exp(np.linspace(np.log(self.emin), np.log(self.emax), 31))
+        # steps = np.linspace(self.emin, self.emax, 16)
         ubounds = np.concatenate(((steps[1:] + steps[:-1])/2, [1]))
         lbounds = np.concatenate(([0], ubounds[:-1]))
         for s, lb, ub in zip(steps, lbounds, ubounds):
@@ -727,9 +741,12 @@ class GSS:
         response_log
             logistic
         """
-        r_g = 1/(1 + np.exp(-self.fr_a*(r - self.fr_b)))
-        r_g.flat[self._nmask] = 0
-        return r_g
+        r_gc = 1/(1 + np.exp(-self.fr_a*(r - self.fr_b)))
+        # track as a seperate receptive field
+        r_go = 1/(1 + np.exp(self.fr_a*(r + self.fr_b)))
+        r_gc.flat[self._nmask] = 0
+        r_go.flat[self._nmask] = 0
+        return np.stack((r_gc, r_go))
 
     # Step 13
     def weight_response(self, r):
@@ -755,16 +772,15 @@ class GSS:
 
         results::
 
-            17.060279705323932 - 15.450379752947917·x¹ + 14.844105609186975·x²
-            - 4.65660006956826·x³ - 9.01372966405947·x⁴ + 6.635852582447937·x⁵
-            + 0.31811754006737725·x⁶
-            [-1.  1.] [0.00698182 0.12201818]
+            1.0598742512189994 - 0.9135529200712416·x¹ + 0.8471705621553406·x² -
+            0.5535443101789258·x³ - 0.38772352579868125·x⁴ + 0.9083844574646001·x⁵ -
+            0.07637393810523314·x⁶ - 0.3026419768162507·x⁷
         """
-        p = np.polynomial.Polynomial((17.060279705323932, -15.450379752947917,
-                                      14.844105609186975, -4.65660006956826,
-                                      -9.01372966405947, 6.635852582447937,
-                                      0.31811754006737725),
-                                     domain=[0.00698182, 0.12201818])
+        p = np.polynomial.Polynomial([1.0598742512189994, -0.9135529200712416,
+                                      0.8471705621553406, -0.5535443101789258,
+                                      -0.38772352579868125, 0.9083844574646001,
+                                      -0.07637393810523314, -0.3026419768162507],
+                                     domain=[0.009, 0.12])
         return r * p(self.sigma_c)
 
     # Step 14
@@ -777,7 +793,7 @@ class GSS:
         m: minkowski norm (4)
         delta (𝛿): solid angle of pixel (steradians)
         """
-        return np.sum(np.power(r_g, self.norm) * self.omega)**(1/self.norm)
+        return np.sum(np.power(r_g, self.norm))**(1/self.norm)
 
 
 

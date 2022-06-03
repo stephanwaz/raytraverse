@@ -135,7 +135,7 @@ class Integrator(object):
     def evaluate(self, skydata, points, vm, viewangle=180.,
                  metricclass=MetricSet, metrics=None, datainfo=False,
                  srconly=False, suntol=10.0, blursun=False, coercesumsafe=False,
-                 ptfilter=.25, stol=10,  minsun=1, **kwargs):
+                 stol=10,  minsun=1, **kwargs):
         """apply sky data and view queries to daylightplane to return metrics
         parallelizes and optimizes run order.
 
@@ -168,8 +168,6 @@ class Integrator(object):
             include information about source data as additional metrics. Valid
             values include: ["pt_err", "pt_idx", "src_err", "src_idx"].
             If True, includes all.
-        ptfilter: Union[float, int], optional
-            minimum seperation for returned points (zonal)
         stol: Union[float, int], optional
             maximum angle (in degrees) for matching sun vectors (zonal)
         minsun: int, optional
@@ -187,11 +185,10 @@ class Integrator(object):
                             metrics=metrics, datainfo=datainfo,
                             srconly=srconly, suntol=suntol,
                             blursun=blursun, coercesumsafe=coercesumsafe,
-                            ptfilter=ptfilter, stol=stol,  minsun=minsun,
+                            stol=stol,  minsun=minsun,
                             **kwargs)
         if points is None:
-            points, skarea = self._get_fixed_points(self.lightplanes[0].pm,
-                                                    ptfilter)
+            points, skarea = self._get_fixed_points(self.lightplanes[0].pm)
         else:
             points = np.atleast_2d(points)
 
@@ -234,7 +231,7 @@ class Integrator(object):
     def zonal_evaluate(self, skydata, pm, vm, viewangle=180.,
                        metricclass=MetricSet, metrics=None, srconly=False,
                        suntol=10.0, blursun=False, coercesumsafe=False,
-                       ptfilter=.25, stol=10,  minsun=1, datainfo=False,
+                       stol=10,  minsun=1, datainfo=False,
                        **kwargs):
         """apply sky data and view queries to daylightplane to return metrics
         parallelizes and optimizes run order.
@@ -254,7 +251,7 @@ class Integrator(object):
                                  datainfo=datainfo, srconly=srconly,
                                  suntol=suntol, blursun=blursun,
                                  coercesumsafe=coercesumsafe,
-                                 ptfilter=ptfilter, stol=stol, minsun=minsun,
+                                 stol=stol, minsun=minsun,
                                  **kwargs)
 
         (vm, vms, cmetrics, ometrics,
@@ -262,7 +259,6 @@ class Integrator(object):
                                                    metricclass, coercesumsafe)
         (tidxs, skydatas, dsns, vecs, serr,
          areas, pts, cnts) = self._zonal_group_query(skydata, pm,
-                                                     ptfilter=ptfilter,
                                                      stol=stol, minsun=minsun)
 
         self.scene.log(self, f"Evaluating {len(ometrics)} metrics for {len(vms)}"
@@ -325,14 +321,14 @@ class Integrator(object):
                 ofields[..., i] = (1 + 2/7*10**(-(ugr + 5)/40))**-10
         return ofields
 
-    def _get_fixed_points(self, pm, ptfilter=.25):
+    def _get_fixed_points(self, pm, ptfilter=0.01):
         pts = [lp.vecs for lp in self.lightplanes if
                not isinstance(lp, SunsPlaneKD)]
         if len(pts) > 0:
             pts = np.vstack(pts)
             pts = pts[pm.in_view(pts, False)]
             pts = pts[translate.cull_vectors(pts, ptfilter)]
-            skarea = intg.calc_omega(pts, pm)
+            skarea = translate.calc_omega(pts, pm)
         else:
             pts = pm.dxyz.reshape(1, 3)
             skarea = np.array([pm.area])
@@ -399,8 +395,8 @@ class Integrator(object):
                                         gshape).ravel())
         return np.stack(idxs), skydatas, dsns, vecs
 
-    def _zonal_group_query(self, skydata, pm, ptfilter=.25, stol=10, minsun=1):
-        pts, skarea = self._get_fixed_points(pm, ptfilter)
+    def _zonal_group_query(self, skydata, pm, stol=10, minsun=1):
+        pts, skarea = self._get_fixed_points(pm)
         # only look for suns when relevant
         sunmask = skydata.sun[:, 3] > 0
         suns = skydata.sun
@@ -408,10 +404,10 @@ class Integrator(object):
         # for each sun, matching vectors, indices, and solar errors
         vecs, idx, ds = sunplane.query_by_suns(suns[sunmask, 0:3],
                                                fixed_points=pts,
-                                               ptfilter=ptfilter, stol=stol,
+                                               stol=stol,
                                                minsun=minsun)
         spts = [v[:, 3:] for v in vecs]
-        areas = pool_call(intg.calc_omega, spts, pm, expandarg=False,
+        areas = pool_call(translate.calc_omega, spts, pm, expandarg=False,
                           desc="calculating areas", pbar=self.scene.dolog)
 
         sundata = (vecs, idx, ds, areas)

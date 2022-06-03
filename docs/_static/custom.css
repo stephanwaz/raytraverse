@@ -1,10 +1,10 @@
 div.sphinxsidebar {
-    font-size: 12px;
+    font-size: 11px;
     height: 100%;
 }
 
 div.footer {
-    font-size: 12px;
+    font-size: 11px;
 }
 
 div.sphinxsidebar p{
@@ -43,7 +43,7 @@ div.sphinxsidebar h4 {
 }
 
 div.sphinxsidebar h4 {
-    font-size: 16px;
+    font-size: 14px;
 }
 
 div.sphinxsidebar .caption-text {
@@ -122,8 +122,8 @@ div.body h6 {
 
 div.body h1 { margin-top: 0; padding-top: 0; font-size: 240%; font-weight: bold;}
 div.body h2 { font-size: 200%; font-weight: bold;}
-div.body h3 { font-size: 150%; font-weight: bold;}
-div.body h4 { font-size: 130%; }
+div.body h3 { font-size: 160%; font-weight: bold;}
+div.body h4 { font-size: 140%; }
 div.body h5 { font-size: 100%; }
 div.body h6 { font-size: 100%; }
 
@@ -161,7 +161,7 @@ a.footnote-reference {
 
 body {
 	font-family: "Century Gothic", CenturyGothic, AppleGothic, sans-serif;
-	font-size: 14px;
+	font-size: 13px;
 }
 
 ul.current {

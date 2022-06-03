@@ -107,7 +107,7 @@ class SkyMapper(AngularMixin, Mapper):
     def candidates(self):
         return self._candidates
 
-    def in_solarbounds(self, xyz, level=0, include='center'):
+    def in_solarbounds(self, xyz, level=0, include='any'):
         """for checking if src direction is in solar transit
 
         Parameters
@@ -292,7 +292,7 @@ class SkyMapper(AngularMixin, Mapper):
         uvbins = translate.uv2bin(uv, uvsize)
         return np.isin(uvbins, cbins)
 
-    def _test_uv_boundary(self, uv, level=0, include='center'):
+    def _test_uv_boundary(self, uv, level=0, include='any'):
         """ for checking if src direction is in solar transit when
         self._solarbounds is set
 
@@ -318,7 +318,8 @@ class SkyMapper(AngularMixin, Mapper):
         if include == 'center':
             result = self._solarbounds.contains_points(uvs)
         else:
-            offsets = np.array([(-1, -1), (1, -1), (1, 1), (-1, 1)])
+            offsets = np.array([(-1, -1), (1, -1), (1, 1), (-1, 1)],
+                               dtype=np.float64)
             offsets *= 1 / (self.sunres * 2**(level + 1))
             uvs = uv[:, None, :] + offsets[None, ...]
             result = self._solarbounds.contains_points(uvs.reshape(-1, 2))

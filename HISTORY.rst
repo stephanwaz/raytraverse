@@ -11,10 +11,20 @@ History
 * use scene detail in sampler (in this case image reconstruction works better WITHOUT
   scene detail, new interpolation keywords fastc and highc for context interpolation)
 * consolidated integrator/zonalintegrator and special methods dv/ds into one class
+* changed zonal sunplane query algorithm: filter suns, penalize, query instead of filter suns, sort, filter points
+* removed ptfilter keyword for zonal evaluation (new process does not use)
+* sunplane normalization based on level 0 distance of sampled suns and level 0 distance of areas
+  for level 0 sampled suns
 * SensorIntegrator to process sensorplane results
 * manage stranded open OS file descriptors
 * wait to calculate omega on demand in lightplaneKD
-* removed img2lf iin imagetools, creates circular reference, need to add to different module
+* removed img2lf in imagetools, creates circular reference, need to add to different module
+* allow None vector argument for lightplane initialization (cconstructs filename)
+* zero pad hour labels in lightresult for proper file name sorting
+* calc_omega method now passes "QJ" to qhull which seems to reliable return regions for all points
+  in case of failure, distributed area among points sharing region (moved from integrator.helpers to translate)
+  so LightPointKD can share
+* fixed mistakes in GSS implementation and recalibrated
 
 1.3.2 (2022-04-28)
 ------------------

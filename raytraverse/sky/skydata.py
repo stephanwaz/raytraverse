@@ -269,6 +269,7 @@ class SkyData(object):
         elif len(m) == len(self.skydata):
             self._mask = np.asarray(m, bool)[self.daymask]
         else:
+            self.mask = None
             self._mask = np.full(self.daysteps, False)
             self._mask[self.masked_idx(m)] = True
         self._fullmask = np.copy(self.daymask)

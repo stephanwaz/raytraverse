@@ -11,7 +11,8 @@
 
 import numpy as np
 from scipy.ndimage import gaussian_filter, uniform_filter
-from scipy.spatial import cKDTree
+from scipy.spatial import cKDTree, Voronoi
+from shapely.geometry import Polygon
 
 
 def norm(v):
@@ -561,3 +562,30 @@ def simple_take(ar, *slices, axes=None):
         else:
             ar = np.take(ar, np.ravel(i), j)
     return ar
+
+
+def calc_omega(vecs, pm):
+    """calculate area"""
+    # border capture any infinite edges
+    bordered = np.concatenate((vecs,
+                               pm.bbox_vertices(pm.area**.5 * 10)))
+    # due to precision errors, Qhull may return fewer regions than
+    # vertices, the QJ options helps this...
+    vor = Voronoi(bordered[:, 0:2], qhull_options="Qbb Qc QJ")
+    # but in case of failure, this will distribute the area of the duplicate
+    # region evenly among the enclosed vertices by scaling by 1/# of vertices
+    # using each region.
+    if len(vor.regions) < len(vor.point_region):
+        r, idx, inv, cnt = np.unique(vor.point_region[:len(vecs)],
+                                     return_index=True, return_inverse=True,
+                                     return_counts=True)
+        scale = 1./cnt[inv]
+    else:
+        scale = 1.
+    omega = np.zeros(len(vecs))
+    for i in range(len(vecs)):
+        region = vor.regions[vor.point_region[i]]
+        p = Polygon(vor.vertices[region])
+        omega[i] = p.intersection(pm.boundary).area
+    omega *= scale
+    return np.asarray(omega)

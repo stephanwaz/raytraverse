@@ -16,7 +16,7 @@ from shapely.geometry import Polygon
 from clasp.script_tools import try_mkdir
 
 from raytraverse import io, translate
-from raytraverse.mapper import ViewMapper
+from raytraverse.mapper import ViewMapper, PlanMapper
 from raytraverse.lightpoint.srcviewpoint import SrcViewPoint
 
 
@@ -183,33 +183,19 @@ class LightPointKD(object):
         """
         vm = self.vm
         if self.vec.shape[0] < 100:
-            omega = np.full(len(self.vec), 2 * np.pi * vm.aspect/len(self.vec))
+            omega = np.full(len(self.vec), 2*np.pi*vm.aspect/len(self.vec))
         elif vm.aspect == 1:
             # in case of 180 view, cannot use spherical voronoi, instead
-            # the method estimates area in square coordinates by intersecting
-            # 2D voronoi with border square.
-            # so none of our points have infinite edges.
-            uv = vm.xyz2uv(self.vec)
-            bordered = np.concatenate((uv, np.array([[-10, -10], [-10, 10],
-                                                     [10, 10], [10, -10]])))
-            vor = Voronoi(bordered)
-            # the border of our 180 degree region
-            lb = .5 - vm.viewangle / 360
-            ub = .5 + vm.viewangle / 360
-            mask = Polygon(np.array([[lb, lb], [lb, ub],
-                                     [ub, ub], [ub, lb], [lb, lb]]))
-            omega = []
-            for i in range(len(uv)):
-                region = vor.regions[vor.point_region[i]]
-                p = Polygon(np.concatenate((vor.vertices[region],
-                                            [vor.vertices[region][
-                                                 0]]))).intersection(mask)
-                # scaled from unit square -> hemisphere
-                omega.append(p.area*2*np.pi)
-            omega = np.asarray(omega)
+            # the method estimates area in square coordinates
+            b = np.array([[0, 0, 0], [0, 1, 0], [1, 1, 0], [1, 0, 0]])
+            pm = PlanMapper(b)
+            uv = np.hstack((vm.xyz2uv(self.vec), np.zeros((len(self.vec), 1))))
+            # scale unit square back to view area
+            omega = translate.calc_omega(uv, pm)*vm.area
         else:
             try:
-                omega = SphericalVoronoi(self.vec).calculate_areas()
+                omega = SphericalVoronoi(self.vec,
+                                         threshold=1e-10).calculate_areas()
             except ValueError:
                 # spherical voronoi raises a ValueError when points are
                 # too close, in this case we cull duplicates before calculating
@@ -221,6 +207,47 @@ class LightPointKD(object):
                 flt = translate.cull_vectors(self.d_kd, tol)
                 omega[flt] = SphericalVoronoi(self.vec[flt]).calculate_areas()
         self._omega = omega
+
+        # vm = self.vm
+        # if self.vec.shape[0] < 100:
+        #     omega = np.full(len(self.vec), 2 * np.pi * vm.aspect/len(self.vec))
+        # elif vm.aspect == 1:
+        #     # in case of 180 view, cannot use spherical voronoi, instead
+        #     # the method estimates area in square coordinates by intersecting
+        #     # 2D voronoi with border square.
+        #     # so none of our points have infinite edges.
+        #     uv = vm.xyz2uv(self.vec)
+        #     bordered = np.concatenate((uv, np.array([[-10, -10], [-10, 10],
+        #                                              [10, 10], [10, -10]])))
+        #     vor = Voronoi(bordered)
+        #     # the border of our 180 degree region
+        #     lb = .5 - vm.viewangle / 360
+        #     ub = .5 + vm.viewangle / 360
+        #     mask = Polygon(np.array([[lb, lb], [lb, ub],
+        #                              [ub, ub], [ub, lb], [lb, lb]]))
+        #     omega = []
+        #     for i in range(len(uv)):
+        #         region = vor.regions[vor.point_region[i]]
+        #         p = Polygon(np.concatenate((vor.vertices[region],
+        #                                     [vor.vertices[region][
+        #                                          0]]))).intersection(mask)
+        #         # scaled from unit square -> hemisphere
+        #         omega.append(p.area*2*np.pi)
+        #     omega = np.asarray(omega)
+        # else:
+        #     try:
+        #         omega = SphericalVoronoi(self.vec).calculate_areas()
+        #     except ValueError:
+        #         # spherical voronoi raises a ValueError when points are
+        #         # too close, in this case we cull duplicates before calculating
+        #         # area, leaving the duplicates with omega=0 it would be more
+        #         # efficient downstream to filter these points, but that would
+        #         # require culling the vecs and lum and rebuilding to kdtree
+        #         omega = np.zeros(self.vec.shape[0])
+        #         tol = 2*np.pi/2**10
+        #         flt = translate.cull_vectors(self.d_kd, tol)
+        #         omega[flt] = SphericalVoronoi(self.vec[flt]).calculate_areas()
+        # self._omega = omega
         if write:
             self.dump()
 

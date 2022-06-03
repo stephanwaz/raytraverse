@@ -12,6 +12,7 @@ import numpy as np
 from matplotlib.path import Path
 from shapely.geometry import Polygon
 from scipy.spatial import ConvexHull
+from shapely.ops import unary_union
 
 from raytraverse import translate, io
 from raytraverse.mapper.mapper import Mapper
@@ -65,6 +66,7 @@ class PlanMapper(Mapper):
         self._zheight = zheight
         self._path = []
         self._candidates = None
+        self._boundary = None
         xyz = self.update_bbox(area, updatez=zheight is None)
         super().__init__(dxyz=xyz, name=name, sf=self._sf, bbox=self.bbox,
                          jitterrate=jitterrate)
@@ -171,6 +173,12 @@ class PlanMapper(Mapper):
     def borders(self):
         """world coordinate vertices of planmapper boundaries"""
         return [self.uv2xyz(p.vertices) for p in self._path]
+
+    @property
+    def boundary(self):
+        if self._boundary is None:
+            self._boundary = unary_union([Polygon(b) for b in self.borders()])
+        return self._boundary
 
     def bbox_vertices(self, offset=0, close=False):
         b = self.bbox

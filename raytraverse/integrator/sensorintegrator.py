@@ -60,7 +60,7 @@ class SensorIntegrator(Integrator):
         raise ValueError("SensorIntegrator does not make_images")
 
     def evaluate(self, skydata, points=None, vm=None, datainfo=False,
-                 ptfilter=.25, stol=10,  minsun=1, **kwargs):
+                 stol=10,  minsun=1, **kwargs):
         """apply sky data and view queries to daylightplane to return metrics
         parallelizes and optimizes run order.
 
@@ -75,8 +75,6 @@ class SensorIntegrator(Integrator):
             values include: ["pt_err", "pt_idx", "src_err", "src_idx"].
             If True, includes all. zonal evaluation will only include src_err
             and src_idx
-        ptfilter: Union[float, int], optional
-            minimum seperation for returned points
         stol: Union[float, int], optional
             maximum angle (in degrees) for matching sun vectors
         minsun: int, optional
@@ -91,11 +89,10 @@ class SensorIntegrator(Integrator):
         if (points is None and len(self._issunplane) > 0 and
                 np.any(skydata.sun[:, 3] > 0)):
             return self.zonal_evaluate(skydata, self.lightplanes[0].pm,
-                                       datainfo=datainfo, ptfilter=ptfilter,
+                                       datainfo=datainfo,
                                        stol=stol, minsun=minsun, **kwargs)
         if points is None:
-            points, skarea = self._get_fixed_points(self.lightplanes[0].pm,
-                                                    ptfilter)
+            points, skarea = self._get_fixed_points(self.lightplanes[0].pm)
             # include areas with points when available
             apoints = np.hstack((points, skarea[:, None]))
         else:
@@ -111,7 +108,6 @@ class SensorIntegrator(Integrator):
 
         fields = None
         for lp, sd, ti in zip(self.lightplanes, skydatas, tidxs):
-            print(ti.shape, sd.shape, lp.data[ti].shape)
             if len(ti) == len(points):
                 data = np.einsum("hs,pnsf->hpnf", sd, lp.data[ti])
             else:
@@ -138,7 +134,7 @@ class SensorIntegrator(Integrator):
         return lr
 
     def zonal_evaluate(self, skydata, pm, vm=None, datainfo=False,
-                       ptfilter=.25, stol=10, minsun=1, **kwargs):
+                       stol=10, minsun=1, **kwargs):
         """
         Parameters
         ----------
@@ -150,7 +146,7 @@ class SensorIntegrator(Integrator):
         """
         # delegate back to evaluate
         if len(self._issunplane) == 0:
-            return self.evaluate(skydata, datainfo=datainfo, ptfilter=ptfilter,
+            return self.evaluate(skydata, datainfo=datainfo,
                                  stol=stol, minsun=minsun, **kwargs)
 
         self.scene.log(self, f"Evaluating {len(self.sensors)} sensors across "
@@ -158,7 +154,6 @@ class SensorIntegrator(Integrator):
                              f"skies", True)
         (tidxs, skydatas, dsns, vecs, serr,
          areas, pts, cnts) = self._zonal_group_query(skydata, pm,
-                                                     ptfilter=ptfilter,
                                                      stol=stol, minsun=minsun)
         chunks = round(tidxs[0].size/525000)
         fields = np.zeros((len(tidxs[0]), len(self.sensors), 1))
@@ -223,6 +218,6 @@ class SensorIntegrator(Integrator):
             elif p == "sun":
                 skydatas.append(skydata.sun[:, 3:4] * f)
             else:
-                skydatas.append(np.full((len(skydata.sun), 1, 1), f))
+                skydatas.append(np.full((len(skydata.sun), 1), f))
         return skydatas
 

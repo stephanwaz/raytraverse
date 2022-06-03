@@ -3,14 +3,28 @@ Citation
 Either the latest or specific releases of this software are archived with a
 DOI at zenodo. See: https://doi.org/10.5281/zenodo.4091318
 
-Additionally, please cite this
-`conference paper <http://simaud.org/2021/content.php?f=32.pdf>`_
-for a description of the directional sampling and integration method:
+Please cite this
+`journal article <https://doi.org/10.1016/j.enbuild.2022.112141>`_
+for a description and validation of the method:
+
+    Stephen Wasilewski, Lars O. Grobe, Jan Wienold, Marilyne Andersen,
+    *Efficient Simulation for Visual Comfort Evaluations*, Energy and Buildings,
+    Volume 267, 2022, 112141, ISSN 0378-7788,
+    https://doi.org/10.1016/j.enbuild.2022.112141.
+
+Additional peer-reviewed references related to this software:
 
     Stephen Wasilewski, Lars O. Grobe, Roland Schregle, Jan Wienold, and
     Marilyne Andersen. 2021. *Raytraverse: Navigating the Lightfield to
     Enhance Climate-Based Daylight Modeling*. In 2021 Proceedings of the
     Symposium on Simulation in Architecture and Urban Design.
+    https://infoscience.epfl.ch/record/290685?ln=en
+
+    Quek, G., Wasilewski, S., Wienold, J., Andersen, M., 2021a.
+    *Spatial evaluation of potential saturation and contrast effects of
+    discomfort glare in an open-plan office*, in: BS2021.
+    Presented at the Building Simulation 2021 Conference, Bruges, Belgium.
+    https://infoscience.epfl.ch/record/288945
 
 Licence
 -------

@@ -74,7 +74,7 @@ class SunSamplerPt(SamplerPt):
                                        self.sunbin,
                                        samplerlevel=self._slevel + 1)
         vms = [ViewMapper(j[0:3], j[3], name=f"sunview_{i}", jitterrate=0)
-               for i,j in enumerate(self._viewdirections)]
+               for i, j in enumerate(self._viewdirections)]
         sunview = viewsampler.run(point, posidx, vm=vms)
         self._viewdirections = np.concatenate((self.sunpos, [.533])).reshape(1, 4)
         lightpoint = LightPointKD(self.scene, self.vecs, self.lum,
