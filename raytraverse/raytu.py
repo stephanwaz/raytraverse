@@ -191,8 +191,6 @@ def imgmetric(ctx, imgs=None, metrics=None, parallel=True,
 
 
 @main.command()
-@click.option('-out', default="imglf", type=click.Path(file_okay=False),
-              help="output directory")
 @click.option("-img", callback=clk.are_files,
               help="hdr image files, uv anr angular")
 @click.option("--uv2ang/--ang2uv", default=False,

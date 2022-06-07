@@ -253,12 +253,12 @@ def hdr2carray(imgf, stdin=None):
     return bytes2np(p.stdout.read(), shape)[:, -1::-1, -1::-1]
 
 
-def rgb2rad(rgb):
-    return np.einsum('...j,j->...', rgb, [0.265, 0.670, 0.065])
+def rgb2rad(rgb, vlambda=(0.265, 0.670, 0.065)):
+    return np.einsum('...j,j->...', rgb, vlambda)
 
 
-def rgb2lum(rgb):
-    return np.einsum('...j,j->...', rgb, [47.435, 119.93, 11.635])
+def rgb2lum(rgb, vlambda=(0.265, 0.670, 0.065)):
+    return np.einsum('...j,j->...', rgb, np.array(vlambda) * 179)
 
 
 def rgbe2lum(rgbe):

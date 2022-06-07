@@ -47,7 +47,7 @@ class SrcSamplerPt(SamplerPt):
             # otherwise luminance detail gets undersanmpled
             self.ub = 1
             engine.update_ospec(engine.ospec + "LNM")
-            kwargs.update(features=engine.features)
+        kwargs.update(features=engine.features)
         super().__init__(scene, engine, stype=stype, **kwargs)
         # update parameters post init
         #: path to source scene file
@@ -138,6 +138,10 @@ class SrcSamplerPt(SamplerPt):
             pipeline([f"oconv -w {self.sourcefile}"], outfile=f)
         afac = 0.0
         srcoct = f"./{self.scene.outdir}/" + srcoct.rsplit("/")[-1]
+        if self.features > 1:
+            vlambda = (1/3, 1/3, 1/3)
+        else:
+            vlambda = (0.265, 0.670, 0.065)
         if self.lights.size > 0:
             # make rays point at center of sources from 6 cardinal directions
             box = np.vstack((np.eye(3), -np.eye(3))) * .001
@@ -150,7 +154,7 @@ class SrcSamplerPt(SamplerPt):
             lums = np.array([float(i) for i in
                              icheck(brays).split()]).reshape(-1, 3)
             # get the max luminance for each source
-            llum = np.max(io.rgb2rad(lums).reshape(len(self.lights), -1), 1)
+            llum = np.max(io.rgb2rad(lums, vlambda).reshape(len(self.lights), -1), 1)
             # find the distance along upaxis
             dray = np.abs(self.lights[:, 0:3] - point[None])[:, upaxis]
             radius = np.sqrt(self.lights[:, 4] / np.pi)
@@ -163,7 +167,7 @@ class SrcSamplerPt(SamplerPt):
                                 "-dc 1 -ds 0 -dt 0 -dj 0", srcoct, 1)
             # hopefully this is above any light source geometry
             ray = np.array([0, 0, 1e7, 0, 0, 1]).reshape(-1, 6)
-            illum = io.rgb2rad([float(i) for i in icheck(ray).split()])
+            illum = io.rgb2rad([float(i) for i in icheck(ray).split()], vlambda)
             afac += illum / np.pi
         if afac > 0:
             self.accuracy = self.accuracy * afac

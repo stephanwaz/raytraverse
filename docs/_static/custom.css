@@ -15,6 +15,11 @@ div.sphinxsidebar ul{
     margin: 0;
 }
 
+div.sphinxsidebar p.logo{
+    margin: -20px 0 0 20px;
+    text-align: left;
+}
+
 p.caption {
     font-family: inherit;
     font-size: inherit;
@@ -96,6 +101,10 @@ div.sphinxsidebar ul li.toctree-l2 ul {
 div.sphinxsidebar input {
     font-family: "Century Gothic", CenturyGothic, AppleGothic, sans-serif;
     font-size: 1em;
+}
+
+div.sphinxsidebar #searchbox {
+    height: 80px;
 }
 
 /* -- body styles ----------------------------------------------------------- */

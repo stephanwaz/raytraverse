@@ -118,7 +118,8 @@ html_theme = 'alabaster'
 # documentation.
 #
 html_theme_options = {
-    'page_width' : '1050px',
+    'logo': 'rayt_logo2w_sm.png',
+    'page_width': '1050px',
     'fixed_sidebar': True
 }
 
