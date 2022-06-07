@@ -27,19 +27,24 @@ class Sensor(object):
     ----------
     engine: raytraverse.renderer.RadianceRenderer
         fully initialized renderer class instance
-    dirs: Sequencee, optional
+    dirs: Sequence, optional
         array like shape (N, 3) sensor directions
     offsets: Sequence, optional
         array like shape (N, 3) offsets from sample position to include
         (for example mulitple z-heights)
-
+    sunview: bool, optional
+        if True, dirs are treated as candidate reflection normals, a value
+        of (0, 0, 0) is prepended to hold the direct view.
     """
 
     def __init__(self, engine, dirs=(0.0, 0.0, 1.0), offsets=(0.0, 0.0, 0.0),
-                 name="sensor"):
+                 name="sensor", sunview=False):
         self.name = name
+        self.sunview = sunview
         self.engine = engine
-        self.dirs = np.atleast_2d(dirs)
+        self.dirs = translate.norm(np.atleast_2d(dirs))
+        if sunview:
+            self.dirs = np.concatenate((((0, 0, 0),), self.dirs))
         self.offsets = np.atleast_2d(offsets)
         d, o = np.broadcast_arrays(self.dirs[None], self.offsets[:, None])
         self.sensors = np.hstack((o.reshape(-1, 3), d.reshape(-1, 3)))
@@ -51,7 +56,7 @@ class Sensor(object):
 
     def __call__(self, rays):
         srays = np.copy(self.stack_rays(rays).reshape(-1, 6), 'C')
-        r = self.engine(srays)
+        r = self.engine.run(srays)
         return r.reshape(len(rays), len(self.sensors), *r.shape[1:])
 
     def run(self, *args, **kwargs):

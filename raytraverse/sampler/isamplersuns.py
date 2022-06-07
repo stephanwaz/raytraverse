@@ -103,7 +103,7 @@ class ISamplerSuns(SamplerSuns):
             cap = None
 
         sk = dict(dirs=self.engine.dirs, offsets=self.engine.offsets,
-                  name=self.engine.name)
+                  name=self.engine.name, sunview=self.engine.sunview)
         stype = f"{self._skymapper.name}_sun"
         lums = pool_call(_sample_sun, list(zip(range(*idx), vecs,
                                                self._areadraws)), self.scene,
