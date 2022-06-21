@@ -11,8 +11,7 @@ import pickle
 import numpy as np
 from scipy.interpolate import LinearNDInterpolator
 
-from scipy.spatial import cKDTree, SphericalVoronoi, Voronoi
-from shapely.geometry import Polygon
+from scipy.spatial import cKDTree, SphericalVoronoi
 from clasp.script_tools import try_mkdir
 
 from raytraverse import io, translate
@@ -630,7 +629,7 @@ class LightPointKD(object):
                 if len(lucky_squirel) > 0:
                     self._vec = np.delete(self.vec, lucky_squirel, 0)
                     self._lum = np.delete(self.lum, lucky_squirel, 0)
-            self._d_kd = cKDTree(self.vec)
+                    self._d_kd = cKDTree(self.vec)
         self._omega = omega
         if calcomega and self._omega is None:
             self.calc_omega(False)

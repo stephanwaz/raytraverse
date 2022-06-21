@@ -104,6 +104,9 @@ class Rtrace(RadianceRenderer):
             cpu limit
 
         """
+        needsamb, hasamb = cls.check_amb(args)
+        if len(hasamb) > 0 and not needsamb:
+            args = re.sub(r' -af \S+', '', args)
         super().set_args(args, nproc)
         ospec = re.findall(r"-o\w+", cls.args)
         if len(ospec) > 0:
@@ -155,6 +158,23 @@ class Rtrace(RadianceRenderer):
         return outcnt
 
     @classmethod
+    def check_amb(cls, args):
+        try:
+            ab = re.findall(r'-ab \d+', args)[-1]
+        except IndexError:
+            hasbounce = False
+        else:
+            hasbounce = int(ab.split()[-1]) > 0
+        try:
+            aa = re.findall(r'-aa \d+', args)[-1]
+        except IndexError:
+            caching = True
+        else:
+            caching = int(aa.split()[-1]) > 0
+        hasamb = re.findall(r'-af \S+', args)
+        return hasbounce and caching, hasamb
+
+    @classmethod
     def load_source(cls, srcfile, freesrc=-1, ambfile=None):
         """add a source description to the loaded scene
 
@@ -172,20 +192,8 @@ class Rtrace(RadianceRenderer):
             path to ambient file. if given, and arguments
         """
         cls.instance.load_source(srcfile, freesrc)
-        try:
-            ab = re.findall(r'-ab \d+', cls.args)[-1]
-        except IndexError:
-            hasbounce = False
-        else:
-            hasbounce = int(ab.split()[-1]) > 0
-        try:
-            aa = re.findall(r'-aa \d+', cls.args)[-1]
-        except IndexError:
-            caching = True
-        else:
-            caching = int(aa.split()[-1]) > 0
-        if hasbounce and caching:
-            hasamb = re.findall(r'-af \S+', cls.args)
+        needsamb, hasamb = cls.check_amb(cls.args)
+        if needsamb:
             args = re.sub(r' -af \S+', '', cls.args)
             if ambfile is not None:
                 args += f" -af {ambfile}"

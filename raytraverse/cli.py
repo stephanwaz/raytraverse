@@ -213,7 +213,7 @@ candidates within adaptive grid.""")
 @click.option("-jitterrate", default=0.5,
               help="fraction of each axis to jitter over")
 @click.option("-name", default="suns",
-              help="name for solar sourcee group (impacts file naming)")
+              help="name for solar source group (impacts file naming)")
 @click.option("--epwloc/--no-epwloc", default=False,
               help="if True, use location from epw/wea argument to -loc as a"
                    " transit mask (like -loc option 1.) instead of as a list"
@@ -437,6 +437,7 @@ def sourceengine(ctx, srcfile=None, source="source", accuracy=1.0, vlt=1.0,
         ctx.obj.pop('sunengine')
     scn = ctx.obj['scene']
     srcscn = scn.source_scene(srcfile, source)
+    rayargs += f" -af {scn.outdir}/{source}.amb"
     rtrace = Rtrace(rayargs=rayargs, scene=srcscn, default_args=default_args)
     if color:
         rtrace.update_ospec("v")
@@ -670,7 +671,7 @@ def sourcerun(ctx, accuracy=1.0, nlev=3, jitter=True, overwrite=False,
     srcengine = SrcSamplerPt(scn, srcrtrace, srcfile, scenedetail=scenedetail,
                              distance=distance, normal=normal, **ptkwargs)
     srcsampler = SamplerArea(scn, srcengine, accuracy=accuracy, nlev=nlev,
-                             jitter=jitter, edgemode=edgemode)
+                             jitter=jitter, edgemode=edgemode, metricset=('avglum', 'loggcr'))
     try:
         if overwrite:
             raise OSError
@@ -679,7 +680,7 @@ def sourcerun(ctx, accuracy=1.0, nlev=3, jitter=True, overwrite=False,
     except OSError:
         try_mkdir(f"{scn.outdir}/{pm.name}")
         reflf = f"{scn.outdir}/{pm.name}/reflection_normals.txt"
-        if not os.path.isfile(reflf):
+        if not os.path.isfile(reflf) and len(srcengine.sources) > 0:
             refl = scn.reflection_search(pm.point_grid(False))
             if refl.size > 0:
                 np.savetxt(reflf, refl)
@@ -759,12 +760,12 @@ def images(ctx, sensors=None, sdirs=None, viewangle=180., skymask=None,
            directview=False, maskfull=True, resamprad=0.0, **kwargs):
     """render images
 
-    Prequisites
-    ~~~~~~~~~~~
+    Prequisites:
+
         - skyrun and sunrun must be manually invoked prior to this
 
-    Effects
-    ~~~~~~~
+    Effects:
+
         - Invokes scene
         - Invokes skydata
         - invokes area (no effects)
@@ -883,12 +884,12 @@ def evaluate(ctx, sensors=None, sdirs=None, viewangle=180., skymask=None,
              maskfull=True, resamprad=0.0, **kwargs):
     """evaluate metrics
 
-    Prequisites
-    ~~~~~~~~~~~
+    Prequisites:
+
         - skyrun and sunrun must be manually invoked prior to this
 
-    Effects
-    ~~~~~~~
+    Effects:
+
         - Invokes scene
         - Invokes skydata
         - invokes area (no effects)
@@ -917,7 +918,7 @@ def evaluate(ctx, sensors=None, sdirs=None, viewangle=180., skymask=None,
     skmapper = ctx.obj['skymapper']
     zonal = sensors is None
     itg = api.get_integrator(scn, pm, skmapper.name, simtype,
-                             sunviewengine=sunviewengine, zonal=zonal)
+                             sunviewengine=sunviewengine)
     if skymask is not None:
         if maskfull:
             sd.mask = skymask

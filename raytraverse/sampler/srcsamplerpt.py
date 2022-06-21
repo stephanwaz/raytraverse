@@ -107,14 +107,15 @@ class SrcSamplerPt(SamplerPt):
                     uv = self._mapper.idx2uv(np.arange(int(np.prod(dres))),
                                              dres, False)
                     insrc = vm.in_view(self._mapper.uv2xyz(uv), False)
-                    insrc = np.tile(insrc, self.weights.shape[0])
+                    if self.features > 1:
+                        insrc = np.tile(insrc, self.weights.shape[0])
                     # definite draw on source region
                     p[0:len(insrc)][insrc] = self.t1 * 2 * self.ub
             if self.features > 1:
                 p = self.featurefunc(p.reshape(self.weights.shape),
                                      axis=0).ravel()
             pdraws = draw.from_pdf(p, self._threshold(level),
-                                   lb=self.lb, ub=self.ub)
+                                   lb=self.lb, ub=self.ub, minsamp=1)
         return pdraws, p
 
     def _process_features(self, lum):
@@ -201,6 +202,8 @@ class SrcSamplerPt(SamplerPt):
         ires = self.idres*180/self._mapper.viewangle
         # 1/2 for nyquist
         level_res = ires*np.power(2, np.arange(self.nlev))/2
+        # last level with refinement
+        rlevel = len(self._samplelevels) - 2
         if self.sources.size > 0:
             minres = 180/self.sources[:, 3]
             level_idx = np.searchsorted(level_res, minres)
@@ -210,9 +213,9 @@ class SrcSamplerPt(SamplerPt):
                     rsrc = self._reflect(src[None])
                 else:
                     rsrc = []
-                # ensure atleast 2 levels of source "clean-up" else use
+                # ensure atleast 1 levels of source "clean-up" else use
                 # a srcviewsampler
-                if idx >= len(self._samplelevels) - 2:
+                if idx >= rlevel:
                     self._viewdirections.append(src[0:4])
                     self._viewdirections += rsrc
                     self._isdistant += [True]*(len(rsrc) + 1)
@@ -238,13 +241,7 @@ class SrcSamplerPt(SamplerPt):
             # allocate direct source sampling to level below nyquist limit
             for idx, light, size in zip(level_idx, lightdir, appsize):
                 li = np.concatenate((light, [size]))
-                # only srcviewsample lights if beyond limit of sampling
-                # (no clean-up)
-                if idx >= len(self._samplelevels):
-                    self._viewdirections.append(li)
-                    self._isdistant.append(False)
-                else:
-                    self._samplelevels[idx].append(li)
+                self._samplelevels[min(idx, rlevel)].append(li)
         self._viewdirections = np.array(self._viewdirections)
 
     def _run_callback(self, point, posidx, vm, write=True, **kwargs):

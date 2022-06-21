@@ -39,7 +39,7 @@ class Integrator(object):
                 raise ValueError("ds=True requires 3 lightplanes: sky, "
                                  "directsky, directsun")
             if len(self._issunplane) != 1 or self._issunplane[0] != 2:
-                raise ValueError("ds=True requirees 3rd argument is sunplane")
+                raise ValueError("ds=True requires 3rd argument is sunplane")
             self.evaluate_pt = intg.evaluate_pt_ds
             self. img_pt = intg.img_pt_ds
         elif dv:

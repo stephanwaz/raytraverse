@@ -9,7 +9,12 @@ generate a template::
 
     raytraverse --template > options.cfg
 
-and then edit the options for each file. for example::
+and then edit the options for each file. for example, here is a simplified
+configuration for a low accuracy sample simulation, assuming a model scaled
+in meters where plane.rad is betwee 4m and 10m on each side::
+
+    [shared]
+    weather_file = weather.epw
 
     [raytraverse_scene]
     out = outdir
@@ -20,34 +25,60 @@ and then edit the options for each file. for example::
     zone = plane.rad
 
     [raytraverse_suns]
-    loc = weather.epw
     epwloc = True
+    loc = ${shared:weather_file}
 
     [raytraverse_skydata]
-    wea = weather.epw
+    wea = ${shared:weather_file}
+    skyres = 10
 
     [raytraverse_skyengine]
     accuracy = 2.0
-    rayargs = -ab 2 -ad 4 -c 1000
+    skyres = 10
 
     [raytraverse_sunengine]
     accuracy = 2.0
-    rayargs = -ab 2 -c 1
+    nlev = 5
 
     [raytraverse_skyrun]
     accuracy = 2.0
-    jitter = True
+    edgemode = reflect
     nlev = 2
-    overwrite = False
 
     [raytraverse_sunrun]
-    accuracy = 2.0
+    accuracy = 3.0
+    edgemode = reflect
     nlev = 2
     srcaccuracy = 2.0
+    srcnlev = 2
+
+    [raytraverse_images]
+    basename = results
+    blursun = True
+    interpolate = highc
+    res = 800
+    resampleview = True
+    sdirs = None
+    sensors = None
+    skymask = 0:24
+
+    [raytraverse_evaluate]
+    basename = results
+    sdirs = None
+    sensors = None
+    skymask = None
+
+    [raytraverse_pull]
+    col = metric point
+    gridhdr = True
+    lr = results.npz
+    ofiles = results
+    skyfill = ${shared:weather_file}
+    viewfilter = 0
 
 and then from the command line run::
 
-    raytraverse -c options.cfg skyrun sunrun
+    raytraverse -c options.cfg skyrun directskyrun sunrun evaluate pull
 
 
 .. toctree::

@@ -2,6 +2,15 @@
 History
 =======
 
+1.3.4
+-----
+* do not use srcview for local light sources, include atleast 1 level of clean-up
+* make sure kd tree is rebuilt when lucky squirrel
+* ambient file handling in rtrace
+* better memory management in reflection_search (still a problem?)
+* new example config with proper settings
+* with minsamp > 0 make sure from_pdf returns something so sampling can complete
+
 1.3.3
 -----
 * static light source sampler, directly samples electric lights at appropriate level,

@@ -45,7 +45,7 @@ def get_detail(data, *args, mode='reflect', cval=0.0):
     return np.concatenate(d_det)
 
 
-def from_pdf(pdf, threshold, lb=.5, ub=4):
+def from_pdf(pdf, threshold, lb=.5, ub=4, minsamp=0):
     """generate choices from a numeric probability distribution
 
     Parameters
@@ -77,14 +77,26 @@ def from_pdf(pdf, threshold, lb=.5, ub=4):
     """
     # bypass random sampling
     if ub <= 1:
-        return np.argwhere(pdf > threshold).ravel()
+        idx = np.argwhere(pdf > threshold).ravel()
+        if idx.size < minsamp:
+            idx = np.array([0])
+        return idx
     pdf[pdf > ub*threshold] = ub*threshold
     candidates, bidx, nsampc = c_from_pdf(pdf, threshold, lb=lb, ub=ub+1)
+    nsampc = max(nsampc, minsamp)
     if nsampc == 0:
         return bidx
     # if normalization happens in c-func floating point precision does not
     # guarantee that pdfc adds to 1, which choice() requires.
-    pdfc = pdf[candidates]/np.sum(pdf[candidates])
-    cidx = np.random.default_rng().choice(candidates, nsampc,
-                                          replace=False, p=pdfc)
+    nperr = np.seterr(all="raise")
+    try:
+        pdfc = pdf[candidates]/np.sum(pdf[candidates])
+        if candidates.size == 0:
+            raise ValueError
+    except (FloatingPointError, ValueError):
+        cidx = np.random.default_rng().integers(pdf.size, size=nsampc)
+    else:
+        cidx = np.random.default_rng().choice(candidates, nsampc,
+                                              replace=False, p=pdfc)
+    np.seterr(**nperr)
     return np.concatenate((bidx, cidx))

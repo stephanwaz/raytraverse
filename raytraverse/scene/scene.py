@@ -82,11 +82,10 @@ class Scene(BaseScene):
         sky = np.argwhere(mod == "skyglow").ravel()
         skyl = level[sky]
         leva, levs = np.broadcast_arrays(level, skyl[:, None])
-        idxa, idxs = np.broadcast_arrays(np.arange(len(level)), sky[:, None])
         # filter indices before sky index in each row
-        leva = np.where(idxa - idxs <= 0, -3, leva)
+        leva[np.arange(len(level)) <= sky[:, None]] = -3
         # filter indices not one level up from sky
-        leva = np.where(leva != (levs - 1), -2, leva)
+        leva[level != (skyl[:, None] - 1)] = -2
         # this returns the first value, our candidate reflection
         candidate = np.argmax(leva, 1)
         # check if this is a reflection
