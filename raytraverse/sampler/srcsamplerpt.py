@@ -246,7 +246,9 @@ class SrcSamplerPt(SamplerPt):
 
     def _run_callback(self, point, posidx, vm, write=True, **kwargs):
         if self._scenedetail:
-            self.engine.update_ospec(self._oospec)
+            outfeatures = self.engine.update_ospec(self._oospec)
+        else:
+            outfeatures = self.engine.features
         if self._viewdirections is None or len(self._viewdirections) == 0:
             srcview = None
         else:
@@ -261,7 +263,7 @@ class SrcSamplerPt(SamplerPt):
                                   src=self.stype, pt=point, write=write,
                                   srcn=self.srcn, posidx=posidx,
                                   vm=vm, srcviews=srcview,
-                                  features=self.engine.features, **kwargs)
+                                  features=outfeatures, **kwargs)
         # reset run() modified parameters
         self.accuracy = self._normaccuracy
         self._viewdirections = []
@@ -269,5 +271,23 @@ class SrcSamplerPt(SamplerPt):
         self._samplelevels = [[] for _ in range(self.nlev)]
         self._refl = None
         return lightpoint
+
+    def _plot_weights(self, level, vm, name, suffix=".hdr", fisheye=True):
+        outw = (f"{self.scene.outdir}_{name}_{self.stype}_weights_"
+                f"{level:02d}{suffix}")
+        if self.features > 1:
+            if self.features == 3:
+                fweights = ['red', 'green', 'blue']
+            elif self.features == 6:
+                fweights = ['lum', 'distance', 'nx', 'ny', 'nz', 'material']
+            else:
+                fweights = ['red', 'green', 'blue', 'distance', 'nx', 'ny',
+                            'nz', 'material']
+            for i, fw in enumerate(fweights):
+                of = outw.replace("_weights_", f'_weight_{fw}_')
+                self._plot_dist(self.weights[i], vm, of, fisheye)
+        else:
+            w = self.weights
+            self._plot_dist(w, vm, outw, fisheye)
 
 

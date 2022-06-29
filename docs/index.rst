@@ -38,6 +38,7 @@ in meters where plane.rad is betwee 4m and 10m on each side::
 
     [raytraverse_sunengine]
     accuracy = 2.0
+    rayargs = -ab 0
     nlev = 5
 
     [raytraverse_skyrun]
@@ -71,7 +72,6 @@ in meters where plane.rad is betwee 4m and 10m on each side::
     [raytraverse_pull]
     col = metric point
     gridhdr = True
-    lr = results.npz
     ofiles = results
     skyfill = ${shared:weather_file}
     viewfilter = 0

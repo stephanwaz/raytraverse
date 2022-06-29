@@ -7,6 +7,7 @@
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 # =======================================================================
 import os
+import sys
 
 import numpy as np
 from clasp import click
@@ -54,7 +55,9 @@ def np_load_safe(ctx, param, s):
         if os.path.exists(s):
             return s
         else:
-            raise ex
+            print(f"could not process parameter -{param.name}: '{s}'",
+                  file=sys.stderr)
+            raise click.Abort
 
 
 pull_decs = [
@@ -121,7 +124,7 @@ def shared_pull(ctx, lr=None, col=("metric",), ofiles=None, ptfilter=None,
     elif 'lightresult' in ctx.obj:
         result = ctx.obj['lightresult']
     else:
-        click.echo("Please provide an -lr or -zr option (path to light result file)",
+        click.echo("Please provide an -lr (path to light result file)",
                    err=True)
         raise click.Abort
     if info:
@@ -149,7 +152,7 @@ def shared_pull(ctx, lr=None, col=("metric",), ofiles=None, ptfilter=None,
     if skyfilter is not None and "sky" in result.names:
         av = result.axis("sky").values
         if skydata is None:
-            skyf = np.flatnonzero(np.isin(av, skyfilter))
+            skyf = np.flatnonzero(np.isin(np.arange(av.size), skyfilter))
         else:
             skyf = np.arange(len(av))[skydata.mask]
         if len(skyf) == 0:

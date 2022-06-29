@@ -10,9 +10,15 @@ History
 * better memory management in reflection_search (still a problem?)
 * new example config with proper settings
 * with minsamp > 0 make sure from_pdf returns something so sampling can complete
+* better memory management in zonal sensorintegrator
+* plot each weight in srcsamplerpt when using detail/color
+* slight reorganization in Integrator to accommodate sensorintegrator changes
+* bug in pull with -skyfilter but no -skyfill
+* allow skydata write without scene
+* change default sunrun parameter to -ab 0
 
-1.3.3
------
+1.3.3 (2022-06-21)
+------------------
 * static light source sampler, directly samples electric lights at appropriate level,
   will use lots of extra samples with very long thin fixtures
 * color support in lightPointKD and samplers, but for now only works with imagesampler and

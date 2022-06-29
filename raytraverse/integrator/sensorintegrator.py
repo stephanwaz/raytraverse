@@ -134,7 +134,7 @@ class SensorIntegrator(Integrator):
         return lr
 
     def zonal_evaluate(self, skydata, pm, vm=None, datainfo=False,
-                       stol=10, minsun=1, **kwargs):
+                       stol=10, minsun=1, calcarea=True, **kwargs):
         """
         Parameters
         ----------
@@ -152,21 +152,49 @@ class SensorIntegrator(Integrator):
         self.scene.log(self, f"Evaluating {len(self.sensors)} sensors across "
                              f"zone {pm.name} under {len(skydata.maskindices)} "
                              f"skies", True)
-        (tidxs, skydatas, dsns, vecs, serr,
-         areas, pts, cnts) = self._zonal_group_query(skydata, pm,
-                                                     stol=stol, minsun=minsun)
-        chunks = round(tidxs[0].size/525000)
-        fields = np.zeros((len(tidxs[0]), len(self.sensors), 1))
-        for lp, sd, ti in zip(self.lightplanes, skydatas, tidxs):
-            if chunks > 1:
-                args = zip(np.array_split(sd, chunks),
-                           np.array_split(ti, chunks))
-                data = []
-                for sd_c, ti_c in args:
-                    data.append(np.einsum("ps,pnsf->pnf", sd_c, lp.data[ti_c]))
-                fields += np.concatenate(data, axis=0)
-            else:
-                fields += np.einsum("ps,pnsf->pnf", sd, lp.data[ti])
+
+        (sunmask, suns, pts, sundata,
+         skarea) = self._zonal_group_query(skydata, pm, stol=stol,
+                                           minsun=minsun, calcarea=calcarea)
+
+        cnts = np.full(len(sunmask), len(pts))
+        cnts[sunmask] = [len(s) for s in sundata[0]]
+        tcnt = np.sum(cnts)
+        chunks = round(tcnt/525000)
+        if chunks > 1:
+            csize = int(np.ceil(len(sunmask)/chunks))
+            sdi = 0
+            fields = []
+            serr = []
+            tidxs = []
+            areas = []
+            all_vecs = []
+            pbar = self.scene.progress_bar(None,
+                                           iterable=np.arange(0, len(sunmask),
+                                                              csize),
+                                           message="matrix multiplication")
+            for ci in pbar:
+                slc = slice(ci, ci+csize)
+                sdc = np.sum(sunmask[slc])
+                sdlc = slice(sdi, sdi+sdc)
+                sdi += sdc
+                csundata = [j[sdlc] for j in sundata]
+                r = self._evaluate_chunk(skydata.smtx[slc], sunmask[slc],
+                                         suns[slc], pts, csundata, skarea)
+                fields.append(r[0])
+                serr.append(r[1])
+                tidxs.append(r[2])
+                areas.append(r[3])
+                all_vecs.append(r[4])
+            fields = np.concatenate(fields, axis=0)
+            serr = np.concatenate(serr, axis=0)
+            tidxs = np.concatenate(tidxs, axis=1)
+            areas = np.concatenate(areas, axis=0)
+            all_vecs = np.concatenate(all_vecs, axis=0)
+        else:
+            result = self._evaluate_chunk(skydata.smtx, sunmask, suns, pts,
+                                          sundata, skarea)
+            fields, serr, tidxs, areas, all_vecs = result
 
         oshape = (len(fields), len(self.sensors))
         pmetrics = ['x', 'y', 'z', 'area']
@@ -183,10 +211,21 @@ class SensorIntegrator(Integrator):
                 ResultAxis(pmetrics + ["illum"], "metric")]
 
         strides = np.cumsum(cnts)[:-1]
-        fvecs = np.broadcast_to(vecs[:, None, 3:], oshape + (3,))
+        fvecs = np.broadcast_to(all_vecs[:, None, 3:], oshape + (3,))
         fields = np.concatenate((fvecs, areas, fields), axis=-1)
         fields = np.split(fields, strides)
         return ZonalLightResult(fields, *axes, pointmetrics=pmetrics)
+
+    def _evaluate_chunk(self, dsmtx, sunmask, suns, pts, sundata, skarea):
+        result = self._unmask_data(dsmtx, sunmask, suns, pts, sundata, skarea)
+        smtx, dsns, all_vecs, sunidx, serr, areas, cnts = result
+
+        tidxs, skydatas = self._match_ragged(smtx, dsns, sunidx, all_vecs)
+
+        fields = np.zeros((len(tidxs[0]), len(self.sensors), 1))
+        for lp, sd, ti in zip(self.lightplanes, skydatas, tidxs):
+            fields += np.einsum("ps,pnsf->pnf", sd, lp.data[ti])
+        return fields, serr, tidxs, areas, all_vecs
 
     def _group_query(self, skydata, points):
         """for sensor integration broadcasting happens in the summation, so

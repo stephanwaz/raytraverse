@@ -231,7 +231,7 @@ class Integrator(object):
     def zonal_evaluate(self, skydata, pm, vm, viewangle=180.,
                        metricclass=MetricSet, metrics=None, srconly=False,
                        suntol=10.0, blursun=False, coercesumsafe=False,
-                       stol=10,  minsun=1, datainfo=False,
+                       stol=10,  minsun=1, datainfo=False, calcarea=True,
                        **kwargs):
         """apply sky data and view queries to daylightplane to return metrics
         parallelizes and optimizes run order.
@@ -257,9 +257,14 @@ class Integrator(object):
         (vm, vms, cmetrics, ometrics,
          sumsafe, needs_post) = self._check_params(vm, viewangle, metrics,
                                                    metricclass, coercesumsafe)
-        (tidxs, skydatas, dsns, vecs, serr,
-         areas, pts, cnts) = self._zonal_group_query(skydata, pm,
-                                                     stol=stol, minsun=minsun)
+        (sunmask, suns, pts, sundata,
+         skarea) = self._zonal_group_query(skydata, pm, stol=stol,
+                                           minsun=minsun, calcarea=calcarea)
+
+        result = self._unmask_data(skydata.smtx, sunmask, suns, pts, sundata, skarea)
+        smtx, dsns, all_vecs, sunidx, serr, areas, cnts = result
+
+        tidxs, skydatas = self._match_ragged(smtx, dsns, sunidx, all_vecs)
 
         self.scene.log(self, f"Evaluating {len(ometrics)} metrics for {len(vms)}"
                              f" view directions across zone '{pm.name}' under "
@@ -292,7 +297,7 @@ class Integrator(object):
                 ResultAxis(pmetrics + ometrics, "metric")]
 
         strides = np.cumsum(cnts)[:-1]
-        fvecs = np.broadcast_to(vecs[:, None, 3:], oshape + (3,))
+        fvecs = np.broadcast_to(all_vecs[:, None, 3:], oshape + (3,))
         fields = np.concatenate((fvecs, areas, fields), axis=-1)
         fields = np.split(fields, strides)
         return ZonalLightResult(fields, *axes, pointmetrics=pmetrics)
@@ -395,7 +400,7 @@ class Integrator(object):
                                         gshape).ravel())
         return np.stack(idxs), skydatas, dsns, vecs
 
-    def _zonal_group_query(self, skydata, pm, stol=10, minsun=1):
+    def _zonal_group_query(self, skydata, pm, stol=10, minsun=1, calcarea=True):
         pts, skarea = self._get_fixed_points(pm)
         # only look for suns when relevant
         sunmask = skydata.sun[:, 3] > 0
@@ -407,15 +412,13 @@ class Integrator(object):
                                                stol=stol,
                                                minsun=minsun)
         spts = [v[:, 3:] for v in vecs]
-        areas = pool_call(translate.calc_omega, spts, pm, expandarg=False,
-                          desc="calculating areas", pbar=self.scene.dolog)
-
+        if calcarea:
+            areas = pool_call(translate.calc_omega, spts, pm, expandarg=False,
+                              desc="calculating areas", pbar=self.scene.dolog)
+        else:
+            areas = [[0]*len(v) for v in spts]
         sundata = (vecs, idx, ds, areas)
-        result = self._unmask_data(skydata, sunmask, suns, pts, sundata, skarea)
-        smtx, dsns, all_vecs, sunidx, d, areas, cnts = result
-
-        tidxs, skydatas = self._match_ragged(smtx, dsns, sunidx, all_vecs)
-        return tidxs, skydatas, dsns, all_vecs, d, areas, pts, cnts
+        return sunmask, suns, pts, sundata, skarea
 
     def _sinfo(self, datainfo, vecs, idxs, oshape):
         """error and bin information for evaluate queries"""
@@ -525,7 +528,7 @@ class Integrator(object):
         return skydatas, dsns
 
     @staticmethod
-    def _unmask_data(skydata, sunmask, suns, pts, sundata, skarea):
+    def _unmask_data(dsmtx, sunmask, suns, pts, sundata, skarea):
         # calculate size of return arrays
         cnts = np.full(len(sunmask), len(pts))
         cnts[sunmask] = [len(s) for s in sundata[0]]
@@ -534,7 +537,7 @@ class Integrator(object):
         sunidx = np.full(tcnt, -1, dtype=np.int64)
         d = np.zeros(tcnt)
         areas = np.zeros(tcnt)
-        smtx = np.zeros((tcnt, skydata.smtx.shape[1]))
+        smtx = np.zeros((tcnt, dsmtx.shape[1]))
         dsns = np.zeros((tcnt, suns.shape[1]))
         # track suns (one for each True sunmask
         j = 0
@@ -554,7 +557,7 @@ class Integrator(object):
                 all_vecs[ci:ci + cnt, 0:3] = suns[i, 0:3]
                 all_vecs[ci:ci + cnt, 3:6] = pts
                 areas[ci:ci + cnt] = skarea
-            smtx[ci:ci + cnt] = skydata.smtx[i]
+            smtx[ci:ci + cnt] = dsmtx[i]
             dsns[ci:ci + cnt] = suns[i]
             ci += cnt
         return smtx, dsns, all_vecs, sunidx, d, areas, cnts

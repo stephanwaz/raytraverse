@@ -10,6 +10,7 @@
 """Console script for raytraverse."""
 import os
 import shutil
+import sys
 from glob import glob
 
 import numpy as np
@@ -59,11 +60,11 @@ def main(ctx, out=None, config=None, n=None,  **kwargs):
 
         raytraverse --template > run.cfg
 
-    after adjusting the settings, than each command can be invoked in turn and
+    after adjusting the settings, then each command can be invoked in turn and
     any dependencies will be loaded with the correct options, a complete run
     and evaluation can then be called by::
 
-        raytraverse -c run.cfg skyrun sunrun
+        raytraverse -c run.cfg skyrun sunrun evaluate
 
     as all required precursor commands will be invoked automatically as needed.
     """
@@ -109,12 +110,7 @@ engine_opts = [
                    ' directions with a contribution variance greater than .25'),
  click.option('-idres', default=32,
               help='the initial directional sampling resolution '
-                   '(as sqrt of samples per hemisphere)'),
- click.option('-rayargs',
-              help='additional arguments to pass to the  rendering engine'),
- click.option('--default-args/--no-default-args', default=True,
-              help='use raytraverse defaults before -rayargs, if False, uses'
-                   ' radiance defaults'),
+                   '(as sqrt of samples per hemisphere)')
     ]
 
 
@@ -304,7 +300,12 @@ def skydata(ctx, wea=None, name="skydata", loc=None, reload=True, opts=False,
     if 'scene' not in ctx.obj:
         clk.invoke_dependency(ctx, scene, reload=True, overwrite=False)
     scn = ctx.obj['scene']
-    file = f"{scn.outdir}/{name}.npz"
+    if scn.outdir is None:
+        print("Warning! attempting to use skydata from outside scene, "
+              "make sure scene -outdir is set", file=sys.stderr)
+        file = f"{name}.npz"
+    else:
+        file = f"{scn.outdir}/{name}.npz"
     reloaded = reload and os.path.isfile(file)
     if reloaded:
         wea = file
@@ -314,7 +315,10 @@ def skydata(ctx, wea=None, name="skydata", loc=None, reload=True, opts=False,
         loc = (loc[0], loc[1], int(loc[2]))
     sd = SkyData(wea, loc=loc, **kwargs)
     if not reloaded:
-        sd.write(name, scn)
+        if scn.outdir is None:
+            sd.write(name)
+        else:
+            sd.write(name, scn)
     ctx.obj['skydata'] = sd
     if printdata:
         ris = np.arange(sd.skydata.shape[0])
@@ -330,6 +334,14 @@ def skydata(ctx, wea=None, name="skydata", loc=None, reload=True, opts=False,
 
 @main.command()
 @clk.shared_decs(engine_opts)
+@click.option('-rayargs',
+              help='additional arguments to pass to the rendering engine')
+@click.option('--default-args/--no-default-args', default=True,
+              help='use raytraverse defaults before -rayargs, if False, uses'
+                   ' radiance defaults. defaults are: -u+ -ab 16 -av 0 0 0 '
+                   '-aa 0 -as 0 -dc 1 -dt 0 -lr -14 -ad 50*(skyres^2+1) '
+                   '-lw 0.008/(skyres^2+1) -st 0 -ss 16 -c 1. note that if this'
+                   ' is false -ad and -lw will not be automatically set')
 @click.option("-skyres", default=15,
               help="resolution of sky patches (sqrt(patches / hemisphere))."
                    "Must match argument givein to skydata")
@@ -372,6 +384,14 @@ def skyengine(ctx, accuracy=1.0, vlt=0.64, idres=32, rayargs=None,
 
 @main.command()
 @clk.shared_decs(engine_opts)
+@click.option('-rayargs', default="-ab 0",
+              help='additional arguments to pass to the rendering engine,'
+                   ' by default sets -ab 0, pass "" to clear')
+@click.option('--default-args/--no-default-args', default=True,
+              help='use raytraverse defaults before -rayargs, if False, uses'
+                   ' radiance defaults. defaults are: -u+ -ab 16 -av 0 0 0 '
+                   '-aa 0 -as 0 -dc 1 -dt 0 -lr -14 -ad 1000 -lw 0.00004 -st 0 '
+                   '-ss 16 -w-')
 @click.option('-nlev', default=6,
               help='number of directional sampling levels, yielding a final'
                    'resolution of idres^2 * 2^(nlev) samples per hemisphere')
@@ -404,6 +424,13 @@ def sunengine(ctx, accuracy=1.0, vlt=0.64, idres=32, rayargs=None,
 
 @main.command()
 @clk.shared_decs(engine_opts)
+@click.option('-rayargs',
+              help='additional arguments to pass to the rendering engine')
+@click.option('--default-args/--no-default-args', default=True,
+              help='use raytraverse defaults before -rayargs, if False, uses'
+                   ' radiance defaults. defaults are: -u+ -ab 16 -av 0 0 0 '
+                   '-aa 0 -as 0 -dc 1 -dt 0 -lr -14 -ad 1000 -lw 0.00004 -st 0 '
+                   '-ss 16 -w-')
 @click.option("-srcfile", default=None, type=click.Path(dir_okay=False),
               help="scene source description (required)")
 @click.option("-source", default="source", help="name for this source")
@@ -437,6 +464,8 @@ def sourceengine(ctx, srcfile=None, source="source", accuracy=1.0, vlt=1.0,
         ctx.obj.pop('sunengine')
     scn = ctx.obj['scene']
     srcscn = scn.source_scene(srcfile, source)
+    if rayargs is None:
+        rayargs = ""
     rayargs += f" -af {scn.outdir}/{source}.amb"
     rtrace = Rtrace(rayargs=rayargs, scene=srcscn, default_args=default_args)
     if color:
@@ -452,7 +481,7 @@ sample_opts = [
               help="parameter to set threshold at sampling level relative to "
                    "final level threshold (smaller number will increase "
                    "sampling)"),
- click.option("-edgemode", default='constant',
+ click.option("-edgemode", default='reflect',
               type=click.Choice(['constant', 'reflect', 'nearest', 'mirror',
                                  'wrap']),
               help="if 'constant' value is set to -self.t1, so edge is "
