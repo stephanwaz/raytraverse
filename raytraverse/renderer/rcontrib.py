@@ -45,6 +45,8 @@ class Rcontrib(RadianceRenderer):
         if True include a ground source (included as a final bin)
     default_args: bool, optional
         if True, prepend default args to rayargs parameter
+    adpatch: int, optional
+            when using default_args, ad is set to this times srcn
 
     Examples
     --------
@@ -61,11 +63,12 @@ class Rcontrib(RadianceRenderer):
     skyres = 15
     srcn = 226
     modname = "skyglow"
+    adpatch = 50
 
     def __init__(self, rayargs=None, scene=None, nproc=None,
                  skyres=15, modname='skyglow', ground=True,
-                 default_args=True):
-        scene = self.setup(scene, ground, modname, skyres)
+                 default_args=True, adpatch=50):
+        scene = self.setup(scene, ground, modname, skyres, adpatch)
         super().__init__(rayargs, scene, nproc=nproc,
                          default_args=default_args)
 
@@ -74,7 +77,8 @@ class Rcontrib(RadianceRenderer):
         type(self).instance = rcontrib_instance
 
     @classmethod
-    def setup(cls, scene=None, ground=True, modname="skyglow", skyres=18):
+    def setup(cls, scene=None, ground=True, modname="skyglow", skyres=15,
+              adpatch=50):
         """set class attributes for proper argument initialization
 
         Parameters
@@ -90,6 +94,8 @@ class Rcontrib(RadianceRenderer):
             So if skyres=10, each patch will be 100 sq. degrees
             (0.03046174197 steradians) and there will be 18 * 18 = 324 sky
             patches.
+        adpatch: int, optional
+            when using default_args, ad is set to this times srcn
 
         Returns
         -------
@@ -108,14 +114,15 @@ class Rcontrib(RadianceRenderer):
         cls.skyres = skyres
         cls.srcn = cls.skyres**2 + ground
         cls.modname = modname
+        cls.adpatch = adpatch
         return scene
 
     @classmethod
     def get_default_args(cls):
         """construct default arguments"""
-        # return f"-ab 7 -ad 10 -as 0 -lw 1e-5 -st 0 -ss 16 -c {10*cls.srcn}"
-        return (f"-u+ -ab 16 -av 0 0 0 -aa 0 -as 0 -dc 1 -dt 0 -lr -14 -ad "
-                f"{50*cls.srcn} -lw {0.008/cls.srcn} -st 0 -ss 16 -c 1")
+        return ("-u+ -ab 16 -av 0 0 0 -aa 0 -as 0 -dc 1 -dt 0 -lr -14 -ad "
+                f"{cls.adpatch*cls.srcn} -lw {0.4/(cls.srcn*cls.adpatch)} "
+                "-st 0 -ss 16 -c 1")
 
     @classmethod
     def set_args(cls, args, nproc=None):

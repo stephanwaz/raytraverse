@@ -1,10 +1,6 @@
 # syntax=docker/dockerfile:1
-
-# docker build . --tag raytraverse:latest --tag raytraverse:v1.3.4
-# docker run -it --name rayt --mount type=bind,source="$(pwd)",target=/working raytraverse /bin/bash
-# docker rm rayt
-
-FROM raytraverse
+# docker build -f Dockerfile_update . --tag raytraverse:latest
+FROM raytraverse:latest
 
 WORKDIR /build
 
@@ -12,10 +8,9 @@ SHELL ["/bin/bash", "-c"]
 RUN apt-get update
 RUN apt-get -y install man
 
-COPY raytraverse-*-py3-none-any.whl ./
-RUN pip3 install --force-reinstall --no-deps *.whl
-RUN rm *.whl
-
+RUN pip3 install --upgrade --no-deps craytraverse
+RUN pip3 install --upgrade --no-deps clasp
+RUN pip3 install --upgrade --no-deps raytraverse
 RUN git clone --sparse --filter=blob:none --no-checkout https://github.com/LBNL-ETA/Radiance.git
 WORKDIR Radiance
 RUN export RADVERSION=$(git ls-remote --sort=committerdate --tags | tail -1 | sed -n -e 's/^.*\///p');\

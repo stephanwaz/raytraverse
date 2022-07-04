@@ -43,50 +43,121 @@ or if you have cloned this repository::
     cd path/to/this/file
     pip install .
 
+while raytraverse installs with the necessary essentials of radiance, it is
+recommended to also install radiance (see: https://github.com/LBNL-ETA/Radiance/releases
+ and make sure you also set the $RAYPATH variable)
+this is especially important if your material or light source definitions rely
+on .cal files distributed with radiance, such as perezlum.cal, window.cal, etc.
+Missing .cal files or other scene errors can cause raytraverse traverse to abort
+with cryptic eror messages::
+
+    python: : Unknown error -1624667552
+
+If you encounter such an error, make sure your scene is valid in your current
+environment, using rvu, rpict, or rtrace.
+
+
 Windows
 ~~~~~~~
 
-Currently raytraverse is only compatible with macOS and linux operating systems. 
+Currently raytraverse is only compatible with macOS and linux operating systems.
 One way to use raytraverse on a Windows machine is with Docker. In adddition to the Docker
-installation, this process will require about 1.5 GB of disk space.
+installation, this process will require about 2.5 GB of disk space.
 
-1. Install Docker from: https://www.docker.com/products/docker-desktop/ 
+1. Install Docker from: https://www.docker.com/products/docker-desktop/
    (click on "Windows") and then follow the installation instructions.
 2. Open the newly installed Docker Desktop application (you do not need to sign in or create an account)
-3. Create a new local folder and with a file named Dockerfile::
+3. save this docker file: :download:`Dockerfile_first <_static/Dockerfile_first>`
+   into an empty folder on your computer. File contents::
 
-	 # syntax=docker/dockerfile:1
-	 FROM python:3.9
-	 WORKDIR /working
-	 SHELL ["/bin/bash", "-c"]
-	 RUN pip3 install raytraverse
-	 
-	 CMD raytraverse --help
+    # syntax=docker/dockerfile:1
+    # docker build -f Dockerfile_first . --tag raytraverse:latest
+    FROM python:3.9
 
-4. in a command prompt navigate to this folder and::
+    WORKDIR /build
+    RUN apt-get update
+    RUN apt-get -y install man
 
-	docker build . --tag raytraverse
+    SHELL ["/bin/bash", "-c"]
+    RUN pip3 install raytraverse
+    RUN git clone --sparse --filter=blob:none --no-checkout https://github.com/LBNL-ETA/Radiance.git
+    WORKDIR Radiance
+    RUN export RADVERSION=$(git ls-remote --sort=committerdate --tags | tail -1 | sed -n -e 's/^.*\///p');\
+        cd ..;\
+        wget https://github.com/LBNL-ETA/Radiance/releases/download/"$RADVERSION"/Radiance_"$RADVERSION"_Linux.zip;
+    WORKDIR /build
+    RUN unzip Radiance_*_Linux.zip
+    RUN tar -xzf radiance-*-Linux.tar.gz
+    WORKDIR /radiance
+    RUN rm -rf bin lib man
+    RUN mv /build/radiance-*-Linux/usr/local/radiance/* ./
+    RUN rm -rf /build
 
-5. To use raytraverse, navigate to a local folder that contains all necessary 
+    ENV RAYPATH=.:/radiance/lib
+    ENV MANPATH=/radiance/man
+    ENV PATH=/radiance/bin:$PATH
+    RUN raytraverse --help
+
+4. in a command prompt navigate to this folder and run the following to create
+   a docker image with raytraverse and radiance installed::
+
+	docker build - --tag raytraverse:latest < Dockerfile_first
+
+5. To use raytraverse, navigate to a local folder that contains all necessary
    files (radiance scene files, sky data, etc.).
-6. Now, in this folder::
+6. Now, in this folder (note that you may need to change the syntax of "$(pwd)"
+   to be compatible with your shell, this works with the basic windows command prompt)::
 
 	docker run -it --name rayt --mount type=bind,source="$(pwd)",target=/working raytraverse /bin/bash
 
-7. You now have a linux/bash command prompt in an environment with raytraverse 
-   installed. The currrent directory will be named "working" within the linux environment 
+7. You now have a linux/bash command prompt in an environment with raytraverse
+   installed. The currrent directory will be named "working" within the linux environment
    and is a shared resource with the host (changes on the host side are immediately seen in the container and vice
    versa). When you are finished, exit the linux shell ("exit"), then in the (now) windows command prompt::
-   
+
 	docker rm rayt
 
-8. for ease of use, you can put these to lines in a .bat file somewhere in your execution PATH, 
+8. for ease of use, you can put these to lines in a .bat file somewhere in your execution PATH,
    just make sure that docker desktop is running before calling::
 
 	docker run -it --name rayt --mount type=bind,source="$(pwd)",target=/working raytraverse /bin/bash
 	docker rm rayt
-	
-9. to update raytraverse, just repeat step 4 in a directory with the Dockerfile in step 3.
+
+9. to update raytraverse, the process is similar to step 4, but with this docker file:
+   :download:`Dockerfile_update <_static/Dockerfile_update>`::
+
+    # syntax=docker/dockerfile:1
+    # docker build -f Dockerfile_update . --tag raytraverse:latest
+    FROM raytraverse:latest
+
+    WORKDIR /build
+
+    SHELL ["/bin/bash", "-c"]
+    RUN pip3 install --upgrade --no-deps craytraverse
+    RUN pip3 install --upgrade --no-deps clasp
+    RUN pip3 install --upgrade --no-deps raytraverse
+    RUN git clone --sparse --filter=blob:none --no-checkout https://github.com/LBNL-ETA/Radiance.git
+    WORKDIR Radiance
+    RUN export RADVERSION=$(git ls-remote --sort=committerdate --tags | tail -1 | sed -n -e 's/^.*\///p');\
+        cd ..;\
+        wget https://github.com/LBNL-ETA/Radiance/releases/download/"$RADVERSION"/Radiance_"$RADVERSION"_Linux.zip;
+    WORKDIR /build
+    RUN unzip Radiance_*_Linux.zip
+    RUN tar -xzf radiance-*-Linux.tar.gz
+    WORKDIR /radiance
+    RUN rm -rf bin lib man
+    RUN mv /build/radiance-*-Linux/usr/local/radiance/* ./
+    RUN rm -rf /build
+
+    ENV RAYPATH=.:/radiance/lib
+    ENV MANPATH=/radiance/man
+    ENV PATH=/radiance/bin:$PATH
+    RUN raytraverse --help
+
+   and this command::
+
+    docker build - --tag raytraverse:latest < Dockerfile_update
+
 10. see the Docker settings for information about resource allocation to the docker container
 
 Usage

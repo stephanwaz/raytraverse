@@ -2,22 +2,31 @@
 History
 =======
 
-1.3.4
+1.3.5
 -----
+* better memory management in zonal sensorintegrator
+* plot each weight in srcsamplerpt when using detail/color
+* slight reorganization in Integrator to accommodate sensorintegrator changes
+* fixed bug in pull with -skyfilter but no -skyfill
+* allow skydata write without scene
+* change default sunrun parameter to -ab 0
+* updated installation instructions and Dockerfiles to include radiance installation
+* added adpatch for better control over default args in Rcontrib
+* 2x speedup in translate.calc_omega by checking for containment before intersection
+  left commented code for pygeos method, but it is slower without better way to
+  read in voronoi (creation with pygeos only uses small fraction of points).
+* formatting change in CLI docstrings to avoid error with latest docutils
+
+1.3.4 (2022-06-21)
+------------------
 * do not use srcview for local light sources, include atleast 1 level of clean-up
 * make sure kd tree is rebuilt when lucky squirrel
 * ambient file handling in rtrace
 * better memory management in reflection_search (still a problem?)
 * new example config with proper settings
 * with minsamp > 0 make sure from_pdf returns something so sampling can complete
-* better memory management in zonal sensorintegrator
-* plot each weight in srcsamplerpt when using detail/color
-* slight reorganization in Integrator to accommodate sensorintegrator changes
-* bug in pull with -skyfilter but no -skyfill
-* allow skydata write without scene
-* change default sunrun parameter to -ab 0
 
-1.3.3 (2022-06-21)
+1.3.3 (2022-06-07)
 ------------------
 * static light source sampler, directly samples electric lights at appropriate level,
   will use lots of extra samples with very long thin fixtures
