@@ -567,8 +567,8 @@ def simple_take(ar, *slices, axes=None):
 def calc_omega(vecs, pm):
     """calculate area"""
     # border capture any infinite edges
-    bordered = np.concatenate((vecs,
-                               pm.bbox_vertices(pm.area**.5 * 10)))
+    bordered = np.concatenate((vecs, pm.bbox_vertices(pm.area**.5 * 10)))
+
     # due to precision errors, Qhull may return fewer regions than
     # vertices, the QJ options helps this...
     vor = Voronoi(bordered[:, 0:2], qhull_options="Qbb Qc QJ")
@@ -582,10 +582,21 @@ def calc_omega(vecs, pm):
         scale = 1./cnt[inv]
     else:
         scale = 1.
+
+    # pg = pygeos.get_parts([pygeos.polygons(vor.vertices[vor.regions[i]])
+    #                        for i in vor.point_region[:len(vecs)]])
+    # border = pygeos.multipolygons([b[:, 0:2] for b in pm.borders()])
+    # # regions = pygeos.intersection(border, pg)
+    # omega = pygeos.area(pg) * scale
+    # return omega
+
     omega = np.zeros(len(vecs))
     for i in range(len(vecs)):
         region = vor.regions[vor.point_region[i]]
         p = Polygon(vor.vertices[region])
-        omega[i] = p.intersection(pm.boundary).area
+        if pm.boundary.contains(p):
+            omega[i] = p.area
+        else:
+            omega[i] = p.intersection(pm.boundary).area
     omega *= scale
     return np.asarray(omega)

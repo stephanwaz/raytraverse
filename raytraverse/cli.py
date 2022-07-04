@@ -92,8 +92,7 @@ def main(ctx, out=None, config=None, n=None,  **kwargs):
 def scene(ctx, out=None, opts=False, debug=False, version=None, **kwargs):
     """define scene files for renderer and output directory
 
-    Effects
-    ~~~~~~~
+    Effects:
         - creates outdir and outdir/scene.oct
     """
     if out is not None:
@@ -149,8 +148,7 @@ def area(ctx, static_points=None, zone=None, opts=False, debug=False,
          version=None, printdata=False, printlevel=None, **kwargs):
     """define sampling area
 
-    Effects
-    ~~~~~~~
+    Effects:
         - None
 
     """
@@ -225,8 +223,7 @@ def suns(ctx, loc=None, opts=False, debug=False, version=False, epwloc=False,
          printdata=False, printlevel=None, **kwargs):
     """define solar sampling space
 
-    Effects
-    ~~~~~~~
+    Effects:
         - None
     """
     if hasattr(loc, "shape"):
@@ -292,8 +289,7 @@ def skydata(ctx, wea=None, name="skydata", loc=None, reload=True, opts=False,
             printdata=False, printfull=False, debug=False, version=None, **kwargs):
     """define sky conditions for evaluation
 
-    Effects
-    ~~~~~~~
+    Effects:
         - Invokes scene
         - write outdir/name.npz (SkyData initialization object)
     """
@@ -339,12 +335,19 @@ def skydata(ctx, wea=None, name="skydata", loc=None, reload=True, opts=False,
 @click.option('--default-args/--no-default-args', default=True,
               help='use raytraverse defaults before -rayargs, if False, uses'
                    ' radiance defaults. defaults are: -u+ -ab 16 -av 0 0 0 '
-                   '-aa 0 -as 0 -dc 1 -dt 0 -lr -14 -ad 50*(skyres^2+1) '
-                   '-lw 0.008/(skyres^2+1) -st 0 -ss 16 -c 1. note that if this'
-                   ' is false -ad and -lw will not be automatically set')
+                   '-aa 0 -as 0 -dc 1 -dt 0 -lr -14 -ad adpatch*(skyres^2+1) '
+                   '-lw 0.008/(skyres^2+1)/adpatch -st 0 -ss 16 -c 1. note that'
+                   ' if this is false -ad and -lw will not be automatically '
+                   'set')
 @click.option("-skyres", default=15,
               help="resolution of sky patches (sqrt(patches / hemisphere))."
                    "Must match argument givein to skydata")
+@click.option("-adpatch", default=50,
+              help="prefered instead of -ad/-lw in rayargs to better coordinate"
+                   " settings of ad/lw and skypatch division, consider doubling"
+                   " this with each halving of accuracy and in cases with high"
+                   " proportion indirect contributions, such as deep spaces or"
+                   " complex fenestrations")
 @click.option('-nlev', default=5,
               help='number of directional sampling levels, yielding a final'
                    'resolution of idres^2 * 2^(nlev) samples per hemisphere')
@@ -362,8 +365,7 @@ def skyengine(ctx, accuracy=1.0, vlt=0.64, idres=32, rayargs=None,
               usedecomp=False, opts=False, debug=False, version=None, **kwargs):
     """initialize engine for skyrun
 
-    Effects
-    ~~~~~~~
+    Effects:
         - Invokes scene
         - creates outdir/scene_sky.oct
     """
@@ -406,8 +408,7 @@ def sunengine(ctx, accuracy=1.0, vlt=0.64, idres=32, rayargs=None,
               debug=False, version=None, **kwargs):
     """initialize engine for sunrun
 
-    Effects
-    ~~~~~~~
+    Effects:
         - Invokes scene
     """
     if 'scene' not in ctx.obj:
@@ -450,8 +451,7 @@ def sourceengine(ctx, srcfile=None, source="source", accuracy=1.0, vlt=1.0,
                  opts=False, debug=False, version=None, **kwargs):
     """initialize engine for sunrun
 
-    Effects
-    ~~~~~~~
+    Effects:
         - Invokes scene
     """
     if srcfile is None:
@@ -508,8 +508,7 @@ def skyrun(ctx, accuracy=1.0, nlev=3, jitter=True, overwrite=False, plotp=False,
            edgemode='constant', opts=False, debug=False, version=None):
     """run scene under sky for a set of points (defined by area)
 
-    Effects
-    ~~~~~~~
+    Effects:
         - Invokes scene
         - Invokes area (no effects)
         - Invokes skyengine
@@ -603,8 +602,7 @@ def sunrun(ctx, srcaccuracy=1.0, srcnlev=3, srcjitter=True, recover=False,
     """run scene for a set of suns (defined by suns) for a set of points
     (defined by area)
 
-    Effects
-    ~~~~~~~
+    Effects:
         - Invokes scene
         - Invokes area (no effects)
         - Invokes sunengine (no effects)
@@ -673,8 +671,7 @@ def sourcerun(ctx, accuracy=1.0, nlev=3, jitter=True, overwrite=False,
     - Do not run as part of the same call as sunrun
     - make sure rayargs are properly set in sunengine (not -ab 0)
 
-    Effects
-    ~~~~~~~
+    Effects:
         - Invokes scene
         - Invokes area (no effects)
         - Invokes sunengine (no effects)
@@ -789,7 +786,7 @@ def images(ctx, sensors=None, sdirs=None, viewangle=180., skymask=None,
            directview=False, maskfull=True, resamprad=0.0, **kwargs):
     """render images
 
-    Prequisites:
+    Prerequisites:
 
         - skyrun and sunrun must be manually invoked prior to this
 
@@ -913,7 +910,7 @@ def evaluate(ctx, sensors=None, sdirs=None, viewangle=180., skymask=None,
              maskfull=True, resamprad=0.0, **kwargs):
     """evaluate metrics
 
-    Prequisites:
+    Prequisites
 
         - skyrun and sunrun must be manually invoked prior to this
 

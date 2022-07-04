@@ -17,6 +17,13 @@ BaseSampler
     :undoc-members:
     :show-inheritance:
 
+Sensor
+------
+.. autoclass:: raytraverse.sampler.Sensor
+    :members:
+    :undoc-members:
+    :show-inheritance:
+
 ISamplerArea
 ---------------------------
 
