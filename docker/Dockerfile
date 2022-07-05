@@ -16,12 +16,8 @@ COPY raytraverse-*-py3-none-any.whl ./
 RUN pip3 install --force-reinstall --no-deps *.whl
 RUN rm *.whl
 
-RUN git clone --sparse --filter=blob:none --no-checkout https://github.com/LBNL-ETA/Radiance.git
-WORKDIR Radiance
-RUN export RADVERSION=$(git ls-remote --sort=committerdate --tags | tail -1 | sed -n -e 's/^.*\///p');\
-    cd ..;\
-    wget https://github.com/LBNL-ETA/Radiance/releases/download/"$RADVERSION"/Radiance_"$RADVERSION"_Linux.zip;
-WORKDIR /build
+RUN curl -s https://api.github.com/repos/LBNL-ETA/Radiance/releases\?per_page\=1 \
+    | grep "browser_download_url.*Linux.zip" | cut -d: -f2,3 | tr -d \" | wget -i -
 RUN unzip Radiance_*_Linux.zip
 RUN tar -xzf radiance-*-Linux.tar.gz
 WORKDIR /radiance
@@ -33,3 +29,4 @@ ENV RAYPATH=.:/radiance/lib
 ENV MANPATH=/radiance/man
 ENV PATH=/radiance/bin:$PATH
 RUN raytraverse --help
+WORKDIR /working

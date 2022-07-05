@@ -21,8 +21,8 @@ raytraverse (1.3.4)
 .. image:: https://zenodo.org/badge/doi/10.5281/zenodo.4091318.svg
    :target: https://zenodo.org/badge/latestdoi/296295567
 
-raytraverse is a complete workflow for climate based daylight modelling,
-simulation, and evaluation of architectural spaces. Built around a wavelet
+raytraverse is a workflow for climate based daylight simulation for the
+evaluation of architectural spaces. Built around a wavelet
 guided adaptive sampling strategy, raytraverse can fully explore the daylight
 conditions throughout a space with efficient use of processing power and
 storage space.
@@ -45,11 +45,12 @@ or if you have cloned this repository::
 
 while raytraverse installs with the necessary essentials of radiance, it is
 recommended to also install radiance (see: https://github.com/LBNL-ETA/Radiance/releases
- and make sure you also set the $RAYPATH variable)
-this is especially important if your material or light source definitions rely
-on .cal files distributed with radiance, such as perezlum.cal, window.cal, etc.
-Missing .cal files or other scene errors can cause raytraverse traverse to abort
-with cryptic eror messages::
+and make sure you or the installer also sets the $RAYPATH variable) this is
+especially important if your material or light source definitions rely on .cal
+files distributed with radiance, such as perezlum.cal, window.cal, etc.
+Missing .cal files or other scene errors can cause raytraverse traverse to
+abort with cryptic eror messages (the number value is not meaningful and will be
+different every time)::
 
     python: : Unknown error -1624667552
 
@@ -80,12 +81,8 @@ installation, this process will require about 2.5 GB of disk space.
 
     SHELL ["/bin/bash", "-c"]
     RUN pip3 install raytraverse
-    RUN git clone --sparse --filter=blob:none --no-checkout https://github.com/LBNL-ETA/Radiance.git
-    WORKDIR Radiance
-    RUN export RADVERSION=$(git ls-remote --sort=committerdate --tags | tail -1 | sed -n -e 's/^.*\///p');\
-        cd ..;\
-        wget https://github.com/LBNL-ETA/Radiance/releases/download/"$RADVERSION"/Radiance_"$RADVERSION"_Linux.zip;
-    WORKDIR /build
+    RUN curl -s https://api.github.com/repos/LBNL-ETA/Radiance/releases\?per_page\=1 \
+    | grep "browser_download_url.*Linux.zip" | cut -d: -f2,3 | tr -d \" | wget -i -
     RUN unzip Radiance_*_Linux.zip
     RUN tar -xzf radiance-*-Linux.tar.gz
     WORKDIR /radiance
@@ -97,6 +94,7 @@ installation, this process will require about 2.5 GB of disk space.
     ENV MANPATH=/radiance/man
     ENV PATH=/radiance/bin:$PATH
     RUN raytraverse --help
+    WORKDIR /working
 
 4. in a command prompt navigate to this folder and run the following to create
    a docker image with raytraverse and radiance installed::
@@ -110,7 +108,7 @@ installation, this process will require about 2.5 GB of disk space.
 
 	docker run -it --name rayt --mount type=bind,source="$(pwd)",target=/working raytraverse /bin/bash
 
-7. You now have a linux/bash command prompt in an environment with raytraverse
+7. You now have a linux/bash command prompt in an environment with raytraverse, radiance, and python 3.9
    installed. The currrent directory will be named "working" within the linux environment
    and is a shared resource with the host (changes on the host side are immediately seen in the container and vice
    versa). When you are finished, exit the linux shell ("exit"), then in the (now) windows command prompt::
@@ -136,12 +134,8 @@ installation, this process will require about 2.5 GB of disk space.
     RUN pip3 install --upgrade --no-deps craytraverse
     RUN pip3 install --upgrade --no-deps clasp
     RUN pip3 install --upgrade --no-deps raytraverse
-    RUN git clone --sparse --filter=blob:none --no-checkout https://github.com/LBNL-ETA/Radiance.git
-    WORKDIR Radiance
-    RUN export RADVERSION=$(git ls-remote --sort=committerdate --tags | tail -1 | sed -n -e 's/^.*\///p');\
-        cd ..;\
-        wget https://github.com/LBNL-ETA/Radiance/releases/download/"$RADVERSION"/Radiance_"$RADVERSION"_Linux.zip;
-    WORKDIR /build
+    RUN curl -s https://api.github.com/repos/LBNL-ETA/Radiance/releases\?per_page\=1 \
+    | grep "browser_download_url.*Linux.zip" | cut -d: -f2,3 | tr -d \" | wget -i -
     RUN unzip Radiance_*_Linux.zip
     RUN tar -xzf radiance-*-Linux.tar.gz
     WORKDIR /radiance
@@ -153,12 +147,13 @@ installation, this process will require about 2.5 GB of disk space.
     ENV MANPATH=/radiance/man
     ENV PATH=/radiance/bin:$PATH
     RUN raytraverse --help
+    WORKDIR /working
 
    and this command::
 
     docker build - --tag raytraverse:latest < Dockerfile_update
 
-10. see the Docker settings for information about resource allocation to the docker container
+10. see the Docker settings for information about resource allocation to the docker container.
 
 Usage
 -----
