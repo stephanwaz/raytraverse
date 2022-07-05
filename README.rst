@@ -68,8 +68,7 @@ installation, this process will require about 2.5 GB of disk space.
 1. Install Docker from: https://www.docker.com/products/docker-desktop/
    (click on "Windows") and then follow the installation instructions.
 2. Open the newly installed Docker Desktop application (you do not need to sign in or create an account)
-3. save this docker file: :download:`Dockerfile_first <_static/Dockerfile_first>`
-   into an empty folder on your computer. File contents::
+3. In an empty diirectory make a file called Dockerfile_first with the following contents::
 
     # syntax=docker/dockerfile:1
     # docker build -f Dockerfile_first . --tag raytraverse:latest
@@ -121,37 +120,37 @@ installation, this process will require about 2.5 GB of disk space.
 	docker run -it --name rayt --mount type=bind,source="$(pwd)",target=/working raytraverse /bin/bash
 	docker rm rayt
 
-9. to update raytraverse, the process is similar to step 4, but with this docker file:
-   :download:`Dockerfile_update <_static/Dockerfile_update>`::
+9. to update raytraverse, the process is similar to step 4, 
+   but with a slightly different dockerfile::
 
-    # syntax=docker/dockerfile:1
-    # docker build -f Dockerfile_update . --tag raytraverse:latest
-    FROM raytraverse:latest
-
-    WORKDIR /build
-
-    SHELL ["/bin/bash", "-c"]
-    RUN pip3 install --upgrade --no-deps craytraverse
-    RUN pip3 install --upgrade --no-deps clasp
-    RUN pip3 install --upgrade --no-deps raytraverse
-    RUN curl -s https://api.github.com/repos/LBNL-ETA/Radiance/releases\?per_page\=1 \
-    | grep "browser_download_url.*Linux.zip" | cut -d: -f2,3 | tr -d \" | wget -i -
-    RUN unzip Radiance_*_Linux.zip
-    RUN tar -xzf radiance-*-Linux.tar.gz
-    WORKDIR /radiance
-    RUN rm -rf bin lib man
-    RUN mv /build/radiance-*-Linux/usr/local/radiance/* ./
-    RUN rm -rf /build
-
-    ENV RAYPATH=.:/radiance/lib
-    ENV MANPATH=/radiance/man
-    ENV PATH=/radiance/bin:$PATH
-    RUN raytraverse --help
-    WORKDIR /working
+	# syntax=docker/dockerfile:1
+	# docker build -f Dockerfile_update . --tag raytraverse:latest
+	FROM raytraverse:latest
+	
+	WORKDIR /build
+	
+	SHELL ["/bin/bash", "-c"]
+	RUN pip3 install --upgrade --no-deps craytraverse
+	RUN pip3 install --upgrade --no-deps clasp
+	RUN pip3 install --upgrade --no-deps raytraverse
+	RUN curl -s https://api.github.com/repos/LBNL-ETA/Radiance/releases\?per_page\=1 \
+	| grep "browser_download_url.*Linux.zip" | cut -d: -f2,3 | tr -d \" | wget -i -
+	RUN unzip Radiance_*_Linux.zip
+	RUN tar -xzf radiance-*-Linux.tar.gz
+	WORKDIR /radiance
+	RUN rm -rf bin lib man
+	RUN mv /build/radiance-*-Linux/usr/local/radiance/* ./
+	RUN rm -rf /build
+	
+	ENV RAYPATH=.:/radiance/lib
+	ENV MANPATH=/radiance/man
+	ENV PATH=/radiance/bin:$PATH
+	RUN raytraverse --help
+	WORKDIR /working
 
    and this command::
 
-    docker build - --tag raytraverse:latest < Dockerfile_update
+	docker build - --tag raytraverse:latest < Dockerfile_update
 
 10. see the Docker settings for information about resource allocation to the docker container.
 

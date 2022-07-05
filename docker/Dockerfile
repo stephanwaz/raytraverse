@@ -1,6 +1,6 @@
 # syntax=docker/dockerfile:1
 
-# docker build . --tag raytraverse:latest --tag raytraverse:v1.3.4
+# docker build . --tag raytraverse:latest --tag raytraverse:v1.3.5
 # docker run -it --name rayt --mount type=bind,source="$(pwd)",target=/working raytraverse /bin/bash
 # docker rm rayt
 
