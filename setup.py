@@ -58,6 +58,6 @@ setup(
     test_suite='tests',
     tests_require=test_requirements,
     url='https://github.com/stephanwaz/raytraverse',
-    version='1.3.4',
+    version='1.3.5',
     zip_safe=False,
     )
