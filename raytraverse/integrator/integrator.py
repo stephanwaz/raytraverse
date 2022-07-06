@@ -450,7 +450,7 @@ class Integrator(object):
                 elif di == "pt_idx":
                     try:
                         ptidx = lp.data.idx[idx, 1]
-                    except IndexError:
+                    except (IndexError, AttributeError):
                         ptidx = idx
                     sinfo.append(ptidx)
                     dinfo2.append(f"{lp.src}_{di}")

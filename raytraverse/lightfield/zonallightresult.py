@@ -7,6 +7,7 @@
 # =======================================================================
 import numpy as np
 from raytraverse import io
+from raytraverse.utility import pool_call
 from scipy.spatial import cKDTree
 
 from raytraverse.lightfield.lightresult import LightResult, ResultAxis
@@ -168,24 +169,47 @@ class ZonalLightResult(LightResult):
 
     def pull2hdr(self, imgzone, basename, showsample=False, **kwargs):
         pm = PlanMapper(imgzone)
-        zimg, vecs, mask, mask2, header = pm.init_img(480)
         if "metric" in kwargs and kwargs["metric"] is not None:
             kwargs["metric"] = np.unique(np.concatenate(([0, 1, 2], kwargs["metric"])))
         rt, labels, names = self.pull("metric", preserve=2, **kwargs)
         flabels0 = self.fmt_names(names[-1], labels[-1])
         flabels1 = self.fmt_names(names[-2], labels[-2][3:])
-        for i, la0 in enumerate(flabels0):
-            data = rt[i]
-            kd = cKDTree(data[:, 0:3])
-            data = data[:, 3:]
-            err, idx = kd.query(vecs[mask])
-            for k, (la, d) in enumerate(zip(flabels1, data.T)):
-                img = np.copy(zimg)
-                img[mask] = d[idx]
-                if showsample:
-                    if len(img.shape) < 3:
-                        img = np.repeat(img[None, ...], 3, 0)
-                    img = pm.add_vecs_to_img(img, kd.data)
-                    io.carray2hdr(img, f"{basename}_{la}_{la0}.hdr", [header])
-                else:
-                    io.array2hdr(img, f"{basename}_{la}_{la0}.hdr", [header])
+        pool_call(_pull2hdr, list(zip(rt, flabels0)), flabels1, pm, basename,
+                  showsample=showsample)
+
+    pull2planhdr = pull2hdr
+
+    def rebase(self, points):
+        paxis = ResultAxis(points, "point")
+        omet = self.axis("metric").values
+        mf = [i for i, v in enumerate(omet) if v not in
+              ('x', 'y', 'z', 'area')]
+        maxis = ResultAxis([omet[i] for i in mf] + ["rebase_err"], "metric")
+        odata = pool_call(_pull2grid, self.data, points, mf, expandarg=False)
+        lr = LightResult(np.stack(odata), self.axes[0], paxis, self.axes[2], maxis)
+        return lr
+
+
+def _pull2grid(data, points, mf):
+    kd = cKDTree(data[:, 0, 0:3])
+    err, idx = kd.query(points)
+    odata = data[idx][..., mf]
+    oerr = np.broadcast_to(err[:, None, None], (*odata.shape[:-1], 1))
+    return np.concatenate((odata, oerr), axis=-1)
+
+
+def _pull2hdr(data, la0, flabels1, pm, basename, showsample=False):
+    zimg, vecs, mask, mask2, header = pm.init_img(480)
+    kd = cKDTree(data[:, 0:3])
+    data = data[:, 3:]
+    err, idx = kd.query(vecs[mask])
+    for k, (la, d) in enumerate(zip(flabels1, data.T)):
+        img = np.copy(zimg)
+        img[mask] = d[idx]
+        if showsample:
+            if len(img.shape) < 3:
+                img = np.repeat(img[None, ...], 3, 0)
+            img = pm.add_vecs_to_img(img, kd.data)
+            io.carray2hdr(img, f"{basename}_{la}_{la0}.hdr", [header])
+        else:
+            io.array2hdr(img, f"{basename}_{la}_{la0}.hdr", [header])

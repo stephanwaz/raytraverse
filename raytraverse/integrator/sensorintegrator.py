@@ -6,6 +6,7 @@
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 # =======================================================================
 import numpy as np
+from raytraverse import translate
 
 from raytraverse.lightfield import ZonalLightResult, ResultAxis, LightResult
 from raytraverse.integrator.integrator import Integrator
@@ -29,9 +30,12 @@ class SensorIntegrator(Integrator):
         values, for each light plane to scale contribution of eeach light plane
         for example, provide (1, -1, 1) for ptype: ("skysun", "patch", "sun")
         for 2-phase DDS calculation. If not give, all are set to 1
+    scale: float, optional
+        default output in lux (179)
     """
 
-    def __init__(self, *lightplanes, ptype=None, factors=None, **kwargs):
+    def __init__(self, *lightplanes, ptype=None, factors=None, scale=179.,
+                 **kwargs):
         # argument checking
         if ptype is None:
             raise ValueError("ptype is required to initialize SensorIntegrator")
@@ -52,7 +56,7 @@ class SensorIntegrator(Integrator):
         kwargs.update(sunviewengine=None)
         # set sensor specific args
         self.sensors = lightplanes[0].sensors
-        self.factors = factors
+        self.factors = [f * scale for f in factors]
         self.ptype = ptype
         super().__init__(*lightplanes, **kwargs)
 
@@ -100,26 +104,28 @@ class SensorIntegrator(Integrator):
             apoints = points
 
         sensors = self.sensors
-
         tidxs, skydatas, vecs = self._group_query(skydata, points)
         oshape = (len(skydata.maskindices), len(points), len(sensors), 1)
         self.scene.log(self, f"Evaluating {oshape[2]} sensors at {oshape[1]} "
                              f"points under {oshape[0]} skies", True)
 
         fields = None
+        sidx = []
         for lp, sd, ti in zip(self.lightplanes, skydatas, tidxs):
             if len(ti) == len(points):
                 data = np.einsum("hs,pnsf->hpnf", sd, lp.data[ti])
+                sidx.append(np.broadcast_to(ti[None], (len(sd), len(points))).ravel())
             else:
                 d = lp.data[ti].reshape(*oshape[0:3], sd.shape[1], oshape[3])
                 data = np.einsum("hs,hpnsf->hpnf", sd, d)
+                sidx.append(ti)
             if fields is None:
                 fields = data
             else:
                 fields += data
         fields = fields.reshape(oshape)
 
-        sinfo, dinfo = self._sinfo(datainfo, vecs, tidxs, oshape[0:2])
+        sinfo, dinfo = self._sinfo(datainfo, vecs, sidx, oshape[0:2])
         if sinfo is not None:
             nshape = list(sinfo.shape)
             nshape[2] = fields.shape[2]
@@ -156,7 +162,6 @@ class SensorIntegrator(Integrator):
         (sunmask, suns, pts, sundata,
          skarea) = self._zonal_group_query(skydata, pm, stol=stol,
                                            minsun=minsun, calcarea=calcarea)
-
         cnts = np.full(len(sunmask), len(pts))
         cnts[sunmask] = [len(s) for s in sundata[0]]
         tcnt = np.sum(cnts)
@@ -219,13 +224,40 @@ class SensorIntegrator(Integrator):
     def _evaluate_chunk(self, dsmtx, sunmask, suns, pts, sundata, skarea):
         result = self._unmask_data(dsmtx, sunmask, suns, pts, sundata, skarea)
         smtx, dsns, all_vecs, sunidx, serr, areas, cnts = result
-
         tidxs, skydatas = self._match_ragged(smtx, dsns, sunidx, all_vecs)
 
         fields = np.zeros((len(tidxs[0]), len(self.sensors), 1))
         for lp, sd, ti in zip(self.lightplanes, skydatas, tidxs):
             fields += np.einsum("ps,pnsf->pnf", sd, lp.data[ti])
         return fields, serr, tidxs, areas, all_vecs
+
+    def _match_ragged(self, smtx, dsns, sunidx, all_vecs):
+        tidxs = []
+        skydatas = []
+        if "patch" in self.ptype or "skysun" in self.ptype:
+            skpatch = translate.xyz2skybin(dsns[:, 0:3],
+                                           int((smtx.shape[1] - 1)**.5))
+            dsk = np.zeros(smtx.shape)
+            dsk[np.arange(len(dsk)), skpatch] = dsns[:, 4]
+        else:
+            dsk = None
+        for p, f, lp in zip(self.ptype, self.factors, self.lightplanes):
+            if p == "sky":
+                skydatas.append(smtx * f)
+                tidxs.append(lp.query(all_vecs[:, 3:])[0])
+            elif p == "patch":
+                skydatas.append(dsk * f)
+                tidxs.append(lp.query(all_vecs[:, 3:])[0])
+            elif p == "sun":
+                skydatas.append(dsns[:, 3:4] * f)
+                tidxs.append(sunidx)
+            elif p == "skysun":
+                skydatas.append((smtx + dsk) * f)
+                tidxs.append(lp.query(all_vecs[:, 3:])[0])
+            else:
+                skydatas.append(np.full((len(dsns), 1), f))
+        tidxs = np.stack(tidxs)
+        return tidxs, skydatas
 
     def _group_query(self, skydata, points):
         """for sensor integration broadcasting happens in the summation, so

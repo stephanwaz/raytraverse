@@ -247,6 +247,7 @@ def _query_by_sun(sunvec, sunkd, svecs, sidx, fixed_points=None,
     ckd = cKDTree(cpts)
     # reassign original vectors based on penalized query
     d, i = ckd.query(vecs[:, 3:])
-
+    # eliminate unused vectors
+    i = np.unique(i)
     d = chord2theta(sund[i]) * 180/np.pi
     return vecs[i], idx[i], d

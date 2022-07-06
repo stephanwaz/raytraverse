@@ -2,8 +2,18 @@
 History
 =======
 
-1.3.5
+1.3.6
 -----
+* add scale to sensor integrator forr proper unit conversion (lux by default)
+* parallel processing in zonallightresult.pull2hdr
+* add lightresult.pull2planhdr to match signature of zonallightresult
+* zonallightresult.rebase to make standard lightresult from zonal
+* fixed bug in sunsplanekd.query_by_sun that returned all points, not just best matches
+* added index() function to resultaxis
+* bug fixes in sensorintegrator, needed additional function overrides and index broadcasting
+
+1.3.5 (2022-07-05)
+------------------
 * better memory management in zonal sensorintegrator
 * plot each weight in srcsamplerpt when using detail/color
 * slight reorganization in Integrator to accommodate sensorintegrator changes

@@ -35,6 +35,9 @@ class ResultAxis(object):
         else:
             return np.asarray([(i, ) for i in self.values])
 
+    def index(self, i):
+        return np.squeeze(np.where(self.values == i))
+
     @property
     def cols(self):
         return self._cols
@@ -357,6 +360,16 @@ class LightResult(object):
                 do = np.repeat(np.repeat(do, psize[1], 1), psize[0], 0)
                 io.array2hdr(do[-1::-1], f"{basename}_{la}_"
                                          f"{la0}.hdr")
+
+    def pull2planhdr(self, imgzone, basename, showsample=False, **kwargs):
+        pm = PlanMapper(imgzone)
+        if "metric" in kwargs and kwargs["metric"] is not None:
+            kwargs["metric"] = np.unique(
+                np.concatenate(([0, 1, 2], kwargs["metric"])))
+        rt, labels, names = self.pull("metric", preserve=2, **kwargs)
+        flabels0 = self.fmt_names(names[-1], labels[-1])
+        flabels1 = self.fmt_names(names[-2], labels[-2])
+        return self._pull2hdr_kdplan(pm, basename, rt, flabels0, flabels1)
 
     def pull2hdr(self, col, basename, skyfill=None, spd=24, pm=None, **kwargs):
         rt, labels, names = self.pull(*col, preserve=2, **kwargs)
