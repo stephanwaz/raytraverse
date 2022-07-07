@@ -164,7 +164,7 @@ class LightResult(object):
             fill with default object order.
         preserve: int, optional
             number of dimensions to preserve (result will be N+1).
-        kwargs: dict, optional
+        kwargs:
             keys with axis names will be used to filter output.
 
         Returns

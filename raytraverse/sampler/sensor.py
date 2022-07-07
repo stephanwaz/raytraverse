@@ -33,6 +33,7 @@ class Sensor(object):
         array like shape (N, 3) offsets from sample position to include
         (for example mulitple z-heights)
     sunview: bool, optional
+        NOT IMPLEMENTED
         if True, dirs are treated as candidate reflection normals, a value
         of (0, 0, 0) is prepended to hold the direct view.
     """
@@ -43,8 +44,8 @@ class Sensor(object):
         self.sunview = sunview
         self.engine = engine
         self.dirs = translate.norm(np.atleast_2d(dirs))
-        if sunview:
-            self.dirs = np.concatenate((((0, 0, 0),), self.dirs))
+        # if sunview:
+        #     self.dirs = np.concatenate((((0, 0, 0),), self.dirs))
         self.offsets = np.atleast_2d(offsets)
         d, o = np.broadcast_arrays(self.dirs[None], self.offsets[:, None])
         self.sensors = np.hstack((o.reshape(-1, 3), d.reshape(-1, 3)))

@@ -164,10 +164,18 @@ def shared_pull(ctx, lr=None, col=("metric",), ofiles=None, ptfilter=None,
 
     if ofiles is None:
         result.print(col, skyfill=skydata, **pargs, **filters)
-    else:
+    elif "zone" in result.names:
         if "zone" in result.names and imgzone is not None:
             result.pull2hdr(imgzone, ofiles, **filters)
         elif gridhdr:
+            click.echo("could not make HDR without -imgzone", err=True)
+            raise click.Abort
+        else:
+            result.print_serial(col, ofiles, skyfill=skydata, **pargs,
+                                **filters)
+    else:
+
+        if gridhdr:
             if imgzone is not None:
                 imgzone = PlanMapper(imgzone)
             result.pull2hdr(col, ofiles, skyfill=skydata, spd=spd, pm=imgzone, **filters)
