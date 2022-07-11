@@ -7,6 +7,8 @@
 # =======================================================================
 
 """Console script for raytraverse utilities."""
+import re
+
 import numpy as np
 
 from clasp import click
@@ -14,13 +16,12 @@ import clasp.click_ext as clk
 
 import raytraverse
 from raytraverse import translate, api
-from raytraverse.lightfield import ResultAxis
+from raytraverse.lightfield import ResultAxis, ZonalLightResult
 from raytraverse.lightfield import LightResult
 from raytraverse.sky import SkyData, skycalc
 from raytraverse.utility import pool_call, imagetools
-from raytraverse.utility.cli import np_load, shared_pull, pull_decs, \
-    np_load_safe
-from raytraverse.scene import ImageScene
+from raytraverse.utility.cli import np_load, shared_pull, pull_decs
+from raytraverse.utility.cli import np_load_safe
 
 
 @click.group(chain=True, invoke_without_command=True)
@@ -235,6 +236,7 @@ def _dview(x):
     lpt.direct_view(res=800)
     return lpt.lum.shape[0]
 
+
 @main.command()
 @click.option('-lp', callback=clk.are_files, required=True,
               help="path to lightpoint(s)")
@@ -246,11 +248,47 @@ def lp2img(ctx, lp=None, **kwargs):
     for r, l in zip(rays, lp):
         click.echo(f"{l} \t {r}")
 
+
 @main.command()
 @clk.shared_decs(pull_decs)
 @clk.shared_decs(clk.command_decs(raytraverse.__version__, wrap=True))
 def pull(*args, **kwargs):
     return shared_pull(*args, **kwargs)
+
+
+@main.command()
+@click.option('-out', default="merged",
+              help="output file to write, will change/append .npz extension")
+@click.option('-lr', callback=clk.are_files, required=True,
+              help="lightresults to merge, must match along all axes except"
+                   " 'axis")
+@click.option('-axis', default='sky',
+              help="axis along which to merge. in case of duplicate values, output"
+                   " uses first occurence from order of -lr, otherwise axes order"
+                   " is not changed")
+@clk.shared_decs(clk.command_decs(raytraverse.__version__, wrap=True))
+def merge(ctx, out="merged", lr=None, axis='sky', **kwargs):
+    if re.match(r'.+\.[\w\s]+$', out):
+        out = out.rsplit(".", 1)[0] + ".npz"
+    else:
+        out += ".npz"
+    if lr is None:
+        lr = []
+    if len(lr) < 2:
+        click.echo("merge requires atleast two light results", err=True)
+        raise click.Abort
+    try:
+        lr0 = LightResult(lr[0])
+    except KeyError:
+        lr0 = ZonalLightResult(lr[0])
+    try:
+        mlr = [type(lr0)(i) for i in lr[1:]]
+    except (KeyError, ValueError):
+        click.echo("-lr cannot mix LightResult and ZonalLightResult"
+                   " check with raytraverse/raytu pull --info", err=True)
+        raise click.Abort
+    result = lr0.merge(*mlr, axis=axis)
+    result.write(out)
 
 
 @main.command()

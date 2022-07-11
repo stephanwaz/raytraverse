@@ -147,6 +147,51 @@ class LightResult(object):
         else:
             self._file = file
 
+    def _merge_axes(self, *lrs, axis="sky"):
+        if axis not in self.names:
+            raise ValueError(f"axis {axis} is not in {type(self)}")
+        outaxes = []
+        filters = []
+        for name in self.names:
+            if name == axis:
+                values = self.axis(axis).values
+                for lr in lrs:
+                    ov = lr.axis(axis).values
+                    filt = np.logical_not(np.isin(ov, values))
+                    values = np.concatenate([values, ov[filt]])
+                    filters.append(filt)
+                outaxes.append(ResultAxis(values, self.axis(axis).name))
+            else:
+                outaxes.append(self.axis(name))
+                ca = self.axis(name).values
+                for other in lrs:
+                    ct = other.axis(name).values
+                    mismatch = ValueError(f"axis {name} of {other} "
+                                          f"does not match {self}")
+                    if ca.shape != ct.shape:
+                        raise mismatch
+                    try:
+                        match = np.allclose(ca, ct)
+                    except TypeError:
+                        match = np.all([a == b for a, b in zip(ca, ct)])
+                    if not match:
+                        raise mismatch
+        return outaxes, filters
+
+    def merge(self, *lrs, axis="sky"):
+        """create merged lightresult from lightresults, must match on all axes
+         except axis. does not sort but culls duplicates"""
+        outaxes, filters = self._merge_axes(*lrs, axis=axis)
+        oi = self._index(axis)
+        data = self.data
+        for lr, f, in zip(lrs, filters):
+            if np.all(f):
+                od = lr.data
+            else:
+                od = np.compress(f, lr.data, axis=oi)
+            data = np.concatenate([data, od], axis=oi)
+        return LightResult(data, *outaxes)
+
     def pull(self, *axes, preserve=1, **kwargs):
         """arrange and extract data slices from result.
 
@@ -415,8 +460,8 @@ class LightResult(object):
         ns = self.names
         sh = self.data.shape
         axs = self.axes
-        infostr = [f"LightResult {self.file}:",
-                   f"LightResult has {len(ns)} axes: {ns}"]
+        infostr = [f"{type(self).__name__} {self.file}:",
+                   f"Has {len(ns)} axes: {ns}"]
         for n, s, a in zip(ns, sh, axs):
             infostr.append(f"  Axis '{n}' has length {s}:")
             v = a.values

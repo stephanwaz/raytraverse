@@ -5,7 +5,9 @@
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 # =======================================================================
+import os
 import sys
+import tempfile
 
 import numpy as np
 
@@ -191,41 +193,73 @@ class Integrator(object):
             points, skarea = self._get_fixed_points(self.lightplanes[0].pm)
         else:
             points = np.atleast_2d(points)
+        esize = len(skydata.maskindices) * len(points)
+        emax = 10000
+        if esize > emax:
+            fd, rbase = tempfile.mkstemp(dir=f"./", prefix='tmp_eval')
+            rbase = rbase.rsplit("/", 1)[-1]
+            with os.fdopen(fd) as f:
+                pass
+            os.remove(rbase)
+            d = np.linspace(0, len(skydata.maskindices),
+                            int(esize/emax) + 2).astype(int)
+            self.scene.log(self, f"breaking evaluation into {len(d)} chunks,"
+                                 f" writing temporary results to {rbase}_XX.npz"
+                           , True)
+            slices = [slice(d[i], d[i + 1], 1) for i in range(len(d) - 1)]
+            omask = np.copy(skydata.mask)
+            for i, slc in enumerate(slices):
+                self.scene.log(self, f"evaluating part {i+1} of {len(d)}", True)
+                skydata.mask = skydata.maskindices[slc]
+                lr = self.evaluate(skydata, points, vm, viewangle=viewangle,
+                                   metricclass=metricclass, metrics=metrics,
+                                   datainfo=datainfo, srconly=srconly,
+                                   suntol=suntol, blursun=blursun,
+                                   coercesumsafe=coercesumsafe, stol=stol,
+                                   minsun=minsun, **kwargs)
+                skydata.mask = omask
+                lr.write(f"{rbase}_{i:02d}.npz")
+            idx = np.arange(len(slices))
+            lrs = [LightResult(f"{rbase}_{i:02d}.npz") for i in idx]
+            lr = lrs[0].merge(*lrs[1:])
+            [os.remove(f"{rbase}_{i:02d}.npz") for i in idx]
+        else:
+            (vm, vms, cmetrics, ometrics,
+             sumsafe, needs_post) = self._check_params(vm, viewangle, metrics,
+                                                       metricclass,
+                                                       coercesumsafe)
+            tidxs, skydatas, dsns, vecs = self._group_query(skydata, points)
+            oshape = (len(skydata.maskindices), len(points), len(vms),
+                      len(cmetrics))
 
-        (vm, vms, cmetrics, ometrics,
-         sumsafe, needs_post) = self._check_params(vm, viewangle, metrics,
-                                                   metricclass, coercesumsafe)
-        tidxs, skydatas, dsns, vecs = self._group_query(skydata, points)
-        oshape = (len(skydata.maskindices), len(points), len(vms), len(cmetrics))
-
-        self.scene.log(self, f"Evaluating {len(ometrics)} metrics for "
-                             f"{oshape[2]} view directions at {oshape[1]} "
-                             f"points under {oshape[0]} skies", True)
-        fields, isort = self._process_mgr(tidxs, skydatas, dsns,
-                                          self.evaluate_pt,
-                                          message="Evaluating Points",
-                                          srconly=srconly, sumsafe=sumsafe,
-                                          metricclass=metricclass,
-                                          metrics=cmetrics, vm=vm, vms=vms,
-                                          suntol=suntol, blursun=blursun,
-                                          **kwargs)
-        # sort back to original order and reshape
-        fields = np.concatenate(fields, axis=0)[isort].reshape(oshape)
-        if needs_post:
-            fields = self._post_process_metrics(fields, ometrics, cmetrics,
-                                                **kwargs)
-        sinfo, dinfo = self._sinfo(datainfo, vecs, tidxs, oshape[0:2])
-        if sinfo is not None:
-            nshape = list(sinfo.shape)
-            nshape[2] = fields.shape[2]
-            sinfo = np.broadcast_to(sinfo, nshape)
-            fields = np.concatenate((fields, sinfo), axis=-1)
-        # compose axes: (skyaxis, ptaxis, viewaxis, metricaxis)
-        axes = (ResultAxis(skydata.rowlabel[skydata.fullmask], f"sky"),
-                ResultAxis(points, "point"),
-                ResultAxis([v.dxyz for v in vms], "view"),
-                ResultAxis(list(ometrics) + dinfo, "metric"))
-        lr = LightResult(fields, *axes)
+            self.scene.log(self, f"Evaluating {len(ometrics)} metrics for "
+                                 f"{oshape[2]} view directions at {oshape[1]} "
+                                 f"points under {oshape[0]} skies", True)
+            fields, isort = self._process_mgr(tidxs, skydatas, dsns,
+                                              self.evaluate_pt,
+                                              message="Evaluating Points",
+                                              srconly=srconly, sumsafe=sumsafe,
+                                              metricclass=metricclass,
+                                              metrics=cmetrics, vm=vm, vms=vms,
+                                              suntol=suntol, blursun=blursun,
+                                              **kwargs)
+            # sort back to original order and reshape
+            fields = np.concatenate(fields, axis=0)[isort].reshape(oshape)
+            if needs_post:
+                fields = self._post_process_metrics(fields, ometrics, cmetrics,
+                                                    **kwargs)
+            sinfo, dinfo = self._sinfo(datainfo, vecs, tidxs, oshape[0:2])
+            if sinfo is not None:
+                nshape = list(sinfo.shape)
+                nshape[2] = fields.shape[2]
+                sinfo = np.broadcast_to(sinfo, nshape)
+                fields = np.concatenate((fields, sinfo), axis=-1)
+            # compose axes: (skyaxis, ptaxis, viewaxis, metricaxis)
+            axes = (ResultAxis(skydata.rowlabel[skydata.fullmask], f"sky"),
+                    ResultAxis(points, "point"),
+                    ResultAxis([v.dxyz for v in vms], "view"),
+                    ResultAxis(list(ometrics) + dinfo, "metric"))
+            lr = LightResult(fields, *axes)
         return lr
 
     def zonal_evaluate(self, skydata, pm, vm, viewangle=180.,
@@ -300,7 +334,7 @@ class Integrator(object):
         fvecs = np.broadcast_to(all_vecs[:, None, 3:], oshape + (3,))
         fields = np.concatenate((fvecs, areas, fields), axis=-1)
         fields = np.split(fields, strides)
-        return ZonalLightResult(fields, *axes, pointmetrics=pmetrics)
+        return ZonalLightResult(fields, *axes)
 
     @staticmethod
     def _post_process_metrics(fields, ometrics, cmetrics, **kwargs):
@@ -577,21 +611,18 @@ class Integrator(object):
 
         qtup, qidx, tup_isort = self._sort_run_data(tidxs)
 
-        d = np.linspace(0, len(qtup), max(2, int(len(qtup)/250))).astype(int)
-        slices = [slice(d[i], d[i + 1], 1) for i in range(len(d) - 1)]
         self.scene.log(self, f"Calculating {len(qidx)} sun/sky/pt combinations",
                        True)
         if self._sunviewengine is not None:
             eval_kwargs.update(svengine=self._sunviewengine)
-        fields = []
-        for i, slc in enumerate(slices):
-            lptis = []
-            for qi, qt in zip(qidx[slc], qtup[slc]):
-                lptis.append(([(lp.data, tidx[qi]) for lp, tidx
-                               in zip(self.lightplanes, tidxs)], qt))
-            desc = f"{message} ({i+1:02d} of {len(slices):02d})"
-            fields += pool_call(_load_pts, lptis, eval_fn, tidxs.T, mask_kwargs,
-                                skydatas, dsns, desc=desc, pbar=self.scene.dolog, **eval_kwargs)
+
+        lptis = []
+        for qi, qt in zip(qidx, qtup):
+            lptis.append(([(lp.data, tidx[qi]) for lp, tidx
+                           in zip(self.lightplanes, tidxs)], qt))
+        fields = pool_call(_load_pts, lptis, eval_fn, tidxs.T, mask_kwargs,
+                           skydatas, dsns, desc=message, pbar=self.scene.dolog,
+                           **eval_kwargs)
         return fields, tup_isort
 
 

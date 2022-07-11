@@ -59,10 +59,7 @@ class ZonalLightResult(LightResult):
 
     """
 
-    def __init__(self, data, *axes, pointmetrics=None):
-        self.pointmetrics = pointmetrics
-        if pointmetrics is None:
-            self.pointmetrics = []
+    def __init__(self, data, *axes):
         super().__init__(data, *axes)
         namee = ["sky", "zone", "view", "metric"]
         if (len(namee) != len(self.names) or
@@ -81,14 +78,13 @@ class ZonalLightResult(LightResult):
     def load(self, file):
         with np.load(file) as result:
             names = result['names']
-            self.pointmetrics = result['pointmetrics']
             axes = tuple([ResultAxis(result[f"arr_{i}"], n)
                           for i, n in enumerate(names)])
             data = [result[f"data_{i}"] for i in range(len(axes[0].values))]
         return data, axes
 
     def write(self, file, compressed=True):
-        kws = dict(names=self.names, pointmetrics=self.pointmetrics)
+        kws = dict(names=self.names)
         for i in range(len(self.data)):
             kws[f"data_{i}"] = self.data[i]
         args = [a.values for a in self.axes]
@@ -101,6 +97,34 @@ class ZonalLightResult(LightResult):
             file.close()
         else:
             self._file = file
+
+    def merge(self, *lrs, axis="sky"):
+        """create merged lightresult from lightresults, must match on all axes
+         except axis. does not sort but culls duplicates"""
+        if axis == "zone":
+            raise ValueError("cannot stack ragged axis zone")
+        outaxes, filters = self._merge_axes(*lrs, axis=axis)
+
+        if axis == "sky":
+            data = list(self.data)
+            for lr, f in zip(lrs, filters):
+                if np.all(f):
+                    data += list(lr.data)
+                else:
+                    data += [i for i, j in zip(lr.data, f) if j]
+        else:
+            oi = self._index(axis) - 1
+            data = []
+            for i in range(len(self.data)):
+                d = self.data[i]
+                for lr, f, in zip(lrs, filters):
+                    if np.all(f):
+                        od = lr.data[i]
+                    else:
+                        od = np.compress(f, lr.data[i], axis=oi)
+                    d = np.concatenate([d, od], axis=oi)
+                data.append(d)
+        return ZonalLightResult(data, *outaxes)
 
     def _pull_labels(self, data, order, preserve, filters):
         ax0_labels = []

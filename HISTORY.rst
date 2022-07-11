@@ -7,10 +7,13 @@ History
 * add scale to sensor integrator forr proper unit conversion (lux by default)
 * parallel processing in zonallightresult.pull2hdr
 * add lightresult.pull2planhdr to match signature of zonallightresult
-* zonallightresult.rebase to make standard lightresult from zonal
+* add zonallightresult.rebase to make standard lightresult from zonal
 * fixed bug in sunsplanekd.query_by_sun that returned all points, not just best matches
 * added index() function to resultaxis
 * bug fixes in sensorintegrator, needed additional function overrides and index broadcasting
+* avoid IndexError at the end of skydata.maskindices
+* add lightresult.merge (and cli interface with raytu merge) for combining LightResults
+* change chunking of large calls to evaluate for better performance and the save intermediate results
 
 1.3.5 (2022-07-05)
 ------------------

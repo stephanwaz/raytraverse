@@ -219,7 +219,7 @@ class SensorIntegrator(Integrator):
         fvecs = np.broadcast_to(all_vecs[:, None, 3:], oshape + (3,))
         fields = np.concatenate((fvecs, areas, fields), axis=-1)
         fields = np.split(fields, strides)
-        return ZonalLightResult(fields, *axes, pointmetrics=pmetrics)
+        return ZonalLightResult(fields, *axes)
 
     def _evaluate_chunk(self, dsmtx, sunmask, suns, pts, sundata, skarea):
         result = self._unmask_data(dsmtx, sunmask, suns, pts, sundata, skarea)

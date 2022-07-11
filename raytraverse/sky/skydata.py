@@ -260,7 +260,7 @@ class SkyData(object):
         """if m has length = daysteps, sets mask directly as bool array. if
         m has length = skydata, sets mask from daysteps of m as bool array.
         otherwise, assumes m is an index array (indexed by row of skydata) and
-        sets all indices of m withing daysteps to True. reset with m=None
+        sets all indices of m within daymask to True. reset with m=None
         """
         if m is None:
             m = np.full(np.sum(self.daymask), True)
@@ -351,7 +351,8 @@ class SkyData(object):
         return np.hstack((self.rowlabel[self.daymask], x))
 
     def masked_idx(self, i):
-        j = np.searchsorted(self._maskindices, i)
+        j = np.minimum(np.searchsorted(self._maskindices, i),
+                       self._maskindices.size - 1)
         return j[self._maskindices[j] == i]
 
     def radiance_sky_matrix(self, outf, fmt='float', sun=True, sky=True, ncomps=3):

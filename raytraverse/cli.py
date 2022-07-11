@@ -727,7 +727,8 @@ eval_opts = [
                    "between components of a point and spaces between points. "
                    "points should either all be 3 componnent (x,y,z) or 6"
                    " component (x,y,z,dx,dy,dz). If 3 component, -sdirs is "
-                   "required, if 6-component, -sdirs is ignored"),
+                   "required, if 6-component, -sdirs is ignored. leave as None"
+                   " for zonal evaluation (sdirs required)"),
  click.option("-sdirs", callback=np_load,
               help="sensor directions, this can be a .npy file, a whitespace "
                    "seperated text file or entered as a string with commas "
@@ -966,7 +967,7 @@ def evaluate(ctx, sensors=None, sdirs=None, viewangle=180., skymask=None,
         result = LightResult(data, result[0].axes[0], ptaxis, result[0].axes[3])
     else:
         if zonal and sdirs is not None:
-            sensors = pm
+            sensors = None
         elif sdirs is None:
             raise ValueError("if sensors do not have directions, sdirs cannot be "
                              "None")
