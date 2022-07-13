@@ -14,6 +14,13 @@ History
 * avoid IndexError at the end of skydata.maskindices
 * add lightresult.merge (and cli interface with raytu merge) for combining LightResults
 * change chunking of large calls to evaluate for better performance and the save intermediate results
+* pass jitterrate to MaskedPlanMapper constructor
+* rewrote RadianceFormatter.get_scene() parser, not based on file extensions
+* bug in SamplerArea when operating with MaskedPlanMapper, possible to have
+  no samples, leading to IndexError, fixed at self._mask initialization so
+  atleast one cell is True.
+* added gss to raytu imgmetric (no options yet, uses standard observer)
+
 
 1.3.5 (2022-07-05)
 ------------------

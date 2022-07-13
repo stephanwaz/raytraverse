@@ -134,10 +134,35 @@ class Integrator(object):
                                      resamprad=resamprad)
         return sorted([i for j in outfs for i in j])
 
+    def _echunk(self, evalfunc, esize, csize, skydata, points, vm, **kwargs):
+        fd, rbase = tempfile.mkstemp(dir=f"./", prefix='tmp_eval')
+        rbase = rbase.rsplit("/", 1)[-1]
+        with os.fdopen(fd) as f:
+            pass
+        os.remove(rbase)
+        d = np.linspace(0, len(skydata.maskindices),
+                        int(esize/csize) + 2).astype(int)
+        self.scene.log(self, f"breaking evaluation into {len(d)} chunks,"
+                             f" writing temporary results to {rbase}_XX.npz"
+                       , True)
+        slices = [slice(d[i], d[i + 1], 1) for i in range(len(d) - 1)]
+        omask = np.copy(skydata.mask)
+        for i, slc in enumerate(slices):
+            self.scene.log(self, f"evaluating part {i + 1} of {len(d)}", True)
+            skydata.mask = skydata.maskindices[slc]
+            lr = evalfunc(skydata, points, vm, emax=-1, **kwargs)
+            skydata.mask = omask
+            lr.write(f"{rbase}_{i:02d}.npz")
+        idx = np.arange(len(slices))
+        lrs = [type(lr)(f"{rbase}_{i:02d}.npz") for i in idx]
+        lr = lrs[0].merge(*lrs[1:])
+        [os.remove(f"{rbase}_{i:02d}.npz") for i in idx]
+        return lr
+
     def evaluate(self, skydata, points, vm, viewangle=180.,
                  metricclass=MetricSet, metrics=None, datainfo=False,
                  srconly=False, suntol=10.0, blursun=False, coercesumsafe=False,
-                 stol=10,  minsun=1, **kwargs):
+                 stol=10,  minsun=1, emax=10000, **kwargs):
         """apply sky data and view queries to daylightplane to return metrics
         parallelizes and optimizes run order.
 
@@ -180,6 +205,7 @@ class Integrator(object):
         -------
         raytraverse.lightfield.LightResult
         """
+        # delegate to zonal
         if (points is None and len(self._issunplane) > 0 and
                 np.any(skydata.sun[:, 3] > 0)):
             return self.zonal_evaluate(skydata, self.lightplanes[0].pm, vm,
@@ -187,42 +213,23 @@ class Integrator(object):
                             metrics=metrics, datainfo=datainfo,
                             srconly=srconly, suntol=suntol,
                             blursun=blursun, coercesumsafe=coercesumsafe,
-                            stol=stol,  minsun=minsun,
+                            stol=stol,  minsun=minsun, emax=emax,
                             **kwargs)
         if points is None:
             points, skarea = self._get_fixed_points(self.lightplanes[0].pm)
         else:
             points = np.atleast_2d(points)
-        esize = len(skydata.maskindices) * len(points)
-        emax = 10000
-        if esize > emax:
-            fd, rbase = tempfile.mkstemp(dir=f"./", prefix='tmp_eval')
-            rbase = rbase.rsplit("/", 1)[-1]
-            with os.fdopen(fd) as f:
-                pass
-            os.remove(rbase)
-            d = np.linspace(0, len(skydata.maskindices),
-                            int(esize/emax) + 2).astype(int)
-            self.scene.log(self, f"breaking evaluation into {len(d)} chunks,"
-                                 f" writing temporary results to {rbase}_XX.npz"
-                           , True)
-            slices = [slice(d[i], d[i + 1], 1) for i in range(len(d) - 1)]
-            omask = np.copy(skydata.mask)
-            for i, slc in enumerate(slices):
-                self.scene.log(self, f"evaluating part {i+1} of {len(d)}", True)
-                skydata.mask = skydata.maskindices[slc]
-                lr = self.evaluate(skydata, points, vm, viewangle=viewangle,
-                                   metricclass=metricclass, metrics=metrics,
-                                   datainfo=datainfo, srconly=srconly,
-                                   suntol=suntol, blursun=blursun,
-                                   coercesumsafe=coercesumsafe, stol=stol,
-                                   minsun=minsun, **kwargs)
-                skydata.mask = omask
-                lr.write(f"{rbase}_{i:02d}.npz")
-            idx = np.arange(len(slices))
-            lrs = [LightResult(f"{rbase}_{i:02d}.npz") for i in idx]
-            lr = lrs[0].merge(*lrs[1:])
-            [os.remove(f"{rbase}_{i:02d}.npz") for i in idx]
+        if emax > 0:
+            esize = len(skydata.maskindices) * len(points)
+        else:
+            esize = 0
+        if 0 < emax < esize:
+            lr = self._echunk(self.evaluate, esize, emax, skydata, points, vm,
+                              viewangle=viewangle, metricclass=metricclass,
+                              metrics=metrics, datainfo=datainfo,
+                              srconly=srconly, suntol=suntol, blursun=blursun,
+                              coercesumsafe=coercesumsafe, stol=stol,
+                              minsun=minsun, **kwargs)
         else:
             (vm, vms, cmetrics, ometrics,
              sumsafe, needs_post) = self._check_params(vm, viewangle, metrics,
@@ -266,7 +273,7 @@ class Integrator(object):
                        metricclass=MetricSet, metrics=None, srconly=False,
                        suntol=10.0, blursun=False, coercesumsafe=False,
                        stol=10,  minsun=1, datainfo=False, calcarea=True,
-                       **kwargs):
+                       emax=10000, **kwargs):
         """apply sky data and view queries to daylightplane to return metrics
         parallelizes and optimizes run order.
 
@@ -285,56 +292,78 @@ class Integrator(object):
                                  datainfo=datainfo, srconly=srconly,
                                  suntol=suntol, blursun=blursun,
                                  coercesumsafe=coercesumsafe,
-                                 stol=stol, minsun=minsun,
+                                 stol=stol, minsun=minsun, emax=emax,
                                  **kwargs)
+        # only chunk on first call
+        if emax > 0:
+            # call this first just to measure size of evaluation, skip calcarea
+            # for now
+            (sunmask, suns, pts, sundata,
+             skarea) = self._zonal_group_query(skydata, pm, stol=stol,
+                                               minsun=minsun, calcarea=False)
+            sunpts = np.sum([len(p) for p in sundata[0]])
+            skpts = len(pts) * (len(skydata.smtx) - len(sundata[0]))
+            esize = sunpts + skpts
+        else:
+            esize = 0
+        if 0 < emax < esize:
+            lr = self._echunk(self.zonal_evaluate, esize, emax, skydata, pm, vm,
+                              viewangle=viewangle, metricclass=metricclass,
+                              metrics=metrics, datainfo=datainfo,
+                              srconly=srconly, suntol=suntol, blursun=blursun,
+                              coercesumsafe=coercesumsafe, stol=stol,
+                              minsun=minsun, **kwargs)
+        else:
+            (sunmask, suns, pts, sundata,
+             skarea) = self._zonal_group_query(skydata, pm, stol=stol,
+                                               minsun=minsun, calcarea=calcarea)
+            (vm, vms, cmetrics, ometrics,
+             sumsafe, needs_post) = self._check_params(vm, viewangle, metrics,
+                                                       metricclass,
+                                                       coercesumsafe)
+            result = self._unmask_data(skydata.smtx, sunmask, suns, pts,
+                                       sundata, skarea)
+            smtx, dsns, all_vecs, sunidx, serr, areas, cnts = result
 
-        (vm, vms, cmetrics, ometrics,
-         sumsafe, needs_post) = self._check_params(vm, viewangle, metrics,
-                                                   metricclass, coercesumsafe)
-        (sunmask, suns, pts, sundata,
-         skarea) = self._zonal_group_query(skydata, pm, stol=stol,
-                                           minsun=minsun, calcarea=calcarea)
+            tidxs, skydatas = self._match_ragged(smtx, dsns, sunidx, all_vecs)
 
-        result = self._unmask_data(skydata.smtx, sunmask, suns, pts, sundata, skarea)
-        smtx, dsns, all_vecs, sunidx, serr, areas, cnts = result
+            self.scene.log(self, f"Evaluating {len(ometrics)} metrics for "
+                                 f"{len(vms)} view directions across zone "
+                                 f"'{pm.name}' under  {len(skydata.sun)} skies",
+                           True)
+            fields, isort = self._process_mgr(tidxs, skydatas, dsns,
+                                              self.evaluate_pt,
+                                              message="Evaluating Points",
+                                              srconly=srconly, sumsafe=sumsafe,
+                                              metricclass=metricclass,
+                                              metrics=cmetrics, vm=vm, vms=vms,
+                                              suntol=suntol, blursun=blursun,
+                                              **kwargs)
 
-        tidxs, skydatas = self._match_ragged(smtx, dsns, sunidx, all_vecs)
+            fields = np.concatenate(fields, axis=0)[isort]
+            if needs_post:
+                fields = self._post_process_metrics(fields, ometrics, cmetrics,
+                                                    **kwargs)
+            oshape = (len(fields), len(vms))
+            pmetrics = ['x', 'y', 'z', 'area']
+            if datainfo:
+                sinfo, dinfo = self._zonal_sinfo(serr, tidxs, oshape + (2,))
+                if sinfo is not None:
+                    fields = np.concatenate((sinfo, fields), axis=-1)
+                    pmetrics += dinfo
 
-        self.scene.log(self, f"Evaluating {len(ometrics)} metrics for {len(vms)}"
-                             f" view directions across zone '{pm.name}' under "
-                             f"{len(skydata.sun)} skies", True)
-        fields, isort = self._process_mgr(tidxs, skydatas, dsns,
-                                          self.evaluate_pt,
-                                          message="Evaluating Points",
-                                          srconly=srconly, sumsafe=sumsafe,
-                                          metricclass=metricclass,
-                                          metrics=cmetrics, vm=vm, vms=vms,
-                                          suntol=suntol, blursun=blursun,
-                                          **kwargs)
+            areas = np.broadcast_to(areas[:, None, None], oshape + (1,))
+            axes = [ResultAxis(skydata.rowlabel[skydata.fullmask], f"sky"),
+                    ResultAxis([pm.name], f"zone"),
+                    ResultAxis([v.dxyz for v in vms], "view"),
+                    ResultAxis(pmetrics + ometrics, "metric")]
 
-        fields = np.concatenate(fields, axis=0)[isort]
-        if needs_post:
-            fields = self._post_process_metrics(fields, ometrics, cmetrics,
-                                                **kwargs)
-        oshape = (len(fields), len(vms))
-        pmetrics = ['x', 'y', 'z', 'area']
-        if datainfo:
-            sinfo, dinfo = self._zonal_sinfo(serr, tidxs, oshape + (2,))
-            if sinfo is not None:
-                fields = np.concatenate((sinfo, fields), axis=-1)
-                pmetrics += dinfo
-
-        areas = np.broadcast_to(areas[:, None, None], oshape + (1,))
-        axes = [ResultAxis(skydata.rowlabel[skydata.fullmask], f"sky"),
-                ResultAxis([pm.name], f"zone"),
-                ResultAxis([v.dxyz for v in vms], "view"),
-                ResultAxis(pmetrics + ometrics, "metric")]
-
-        strides = np.cumsum(cnts)[:-1]
-        fvecs = np.broadcast_to(all_vecs[:, None, 3:], oshape + (3,))
-        fields = np.concatenate((fvecs, areas, fields), axis=-1)
-        fields = np.split(fields, strides)
-        return ZonalLightResult(fields, *axes)
+            strides = np.cumsum(cnts)[:-1]
+            fvecs = np.broadcast_to(all_vecs[:, None, 3:], oshape + (3,))
+            fields = np.concatenate((fvecs, areas, fields), axis=-1)
+            fields = np.split(fields, strides)
+            lr = ZonalLightResult(fields, *axes)
+        return lr
 
     @staticmethod
     def _post_process_metrics(fields, ometrics, cmetrics, **kwargs):

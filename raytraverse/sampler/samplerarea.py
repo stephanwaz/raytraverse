@@ -294,6 +294,18 @@ class SamplerArea(BaseSampler):
                                                       level=i, masked=False,
                                                       snap=self.nlev-1)
         self._mask = self._mapper.in_view_uv(self._candidates, False)
+        # avoid error by not sampling anything, assume that iif samplerarea is
+        # called we atleast want to sample 1 point
+        if not np.any(self._mask):
+            # this assumes a MaskedPlanMapper, otherwise we are just repeating
+            # 2 lines up, so next line will be false
+            m2 = self._mapper.in_view_uv(self._candidates, False, usemask=False)
+            if np.any(m2):
+                one = np.random.default_rng().choice(np.arange(m2.size)[m2], 1)
+            else:
+                # fall back to the first candidate (should never happen)
+                one = 0
+            self._mask[one] = True
         if self.vecs is not None:
             wvecs = self._mapper.uv2xyz(self._candidates)
             d, idx = cKDTree(self.vecs).query(wvecs)

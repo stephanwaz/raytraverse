@@ -18,6 +18,7 @@ import raytraverse
 from raytraverse import translate, api
 from raytraverse.lightfield import ResultAxis, ZonalLightResult
 from raytraverse.lightfield import LightResult
+from raytraverse.evaluate import hvsgsm
 from raytraverse.sky import SkyData, skycalc
 from raytraverse.utility import pool_call, imagetools
 from raytraverse.utility.cli import np_load, shared_pull, pull_decs
@@ -131,7 +132,7 @@ def transform(ctx, d=None, flip=False, reshape=None, cols=None,
                    '"avglum", "gcr", "ugp", "dgp", "tasklum", "backlum", '
                    '"dgp_t1", "log_gc", "dgp_t2", "ugr", "threshold", "pwsl2", '
                    '"view_area", "backlum_true", "srcillum", "srcarea", '
-                   '"maxlum"]')
+                   '"maxlum", "gss"]')
 @click.option("--parallel/--no-parallel", default=True,
               help="use available cores")
 @click.option("-basename", default="img_metrics",
@@ -179,13 +180,30 @@ def imgmetric(ctx, imgs=None, metrics=None, parallel=True,
         cap = None
     else:
         cap = 1
-    results = pool_call(imagetools.imgmetric, list(zip(imgs)), metrics, cap=cap,
-                        desc="processing images", peakn=peakn,
-                        peaka=peaka, peakt=peakt, peakr=peakr,
-                        threshold=threshold, scale=scale, blursun=blursun, lowlight=lowlight)
+    try:
+        gss = metrics.pop(metrics.index("gss"))
+    except ValueError:
+        gss = False
+    if len(metrics) > 0:
+        results = pool_call(imagetools.imgmetric, list(zip(imgs)), metrics,
+                            cap=cap, desc="processing images", peakn=peakn,
+                            peaka=peaka, peakt=peakt, peakr=peakr,
+                            threshold=threshold, scale=scale, blursun=blursun,
+                            lowlight=lowlight)
+        results = np.asarray(results)
+    else:
+        results = None
+    if gss:
+        gresult = np.asarray(hvsgsm.gss_compute(imgs, age=35,
+                                                pigmentation=0.142))[:, None]
+        metrics.append("gss")
+        if results is not None:
+            results = np.hstack((results, gresult))
+        else:
+            results = gresult
     imgaxis = ResultAxis(imgs, "image")
     metricaxis = ResultAxis(metrics, "metric")
-    lr = LightResult(np.asarray(results), imgaxis, metricaxis)
+    lr = LightResult(results, imgaxis, metricaxis)
     if npz:
         lr.write(f"{basename}.npz")
     ctx.obj['lightresult'] = lr

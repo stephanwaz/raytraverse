@@ -42,7 +42,8 @@ class MaskedPlanMapper(PlanMapper):
         self._zheight = pm._zheight
         self._candidates = pm._candidates
         super(PlanMapper, self).__init__(name=pm.name, sf=self._sf,
-                                         bbox=self.bbox)
+                                         bbox=self.bbox, dxyz=pm.dxyz,
+                                         jitterrate=pm.jitterrate)
         self._mask = None
         self._maskshape = None
         self.update_mask(valid, level)

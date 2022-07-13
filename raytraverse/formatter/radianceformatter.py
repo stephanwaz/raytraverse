@@ -68,18 +68,15 @@ class RadianceFormatter(Formatter):
         each actree
         frozen: if result will be a frozen octree
         """
-        header = pipeline([f"getinfo {scene}"])
-        oconvf = re.findall(r"\s*oconv (.+)", header)[0]
-        files = [i for i in oconvf.split() if re.match(r".+\.rad", i)]
-        hasoct = [i for i in oconvf.split() if re.match(r".+\.oct", i)]
-        frozen = True
-        if not np.all([os.path.isfile(i) for i in files + hasoct]):
+        if not os.path.isfile(scene):
+            raise FileNotFoundError(scene)
+        hdr = pipeline([f"getinfo {scene}"])
+        oconvf = re.findall(r"\s*oconv (.+)", hdr)[-1]
+        files = oconvf.replace("-f ", "")
+        frozen = "-i" in files
+        filel = [i for i in files.split() if re.match(r".+\..+", i)]
+        if not np.all([os.path.isfile(i) for i in filel]):
             files = f"-i {scene}"
-        elif len(hasoct) == 0:
-            frozen = False
-            files = f"{' '.join(files)}"
-        else:
-            files = f"-i {' -i '.join(hasoct)} {' '.join(files)}"
         return files, frozen
 
     @staticmethod
