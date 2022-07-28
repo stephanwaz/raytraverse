@@ -152,6 +152,8 @@ class GSS:
         apply involuntary eye movement effect on local adaptation
     directmove: book, optional
         apply involuntary eye movement effect on direct cone response
+    raw: bool, optional
+        do not weight results, used for calibration
 
     Notes
     -----
