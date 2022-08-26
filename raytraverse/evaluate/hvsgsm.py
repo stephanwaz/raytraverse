@@ -362,6 +362,7 @@ class GSS:
             self._omega = self.vm.pixel2omega(self.vm.pixels(r), r)
             self._mask = self.vm.in_view(self._vecs, False)
             self._nmask = np.logical_not(self._mask)
+            self._omega.flat[self._nmask] = 0
             ct = np.maximum(0, self.vm.ctheta(self._vecs))
             self._ctheta = ct.reshape(self._lum.shape)
             self._res = r
@@ -774,14 +775,15 @@ class GSS:
 
         results::
 
-            1.0598742512189994 - 0.9135529200712416·x¹ + 0.8471705621553406·x² -
-            0.5535443101789258·x³ - 0.38772352579868125·x⁴ + 0.9083844574646001·x⁵ -
-            0.07637393810523314·x⁶ - 0.3026419768162507·x⁷
+            17.078747601175937 - 14.392547712049184·x¹ + 13.521269552690162·x² -
+            8.778008624382208·x³ - 6.1589701503713865·x⁴ + 14.405349284130853·x⁵ -
+            1.2184994327746506·x⁶ - 4.797592024869671·x⁷
+
         """
-        p = np.polynomial.Polynomial([1.0598742512189994, -0.9135529200712416,
-                                      0.8471705621553406, -0.5535443101789258,
-                                      -0.38772352579868125, 0.9083844574646001,
-                                      -0.07637393810523314, -0.3026419768162507],
+        p = np.polynomial.Polynomial([17.078747601175937, -14.392547712049184,
+                                      13.521269552690162, -8.778008624382208,
+                                      -6.1589701503713865, 14.405349284130853,
+                                      -1.2184994327746506, -4.797592024869671],
                                      domain=[0.009, 0.12])
         return r * p(self.sigma_c)
 
@@ -790,12 +792,12 @@ class GSS:
         """calculate minkowski sum on normalized response
 
         from Vissenberg et al. 2021 equation (9):
-        (9) GSS = sum_i(R_G,i^m 𝛿_i)^m
+        (9) GSS = sum_i(R_G,i^m 𝛿_i)^(1/m)
         GSS: glare sensation score
         m: minkowski norm (4)
         delta (𝛿): solid angle of pixel (steradians)
         """
-        return np.sum(np.power(r_g, self.norm))**(1/self.norm)
+        return np.sum(np.power(r_g, self.norm) * self.omega)**(1/self.norm)
 
 
 
