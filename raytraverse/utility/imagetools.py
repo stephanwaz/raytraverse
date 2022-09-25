@@ -141,7 +141,41 @@ def hdr2vm(imgf, vpt=False):
 
 def normalize_peak(v, o, l, scale=179, peaka=6.7967e-05, peakt=1e5, peakr=4,
                    blursun=False):
+    """consolidate the brightest pixels represented by v, o, l up into a single
+    source, correcting the area while maintaining equal energy
+
+    Parameters
+    ----------
+    v: np.array
+        shape (N, 3), direction vectors of pixels (x, y, z) normalized
+    o: np.array
+        shape (N,), solid angles of pixels (steradians)
+    l: np.array
+        shape (N,), luminance of pixels
+    scale: Union[float, int], optional
+        scale factor for l to convert to cd/m^2, default assumes radiance units
+    peaka: float, optional
+        area to aggregate to
+    peakt: Union[float, int], optional
+        lower threshold for possible bright pixels
+    peakr: Union[float, int], optional
+        ratio, from peak pixel value to lowest value to include when aggregating
+        partially visible sun.
+    blursun: bool, optional
+        whether to correct area and luminance according to human PSF
+
+    Returns
+    -------
+    v: np.array
+        shape (N, 3), direction vectors of pixels (x, y, z) normalized
+    o: np.array
+        shape (N,), solid angles of pixels (steradians)
+    l: np.array
+        shape (N,), luminance of pixels
+
+    """
     pc = np.nonzero(l > peakt / scale)[0]
+    # only do something if some pixels above peakt
     if pc.size > 0:
         # first sort descending by luminance
         pc = pc[np.argsort(-l[pc])]
@@ -157,13 +191,13 @@ def normalize_peak(v, o, l, scale=179, peaka=6.7967e-05, peakt=1e5, peakr=4,
         esun = pvol[0, 4]*peaka
         # sum up to peak energy
         cume = np.cumsum(pvol[:, 3]*pvol[:, 4])
-        # treat as full sun
+        # when there is enough energy, treat as full sun
         if cume[-1] > esun:
             stop = np.argmax(cume > esun)
             if stop == 0:
                 stop = len(cume)
             peakl = cume[stop - 1]/peaka
-        # treat as partial sun (needs to use peak ratio)
+        # otherwise treat as partial sun (needs to use peak ratio)
         else:
             stop = np.argmax(pvol[:, 4] < pvol[0, 4]/peakr)
             if stop == 0:
@@ -177,6 +211,7 @@ def normalize_peak(v, o, l, scale=179, peaka=6.7967e-05, peakt=1e5, peakr=4,
                                        weights=pvol[:, 3]*pvol[:, 4]))
         # filter out source rays
         vol = np.delete(np.hstack((v, o[:, None], l[:, None])), pc, axis=0)
+        # then add new consolidated ray back to output v, o, l
         v = np.vstack((vol[:, 0:3], pv))
         if blursun:
             cf = np.atleast_1d(retina.blur_sun(peaka, peakl))[0]

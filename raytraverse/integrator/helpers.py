@@ -82,17 +82,19 @@ def img_pt(lpts, skyvecs, suns, vms=None,  combos=None,
         img, pdirs, mask, mask2, header = v.init_img(res, jitter=.5,
                                                      features=lpts[0].features)
         if interp == "highc":
-            lp_is, w = lpts[0].content_interp_wedge(svengine, pdirs[mask],
-                                                    **kwargs)
+            lp_is, w = lpts[0].interp(pdirs[mask], rt=svengine, **kwargs)
             lp_is = (lp_is,)
         elif interp == "high":
-            lp_is, w = lpts[0].interp_wedge(pdirs[mask], **kwargs)
+            lp_is, w = lpts[0].interp(pdirs[mask], **kwargs)
             lp_is = (lp_is,)
         elif interp == "fastc":
-            lp_is, w = lpts[0].content_interp(svengine, pdirs[mask], **kwargs)
+            lp_is, w = lpts[0].interp(pdirs[mask], angle=False, lum=False,
+                                      dither=True, rt=svengine, bandwidth=10,
+                                      **kwargs)
             lp_is = (lp_is,)
         elif interp == "fast":
-            lp_is, w = lpts[0].interp_fast(pdirs[mask], **kwargs)
+            lp_is, w = lpts[0].interp(pdirs[mask], angle=False, lum=False,
+                                      bandwidth=10, dither=True, **kwargs)
             lp_is = (lp_is,)
         elif interp:
             lp_is = [None] * len(lpts)
@@ -160,6 +162,7 @@ def evaluate_pt_dv(lpts, skyvecs, suns, **kwargs):
     skpatch = translate.xyz2skybin(suns[0], side)[0]
     skdir = translate.skybin2xyz(skpatch, side)[0]
     lpts, skyvecs, refl = _prep_dv(lpts, skyvecs, skdir)
+    kwargs.update(suntol=-1)
     return evaluate_pt(lpts, skyvecs, suns, refl=refl, **kwargs)
 
 
@@ -168,6 +171,7 @@ def img_pt_dv(lpts, skyvecs, suns, **kwargs):
     skpatch = translate.xyz2skybin(suns[0], side)[0]
     skdir = translate.skybin2xyz(skpatch, side)[0]
     lpts, skyvecs, refl = _prep_dv(lpts, skyvecs, skdir)
+    kwargs.update(suntol=-1)
     return img_pt(lpts, skyvecs, suns, refl=refl, **kwargs)
 
 

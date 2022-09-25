@@ -104,14 +104,16 @@ click.option("-spd", default=24,
                    " only has one value (with appropriate filter)"),
  click.option("-imgzone", default=None,
               help="for making images from ZonalLightResult, path to area"
-                   "to sample over.")
+                   "to sample over."),
+click.option("-res", default=480,
+              help="image resolution for plan based image pulls.")
  ]
 
 
 def shared_pull(ctx, lr=None, col=("metric",), ofiles=None, ptfilter=None,
                 viewfilter=None, skyfilter=None, imgfilter=None,
                 metricfilter=None, skyfill=None, header=True, spd=24,
-                rowlabel=True, info=False, gridhdr=False, imgzone=None,
+                rowlabel=True, info=False, gridhdr=False, imgzone=None, res=480,
                 **kwargs):
     """used by both raytraverse.cli and raytu, add pull_decs and
     clk.command_decs as  clk.shared_decs in main script so click can properly
@@ -166,7 +168,7 @@ def shared_pull(ctx, lr=None, col=("metric",), ofiles=None, ptfilter=None,
         result.print(col, skyfill=skydata, **pargs, **filters)
     elif "zone" in result.names:
         if "zone" in result.names and imgzone is not None:
-            result.pull2hdr(imgzone, ofiles, **filters)
+            result.pull2hdr(imgzone, ofiles, res=res, **filters)
         elif gridhdr:
             click.echo("could not make HDR without -imgzone", err=True)
             raise click.Abort
@@ -178,6 +180,7 @@ def shared_pull(ctx, lr=None, col=("metric",), ofiles=None, ptfilter=None,
         if gridhdr:
             if imgzone is not None:
                 imgzone = PlanMapper(imgzone)
-            result.pull2hdr(col, ofiles, skyfill=skydata, spd=spd, pm=imgzone, **filters)
+            result.pull2hdr(col, ofiles, skyfill=skydata, spd=spd, pm=imgzone,
+                            res=res, **filters)
         else:
             result.print_serial(col, ofiles, skyfill=skydata, **pargs, **filters)

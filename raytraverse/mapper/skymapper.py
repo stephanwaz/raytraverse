@@ -164,7 +164,7 @@ class SkyMapper(AngularMixin, Mapper):
             if None, use the instance default, if True jitters point samples
             within stratified grid
         level: int, optional
-            sets the resolution of the grid as a power of 2 from ptres
+            sets the resolution of the grid as a power of 2 from sunres
         masked: bool, optional
             apply in_solarbounds before returning
 
@@ -189,7 +189,7 @@ class SkyMapper(AngularMixin, Mapper):
         jitter: bool, optional
             jitters weighting of condidate selection (not centered)
         level: int, optional
-            sets the resolution of the grid as a power of 2 from ptres
+            sets the resolution of the grid as a power of 2 from sunres
         masked: bool, optional
             apply in_solarbounds before returning
 

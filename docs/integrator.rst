@@ -9,6 +9,14 @@ Integrator
     :undoc-members:
     :show-inheritance:
 
+SensorIntegrator
+---------------------------------
+
+.. autoclass:: raytraverse.integrator.SensorIntegrator
+    :members:
+    :undoc-members:
+    :show-inheritance:
+
 helpers
 -------
 

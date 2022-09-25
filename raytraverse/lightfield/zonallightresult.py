@@ -191,7 +191,7 @@ class ZonalLightResult(LightResult):
             super()._print_serial(rt, labels, names, basename, header,
                                   rowlabel, None)
 
-    def pull2hdr(self, imgzone, basename, showsample=False, **kwargs):
+    def pull2hdr(self, imgzone, basename, showsample=False, res=480, **kwargs):
         pm = PlanMapper(imgzone)
         if "metric" in kwargs and kwargs["metric"] is not None:
             kwargs["metric"] = np.unique(np.concatenate(([0, 1, 2], kwargs["metric"])))
@@ -199,7 +199,7 @@ class ZonalLightResult(LightResult):
         flabels0 = self.fmt_names(names[-1], labels[-1])
         flabels1 = self.fmt_names(names[-2], labels[-2][3:])
         pool_call(_pull2hdr, list(zip(rt, flabels0)), flabels1, pm, basename,
-                  showsample=showsample)
+                  showsample=showsample, res=res)
 
     pull2planhdr = pull2hdr
 
@@ -222,8 +222,8 @@ def _pull2grid(data, points, mf):
     return np.concatenate((odata, oerr), axis=-1)
 
 
-def _pull2hdr(data, la0, flabels1, pm, basename, showsample=False):
-    zimg, vecs, mask, mask2, header = pm.init_img(480)
+def _pull2hdr(data, la0, flabels1, pm, basename, showsample=False, res=480):
+    zimg, vecs, mask, mask2, header = pm.init_img(res)
     kd = cKDTree(data[:, 0:3])
     data = data[:, 3:]
     err, idx = kd.query(vecs[mask])

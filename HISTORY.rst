@@ -2,8 +2,18 @@
 History
 =======
 
-1.3.6
+1.3.7
 -----
+* updated resonse fit in hsvgm
+* resolution option for pull 2 hdr cli
+* modules directly available from import raytraverse
+* ensure parameters set correctly so sun is always resampled in 1compdv
+* bug in integrator log showing too many chunks
+* rebase method added to basic LightResult
+* rewrote lightpoint image interpolation
+
+1.3.6 (2022-07-28)
+------------------
 * add scale to sensor integrator forr proper unit conversion (lux by default)
 * parallel processing in zonallightresult.pull2hdr
 * add lightresult.pull2planhdr to match signature of zonallightresult

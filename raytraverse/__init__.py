@@ -14,5 +14,7 @@ __version__ = '1.3.6'
 __all__ = ['evaluate', 'formatter', 'lightpoint', 'mapper',
            'renderer', 'sampler', 'scene', 'sky', 'io', 'translate', 'utility']
 
+from raytraverse import *
+
 
 

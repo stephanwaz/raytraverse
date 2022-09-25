@@ -36,7 +36,10 @@ class ResultAxis(object):
             return np.asarray([(i, ) for i in self.values])
 
     def index(self, i):
-        return np.squeeze(np.where(self.values == i))
+        idx = np.squeeze(np.where(self.values == i))
+        if idx.size == 0:
+            raise IndexError(f"'{i}' not in ResultAxis '{self.name}'")
+        return idx
 
     @property
     def cols(self):
@@ -369,9 +372,9 @@ class LightResult(object):
         self._print_serial(rt, labels, names, basename, header, rowlabel,
                            skyfill)
 
-    def _pull2hdr_kdplan(self, pm, basename, rt, flabels0, flabels1):
-        img, vecs, mask, mask2, header = pm.init_img(480)
-        pts = np.asarray([tuple(i) for i in self.axis("point").values])[:, 0:3]
+    def _pull2hdr_kdplan(self, pm, basename, rt, flabels0, flabels1, res=480):
+        img, vecs, mask, mask2, header = pm.init_img(res)
+        pts = self.axis("point").value_array()
         kd = cKDTree(pts)
         err, idx = kd.query(vecs[mask])
         for i, la0 in enumerate(flabels0):
@@ -379,6 +382,22 @@ class LightResult(object):
             for k, (la, d) in enumerate(zip(flabels1, data.T)):
                 img[mask] = d[idx]
                 io.array2hdr(img, f"{basename}_{la}_{la0}.hdr", [header])
+
+    def rebase(self, points):
+        paxis = ResultAxis(points, "point")
+        omet = self.axis("metric").values
+        mf = [i for i, v in enumerate(omet) if v not in ('x', 'y', 'z', 'area')]
+        maxis = ResultAxis([omet[i] for i in mf] + ["rebase_err"], "metric")
+
+        pts = self.axis("point").value_array()
+        kd = cKDTree(pts)
+        err, idx = kd.query(points)
+        odata = self.data[:, idx][..., mf]
+        oerr = np.broadcast_to(err[:, None, None], (*odata.shape[:-1], 1))
+        odata = np.concatenate((odata, oerr), axis=-1)
+        lr = LightResult(np.stack(odata), self.axes[0], paxis, self.axes[2],
+                         maxis)
+        return lr
 
     @staticmethod
     def _pull2hdr_sky(skyfill, basename, spd, rt, flabels0, flabels1):
@@ -406,7 +425,8 @@ class LightResult(object):
                 io.array2hdr(do[-1::-1], f"{basename}_{la}_"
                                          f"{la0}.hdr")
 
-    def pull2planhdr(self, imgzone, basename, showsample=False, **kwargs):
+    def pull2planhdr(self, imgzone, basename, showsample=False, res=480,
+                     **kwargs):
         pm = PlanMapper(imgzone)
         if "metric" in kwargs and kwargs["metric"] is not None:
             kwargs["metric"] = np.unique(
@@ -414,9 +434,11 @@ class LightResult(object):
         rt, labels, names = self.pull("metric", preserve=2, **kwargs)
         flabels0 = self.fmt_names(names[-1], labels[-1])
         flabels1 = self.fmt_names(names[-2], labels[-2])
-        return self._pull2hdr_kdplan(pm, basename, rt, flabels0, flabels1)
+        return self._pull2hdr_kdplan(pm, basename, rt, flabels0, flabels1,
+                                     res=res)
 
-    def pull2hdr(self, col, basename, skyfill=None, spd=24, pm=None, **kwargs):
+    def pull2hdr(self, col, basename, skyfill=None, spd=24, pm=None, res=480,
+                 **kwargs):
         rt, labels, names = self.pull(*col, preserve=2, **kwargs)
         flabels0 = self.fmt_names(names[-1], labels[-1])
         flabels1 = self.fmt_names(names[-2], labels[-2])
@@ -428,7 +450,8 @@ class LightResult(object):
                                  "'col' are filtered to a single value")
             if pm is None:
                 pm = PlanMapper(self.axis("point").value_array()[:, 0:3])
-            return self._pull2hdr_kdplan(pm, basename, rt, flabels0, flabels1)
+            return self._pull2hdr_kdplan(pm, basename, rt, flabels0, flabels1,
+                                         res=res)
         if skyfill is None:
             raise ValueError("'pull2hdr' with 'sky' requires skyfill")
         elif rt.shape[0] != skyfill.smtx.shape[0]:

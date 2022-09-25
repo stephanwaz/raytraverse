@@ -19,13 +19,14 @@ class SensorIntegrator(Integrator):
     ----------
     lightplanes: Sequence[raytraverse.lightfield.SensorPlaneKD]
     ptype: Sequence[str]
-        raises
         matching order of lightplanes, requires one for each:
+
             - "sky": represents sky with nsrcs = skydata
             - "skysun": represents sky+sun with nsrcs = skydata
             - "patch": represents sun contribution as patch
             - "sun": sun contribution
             - "fixed": does not respond to skydata (electric lighting)
+
     factors: Sequence[int], optional
         values, for each light plane to scale contribution of eeach light plane
         for example, provide (1, -1, 1) for ptype: ("skysun", "patch", "sun")

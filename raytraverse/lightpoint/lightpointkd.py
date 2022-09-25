@@ -10,6 +10,7 @@ import pickle
 
 import numpy as np
 from scipy.interpolate import LinearNDInterpolator
+from scipy.ndimage import convolve1d, correlate1d
 
 from scipy.spatial import cKDTree, SphericalVoronoi
 from clasp.script_tools import try_mkdir
@@ -206,47 +207,6 @@ class LightPointKD(object):
                 flt = translate.cull_vectors(self.d_kd, tol)
                 omega[flt] = SphericalVoronoi(self.vec[flt]).calculate_areas()
         self._omega = omega
-
-        # vm = self.vm
-        # if self.vec.shape[0] < 100:
-        #     omega = np.full(len(self.vec), 2 * np.pi * vm.aspect/len(self.vec))
-        # elif vm.aspect == 1:
-        #     # in case of 180 view, cannot use spherical voronoi, instead
-        #     # the method estimates area in square coordinates by intersecting
-        #     # 2D voronoi with border square.
-        #     # so none of our points have infinite edges.
-        #     uv = vm.xyz2uv(self.vec)
-        #     bordered = np.concatenate((uv, np.array([[-10, -10], [-10, 10],
-        #                                              [10, 10], [10, -10]])))
-        #     vor = Voronoi(bordered)
-        #     # the border of our 180 degree region
-        #     lb = .5 - vm.viewangle / 360
-        #     ub = .5 + vm.viewangle / 360
-        #     mask = Polygon(np.array([[lb, lb], [lb, ub],
-        #                              [ub, ub], [ub, lb], [lb, lb]]))
-        #     omega = []
-        #     for i in range(len(uv)):
-        #         region = vor.regions[vor.point_region[i]]
-        #         p = Polygon(np.concatenate((vor.vertices[region],
-        #                                     [vor.vertices[region][
-        #                                          0]]))).intersection(mask)
-        #         # scaled from unit square -> hemisphere
-        #         omega.append(p.area*2*np.pi)
-        #     omega = np.asarray(omega)
-        # else:
-        #     try:
-        #         omega = SphericalVoronoi(self.vec).calculate_areas()
-        #     except ValueError:
-        #         # spherical voronoi raises a ValueError when points are
-        #         # too close, in this case we cull duplicates before calculating
-        #         # area, leaving the duplicates with omega=0 it would be more
-        #         # efficient downstream to filter these points, but that would
-        #         # require culling the vecs and lum and rebuilding to kdtree
-        #         omega = np.zeros(self.vec.shape[0])
-        #         tol = 2*np.pi/2**10
-        #         flt = translate.cull_vectors(self.d_kd, tol)
-        #         omega[flt] = SphericalVoronoi(self.vec[flt]).calculate_areas()
-        # self._omega = omega
         if write:
             self.dump()
 
@@ -327,16 +287,18 @@ class LightPointKD(object):
         if interp == "precomp":
             lum = self.apply_interp(idx, val[0], interpweights)
         elif interp == "fastc" and engine is not None:
-            i, weights = self.content_interp(engine, vecs, **kwargs)
+            i, weights = self.interp(vecs, angle=False, lum=False, dither=True,
+                                     bandwidth=10, rt=engine, **kwargs)
             lum = self.apply_interp(i, val[0], weights)
         elif interp == "highc" and engine is not None:
-            i, weights = self.content_interp_wedge(engine, vecs, **kwargs)
+            i, weights = self.interp(vecs, rt=engine, **kwargs)
             lum = self.apply_interp(i, val[0], weights)
         elif interp == "fast":
-            i, weights = self.interp_fast(engine, vecs, **kwargs)
+            i, weights = self.interp(vecs, angle=False, lum=False, dither=True,
+                                     bandwidth=10, **kwargs)
             lum = self.apply_interp(i, val[0], weights)
         elif interp == "high":
-            i, weights = self.interp_wedge(engine, vecs, **kwargs)
+            i, weights = self.interp(vecs, **kwargs)
             lum = self.apply_interp(i, val[0], weights)
         elif interp is True:
             lum = self.linear_interp(vm, val[0], vecs)
@@ -656,20 +618,16 @@ class LightPointKD(object):
         else:
             return np.average(srcvals[i], 1, weights)
 
-    def _c_interp(self, rt, destvecs, bandwidth=10, srfnormtol=5.0,
-                  disttol=0.5):
+    def _content_mask(self, rt, destvecs, i, srfnormtol=5.0, disttol=0.5):
         pts = np.hstack(np.broadcast_arrays(self.pt[None], self.vec))
         pts_o = np.hstack(np.broadcast_arrays(self.pt[None], destvecs))
-        d, i = self.d_kd.query(destvecs, bandwidth)
         # store engine state
         targs = rt.args
         tospec = rt.ospec
-
         rt.set_args(rt.directargs)
         rt.update_ospec("LNM")
         sgeo = rt(pts)
         sgeo_o = rt(pts_o)
-
         # restore engine state
         rt.set_args(targs)
         rt.update_ospec(tospec)
@@ -690,100 +648,62 @@ class LightPointKD(object):
         all_match = np.all((mod_match, norm_match, dist_match), axis=0)
         # make sure atleast the closest match is flagged true
         all_match[np.sum(all_match, 1) == 0, 0] = True
-        return all_match, d, i
+        return all_match
 
-    def content_interp_wedge(self, rt, destvecs, bandwidth=10, srfnormtol=5.0,
-                             disttol=0.5, oversample=2, **kwargs):
-        all_match, d, i = self._c_interp(rt, destvecs,
-                                         bandwidth=bandwidth * oversample,
-                                         srfnormtol=srfnormtol, disttol=disttol)
-        # reduce to bandwidth prioritizing distance and matching
-        no_match = np.logical_not(all_match)
-        ds = np.argsort(d + no_match*3)[:, 0:bandwidth]
-        no_match = np.take_along_axis(no_match, ds, axis=1)
-        d = np.take_along_axis(d, ds, axis=1)
-        i = np.take_along_axis(i, ds, axis=1)
+    @staticmethod
+    def _weight_distance(d):
+        # get var on distance (from true mean zero)
+        dvar = np.mean(np.square(d), axis=1)[:, None]
+        # scale distance on gaussian as weight
+        return np.exp(-np.square(d)/(2*dvar))
 
-        d, i, ang, asr = self._sort_wedge(destvecs, d, i)
+    def _weight_lum(self, i):
+        # get variance on lum (from closest point)
+        lum = np.max(self.lum.reshape(self.lum.shape[0], -1)[i], axis=-1)
+        dlum = lum - np.mean(lum, axis=1)[:, None]
+        lvar = np.mean(np.square(dlum), axis=1)[:, None]
+        # scale distance on gaussian as weight
+        return np.exp(-np.square(dlum)/(2*lvar))
 
-        # calculate distance matrix between interpolants
-        admx = np.abs(ang[:, None] - ang[:, :, None])
-        # handle cycle
-        admx[admx > np.pi] = 2*np.pi - admx[admx > np.pi]
-
-        # mask out bad candidates
-        admx[np.broadcast_to(no_match[:, None], admx.shape)] = 6
-        # find the closest alternative as replacement
-        replace = np.argmin(admx, 1)
-        ir = np.take_along_axis(i, replace, axis=1)
-        dr = np.take_along_axis(d, replace, axis=1)
-
-        no_match = np.take_along_axis(no_match, asr, axis=1)
-        i[no_match] = ir[no_match]
-        d[no_match] = dr[no_match]
-        return self._weight_wedge(ang, d, i)
-
-    def _sort_wedge(self, destvecs, d, i):
-        # scale distance as weight
-        d = d[:, 0:1]/d
-
-        dv = destvecs
-        sv = self.vec
+    def _weight_angle(self, destvecs, i):
         # project to interpolation point and calculate theta
-        ymtx, pmtx = translate.rmtx_yp(dv)
-        nv = np.einsum("vij,vkj,vli->vkl", ymtx, sv[i], pmtx)
-        nv[:, 2] = 0
+        ymtx, pmtx = translate.rmtx_yp(destvecs)
+        nv = np.einsum("vij,vkj,vli->vkl", ymtx, self.vec[i], pmtx)
         ang = np.arctan2(nv[..., 1], nv[..., 0]) + np.pi
-
         # resort by theta
         asr = np.argsort(ang)
         ang = np.take_along_axis(ang, asr, axis=1)
-        d = np.take_along_axis(d, asr, axis=1)
-        i = np.take_along_axis(i, asr, axis=1)
-        return d, i, ang, asr
 
-    def _weight_wedge(self, ang, d, i):
-        # pad array for circular difference calc
-        ang2 = np.hstack((ang[:, -1:] - 2*np.pi, ang, 2*np.pi + ang[:, 0:1]))
-        dw = np.hstack((d[:, -1:], d, d[:, 0:1]))
+        # pad and estimate local density
+        ang2 = np.hstack((ang[:, -2:] - 2*np.pi, ang, 2*np.pi + ang[:, 0:2]))
+        # weighted average of nearby less than
+        lookb = correlate1d(ang2, [-1/6, -1/3, .5], origin=1)
+        # weighted average of nearby greater than
+        lookf = correlate1d(ang2, [-.5, 1/3, 1/6], origin=-1)
+        # total local variance in nearby
+        return (lookb[:, 2:-2] + lookf[:, 2:-2]), asr
 
-        # apportion angle based on distance
-        w1 = (ang - ang2[:, :-2])*d/(d + dw[:, :-2])
-        w2 = (ang2[:, 2:] - ang)*d/(d + dw[:, 2:])
-        wedge = (w1 + w2)/(2*np.pi)
-        if self.features > 1:
-            wedge = np.broadcast_to(wedge[..., None], wedge.shape +
-                                    (self.features,))
-        return i, wedge
-
-    def interp_wedge(self, destvecs, bandwidth=5, **kwargs):
+    def interp(self, destvecs, bandwidth=20, rt=None, lum=True, angle=True,
+               dither=True, **kwargs):
         d, i = self.d_kd.query(destvecs, bandwidth)
-        d, i, ang, _ = self._sort_wedge(destvecs, d, i)
-        return self._weight_wedge(ang, d, i)
-
-    @staticmethod
-    def _interp_fast(destvecs, d, i):
-        # normalize and make cdf based on d
-        d = d/np.sum(d, 1)[:, None]
-        dc = np.cumsum(d, 1)
-        # draw on cdf
-        c = np.random.default_rng().random(len(destvecs))
-        ic = np.array(list(map(np.searchsorted, dc, c)))[:, None]
-        i = np.take_along_axis(i, ic, 1).ravel()
-        return i, None
-
-    def content_interp(self, rt, destvecs, bandwidth=10, srfnormtol=5.0,
-                       disttol=0.5, **kwargs):
-        all_match, d, i = self._c_interp(rt, destvecs, bandwidth=bandwidth,
-                                         srfnormtol=srfnormtol, disttol=disttol)
-        # weight by the inv. square of distance
-        d = 1/np.square(d)
-        d[np.logical_not(all_match)] = 0
-        return self._interp_fast(destvecs, d, i)
-
-    def interp_fast(self, destvecs, bandwidth=10, **kwargs):
-        d, i = self.d_kd.query(destvecs, bandwidth)
-        # weight by the inv. square of distance
-        d = 1/np.square(d)
-        return self._interp_fast(destvecs, d, i)
+        w = self._weight_distance(d)
+        if lum:
+            w *= self._weight_lum(i)
+        if angle:
+            angw, asr = self._weight_angle(destvecs, i)
+            w = np.take_along_axis(w, asr, axis=1) * angw
+            i = np.take_along_axis(i, asr, axis=1)
+        if rt is not None:
+            content = self._content_mask(rt, destvecs, i)
+            w[np.logical_not(content)] = 0
+        w = w / np.sum(w, axis=-1)[:, None]
+        if dither:
+            dc = np.cumsum(w, 1)
+            c = np.random.default_rng().random(len(destvecs))
+            ic = np.array(list(map(np.searchsorted, dc, c)))[:, None]
+            i = np.take_along_axis(i, ic, 1).ravel()
+            w = None
+        elif self.features > 1:
+            w = np.broadcast_to(w[..., None], w.shape + (self.features,))
+        return i, w
 

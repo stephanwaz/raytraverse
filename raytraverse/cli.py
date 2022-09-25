@@ -752,7 +752,7 @@ rows in wea/epw file using space seperated list or python range notation:
  click.option("-simtype", default="3comp",
               help=f"simulation process/integration type:\n\n"
                    f"{api.stypedocstring}\n\nor source name (overrides "
-                   f"--rresampleview, --directview, etc."),
+                   f"--resampleview, --directview, etc."),
  click.option("-resuntol", default=1.0,
               help="tolerance for resampling sun views"),
  click.option("-resamprad", default=0.0,

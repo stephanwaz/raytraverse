@@ -142,13 +142,14 @@ class Integrator(object):
         os.remove(rbase)
         d = np.linspace(0, len(skydata.maskindices),
                         int(esize/csize) + 2).astype(int)
-        self.scene.log(self, f"breaking evaluation into {len(d)} chunks,"
+        self.scene.log(self, f"breaking evaluation into {len(d) - 1} chunks,"
                              f" writing temporary results to {rbase}_XX.npz"
                        , True)
         slices = [slice(d[i], d[i + 1], 1) for i in range(len(d) - 1)]
         omask = np.copy(skydata.mask)
         for i, slc in enumerate(slices):
-            self.scene.log(self, f"evaluating part {i + 1} of {len(d)}", True)
+            self.scene.log(self, f"evaluating part {i + 1} of {len(slices)}",
+                           True)
             skydata.mask = skydata.maskindices[slc]
             lr = evalfunc(skydata, points, vm, emax=-1, **kwargs)
             skydata.mask = omask
