@@ -684,18 +684,28 @@ class LightPointKD(object):
         return (lookb[:, 2:-2] + lookf[:, 2:-2]), asr
 
     def interp(self, destvecs, bandwidth=20, rt=None, lum=True, angle=True,
-               dither=True, **kwargs):
+               dither=False, **kwargs):
         d, i = self.d_kd.query(destvecs, bandwidth)
         w = self._weight_distance(d)
         if lum:
             w *= self._weight_lum(i)
-        if angle:
-            angw, asr = self._weight_angle(destvecs, i)
-            w = np.take_along_axis(w, asr, axis=1) * angw
-            i = np.take_along_axis(i, asr, axis=1)
+        cf = None
         if rt is not None:
             content = self._content_mask(rt, destvecs, i)
-            w[np.logical_not(content)] = 0
+            w[np.logical_not(content)] *= 0.2
+            cf = np.all(content, 1)
+        if angle:
+            if cf is not None:
+                asr = np.tile(np.arange(bandwidth)[:, None], len(destvecs)).T
+                angw = np.ones_like(w)
+                angwcf, asrcf = self._weight_angle(destvecs[cf], i[cf])
+                asr[cf] = asrcf
+                angw[cf] = angwcf
+            else:
+                angw, asr = self._weight_angle(destvecs, i)
+            w = np.take_along_axis(w, asr, axis=1) * angw
+            i = np.take_along_axis(i, asr, axis=1)
+
         w = w / np.sum(w, axis=-1)[:, None]
         if dither:
             dc = np.cumsum(w, 1)
