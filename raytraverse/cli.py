@@ -424,7 +424,17 @@ def sunengine(ctx, accuracy=1.0, vlt=0.64, idres=32, rayargs=None,
 
 
 @main.command()
-@clk.shared_decs(engine_opts)
+@click.option('-idres', default=32,
+             help='the initial directional sampling resolution '
+                  '(as sqrt of samples per hemisphere)')
+@click.option('-t0', default=20.0,
+              help='initial sample  threshold (in cd/m^2), use instead of '
+                   'accuracy when source luminance and meaningful difference'
+                   'is known')
+@click.option('-t1', default=400.0,
+              help='final sample  threshold (in cd/m^2), use instead of '
+                   'accuracy when source luminance and meaningful difference'
+                   'is known')
 @click.option('-rayargs',
               help='additional arguments to pass to the rendering engine')
 @click.option('--default-args/--no-default-args', default=True,
@@ -446,9 +456,10 @@ def sunengine(ctx, accuracy=1.0, vlt=0.64, idres=32, rayargs=None,
                    "shades")
 @click.option("--color/--no-color", default=True)
 @clk.shared_decs(clk.command_decs(raytraverse.__version__, wrap=True))
-def sourceengine(ctx, srcfile=None, source="source", accuracy=1.0, vlt=1.0,
-                 idres=32, rayargs=None, default_args=True, nlev=6, color=True,
-                 opts=False, debug=False, version=None, **kwargs):
+def sourceengine(ctx, srcfile=None, source="source", idres=32, rayargs=None,
+                 default_args=True, nlev=6, color=True, t0=20.0, t1=400.0,
+                 opts=False, debug=False, version=None,
+                 **kwargs):
     """initialize engine for sunrun
 
     Effects:
@@ -470,8 +481,7 @@ def sourceengine(ctx, srcfile=None, source="source", accuracy=1.0, vlt=1.0,
     rtrace = Rtrace(rayargs=rayargs, scene=srcscn, default_args=default_args)
     if color:
         rtrace.update_ospec("v")
-    accuracy = accuracy*vlt/0.64
-    ptkwargs = dict(accuracy=accuracy, idres=idres, nlev=nlev, stype=source)
+    ptkwargs = dict(t0=t0, t1=t1, idres=idres, nlev=nlev, stype=source)
     ctx.obj['sourceengine'] = dict(engine=rtrace, ptkwargs=ptkwargs,
                                    source=(srcfile, source))
 

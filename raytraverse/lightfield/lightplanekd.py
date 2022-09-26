@@ -10,7 +10,7 @@ from scipy.spatial import Voronoi
 from scipy.interpolate import LinearNDInterpolator
 from shapely.geometry import Polygon
 
-from raytraverse import io
+from raytraverse import io, translate
 from raytraverse.evaluate import MetricSet
 from raytraverse.lightfield.sets import LightPointSet
 from raytraverse.lightfield.lightfield import LightField
@@ -38,21 +38,7 @@ class LightPlaneKD(LightField):
         :type: np.array
         """
         if self._omega is None:
-            pm = self.pm
-            # border capture any infinite edges
-            bordered = np.concatenate((self.vecs,
-                                       pm.bbox_vertices(pm.area**.5*10)))
-            vor = Voronoi(bordered[:, 0:2])
-            omega = []
-            for i in range(len(self.vecs)):
-                region = vor.regions[vor.point_region[i]]
-                p = Polygon(vor.vertices[region])
-                area = 0
-                for bord in pm.borders():
-                    mask = Polygon(bord)
-                    area += p.intersection(mask).area
-                omega.append(area)
-            self._omega = np.asarray(omega)
+            self._omega = translate.calc_omega(self.vecs, self.pm)
         return self._omega
 
     @omega.setter

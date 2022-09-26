@@ -44,17 +44,14 @@ class SamplerSuns(BaseSampler):
         subset of samplerarea.metric set to use for sun detail calculation.
     """
 
-    #: initial sampling threshold coefficient
-    t0 = .05
-    #: final sampling threshold coefficient
-    t1 = .125
     #: upper bound for drawing from pdf
     ub = 8
 
     def __init__(self, scene, engine, accuracy=1.0, nlev=3, jitter=True,
                  ptkwargs=None, areakwargs=None,
-                 metricset=('avglum', 'loggcr')):
-        super().__init__(scene, engine, accuracy, stype='sunpositions')
+                 metricset=('avglum', 'loggcr'), t0=.05, t1=.125):
+        super().__init__(scene, engine, accuracy, t0=t0, t1=t1,
+                         stype='sunpositions')
         self._gcrnorm = 8
         if areakwargs is None:
             areakwargs = {}

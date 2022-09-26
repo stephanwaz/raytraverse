@@ -207,8 +207,8 @@ class ZonalLightResult(LightResult):
         paxis = ResultAxis(points, "point")
         omet = self.axis("metric").values
         mf = [i for i, v in enumerate(omet) if v not in
-              ('x', 'y', 'z', 'area')]
-        maxis = ResultAxis([omet[i] for i in mf] + ["rebase_err"], "metric")
+              ('x', 'y', 'z')]
+        maxis = ResultAxis([omet[i].replace("area", "origarea") for i in mf] + ["rebase_err"], "metric")
         odata = pool_call(_pull2grid, self.data, points, mf, expandarg=False)
         lr = LightResult(np.stack(odata), self.axes[0], paxis, self.axes[2], maxis)
         return lr

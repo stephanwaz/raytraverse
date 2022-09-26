@@ -56,7 +56,7 @@ class SamplerPt(BaseSampler):
         self.idres = idres
         self.nlev = nlev
         super().__init__(scene, engine, accuracy=accuracy, stype=stype,
-                         samplerlevel=samplerlevel, features=features)
+                         samplerlevel=samplerlevel, features=features, **kwargs)
 
     def sampling_scheme(self, a):
         """calculate sampling scheme"""

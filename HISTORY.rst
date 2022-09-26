@@ -11,6 +11,8 @@ History
 * bug in integrator log showing too many chunks
 * rebase method added to basic LightResult
 * rewrote lightpoint image interpolation
+* SrcSamplerPt no longer uses accuracy, instead, set t0, at t1 with physical units
+* t0 and t1 now instance properties (settable from init)
 
 1.3.6 (2022-07-28)
 ------------------

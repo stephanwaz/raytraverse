@@ -44,18 +44,15 @@ class SamplerArea(BaseSampler):
         "lum" will be normalized to 0-1)
     """
 
-    #: initial sampling threshold coefficient
-    t0 = .1
-    #: final sampling threshold coefficient
-    t1 = .9
     #: upper bound for drawing from pdf
     ub = 100
 
     def __init__(self, scene, engine, accuracy=1.0, nlev=3, jitter=True,
                  edgemode='constant', metricclass=SamplingMetrics,
                  metricset=('avglum', 'loggcr', 'xpeak', 'ypeak'),
-                 **kwargs):
-        super().__init__(scene, engine, accuracy, engine.stype, **kwargs)
+                 t0=.1, t1=.9, **kwargs):
+        super().__init__(scene, engine, accuracy, engine.stype, t0=t0, t1=t1,
+                         **kwargs)
         if "sun" in self.stype:
             self._gcrnorm = 8
         else:

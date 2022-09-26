@@ -583,13 +583,6 @@ def calc_omega(vecs, pm):
     else:
         scale = 1.
 
-    # pg = pygeos.get_parts([pygeos.polygons(vor.vertices[vor.regions[i]])
-    #                        for i in vor.point_region[:len(vecs)]])
-    # border = pygeos.multipolygons([b[:, 0:2] for b in pm.borders()])
-    # # regions = pygeos.intersection(border, pg)
-    # omega = pygeos.area(pg) * scale
-    # return omega
-
     omega = np.zeros(len(vecs))
     for i in range(len(vecs)):
         region = vor.regions[vor.point_region[i]]

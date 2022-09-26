@@ -428,9 +428,6 @@ class LightResult(object):
     def pull2planhdr(self, imgzone, basename, showsample=False, res=480,
                      **kwargs):
         pm = PlanMapper(imgzone)
-        if "metric" in kwargs and kwargs["metric"] is not None:
-            kwargs["metric"] = np.unique(
-                np.concatenate(([0, 1, 2], kwargs["metric"])))
         rt, labels, names = self.pull("metric", preserve=2, **kwargs)
         flabels0 = self.fmt_names(names[-1], labels[-1])
         flabels1 = self.fmt_names(names[-2], labels[-2])

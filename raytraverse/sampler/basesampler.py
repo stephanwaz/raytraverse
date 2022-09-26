@@ -55,17 +55,6 @@ class BaseSampler(object):
         number of values evaluated for detail
     """
 
-    #: initial sampling threshold coefficient
-    #: this value times the accuracy parameter is passed to
-    #: raytraverse.sampler.draw.from_pdf() at level 0 (usually not used)
-    t0 = 2**-8
-    #: final sampling threshold coefficient
-    #: this value times the accuracy parameter is passed to
-    #: raytraverse.sampler.draw.from_pdf() at final level, intermediate
-    #: sampling levels are thresholded by a linearly interpolated between t0
-    #: and t1
-    t1 = .0625
-
     #: lower bound for drawing from pdf
     #: passed to raytraverse.sampler.draw.from_pdf()
     lb = .25
@@ -77,10 +66,20 @@ class BaseSampler(object):
 
     def __init__(self, scene, engine, accuracy=1.0, stype='generic',
                  samplerlevel=0, featurefunc=np.max, features=1,
-                 weightfunc=np.max):
+                 weightfunc=np.max, t0=2**-8, t1=.0625):
         self.engine = engine
         #: raytraverse.scene.Scene: scene information
         self.scene = scene
+        #: initial sampling threshold coefficient
+        #: this value times the accuracy parameter is passed to
+        #: raytraverse.sampler.draw.from_pdf() at level 0 (usually not used)
+        self.t0 = t0
+        #: final sampling threshold coefficient
+        #: this value times the accuracy parameter is passed to
+        #: raytraverse.sampler.draw.from_pdf() at final level, intermediate
+        #: sampling levels are thresholded by a linearly interpolated between t0
+        #: and t1
+        self.t1 = t1
         #: float: accuracy parameter
         #: some subclassed samplers may apply a scale factor to normalize
         #: threshold values depending on source brightness (see for instance

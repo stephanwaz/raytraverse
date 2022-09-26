@@ -37,7 +37,7 @@ class SrcSamplerPt(SamplerPt):
     """
 
     def __init__(self, scene, engine, source, stype="source", scenedetail=False,
-                 distance=0.5, normal=5.0, **kwargs):
+                 distance=0.5, normal=5.0, t0=20, t1=400, **kwargs):
         self._scenedetail = scenedetail
         self._distance = distance
         self._normal = normal * np.pi/180
@@ -48,7 +48,8 @@ class SrcSamplerPt(SamplerPt):
             self.ub = 1
             engine.update_ospec(engine.ospec + "LNM")
         kwargs.update(features=engine.features)
-        super().__init__(scene, engine, stype=stype, **kwargs)
+        super().__init__(scene, engine, stype=stype, t0=t0/179,
+                         t1=t1/179, **kwargs)
         # update parameters post init
         #: path to source scene file
         self.sourcefile = source
@@ -63,9 +64,6 @@ class SrcSamplerPt(SamplerPt):
         #: gets initialized for each point, as apparent light size will change
         self._viewdirections = []
         self._isdistant = []
-        #: gets initialized for each point using direct illuminance from sources
-        #: should not be less than 1.08173E-05 (accuracy of sunsampler pt)
-        self._normaccuracy = self.accuracy
         #: set sampling level/strategy for lights based on source solid angle,
         #: fill ratio and sampling resolution
         self._samplelevels = [[] for i in range(self.nlev)]
@@ -77,7 +75,6 @@ class SrcSamplerPt(SamplerPt):
         mapper.jitterrate = 0.8
         self._mapper = mapper
         point = np.asarray(point).flatten()[0:3]
-        self._set_normalization(point, 2)
         self._load_specguide(point, specguide)
         return super().run(point, posidx, mapper=mapper, **kwargs)
 
@@ -131,48 +128,6 @@ class SrcSamplerPt(SamplerPt):
             return slum, dlum
         else:
             return super()._process_features(lum)
-
-    def _set_normalization(self, point, upaxis=2):
-        fd, srcoct = tempfile.mkstemp(dir=f"./{self.scene.outdir}/",
-                                      prefix='tmp_src')
-        with os.fdopen(fd) as f:
-            pipeline([f"oconv -w {self.sourcefile}"], outfile=f)
-        afac = 0.0
-        srcoct = f"./{self.scene.outdir}/" + srcoct.rsplit("/")[-1]
-        if self.features > 1:
-            vlambda = (1/3, 1/3, 1/3)
-        else:
-            vlambda = (0.265, 0.670, 0.065)
-        if self.lights.size > 0:
-            # make rays point at center of sources from 6 cardinal directions
-            box = np.vstack((np.eye(3), -np.eye(3))) * .001
-            brays = self.lights[:, None, 0:3] + box[None]
-            bdirs = np.broadcast_to(-box[None], brays.shape)
-            brays = np.concatenate((brays, bdirs), axis=2).reshape(-1, 6)
-            # render direct luminance
-            icheck = SpRenderer("-h -ab 0 -lw 1e-5 -av 0 0 0 -w "
-                                "-dc 1 -ds 0 -dt 0 -dj 0", srcoct, 1)
-            lums = np.array([float(i) for i in
-                             icheck(brays).split()]).reshape(-1, 3)
-            # get the max luminance for each source
-            llum = np.max(io.rgb2rad(lums, vlambda).reshape(len(self.lights), -1), 1)
-            # find the distance along upaxis
-            dray = np.abs(self.lights[:, 0:3] - point[None])[:, upaxis]
-            radius = np.sqrt(self.lights[:, 4] / np.pi)
-            # add up direct normal irradiance (lum * omega), but cap at max(lum)
-            afac += np.min((np.sum(llum * (1 - np.cos(np.arctan(radius/dray)))),
-                            np.max(llum)))
-        if self.sources.size > 0:
-            # get illuminnance of distant sources to also calibrate accuracy
-            icheck = SpRenderer("-h -ab 1 -ad 10000 -lw 1e-5 -av 0 0 0 -I+ -w "
-                                "-dc 1 -ds 0 -dt 0 -dj 0", srcoct, 1)
-            # hopefully this is above any light source geometry
-            ray = np.array([0, 0, 1e7, 0, 0, 1]).reshape(-1, 6)
-            illum = io.rgb2rad([float(i) for i in icheck(ray).split()], vlambda)
-            afac += illum / np.pi
-        if afac > 0:
-            self.accuracy = self.accuracy * afac
-        os.remove(srcoct)
 
     def _reflect(self, sources):
         srcr, m = translate.reflect(sources[:, 0:3],
@@ -265,7 +220,6 @@ class SrcSamplerPt(SamplerPt):
                                   vm=vm, srcviews=srcview,
                                   features=outfeatures, **kwargs)
         # reset run() modified parameters
-        self.accuracy = self._normaccuracy
         self._viewdirections = []
         self._isdistant = []
         self._samplelevels = [[] for _ in range(self.nlev)]
