@@ -64,13 +64,12 @@ class SunSamplerPtView(SamplerPt):
 
     def _run_callback(self, point, posidx, vm, write=False, **kwargs):
         """post sampling, write full resolution (including interpolated values)
-         non zero rays to result file."""
-        keep = self.lum > 1e-7
-        skd = LightPointKD(self.scene, self.vecs, self.lum, vm, point, posidx,
-                           self.stype, calcomega=False, write=write)
-        if np.sum(keep) == 0:
+         non-zero rays to result file."""
+        if np.sum(self.lum > 1e-7) == 0:
             lightpoint = None
         else:
+            skd = LightPointKD(self.scene, self.vecs, self.lum, vm, point,
+                               posidx, self.stype, calcomega=False, write=write)
             shp = self.weights.shape
             si = np.stack(np.unravel_index(np.arange(np.product(shp)), shp))
             uv = (si.T + .5)/shp[1]

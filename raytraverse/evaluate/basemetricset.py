@@ -58,7 +58,7 @@ class BaseMetricSet(object):
     safe2sum = {"illum", "avglum", "density"}
 
     def __init__(self, vec, omega, lum, vm, metricset=None, scale=179.,
-                 omega_as_view_area=True, guth=True, warnings=False,
+                 omega_as_view_area=True, guth=True, warn=False,
                  **kwargs):
         if metricset is not None:
             self.check_metrics(metricset, True)
@@ -116,7 +116,7 @@ class BaseMetricSet(object):
             self.omega = omega[mask]
         self.scale = scale
         self.kwargs = kwargs
-        self._warn = warnings
+        self._warn = warn
 
     def __call__(self, metrics=None):
         """

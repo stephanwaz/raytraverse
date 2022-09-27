@@ -5,18 +5,13 @@
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 # =======================================================================
-import os
-import tempfile
-
 import numpy as np
-from clasp.script_tools import pipeline
 
 from raytraverse import translate, io
 from raytraverse.lightpoint import LightPointKD
 from raytraverse.mapper import ViewMapper
 from raytraverse.sampler.samplerpt import SamplerPt
 from raytraverse.sampler.srcsamplerptview import SrcSamplerPtView
-from raytraverse.renderer import SpRenderer
 from raytraverse.sampler import draw
 from raytraverse.sampler.basesampler import filterdict
 
@@ -63,16 +58,14 @@ class SrcSamplerPt(SamplerPt):
         self.sources = srcs[distant]
         #: gets initialized for each point, as apparent light size will change
         self._viewdirections = []
-        self._isdistant = []
         #: set sampling level/strategy for lights based on source solid angle,
         #: fill ratio and sampling resolution
-        self._samplelevels = [[] for i in range(self.nlev)]
-        self._refl = None
+        self._samplelevels = [[] for _ in range(self.nlev)]
 
-    def run(self, point, posidx, specguide=None, mapper=None, upaxis=2, **kwargs):
+    def run(self, point, posidx, specguide=None, mapper=None, upaxis=2,
+            **kwargs):
         if mapper is None:
             mapper = ViewMapper()
-        mapper.jitterrate = 0.8
         self._mapper = mapper
         point = np.asarray(point).flatten()[0:3]
         self._load_specguide(point, specguide)
@@ -129,17 +122,6 @@ class SrcSamplerPt(SamplerPt):
         else:
             return super()._process_features(lum)
 
-    def _reflect(self, sources):
-        srcr, m = translate.reflect(sources[:, 0:3],
-                                    self._refl, False)
-        if len(sources) > 1:
-            areas = np.broadcast_to(sources[:, 3:4],
-                                    m.shape)[m, None]
-        else:
-            areas = np.full(len(m), sources[0, 3])[m, None]
-        srcr = srcr[m]
-        return list(np.hstack((srcr, areas)))
-
     def _load_specguide(self, point, specguide):
         """
         Parameters
@@ -147,36 +129,37 @@ class SrcSamplerPt(SamplerPt):
         specguide: str
             file with reflection normals.
         """
+        normal = None
         if hasattr(specguide, "lower"):
             try:
                 # load reflection normals (from scene.reflection_search)
-                normals = io.load_txt(specguide).reshape(-1, 3)
-                self._refl = translate.norm(normals)
+                normal = translate.norm(io.load_txt(specguide).reshape(-1, 3))
             except (ValueError, FileNotFoundError):
                 pass
         ires = self.idres*180/self._mapper.viewangle
         # 1/2 for nyquist
         level_res = ires*np.power(2, np.arange(self.nlev))/2
         # last level with refinement
-        rlevel = len(self._samplelevels) - 2
-        if self.sources.size > 0:
-            minres = 180/self.sources[:, 3]
-            level_idx = np.searchsorted(level_res, minres)
-            # allocate direct source sampling to level below nyquist limit
-            for idx, src in zip(level_idx, self.sources):
-                if self._refl is not None:
-                    rsrc = self._reflect(src[None])
-                else:
-                    rsrc = []
-                # ensure atleast 1 levels of source "clean-up" else use
-                # a srcviewsampler
-                if idx >= rlevel:
-                    self._viewdirections.append(src[0:4])
-                    self._viewdirections += rsrc
-                    self._isdistant += [True]*(len(rsrc) + 1)
-                else:
-                    self._samplelevels[idx].append(src[0:4])
-                    self._samplelevels[idx] += rsrc
+        rlevel = max(0, len(self._samplelevels) - 2)
+        # allocate direct source sampling to level below nyquist limit
+        vd = []
+        # first add sources
+        for src in self.sources:
+            res = 180/src[3]
+            idx = np.searchsorted(level_res, res)
+            if res > level_res[rlevel]:
+                vd.append(src[0:4])
+            elif res > level_res[0]:
+                self._samplelevels[idx].append(src[0:4])
+        vd = np.array(vd)
+        # then add unique reflections
+        for src in self.sources:
+            res = 180/src[3]
+            if normal is not None and res > level_res[rlevel]:
+                rsrc = list(translate.reflect(src[None, 0:3], normal, True))
+                for r in rsrc:
+                    if not np.any(np.all(np.isclose(r, vd[:, 0:3]), 1)):
+                        vd = np.concatenate((vd, [(*r, src[3] * 2)]))
         if self.lights.size > 0:
             # distance to source
             lightdist = np.linalg.norm(self.lights[:, 0:3] - point[None],
@@ -197,7 +180,7 @@ class SrcSamplerPt(SamplerPt):
             for idx, light, size in zip(level_idx, lightdir, appsize):
                 li = np.concatenate((light, [size]))
                 self._samplelevels[min(idx, rlevel)].append(li)
-        self._viewdirections = np.array(self._viewdirections)
+        self._viewdirections = vd
 
     def _run_callback(self, point, posidx, vm, write=True, **kwargs):
         if self._scenedetail:
@@ -212,8 +195,7 @@ class SrcSamplerPt(SamplerPt):
             vms = [ViewMapper(j[0:3], j[3], name=f"{self.stype}_{i}",
                               jitterrate=0)
                    for i, j in enumerate(self._viewdirections)]
-            srcview = viewsampler.run(point, posidx, vm=vms,
-                                      isdistant=self._isdistant)
+            srcview = viewsampler.run(point, posidx, vm=vms)
         lightpoint = LightPointKD(self.scene, self.vecs, self.lum,
                                   src=self.stype, pt=point, write=write,
                                   srcn=self.srcn, posidx=posidx,
@@ -221,9 +203,7 @@ class SrcSamplerPt(SamplerPt):
                                   features=outfeatures, **kwargs)
         # reset run() modified parameters
         self._viewdirections = []
-        self._isdistant = []
         self._samplelevels = [[] for _ in range(self.nlev)]
-        self._refl = None
         return lightpoint
 
     def _plot_weights(self, level, vm, name, suffix=".hdr", fisheye=True):

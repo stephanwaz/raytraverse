@@ -249,19 +249,33 @@ def project(ctx, img=None, uv2ang=False, **kwargs):
 #     results = pool_call(imagetools.img2lf, list(zip(imga, imgb, srcs)), scn=scene)
 
 
-def _dview(x):
+def _dview(x, **kwargs):
     lpt = api.load_lp(x)
-    lpt.direct_view(res=800)
+    lpt.direct_view(**kwargs)
     return lpt.lum.shape[0]
-
 
 @main.command()
 @click.option('-lp', callback=clk.are_files, required=True,
               help="path to lightpoint(s)")
+@click.option('-res', default=800)
+@click.option('--showsample/--no-showsample', default=False)
+@click.option('-srcidx', default=None, type=int)
+@click.option('-scalefactor', default=1.0)
+@click.option('-interp', type=click.Choice(['fast', 'high','', 'None',
+                                            'False']))
+@click.option('--omega/--no-omega', default=False)
+@click.option('--fisheye/--no-fisheye', default=True)
+@click.option('--showweight/--no-showweight', default=True)
+@click.option('--rnd/--no-rnd', default=False)
 @clk.shared_decs(clk.command_decs(raytraverse.__version__, wrap=True))
-def lp2img(ctx, lp=None, **kwargs):
+def lp2img(ctx, lp=None, res=800, showsample=False, showweight=True, rnd=False,
+           srcidx=None, interp=False, omega=False, scalefactor=1, fisheye=True,
+           **kwargs):
     """make hdr directview of lightpoint"""
-    rays = pool_call(_dview, lp, expandarg=False)
+    rays = pool_call(_dview, lp, expandarg=False, res=res,
+                     showsample=showsample, showweight=showweight, rnd=rnd,
+                     srcidx=srcidx, interp=interp, omega=omega,
+                     scalefactor=scalefactor, fisheye=fisheye,)
     click.echo("lightpoint \t samples")
     for r, l in zip(rays, lp):
         click.echo(f"{l} \t {r}")

@@ -68,7 +68,7 @@ class Rtrace(RadianceRenderer):
     instance = rtrace_instance
     defaultargs = (f"-u+ -ab 16 -av 0 0 0 -aa 0 -as 0 -dc 1 -dt 0 -lr -14 -ad "
                    f"1000 -lw 0.00004 -st 0 -ss 16 -w-")
-    directargs = "-w- -av 0 0 0 -ab 0 -lr 1 -n 1"
+    directargs = "-w- -av 0 0 0 -ab 0 -lr 1 -n 1 -st 0 -ss 16 -lw 0.00004"
     usedirect = False
     ospec = "Z"
 

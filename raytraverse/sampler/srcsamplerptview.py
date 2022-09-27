@@ -33,31 +33,22 @@ class SrcSamplerPtView(SamplerPt):
         self.vecs = None
         self.lum = []
 
-    def run(self, point, posidx, vm=None, plotp=False, log=None, isdistant=True,
-            **kwargs):
+    def run(self, point, posidx, vm=None, plotp=False, log=None, **kwargs):
         if vm is None:
             return []
-        if type(isdistant) == bool:
-            isdistant = [isdistant] * len(vm)
-        if len(isdistant) < len(vm):
-            raise ValueError("if isdistant is a sequence, it must be the same"
-                             f" length as vm. vm has len: {len(vm)}, but "
-                             f"isdistant has len: {len(isdistant)}")
         svpts = []
         args = self.engine.args
         # temporarily override arguments
         self.engine.set_args(self.engine.directargs)
-        for v, isd in zip(vm, isdistant):
-            lpargs = dict(isdistant=isd)
+        for v in vm:
             svpts.append(super().run(point, posidx, v, plotp=plotp, log=log,
-                                     lpargs=lpargs, **kwargs))
+                                     **kwargs))
         self.engine.set_args(args, io.get_nproc())
         return svpts
 
-    def _run_callback(self, point, posidx, vm, write=False, isdistant=True,
-                      **kwargs):
+    def _run_callback(self, point, posidx, vm, write=False, **kwargs):
         """post sampling, write full resolution (including interpolated values)
-         non zero rays to result file."""
+         non-zero rays to result file."""
         if np.sum(self.lum > 1e-7) == 0:
             lightpoint = None
         else:
@@ -72,8 +63,7 @@ class SrcSamplerPtView(SamplerPt):
             keep = lumg > 1e-8
             lightpoint = SrcViewPoint(self.scene, grid[keep],
                                       np.average(lumg[keep]), point, posidx,
-                                      self.stype, shp[1], vm.area,
-                                      isdistant=isdistant)
+                                      self.stype, shp[1], vm.area)
         self.vecs = None
         self.lum = []
         return lightpoint

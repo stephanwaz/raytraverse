@@ -311,9 +311,14 @@ class LightPointKD(object):
             else:
                 i, d = self.query_ray(vecs)
             lum = val[:, i]
-        img[mask] += np.ravel(lum)
-        for srcview, srcidx in zip(self.srcviews, self.srcviewidxs):
-            srcview.add_to_img(img, vecs, mask, skyvec[srcidx], vm)
+        if mask is None:
+            a = np.transpose(lum, (0, 1, 4, 2, 3))[0, 0]
+            img += a
+        else:
+            img[mask] += np.ravel(lum)
+        if not (omega or rnd):
+            for srcview, srcidx in zip(self.srcviews, self.srcviewidxs):
+                srcview.add_to_img(img, vecs, mask, skyvec[srcidx], vm)
 
     def evaluate(self, skyvec, vm=None, idx=None, srconly=False,
                  blursun=False, includeviews=True):
@@ -452,17 +457,20 @@ class LightPointKD(object):
                     srcidx=None, interp=False, omega=False, scalefactor=1,
                     vm=None, fisheye=True):
         """create an unweighted summary image of lightpoint"""
+        if omega or rnd:
+            features = 1
+        else:
+            features = self.features
         if vm is None:
             vm = self.vm
+        img, pdirs, mask, mask2, header = vm.init_img(res, self.pt,
+                                                      features=features)
         if fisheye:
-            img, pdirs, mask, mask2, header = vm.init_img(res, self.pt,
-                                                          features=self.features)
             header = [header]
         else:
-            outshape = (res*vm.aspect, res)
-            img = np.zeros(outshape)
             uv = translate.bin2uv(np.arange(res*res*vm.aspect), res)
-            pdirs = vm.uv2xyz(uv).reshape(res*vm.aspect, res, 3)
+            pdirs = vm.uv2xyz(uv).reshape(vm.aspect, res, res, 3)
+            pdirs = pdirs[:, ::-1].reshape(vm.aspect*res, res, 3)
             mask = None
             mask2 = None
             header = None
@@ -692,7 +700,7 @@ class LightPointKD(object):
         cf = None
         if rt is not None:
             content = self._content_mask(rt, destvecs, i)
-            w[np.logical_not(content)] *= 0.2
+            w[np.logical_not(content)] *= 0.05
             cf = np.all(content, 1)
         if angle:
             if cf is not None:

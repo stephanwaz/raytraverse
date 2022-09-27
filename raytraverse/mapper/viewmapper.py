@@ -27,7 +27,7 @@ class ViewMapper(AngularMixin, Mapper):
     """
 
     def __init__(self, dxyz=(0.0, 1.0, 0.0), viewangle=360.0, name='view',
-                 origin=(0, 0, 0), jitterrate=0.9):
+                 origin=(0, 0, 0), jitterrate=0.5):
         self._viewangle = viewangle
         if viewangle == 360:
             aspect = 2

@@ -13,6 +13,9 @@ History
 * rewrote lightpoint image interpolation
 * SrcSamplerPt no longer uses accuracy, instead, set t0, at t1 with physical units
 * t0 and t1 now instance properties (settable from init)
+* added direct view options to raytu lp2img (warning, non-fisheye color throws error)
+* preserve -ss in direct view sampling
+* clean up srcview sampling (always distant) and fix double counting image when rough specular gets re-samples
 
 1.3.6 (2022-07-28)
 ------------------
