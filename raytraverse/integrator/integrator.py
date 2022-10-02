@@ -65,7 +65,7 @@ class Integrator(object):
 
     def make_images(self, skydata, points, vm, viewangle=180., res=512,
                     interp=False, prefix="img", namebyindex=False, suntol=10.0,
-                    blursun=False, resamprad=0.0):
+                    blursun=False, resamprad=0.0, bandwidth=10):
         """see namebyindex for file naming conventions
 
         Parameters
@@ -131,7 +131,7 @@ class Integrator(object):
                                      mask_kwargs=mask_kwargs, vms=vms, res=res,
                                      interp=interp, prefix=prefix,
                                      suntol=suntol, blursun=blursun,
-                                     resamprad=resamprad)
+                                     resamprad=resamprad, bandwidth=bandwidth)
         return sorted([i for j in outfs for i in j])
 
     def _echunk(self, evalfunc, esize, csize, skydata, points, vm, **kwargs):

@@ -158,7 +158,8 @@ class AngularMixin(object):
             mask2 = mask
         return img, vecs, mask, mask2, header
 
-    def add_vecs_to_img(self, img, v, channels=(1, 0, 0), grow=0, fisheye=True):
+    def add_vecs_to_img(self, img, v, channels=(1, 0, 0), grow=0, fisheye=True,
+                        mask=None):
         res = img.shape[-1]
         if fisheye:
             if self.aspect == 2:
@@ -172,6 +173,16 @@ class AngularMixin(object):
                 pb = self.ray2pixel(v, res)
                 xp = pb[:, 0]
                 yp = pb[:, 1]
+            if mask is None:
+                mask = np.logical_and(pb >= 0, pb < np.array(img.shape[-2:])[None])
+                mask = np.logical_and(*mask.T)
+            else:
+                dt = np.dtype([("f0", int), ("f1", int)])
+                pbm = np.array(list(zip(*pb.T)), dtype=dt)
+                mask = np.array(list(zip(*mask)), dtype=dt)
+                mask = np.isin(pbm, mask)
+            xp = xp[mask]
+            yp = yp[mask]
         else:
             pa = translate.uv2ij(self.xyz2uv(v), res)
             xp = res - 1 - pa[:, 0]

@@ -550,9 +550,10 @@ def skyrun(ctx, accuracy=1.0, nlev=3, jitter=True, overwrite=False, plotp=False,
         skyfield = skysampler.run(pm, plotp=plotp, pfish=False)
         try_mkdir(f"{scn.outdir}/{pm.name}")
         reflf = f"{scn.outdir}/{pm.name}/reflection_normals.txt"
-        refl = scn.reflection_search(skyfield.vecs)
-        if refl.size > 0:
-            np.savetxt(reflf, refl)
+        if not os.path.isfile(reflf):
+            refl = scn.reflection_search(skyfield.vecs)
+            if refl.size > 0:
+                np.savetxt(reflf, refl)
     else:
         if scn.dolog:
             click.echo(f"Sky Lightfield reloaded from {scn.outdir}/{pm.name} "
@@ -788,13 +789,16 @@ rows in wea/epw file using space seperated list or python range notation:
                    "where pidx, vidx refer to the order of points, and vm.")
 @click.option("-basename", default="results",
               help="prefix of namebyindex.")
+@click.option("-bandwidth", default=20,
+              help="used by interpolation.")
 @click.option("--directview/--no-directview", default=False,
               help="if True, ignore sky data and use daylight factors directly")
 @clk.shared_decs(clk.command_decs(raytraverse.__version__, wrap=True))
 def images(ctx, sensors=None, sdirs=None, viewangle=180., skymask=None,
            basename="results", res=800, interpolate=None, namebyindex=False,
            simtype="2comp", resuntol=5.0, blursun=False, resampleview=False,
-           directview=False, maskfull=True, resamprad=0.0, **kwargs):
+           directview=False, maskfull=True, resamprad=0.0, bandwidth=20,
+           **kwargs):
     """render images
 
     Prerequisites:
@@ -868,7 +872,8 @@ def images(ctx, sensors=None, sdirs=None, viewangle=180., skymask=None,
                                           interp=interpolate, prefix=basename,
                                           namebyindex=namebyindex,
                                           suntol=resuntol, blursun=blursun,
-                                          resamprad=resamprad))
+                                          resamprad=resamprad,
+                                          bandwidth=bandwidth))
         result = np.concatenate(result)
     elif sdirs is None:
         raise ValueError("if sensors do not have directions, sdirs cannot be "
@@ -877,7 +882,8 @@ def images(ctx, sensors=None, sdirs=None, viewangle=180., skymask=None,
         result = itg.make_images(sd, sensors, sdirs, viewangle=viewangle,
                                  res=res, interp=interpolate, prefix=basename,
                                  namebyindex=namebyindex, suntol=resuntol,
-                                 blursun=blursun,  resamprad=resamprad)
+                                 blursun=blursun,  resamprad=resamprad,
+                                 bandwidth=bandwidth)
     for d in result:
         print(d)
     sd.mask = None

@@ -105,13 +105,13 @@ class SrcViewPoint(object):
                 pomega = vm.pixel2omega(ppix, res)
                 # interpolate within original bounds
                 interp = LinearNDInterpolator(px, clum, fill_value=0)
-                luma = interp(ppix).reshape(img[mask].shape)
+                luma = interp(ppix)
                 # interpolate within expanded bounds to find perimeter
                 clum = np.concatenate((clum, np.full(len(hullpoints),
                                                      coefs * self.lum)))
                 xy = np.concatenate((px, hullpoints))
                 interp = LinearNDInterpolator(xy, clum, fill_value=0)
-                lumb = interp(ppix).reshape(img[mask].shape)
+                lumb = interp(ppix)
                 # isolate perimeter
                 corona = np.logical_and(lumb > 0, luma == 0)
                 if np.sum(corona) > 0:
@@ -119,7 +119,11 @@ class SrcViewPoint(object):
                     current = np.sum(pomega*luma)
                     gap = (target - current)/np.sum(pomega[corona])
                     luma[corona] = gap * coefs * self.lum
-                i2[mask] = luma
+                if len(img.shape) > 2:
+                    fe = img.shape[0]
+                    i2[mask[1][::fe], mask[2][::fe]] = luma
+                else:
+                    i2[mask] = luma
             else:
                 px = tuple(zip(*px))
                 i2[px] += clum

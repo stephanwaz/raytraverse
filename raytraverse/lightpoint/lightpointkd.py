@@ -10,7 +10,7 @@ import pickle
 
 import numpy as np
 from scipy.interpolate import LinearNDInterpolator
-from scipy.ndimage import convolve1d, correlate1d
+from scipy.ndimage import correlate1d
 
 from scipy.spatial import cKDTree, SphericalVoronoi
 from clasp.script_tools import try_mkdir
@@ -288,14 +288,14 @@ class LightPointKD(object):
             lum = self.apply_interp(idx, val[0], interpweights)
         elif interp == "fastc" and engine is not None:
             i, weights = self.interp(vecs, angle=False, lum=False, dither=True,
-                                     bandwidth=10, rt=engine, **kwargs)
+                                     rt=engine, **kwargs)
             lum = self.apply_interp(i, val[0], weights)
         elif interp == "highc" and engine is not None:
             i, weights = self.interp(vecs, rt=engine, **kwargs)
             lum = self.apply_interp(i, val[0], weights)
         elif interp == "fast":
             i, weights = self.interp(vecs, angle=False, lum=False, dither=True,
-                                     bandwidth=10, **kwargs)
+                                     **kwargs)
             lum = self.apply_interp(i, val[0], weights)
         elif interp == "high":
             i, weights = self.interp(vecs, **kwargs)
@@ -455,7 +455,7 @@ class LightPointKD(object):
 
     def direct_view(self, res=512, showsample=False, showweight=True, rnd=False,
                     srcidx=None, interp=False, omega=False, scalefactor=1,
-                    vm=None, fisheye=True):
+                    vm=None, fisheye=True, grow=1):
         """create an unweighted summary image of lightpoint"""
         if omega or rnd:
             features = 1
@@ -475,6 +475,7 @@ class LightPointKD(object):
             mask2 = None
             header = None
         if showweight:
+            grow = 0
             if srcidx is not None:
                 skyvec = np.zeros(self.srcn)
                 skyvec[srcidx] = scalefactor
@@ -501,7 +502,7 @@ class LightPointKD(object):
             vi = self.query_ball(vm.dxyz, vm.viewangle * vm.aspect)
             v = self.vec[vi[0]]
             img = vm.add_vecs_to_img(img, v, channels=channels,
-                                     fisheye=fisheye)
+                                     fisheye=fisheye, mask=mask, grow=grow)
             io.carray2hdr(img, outf, header)
         elif len(img.shape) == 3:
             io.carray2hdr(img, outf, header)
@@ -666,7 +667,7 @@ class LightPointKD(object):
         return np.exp(-np.square(d)/(2*dvar))
 
     def _weight_lum(self, i):
-        # get variance on lum (from closest point)
+        # get variance on lum=
         lum = np.max(self.lum.reshape(self.lum.shape[0], -1)[i], axis=-1)
         dlum = lum - np.mean(lum, axis=1)[:, None]
         lvar = np.mean(np.square(dlum), axis=1)[:, None]
@@ -691,7 +692,7 @@ class LightPointKD(object):
         # total local variance in nearby
         return (lookb[:, 2:-2] + lookf[:, 2:-2]), asr
 
-    def interp(self, destvecs, bandwidth=20, rt=None, lum=True, angle=True,
+    def interp(self, destvecs, bandwidth=10, rt=None, lum=True, angle=True,
                dither=False, **kwargs):
         d, i = self.d_kd.query(destvecs, bandwidth)
         w = self._weight_distance(d)
