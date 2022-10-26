@@ -64,9 +64,14 @@ def auto_reload(scndir, area, areaname="plan", skydata="skydata", ptres=1.0,
 
 def load_lp(path, hasparent=True):
     if hasparent:
-        ftree = path.rsplit("/", 3)
-        scndir = ftree[-4]
-        parent = ftree[-3]
+        try:
+            ftree = path.rsplit("/", 3)
+            scndir = ftree[-4]
+            parent = ftree[-3]
+        except IndexError:
+            ftree = path.rsplit("/", 2)
+            scndir = ftree[-3]
+            parent = None
     else:
         ftree = path.rsplit("/", 2)
         scndir = ftree[-3]

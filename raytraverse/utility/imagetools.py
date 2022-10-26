@@ -17,7 +17,7 @@ from raytraverse.evaluate import MetricSet, retina
 from raytraverse.mapper.viewmapper import ViewMapper
 
 
-def hdr_uv2ang(imgf):
+def hdr_uv2ang(imgf, useview=None):
     imarray = io.hdr2carray(imgf)
     outf = imgf.rsplit(".", 1)[0] + "_ang.hdr"
     res = imarray.shape[-1]
@@ -31,14 +31,17 @@ def hdr_uv2ang(imgf):
     io.carray2hdr(img.reshape(3, res, res)[:, ::-1], outf)
 
 
-def hdr_ang2uv(imgf):
-    vm = hdr2vm(imgf)
+def hdr_ang2uv(imgf, useview=True):
+    vm = None
+    if useview:
+        vm = hdr2vm(imgf)
     if vm is None:
         vm = ViewMapper(viewangle=180)
     imarray = io.hdr2carray(imgf)
     outf = imgf.rsplit(".", 1)[0] + "_uv.hdr"
     res = imarray.shape[-1]
     uv = translate.bin2uv(np.arange(res*res), res)
+    vm2 = ViewMapper(viewangle=180)
     xyz = vm.uv2xyz(uv)
     pxy = vm.ray2pixel(xyz, imarray.shape[-1])
     # img = np.take_along_axis(imarray, pxy.T, 0)

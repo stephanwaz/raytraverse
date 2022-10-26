@@ -214,14 +214,17 @@ def imgmetric(ctx, imgs=None, metrics=None, parallel=True,
               help="hdr image files, uv anr angular")
 @click.option("--uv2ang/--ang2uv", default=False,
               help="direction of transform")
+@click.option("--useview/--no-useview", default=True,
+              help="use view direction for transform ang2uv to match standard"
+                   "projection")
 @clk.shared_decs(clk.command_decs(raytraverse.__version__, wrap=True))
-def project(ctx, img=None, uv2ang=False, **kwargs):
+def project(ctx, img=None, uv2ang=False, useview=True, **kwargs):
     """project images between angular and shirley-chiu square coordinates"""
     if uv2ang:
         func = imagetools.hdr_uv2ang
     else:
         func = imagetools.hdr_ang2uv
-    results = pool_call(func, img, expandarg=False)
+    results = pool_call(func, img, expandarg=False, useview=useview)
 
 
 # @main.command()
@@ -254,6 +257,7 @@ def _dview(x, **kwargs):
     lpt.direct_view(**kwargs)
     return lpt.lum.shape[0]
 
+
 @main.command()
 @click.option('-lp', callback=clk.are_files, required=True,
               help="path to lightpoint(s)")
@@ -264,17 +268,18 @@ def _dview(x, **kwargs):
 @click.option('-interp', type=click.Choice(['fast', 'high','', 'None',
                                             'False']))
 @click.option('--omega/--no-omega', default=False)
+@click.option('--order/--no-order', default=False)
 @click.option('--fisheye/--no-fisheye', default=True)
 @click.option('--showweight/--no-showweight', default=True)
 @click.option('--rnd/--no-rnd', default=False)
 @clk.shared_decs(clk.command_decs(raytraverse.__version__, wrap=True))
 def lp2img(ctx, lp=None, res=800, showsample=False, showweight=True, rnd=False,
-           srcidx=None, interp=False, omega=False, scalefactor=1, fisheye=True,
-           **kwargs):
+           srcidx=None, interp=False, omega=False, order=False, scalefactor=1,
+           fisheye=True, **kwargs):
     """make hdr directview of lightpoint"""
     rays = pool_call(_dview, lp, expandarg=False, res=res,
                      showsample=showsample, showweight=showweight, rnd=rnd,
-                     srcidx=srcidx, interp=interp, omega=omega,
+                     srcidx=srcidx, interp=interp, omega=omega, order=order,
                      scalefactor=scalefactor, fisheye=fisheye,)
     click.echo("lightpoint \t samples")
     for r, l in zip(rays, lp):

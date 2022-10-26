@@ -127,6 +127,7 @@ nrbins = side * side;
 binl(u, v) : axis(u)*side + axis(v);
 
 { shirley-chiu disk to square (with spherical term) }
+PI : 3.14159265358979323846;
 pi4 : PI/4;
 n = if(Dz, 1, -1);
 r2 = 1 - n*Dz;

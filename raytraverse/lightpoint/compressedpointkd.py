@@ -40,6 +40,7 @@ class CompressedPointKD(LightPointKD):
 
     def __init__(self, scene, vec=None, lum=None, write=True, src=None,
                  dist=0.0981, lerr=0.01, plotc=False, **kwargs):
+        self._clusterimg = None
         if issubclass(type(scene), LightPointKD):
             new = True
             if plotc:
@@ -49,7 +50,6 @@ class CompressedPointKD(LightPointKD):
         else:
             new = vec is not None and lum is not None
             scn = scene
-            self._clusterimg = None
         kwargs.update(filterviews=False, calcomega=False, write=False)
         super().__init__(scn, **kwargs)
         if self.omega is None:

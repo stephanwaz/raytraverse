@@ -148,7 +148,7 @@ class SrcSamplerPt(SamplerPt):
             res = 180/src[3]
             idx = np.searchsorted(level_res, res)
             # always viewsample sunlike sources
-            if res > level_res[rlevel] or src[3] < 1e-4:
+            if res > level_res[rlevel] or src[3] < 2:
                 vd.append(src[0:4])
             elif res > level_res[0]:
                 self._samplelevels[idx].append(src[0:4])

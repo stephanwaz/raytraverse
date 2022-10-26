@@ -236,8 +236,8 @@ class LightPointKD(object):
         return np.einsum('ij,kj->ik', c, self.lum)
 
     def add_to_img(self, img, vecs, mask=None, skyvec=1, interp=False,
-                   idx=None, interpweights=None, omega=False, vm=None,
-                   rnd=False, engine=None, **kwargs):
+                   idx=None, interpweights=None, order=False, omega=False,
+                   vm=None, rnd=False, engine=None, **kwargs):
         """add luminance contributions to image array (updates in place)
 
         Parameters
@@ -276,7 +276,9 @@ class LightPointKD(object):
         kwargs: dict, optional
             passed to interpolationn functions
         """
-        if rnd:
+        if order:
+            val = np.arange(self.omega.size)[None]
+        elif rnd:
             val = np.random.rand(1, self.omega.size)
         elif omega:
             val = self.omega.reshape(1, -1)
@@ -316,7 +318,7 @@ class LightPointKD(object):
             img += a
         else:
             img[mask] += np.ravel(lum)
-        if not (omega or rnd):
+        if not (omega or rnd or order):
             for srcview, srcidx in zip(self.srcviews, self.srcviewidxs):
                 srcview.add_to_img(img, vecs, mask, skyvec[srcidx], vm)
 
@@ -454,11 +456,12 @@ class LightPointKD(object):
         return outf
 
     def direct_view(self, res=512, showsample=False, showweight=True, rnd=False,
-                    srcidx=None, interp=False, omega=False, scalefactor=1,
-                    vm=None, fisheye=True, grow=1):
+                    order=False, srcidx=None, interp=False, omega=False,
+                    scalefactor=1, vm=None, fisheye=True, grow=1):
         """create an unweighted summary image of lightpoint"""
-        if omega or rnd:
+        if omega or rnd or order:
             features = 1
+            interp = False
         else:
             features = self.features
         if vm is None:
@@ -481,15 +484,18 @@ class LightPointKD(object):
                 skyvec[srcidx] = scalefactor
             else:
                 skyvec = np.full(self.srcn, scalefactor)
-            self.add_to_img(img, pdirs[mask], mask2, vm=vm,
+            self.add_to_img(img, pdirs[mask], mask2, vm=vm, order=order,
                             interp=interp, skyvec=skyvec, omega=omega, rnd=rnd)
             channels = (1, 0, 0)
         else:
             channels = (1, 1, 1)
-        if omega:
+        if order:
+            outf = self.file.replace("/", "_").replace(".rytpt", "_order.hdr")
+        elif omega:
             outf = self.file.replace("/", "_").replace(".rytpt", "_omega.hdr")
         else:
             outf = self.file.replace("/", "_").replace(".rytpt", ".hdr")
+        outf = outf.strip(".").strip("_")
         if srcidx is not None:
             try:
                 outf = outf.replace(f"_{self.src}_", f"_{self.src}_{srcidx:04d}_")
@@ -667,7 +673,7 @@ class LightPointKD(object):
         return np.exp(-np.square(d)/(2*dvar))
 
     def _weight_lum(self, i):
-        # get variance on lum=
+        # get variance on lum
         lum = np.max(self.lum.reshape(self.lum.shape[0], -1)[i], axis=-1)
         dlum = lum - np.mean(lum, axis=1)[:, None]
         lvar = np.mean(np.square(dlum), axis=1)[:, None]
