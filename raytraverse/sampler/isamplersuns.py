@@ -40,9 +40,9 @@ class ISamplerSuns(SamplerSuns):
     """
 
     def __init__(self, scene, engine, accuracy=1.0, nlev=3, jitter=True,
-                 areakwargs=None):
+                 areakwargs=None, t0=.05, t1=.125):
         super(SamplerSuns, self).__init__(scene, engine, accuracy,
-                                          stype=f'sunpositions')
+                                          stype=f'sunpositions', t0=t0, t1=t1)
         if areakwargs is None:
             areakwargs = {}
         areakwargs.update(samplerlevel=self._slevel + 1)

@@ -17,7 +17,7 @@ with open('README.rst') as readme_file:
 with open('HISTORY.rst') as history_file:
     history = history_file.read()
 
-requirements = ['craytraverse', 'clasp', 'numpy', 'scipy', 'matplotlib', 'tqdm',
+requirements = ['craytraverse>=0.1.5', 'clasp', 'numpy', 'scipy', 'matplotlib', 'tqdm',
                 'skyfield', 'shapely', 'sklearn']
 
 setup_requirements = ["setuptools", "wheel"]

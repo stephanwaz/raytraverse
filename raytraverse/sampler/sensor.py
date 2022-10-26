@@ -8,7 +8,6 @@
 import numpy as np
 
 from raytraverse import translate
-from raytraverse.sampler import draw
 
 
 filterdict = {
@@ -25,7 +24,7 @@ class Sensor(object):
 
     Parameters
     ----------
-    engine: raytraverse.renderer.RadianceRenderer
+    engine: craytraverse.renderer.Rennderer
         fully initialized renderer class instance
     dirs: Sequence, optional
         array like shape (N, 3) sensor directions

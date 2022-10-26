@@ -37,8 +37,9 @@ class ISamplerArea(SamplerArea):
     """
 
     def __init__(self, scene, engine, accuracy=1.0, nlev=3, jitter=True,
-                 edgemode='constant', **kwargs):
-        super(SamplerArea, self).__init__(scene, engine, accuracy, **kwargs)
+                 edgemode='constant', t0=.1, t1=.9, **kwargs):
+        super(SamplerArea, self).__init__(scene, engine, accuracy, t0=t0, t1=t1,
+                                          **kwargs)
         self.features = engine.features * engine.engine.features
         #: int: number of sources return per vector by run
         self.srcn = engine.engine.srcn

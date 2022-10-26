@@ -35,7 +35,8 @@ class MMock(MagicMock):
 
 MOCK_MODULES = ['scipy', 'sklearn', 'clipt', 'skyfield', 'matplotlib', 'shapely',
                 'shapely.ops', 'craytraverse', 'craytraverse.craytraverse',
-                'craytraverse.crenderer',
+                'craytraverse.crenderer', 'craytraverse.renderer',
+                'craytraverse.renderer.rtrace', 'craytraverse.renderer.rcontrib',
                 'craytraverse.crenderer.rcontrib_c', 'sklearn.cluster',
                 'craytraverse.crenderer.rtrace_c', 'scipy.ndimage',
                 'scipy.ndimage.filters', 'scipy.sparse', 'scipy.spatial',

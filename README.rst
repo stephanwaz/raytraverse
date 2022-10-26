@@ -68,7 +68,7 @@ installation, this process will require about 2.5 GB of disk space.
 1. Install Docker from: https://www.docker.com/products/docker-desktop/
    (click on "Windows") and then follow the installation instructions.
 2. Open the newly installed Docker Desktop application (you do not need to sign in or create an account)
-3. In an empty diirectory make a file called Dockerfile_first with the following contents::
+3. In an empty directory make a file called Dockerfile_first with the following contents::
 
     # syntax=docker/dockerfile:1
     # docker build -f Dockerfile_first . --tag raytraverse:latest

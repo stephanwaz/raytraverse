@@ -6,18 +6,16 @@
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 # =======================================================================
 import os
-import re
 
 from clasp import script_tools as cst
 
-from raytraverse.renderer.radiancerenderer import RadianceRenderer
-from craytraverse.crenderer import cRcontrib
+from raytraverse import io
+from craytraverse.renderer import Rcontrib as pRcontrib
 from raytraverse.formatter import RadianceFormatter as Fmt
+from craytraverse.renderer.rcontrib import rcontrib_instance
 
-rcontrib_instance = cRcontrib.get_instance()
 
-
-class Rcontrib(RadianceRenderer):
+class Rcontrib(pRcontrib):
     """singleton wrapper for c++ raytrraverse.crenderer.cRcontrib class
 
     this class sets default arguments, helps with initialization and setting
@@ -57,28 +55,43 @@ class Rcontrib(RadianceRenderer):
         ans = r(vecs)
         # ans.shape -> (vecs.shape[0], 325)
     """
-    name = 'rcontrib'
     instance = rcontrib_instance
-    ground = True
-    skyres = 15
-    srcn = 226
-    modname = "skyglow"
     adpatch = 50
+    nproc = None
 
     def __init__(self, rayargs=None, scene=None, nproc=None,
                  skyres=15, modname='skyglow', ground=True,
                  default_args=True, adpatch=50):
-        scene = self.setup(scene, ground, modname, skyres, adpatch)
-        super().__init__(rayargs, scene, nproc=nproc,
-                         default_args=default_args)
-
-    def __setstate__(self, state):
-        super().__setstate__(state)
-        type(self).instance = rcontrib_instance
+        Rcontrib.adpatch = adpatch
+        if default_args:
+            if rayargs is None:
+                rayargs = self.get_default_args()
+            else:
+                rayargs = f"{self.get_default_args()} {rayargs}"
+        super().__init__(rayargs, scene, nproc=nproc, skyres=skyres,
+                         modname=modname, ground=ground)
 
     @classmethod
-    def setup(cls, scene=None, ground=True, modname="skyglow", skyres=15,
-              adpatch=50):
+    def set_args(cls, args, nproc=None):
+        """prepare arguments to call engine instance initialization
+
+        Parameters
+        ----------
+        args: str
+            rendering options
+        nproc: int, optional
+            cpu limit
+
+        """
+        if nproc is None:
+            nproc = cls.nproc
+        nproc = io.get_nproc(nproc)
+        if "-ab 0" in args:
+            nproc = 1
+        super().set_args(args, nproc)
+
+    @classmethod
+    def setup(cls, scene=None, ground=True, modname="skyglow", skyres=15):
         """set class attributes for proper argument initialization
 
         Parameters
@@ -94,8 +107,6 @@ class Rcontrib(RadianceRenderer):
             So if skyres=10, each patch will be 100 sq. degrees
             (0.03046174197 steradians) and there will be 18 * 18 = 324 sky
             patches.
-        adpatch: int, optional
-            when using default_args, ad is set to this times srcn
 
         Returns
         -------
@@ -114,7 +125,6 @@ class Rcontrib(RadianceRenderer):
         cls.skyres = skyres
         cls.srcn = cls.skyres**2 + ground
         cls.modname = modname
-        cls.adpatch = adpatch
         return scene
 
     @classmethod
@@ -123,31 +133,3 @@ class Rcontrib(RadianceRenderer):
         return ("-u+ -ab 16 -av 0 0 0 -aa 0 -as 0 -dc 1 -dt 0 -lr -14 -ad "
                 f"{cls.adpatch*cls.srcn} -lw {0.4/(cls.srcn*cls.adpatch)} "
                 "-st 0 -ss 16 -c 1")
-
-    @classmethod
-    def set_args(cls, args, nproc=None):
-        """prepare arguments to call engine instance initialization
-
-        Parameters
-        ----------
-        args: str
-            rendering options
-        nproc: int, optional
-            cpu limit
-
-        """
-        args = (f" -V+ {args} -w- -e 'side:{cls.skyres}' -f scbins.cal "
-                f"-b bin -bn {cls.srcn} -m {cls.modname}")
-        bright = True
-        for z in re.findall(r"-Z.?", args):
-            if z[-1] in "Z ":
-                bright = not bright
-            elif z[-1] in "+yYtT1":
-                bright = True
-            else:
-                bright = False
-        if bright:
-            cls.features = 1
-        else:
-            cls.features = 3
-        super().set_args(args, nproc)

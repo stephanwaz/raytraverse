@@ -3,7 +3,7 @@ import re
 dest_dir = "docs/_static"
 src_dir = "docs/cdocs"
 
-srcs = ["craytraverse"]
+srcs = ["craytraverse", "renderer2"]
 
 for src in srcs:
     f = open(f"{src_dir}/_build/html/{src}.html", 'r')

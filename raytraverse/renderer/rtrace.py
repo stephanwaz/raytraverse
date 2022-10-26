@@ -6,21 +6,17 @@
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 # =======================================================================
 import os
-import re
-import sys
 import tempfile
 
 import numpy as np
 
-from raytraverse import translate
-from raytraverse.renderer.radiancerenderer import RadianceRenderer
-from craytraverse.crenderer import cRtrace
-
-rtrace_instance = cRtrace.get_instance()
+from raytraverse import translate, io
+from craytraverse.renderer import Rtrace as pRtrace
+from craytraverse.renderer.rtrace import rtrace_instance
 
 
-class Rtrace(RadianceRenderer):
-    """singleton wrapper for c++ raytrraverse.crenderer.cRtrace class
+class Rtrace(pRtrace):
+    """singleton wrapper for c++ raytraverse.crenderer.cRtrace class
 
     this class sets default arguments, helps with initialization and setting
     cpu limits of the cRtrace instance. see raytraverse.crenderer.cRtrace
@@ -63,13 +59,12 @@ class Rtrace(RadianceRenderer):
     because without a file ambient values are not shared across processes or
     successive calls to the instance.
     """
-    name = 'rtrace'
-    #: craytraverse.crenderer.cRtrace
     instance = rtrace_instance
     defaultargs = (f"-u+ -ab 16 -av 0 0 0 -aa 0 -as 0 -dc 1 -dt 0 -lr -14 -ad "
                    f"1000 -lw 0.00004 -st 0 -ss 16 -w-")
     directargs = "-w- -av 0 0 0 -ab 0 -lr 1 -n 1 -st 0 -ss 16 -lw 0.00004"
     usedirect = False
+    nproc = None
     ospec = "Z"
 
     def __init__(self, rayargs=None, scene=None, nproc=None,
@@ -78,19 +73,12 @@ class Rtrace(RadianceRenderer):
         default_args = default_args or direct
         if direct:
             nproc = 1
-        super().__init__(rayargs, scene, nproc, default_args=default_args)
-
-    def __setstate__(self, state):
-        super().__setstate__(state)
-        type(self).instance = rtrace_instance
-
-    @classmethod
-    def get_default_args(cls):
-        """return default arguments of the class"""
-        if cls.usedirect:
-            return cls.directargs
-        else:
-            return cls.defaultargs
+        if default_args:
+            if rayargs is None:
+                rayargs = self.get_default_args()
+            else:
+                rayargs = f"{self.get_default_args()} {rayargs}"
+        super().__init__(rayargs, scene, nproc)
 
     @classmethod
     def set_args(cls, args, nproc=None):
@@ -104,104 +92,20 @@ class Rtrace(RadianceRenderer):
             cpu limit
 
         """
-        needsamb, hasamb = cls.check_amb(args)
-        if len(hasamb) > 0 and not needsamb:
-            args = re.sub(r' -af \S+', '', args)
+        if nproc is None:
+            nproc = cls.nproc
+        nproc = io.get_nproc(nproc)
+        if "-ab 0" in args:
+            nproc = 1
         super().set_args(args, nproc)
-        ospec = re.findall(r"-o\w+", cls.args)
-        if len(ospec) > 0:
-            cls.update_ospec(ospec[-1][2:])
-        else:
-            cls.update_ospec("Z")
 
     @classmethod
-    def update_ospec(cls, vs):
-        """set output of cRtrace instance
-
-        Parameters
-        ----------
-        vs: str
-            output specifiers for rtrace::
-                o    origin (input)
-                d    direction (normalized)
-                v    value (radiance)
-                V    contribution (radiance)
-                w    weight
-                W    color coefficient
-                l    effective length of ray
-                L    first intersection distance
-                c    local (u,v) coordinates
-                p    point of intersection
-                n    normal at intersection (perturbed)
-                N    normal at intersection (unperturbed)
-                r    mirrored value contribution
-                x    unmirrored value contribution
-                R    mirrored ray length
-                X    unmirrored ray length
-
-        Returns
-        -------
-        outcnt: int
-            the number of output columns to expect when calling rtrace instance
-
-        Raises
-        ------
-        ValueError:
-            when an output specifier is not recognized
-        """
-        outcnt = cls.instance.update_ospec(vs)
-        if outcnt < 0:
-            raise ValueError(f"Could not update {cls.__name__} with "
-                             f"outputs: '{vs}'")
-        cls.ospec = vs
-        cls.features = outcnt
-        return outcnt
-
-    @classmethod
-    def check_amb(cls, args):
-        try:
-            ab = re.findall(r'-ab \d+', args)[-1]
-        except IndexError:
-            hasbounce = False
+    def get_default_args(cls):
+        """return default arguments of the class"""
+        if cls.usedirect:
+            return cls.directargs
         else:
-            hasbounce = int(ab.split()[-1]) > 0
-        try:
-            aa = re.findall(r'-aa \d+', args)[-1]
-        except IndexError:
-            caching = True
-        else:
-            caching = int(aa.split()[-1]) > 0
-        hasamb = re.findall(r'-af \S+', args)
-        return hasbounce and caching, hasamb
-
-    @classmethod
-    def load_source(cls, srcfile, freesrc=-1, ambfile=None):
-        """add a source description to the loaded scene
-
-        Parameters
-        ----------
-        srcfile: str
-            path to radiance scene file containing sources, these should not
-            change the bounding box of the octree and has only been tested with
-            the "source" type.
-        freesrc: int, optional
-            the number of objects to unload from the end of the rtrace object
-            list, if -1 unloads all objects loaded by previous calls to
-            load_source
-        ambfile: str, optional
-            path to ambient file. if given, and arguments
-        """
-        cls.instance.load_source(srcfile, freesrc)
-        needsamb, hasamb = cls.check_amb(cls.args)
-        if needsamb:
-            args = re.sub(r' -af \S+', '', cls.args)
-            if ambfile is not None:
-                args += f" -af {ambfile}"
-            elif len(hasamb) > 0:
-                print("Warning: source changed with ambient caching, but "
-                      f"no new ambfile was specified, stripping {hasamb[-1]} "
-                      "from args", file=sys.stderr)
-            cls.set_args(args)
+            return cls.defaultargs
 
     @classmethod
     def load_solar_source(cls, scene, sun, ambfile=None, intens=1):
@@ -215,6 +119,12 @@ class Rtrace(RadianceRenderer):
             cls.load_source(srcdef, ambfile=ambfile)
         finally:
             os.remove(srcdef)
+
+    @classmethod
+    def reset(cls):
+        """reset engine instance and unset associated attributes"""
+        cls.ospec = "Z"
+        super().reset()
 
     @classmethod
     def get_sources(cls):

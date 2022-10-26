@@ -1,58 +1,328 @@
 
             
-  <span class="target" id="module-craytraverse.craytraverse"></span><p>raytraverse helper functions written in c++</p>
-<dl class="py function">
-<dt class="sig sig-object py" id="craytraverse.craytraverse.from_pdf">
-<span class="sig-prename descclassname"><span class="pre">craytraverse.craytraverse.</span></span><span class="sig-name descname"><span class="pre">from_pdf</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">pdf</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">numpy.ndarray</span><span class="p"><span class="pre">[</span></span><span class="pre">numpy.float64</span><span class="p"><span class="pre">]</span></span></span></em>, <em class="sig-param"><span class="n"><span class="pre">threshold</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">float</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">lb</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">float</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">0.5</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">ub</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">float</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">4.0</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">tuple</span></span></span><a class="headerlink" href="#craytraverse.craytraverse.from_pdf" title="Permalink to this definition">¶</a></dt>
-<dd><p>helper function for draw.from_pdf</p>
+  <section id="renderer">
+<h1>Renderer<a class="headerlink" href="#renderer" title="Permalink to this headline">¶</a></h1>
+<dl class="py class">
+<dt class="sig sig-object py" id="craytraverse.renderer.Renderer">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">craytraverse.renderer.</span></span><span class="sig-name descname"><span class="pre">Renderer</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">rayargs</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">scene</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">nproc</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">1</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/craytraverse/renderer/renderer.html#Renderer"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#craytraverse.renderer.Renderer" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></p>
+<p>Virtual class for wrapping c++ Radiance renderer executable classes</p>
+<p>Do not use directly, either subclass or use existing: Rtrace, Rcontrib</p>
+<dl class="py attribute">
+<dt class="sig sig-object py" id="craytraverse.renderer.Renderer.name">
+<span class="sig-name descname"><span class="pre">name</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">'radiance_virtual'</span></em><a class="headerlink" href="#craytraverse.renderer.Renderer.name" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="craytraverse.renderer.Renderer.instance">
+<span class="sig-name descname"><span class="pre">instance</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">None</span></em><a class="headerlink" href="#craytraverse.renderer.Renderer.instance" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="craytraverse.renderer.Renderer.srcn">
+<span class="sig-name descname"><span class="pre">srcn</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">1</span></em><a class="headerlink" href="#craytraverse.renderer.Renderer.srcn" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="craytraverse.renderer.Renderer.features">
+<span class="sig-name descname"><span class="pre">features</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">1</span></em><a class="headerlink" href="#craytraverse.renderer.Renderer.features" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="craytraverse.renderer.Renderer.args">
+<span class="sig-name descname"><span class="pre">args</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">None</span></em><a class="headerlink" href="#craytraverse.renderer.Renderer.args" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="craytraverse.renderer.Renderer.nproc">
+<span class="sig-name descname"><span class="pre">nproc</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">1</span></em><a class="headerlink" href="#craytraverse.renderer.Renderer.nproc" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="craytraverse.renderer.Renderer.run">
+<span class="sig-name descname"><span class="pre">run</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="o"><span class="pre">*</span></span><span class="n"><span class="pre">args</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">kwargs</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/craytraverse/renderer/renderer.html#Renderer.run"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#craytraverse.renderer.Renderer.run" title="Permalink to this definition">¶</a></dt>
+<dd><p>alias for call, for consistency with SamplerPt classes for nested
+dimensions of evaluation</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="craytraverse.renderer.Renderer.reset">
+<em class="property"><span class="pre">classmethod</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">reset</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/craytraverse/renderer/renderer.html#Renderer.reset"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#craytraverse.renderer.Renderer.reset" title="Permalink to this definition">¶</a></dt>
+<dd><p>reset engine instance and unset associated attributees</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="craytraverse.renderer.Renderer.set_args">
+<em class="property"><span class="pre">classmethod</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">set_args</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">args</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">nproc</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">1</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/craytraverse/renderer/renderer.html#Renderer.set_args"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#craytraverse.renderer.Renderer.set_args" title="Permalink to this definition">¶</a></dt>
+<dd><p>prepare arguments to call engine instance initialization</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters</dt>
 <dd class="field-odd"><ul class="simple">
-<li><p><strong>pdf</strong> (<em>np.array</em>) – array of doubles with weights to check against threshold</p></li>
-<li><p><strong>threshold</strong> (<em>float</em>) – value used to determine the number of indices to return</p></li>
-<li><p><strong>lb</strong> (<em>float</em><em>, </em><em>optional</em>) – values below threshold * lb will be excluded from candidates (lb must be in (0,1)</p></li>
-<li><p><strong>ub</strong> (<em>float</em><em>, </em><em>optional</em>) – values above threshold * ub will have indices written to bidx</p></li>
+<li><p><strong>args</strong> (<em>str</em>) – rendering options</p></li>
+<li><p><strong>nproc</strong> (<em>int</em><em>, </em><em>optional</em>) – cpu limit</p></li>
+</ul>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="craytraverse.renderer.Renderer.load_scene">
+<em class="property"><span class="pre">classmethod</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">load_scene</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">scene</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/craytraverse/renderer/renderer.html#Renderer.load_scene"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#craytraverse.renderer.Renderer.load_scene" title="Permalink to this definition">¶</a></dt>
+<dd><p>load octree file to engine instance</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><p><strong>scene</strong> (<em>str</em>) – path to octree file</p>
+</dd>
+<dt class="field-even">Raises</dt>
+<dd class="field-even"><p><strong>ValueError:</strong> – can only be called after set_args, otherwise engine instance
+    will abort.</p>
+</dd>
+</dl>
+</dd></dl>
+
+</dd></dl>
+
+</section>
+<section id="rtrace">
+<h1>Rtrace<a class="headerlink" href="#rtrace" title="Permalink to this headline">¶</a></h1>
+<dl class="py class">
+<dt class="sig sig-object py" id="craytraverse.renderer.Rtrace">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">craytraverse.renderer.</span></span><span class="sig-name descname"><span class="pre">Rtrace</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">rayargs</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">scene</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">nproc</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">1</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/craytraverse/renderer/rtrace.html#Rtrace"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#craytraverse.renderer.Rtrace" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <a class="reference internal" href="#craytraverse.renderer.Renderer" title="craytraverse.renderer.renderer.Renderer"><code class="xref py py-class docutils literal notranslate"><span class="pre">craytraverse.renderer.renderer.Renderer</span></code></a></p>
+<p>singleton wrapper for c++ raytrraverse.crenderer.cRtrace class</p>
+<p>this class sets default arguments, helps with initialization and setting
+cpu limits of the cRtrace instance. see raytraverse.crenderer.cRtrace
+for more details.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>rayargs</strong> (<em>str</em><em>, </em><em>optional</em>) – argument string (options and flags only) raises ValueError if arguments
+are not recognized by cRtrace.</p></li>
+<li><p><strong>scene</strong> (<em>str</em><em>, </em><em>optional</em>) – path to octree</p></li>
+<li><p><strong>nproc</strong> (<em>int</em><em>, </em><em>optional</em>) – if None, sets nproc to cpu count, or the RAYTRAVERSE_PROC_CAP
+environment variable</p></li>
+</ul>
+</dd>
+</dl>
+<p class="rubric">Examples</p>
+<p>Basic Initialization and call:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">r</span> <span class="o">=</span> <span class="n">renderer</span><span class="o">.</span><span class="n">Rtrace</span><span class="p">(</span><span class="n">args</span><span class="p">,</span> <span class="n">scene</span><span class="p">)</span>
+<span class="n">ans</span> <span class="o">=</span> <span class="n">r</span><span class="p">(</span><span class="n">vecs</span><span class="p">)</span>
+<span class="c1"># ans.shape -&gt; (vecs.shape[0], 1)</span>
+</pre></div>
+</div>
+<p>If rayargs include cache files (ambient cache or photon map) be careful
+with updating sources. If you are going to swap sources, update the
+arguments as well with the new paths:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">r</span> <span class="o">=</span> <span class="n">renderer</span><span class="o">.</span><span class="n">Rtrace</span><span class="p">(</span><span class="n">args</span><span class="p">,</span> <span class="n">scene</span><span class="p">)</span>
+<span class="n">r</span><span class="o">.</span><span class="n">set_args</span><span class="p">(</span><span class="n">args</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="s2">&quot;temp.amb&quot;</span><span class="p">,</span> <span class="s2">&quot;temp2.amb&quot;</span><span class="p">))</span>
+<span class="n">r</span><span class="o">.</span><span class="n">load_source</span><span class="p">(</span><span class="n">srcdef</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>Note that if you are using ambient caching, you must give an ambient file,
+because without a file ambient values are not shared across processes or
+successive calls to the instance.</p>
+<dl class="py attribute">
+<dt class="sig sig-object py" id="craytraverse.renderer.Rtrace.name">
+<span class="sig-name descname"><span class="pre">name</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">'rtrace'</span></em><a class="headerlink" href="#craytraverse.renderer.Rtrace.name" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="craytraverse.renderer.Rtrace.instance">
+<span class="sig-name descname"><span class="pre">instance</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">&lt;craytraverse.crenderer.rtrace_c.cRtrace</span> <span class="pre">object&gt;</span></em><a class="headerlink" href="#craytraverse.renderer.Rtrace.instance" title="Permalink to this definition">¶</a></dt>
+<dd><p>craytraverse.crenderer.cRtrace</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="craytraverse.renderer.Rtrace.ospec">
+<span class="sig-name descname"><span class="pre">ospec</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">'v'</span></em><a class="headerlink" href="#craytraverse.renderer.Rtrace.ospec" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="craytraverse.renderer.Rtrace.set_args">
+<em class="property"><span class="pre">classmethod</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">set_args</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">args</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">nproc</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">1</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/craytraverse/renderer/rtrace.html#Rtrace.set_args"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#craytraverse.renderer.Rtrace.set_args" title="Permalink to this definition">¶</a></dt>
+<dd><p>prepare arguments to call engine instance initialization</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>args</strong> (<em>str</em>) – rendering options</p></li>
+<li><p><strong>nproc</strong> (<em>int</em><em>, </em><em>optional</em>) – cpu limit</p></li>
+</ul>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="craytraverse.renderer.Rtrace.update_ospec">
+<em class="property"><span class="pre">classmethod</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">update_ospec</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">vs</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/craytraverse/renderer/rtrace.html#Rtrace.update_ospec"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#craytraverse.renderer.Rtrace.update_ospec" title="Permalink to this definition">¶</a></dt>
+<dd><p>set output of cRtrace instance</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><p><strong>vs</strong> (<em>str</em>) – <dl class="simple">
+<dt>output specifiers for rtrace::</dt><dd><p>o    origin (input)
+d    direction (normalized)
+v    value (radiance)
+V    contribution (radiance)
+w    weight
+W    color coefficient
+l    effective length of ray
+L    first intersection distance
+c    local (u,v) coordinates
+p    point of intersection
+n    normal at intersection (perturbed)
+N    normal at intersection (unperturbed)
+r    mirrored value contribution
+x    unmirrored value contribution
+R    mirrored ray length
+X    unmirrored ray length</p>
+</dd>
+</dl>
+</p>
+</dd>
+<dt class="field-even">Returns</dt>
+<dd class="field-even"><p><strong>outcnt</strong> – the number of output columns to expect when calling rtrace instance</p>
+</dd>
+<dt class="field-odd">Return type</dt>
+<dd class="field-odd"><p>int</p>
+</dd>
+<dt class="field-even">Raises</dt>
+<dd class="field-even"><p><strong>ValueError:</strong> – when an output specifier is not recognized</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="craytraverse.renderer.Rtrace.check_amb">
+<em class="property"><span class="pre">classmethod</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">check_amb</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">args</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/craytraverse/renderer/rtrace.html#Rtrace.check_amb"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#craytraverse.renderer.Rtrace.check_amb" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="craytraverse.renderer.Rtrace.load_source">
+<em class="property"><span class="pre">classmethod</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">load_source</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">srcfile</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">freesrc</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">-</span> <span class="pre">1</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">ambfile</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/craytraverse/renderer/rtrace.html#Rtrace.load_source"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#craytraverse.renderer.Rtrace.load_source" title="Permalink to this definition">¶</a></dt>
+<dd><p>add a source description to the loaded scene</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>srcfile</strong> (<em>str</em>) – path to radiance scene file containing sources, these should not
+change the bounding box of the octree and has only been tested with
+the “source” type.</p></li>
+<li><p><strong>freesrc</strong> (<em>int</em><em>, </em><em>optional</em>) – the number of objects to unload from the end of the rtrace object
+list, if -1 unloads all objects loaded by previous calls to
+load_source</p></li>
+<li><p><strong>ambfile</strong> (<em>str</em><em>, </em><em>optional</em>) – path to ambient file. if given, and arguments</p></li>
+</ul>
+</dd>
+</dl>
+</dd></dl>
+
+</dd></dl>
+
+</section>
+<section id="rcontrib">
+<h1>Rcontrib<a class="headerlink" href="#rcontrib" title="Permalink to this headline">¶</a></h1>
+<dl class="py class">
+<dt class="sig sig-object py" id="craytraverse.renderer.Rcontrib">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">craytraverse.renderer.</span></span><span class="sig-name descname"><span class="pre">Rcontrib</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">rayargs</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">scene</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">nproc</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">1</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">skyres</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">15</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">modname</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'skyglow'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">ground</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">True</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/craytraverse/renderer/rcontrib.html#Rcontrib"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#craytraverse.renderer.Rcontrib" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <a class="reference internal" href="#craytraverse.renderer.Renderer" title="craytraverse.renderer.renderer.Renderer"><code class="xref py py-class docutils literal notranslate"><span class="pre">craytraverse.renderer.renderer.Renderer</span></code></a></p>
+<p>singleton wrapper for c++ raytrraverse.crenderer.cRcontrib class</p>
+<p>this class sets default arguments, helps with initialization and setting
+cpu limits of the cRcontrib instance. see raytrraverse.crenderer.cRcontrib
+for more details.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>rayargs</strong> (<em>str</em><em>, </em><em>optional</em>) – argument string (options and flags only) raises ValueError if arguments
+are not recognized by cRtrace.</p></li>
+<li><p><strong>scene</strong> (<em>str</em><em>, </em><em>optional</em>) – path to octree</p></li>
+<li><p><strong>nproc</strong> (<em>int</em><em>, </em><em>optional</em>) – </p></li>
+<li><p><strong>skyres</strong> (<em>int</em><em>, </em><em>optional</em>) – resolution of sky patches (sqrt(patches / hemisphere)).
+So if skyres=18, each patch
+will be 100 sq. degrees (0.03046174197 steradians) and there will be
+18 * 18 = 324 sky patches.</p></li>
+<li><p><strong>modname</strong> (<em>str</em><em>, </em><em>optional</em>) – passed the -m option of cRcontrib initialization</p></li>
+<li><p><strong>ground</strong> (<em>bool</em><em>, </em><em>optional</em>) – if True include a ground source (included as a final bin)</p></li>
+</ul>
+</dd>
+</dl>
+<p class="rubric">Examples</p>
+<p>Basic Initialization and call:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">r</span> <span class="o">=</span> <span class="n">renderer</span><span class="o">.</span><span class="n">Rcontrib</span><span class="p">(</span><span class="n">args</span><span class="p">,</span> <span class="n">scene</span><span class="p">)</span>
+<span class="n">ans</span> <span class="o">=</span> <span class="n">r</span><span class="p">(</span><span class="n">vecs</span><span class="p">)</span>
+<span class="c1"># ans.shape -&gt; (vecs.shape[0], 325)</span>
+</pre></div>
+</div>
+<dl class="py attribute">
+<dt class="sig sig-object py" id="craytraverse.renderer.Rcontrib.name">
+<span class="sig-name descname"><span class="pre">name</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">'rcontrib'</span></em><a class="headerlink" href="#craytraverse.renderer.Rcontrib.name" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="craytraverse.renderer.Rcontrib.instance">
+<span class="sig-name descname"><span class="pre">instance</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">&lt;craytraverse.crenderer.rcontrib_c.cRcontrib</span> <span class="pre">object&gt;</span></em><a class="headerlink" href="#craytraverse.renderer.Rcontrib.instance" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="craytraverse.renderer.Rcontrib.ground">
+<span class="sig-name descname"><span class="pre">ground</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">True</span></em><a class="headerlink" href="#craytraverse.renderer.Rcontrib.ground" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="craytraverse.renderer.Rcontrib.skyres">
+<span class="sig-name descname"><span class="pre">skyres</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">15</span></em><a class="headerlink" href="#craytraverse.renderer.Rcontrib.skyres" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="craytraverse.renderer.Rcontrib.srcn">
+<span class="sig-name descname"><span class="pre">srcn</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">226</span></em><a class="headerlink" href="#craytraverse.renderer.Rcontrib.srcn" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="craytraverse.renderer.Rcontrib.modname">
+<span class="sig-name descname"><span class="pre">modname</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">'skyglow'</span></em><a class="headerlink" href="#craytraverse.renderer.Rcontrib.modname" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="craytraverse.renderer.Rcontrib.setup">
+<em class="property"><span class="pre">classmethod</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">setup</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">scene</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">ground</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">True</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">modname</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'skyglow'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">skyres</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">15</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/craytraverse/renderer/rcontrib.html#Rcontrib.setup"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#craytraverse.renderer.Rcontrib.setup" title="Permalink to this definition">¶</a></dt>
+<dd><p>set class attributes for proper argument initialization</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>scene</strong> (<em>str</em><em>, </em><em>optional</em>) – path to octree</p></li>
+<li><p><strong>ground</strong> (<em>bool</em><em>, </em><em>optional</em>) – if True include a ground source (included as a final bin)</p></li>
+<li><p><strong>modname</strong> (<em>str</em><em>, </em><em>optional</em>) – passed the -m option of cRcontrib initialization</p></li>
+<li><p><strong>skyres</strong> (<em>float</em><em>, </em><em>optional</em>) – resolution of sky patches (sqrt(patches / hemisphere)).
+So if skyres=10, each patch will be 100 sq. degrees
+(0.03046174197 steradians) and there will be 18 * 18 = 324 sky
+patches.</p></li>
 </ul>
 </dd>
 <dt class="field-even">Returns</dt>
-<dd class="field-even"><p><ul class="simple">
-<li><p><strong>candidates</strong> (<em>np.array</em>) – array of candidate indices</p></li>
-<li><p><strong>bidx</strong> (<em>np.array</em>) – array of definitely included indices</p></li>
-<li><p><strong>nsampc</strong> (<em>int</em>) – the number of draws that should be selected from the candidates</p></li>
-</ul>
-</p>
+<dd class="field-even"><p><strong>scene</strong> – path to scene with added sky definition</p>
+</dd>
+<dt class="field-odd">Return type</dt>
+<dd class="field-odd"><p>str</p>
 </dd>
 </dl>
 </dd></dl>
 
-<dl class="py function">
-<dt class="sig sig-object py" id="craytraverse.craytraverse.interpolate_kdquery">
-<span class="sig-prename descclassname"><span class="pre">craytraverse.craytraverse.</span></span><span class="sig-name descname"><span class="pre">interpolate_kdquery</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">destvec</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">numpy.ndarray</span><span class="p"><span class="pre">[</span></span><span class="pre">numpy.float64</span><span class="p"><span class="pre">]</span></span></span></em>, <em class="sig-param"><span class="n"><span class="pre">errs</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">numpy.ndarray</span><span class="p"><span class="pre">[</span></span><span class="pre">numpy.float64</span><span class="p"><span class="pre">]</span></span></span></em>, <em class="sig-param"><span class="n"><span class="pre">idxs</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">numpy.ndarray</span><span class="p"><span class="pre">[</span></span><span class="pre">numpy.int32</span><span class="p"><span class="pre">]</span></span></span></em>, <em class="sig-param"><span class="n"><span class="pre">srcvec</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">numpy.ndarray</span><span class="p"><span class="pre">[</span></span><span class="pre">numpy.float64</span><span class="p"><span class="pre">]</span></span></span></em>, <em class="sig-param"><span class="n"><span class="pre">srclum</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">numpy.ndarray</span><span class="p"><span class="pre">[</span></span><span class="pre">numpy.float64</span><span class="p"><span class="pre">]</span></span></span></em>, <em class="sig-param"><span class="n"><span class="pre">err</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">float</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">0.00436</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">numpy.ndarray</span><span class="p"><span class="pre">[</span></span><span class="pre">numpy.float64</span><span class="p"><span class="pre">]</span></span></span></span><a class="headerlink" href="#craytraverse.craytraverse.interpolate_kdquery" title="Permalink to this definition">¶</a></dt>
-<dd><p>interpolate luminance values associated with query results
-from scipy.cKDTree.query. Finds closest point and then locates vertices of enclosing triangle from this point.
-returns 0 in cases where the query provides no results, so the distance_upper_bound must be set appropriately.
-:param dest_vec: destination vectors to interpolate to, shape (N, 3)
-:type dest_vec: np.array
-:param errs: distances between src and destination (row matches dest_vec, column is sorted ascending), shape (N, # of queries)
-:type errs: np.array
-:param idxs: query result, index row in src_vec close to dest_vec, shape (N, # of queries)
-:type idxs: np.array
-:param src_vec: vectors of src_kd, shape (N, 3)
-:type src_vec: np.array
-:param src_lum: luminance values for src_kd, shape (src_vec.shape[0], srcn)
-:type src_lum: np.array
-:param err: distance below which closest sample is used directly
-:type err: float, optional</p>
+<dl class="py method">
+<dt class="sig sig-object py" id="craytraverse.renderer.Rcontrib.set_args">
+<em class="property"><span class="pre">classmethod</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">set_args</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">args</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">nproc</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">1</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/craytraverse/renderer/rcontrib.html#Rcontrib.set_args"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#craytraverse.renderer.Rcontrib.set_args" title="Permalink to this definition">¶</a></dt>
+<dd><p>prepare arguments to call engine instance initialization</p>
 <dl class="field-list simple">
-<dt class="field-odd">Returns</dt>
-<dd class="field-odd"><p><strong>arrout</strong> – destination luminances shape (N, srcn)</p>
-</dd>
-<dt class="field-even">Return type</dt>
-<dd class="field-even"><p>np.array</p>
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>args</strong> (<em>str</em>) – rendering options</p></li>
+<li><p><strong>nproc</strong> (<em>int</em><em>, </em><em>optional</em>) – cpu limit</p></li>
+</ul>
 </dd>
 </dl>
 </dd></dl>
 
+</dd></dl>
+
+</section>
 <section id="crtrace">
 <h1>cRtrace<a class="headerlink" href="#crtrace" title="Permalink to this headline">¶</a></h1>
 <dl class="py class">
@@ -340,6 +610,59 @@ instance and persist for duration of program</p>
 parameters</p>
 </dd></dl>
 
+</dd></dl>
+
+<span class="target" id="module-craytraverse.craytraverse"></span><p>raytraverse helper functions written in c++</p>
+<dl class="py function">
+<dt class="sig sig-object py" id="craytraverse.craytraverse.from_pdf">
+<span class="sig-prename descclassname"><span class="pre">craytraverse.craytraverse.</span></span><span class="sig-name descname"><span class="pre">from_pdf</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">pdf</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">numpy.ndarray</span><span class="p"><span class="pre">[</span></span><span class="pre">numpy.float64</span><span class="p"><span class="pre">]</span></span></span></em>, <em class="sig-param"><span class="n"><span class="pre">threshold</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">float</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">lb</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">float</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">0.5</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">ub</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">float</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">4.0</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">tuple</span></span></span><a class="headerlink" href="#craytraverse.craytraverse.from_pdf" title="Permalink to this definition">¶</a></dt>
+<dd><p>helper function for draw.from_pdf</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>pdf</strong> (<em>np.array</em>) – array of doubles with weights to check against threshold</p></li>
+<li><p><strong>threshold</strong> (<em>float</em>) – value used to determine the number of indices to return</p></li>
+<li><p><strong>lb</strong> (<em>float</em><em>, </em><em>optional</em>) – values below threshold * lb will be excluded from candidates (lb must be in (0,1)</p></li>
+<li><p><strong>ub</strong> (<em>float</em><em>, </em><em>optional</em>) – values above threshold * ub will have indices written to bidx</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns</dt>
+<dd class="field-even"><p><ul class="simple">
+<li><p><strong>candidates</strong> (<em>np.array</em>) – array of candidate indices</p></li>
+<li><p><strong>bidx</strong> (<em>np.array</em>) – array of definitely included indices</p></li>
+<li><p><strong>nsampc</strong> (<em>int</em>) – the number of draws that should be selected from the candidates</p></li>
+</ul>
+</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="craytraverse.craytraverse.interpolate_kdquery">
+<span class="sig-prename descclassname"><span class="pre">craytraverse.craytraverse.</span></span><span class="sig-name descname"><span class="pre">interpolate_kdquery</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">destvec</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">numpy.ndarray</span><span class="p"><span class="pre">[</span></span><span class="pre">numpy.float64</span><span class="p"><span class="pre">]</span></span></span></em>, <em class="sig-param"><span class="n"><span class="pre">errs</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">numpy.ndarray</span><span class="p"><span class="pre">[</span></span><span class="pre">numpy.float64</span><span class="p"><span class="pre">]</span></span></span></em>, <em class="sig-param"><span class="n"><span class="pre">idxs</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">numpy.ndarray</span><span class="p"><span class="pre">[</span></span><span class="pre">numpy.int32</span><span class="p"><span class="pre">]</span></span></span></em>, <em class="sig-param"><span class="n"><span class="pre">srcvec</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">numpy.ndarray</span><span class="p"><span class="pre">[</span></span><span class="pre">numpy.float64</span><span class="p"><span class="pre">]</span></span></span></em>, <em class="sig-param"><span class="n"><span class="pre">srclum</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">numpy.ndarray</span><span class="p"><span class="pre">[</span></span><span class="pre">numpy.float64</span><span class="p"><span class="pre">]</span></span></span></em>, <em class="sig-param"><span class="n"><span class="pre">err</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">float</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">0.00436</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">numpy.ndarray</span><span class="p"><span class="pre">[</span></span><span class="pre">numpy.float64</span><span class="p"><span class="pre">]</span></span></span></span><a class="headerlink" href="#craytraverse.craytraverse.interpolate_kdquery" title="Permalink to this definition">¶</a></dt>
+<dd><p>interpolate luminance values associated with query results
+from scipy.cKDTree.query. Finds closest point and then locates vertices of enclosing triangle from this point.
+returns 0 in cases where the query provides no results, so the distance_upper_bound must be set appropriately.
+:param dest_vec: destination vectors to interpolate to, shape (N, 3)
+:type dest_vec: np.array
+:param errs: distances between src and destination (row matches dest_vec, column is sorted ascending), shape (N, # of queries)
+:type errs: np.array
+:param idxs: query result, index row in src_vec close to dest_vec, shape (N, # of queries)
+:type idxs: np.array
+:param src_vec: vectors of src_kd, shape (N, 3)
+:type src_vec: np.array
+:param src_lum: luminance values for src_kd, shape (src_vec.shape[0], srcn)
+:type src_lum: np.array
+:param err: distance below which closest sample is used directly
+:type err: float, optional</p>
+<dl class="field-list simple">
+<dt class="field-odd">Returns</dt>
+<dd class="field-odd"><p><strong>arrout</strong> – destination luminances shape (N, srcn)</p>
+</dd>
+<dt class="field-even">Return type</dt>
+<dd class="field-even"><p>np.array</p>
+</dd>
+</dl>
 </dd></dl>
 
 </section>

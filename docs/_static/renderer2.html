@@ -1,0 +1,225 @@
+
+            
+  <section id="rtrace">
+<h1>Rtrace<a class="headerlink" href="#rtrace" title="Permalink to this headline">¶</a></h1>
+<dl class="py class">
+<dt class="sig sig-object py" id="raytraverse.renderer.Rtrace">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">raytraverse.renderer.</span></span><span class="sig-name descname"><span class="pre">Rtrace</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">rayargs</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">scene</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">nproc</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">default_args</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">True</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">direct</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/raytraverse/renderer/rtrace.html#Rtrace"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#raytraverse.renderer.Rtrace" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <a class="reference internal" href="craytraverse.html#craytraverse.renderer.Rtrace" title="craytraverse.renderer.rtrace.Rtrace"><code class="xref py py-class docutils literal notranslate"><span class="pre">craytraverse.renderer.rtrace.Rtrace</span></code></a></p>
+<p>singleton wrapper for c++ raytraverse.crenderer.cRtrace class</p>
+<p>this class sets default arguments, helps with initialization and setting
+cpu limits of the cRtrace instance. see raytraverse.crenderer.cRtrace
+for more details.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>rayargs</strong> (<em>str</em><em>, </em><em>optional</em>) – argument string (options and flags only) raises ValueError if arguments
+are not recognized by cRtrace.</p></li>
+<li><p><strong>scene</strong> (<em>str</em><em>, </em><em>optional</em>) – path to octree</p></li>
+<li><p><strong>nproc</strong> (<em>int</em><em>, </em><em>optional</em>) – if None, sets nproc to cpu count, or the RAYTRAVERSE_PROC_CAP
+environment variable</p></li>
+<li><p><strong>default_args</strong> (<em>bool</em><em>, </em><em>optional</em>) – if True, prepend default args to rayargs parameter</p></li>
+<li><p><strong>direct</strong> (<em>bool</em><em>, </em><em>optional</em>) – if True use Rtrace.directargs in place of default (also if True, sets
+default_args to True.</p></li>
+</ul>
+</dd>
+</dl>
+<p class="rubric">Examples</p>
+<p>Basic Initialization and call:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">r</span> <span class="o">=</span> <span class="n">renderer</span><span class="o">.</span><span class="n">Rtrace</span><span class="p">(</span><span class="n">args</span><span class="p">,</span> <span class="n">scene</span><span class="p">)</span>
+<span class="n">ans</span> <span class="o">=</span> <span class="n">r</span><span class="p">(</span><span class="n">vecs</span><span class="p">)</span>
+<span class="c1"># ans.shape -&gt; (vecs.shape[0], 1)</span>
+</pre></div>
+</div>
+<p>If rayargs include cache files (ambient cache or photon map) be careful
+with updating sources. If you are going to swap sources, update the
+arguments as well with the new paths:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">r</span> <span class="o">=</span> <span class="n">renderer</span><span class="o">.</span><span class="n">Rtrace</span><span class="p">(</span><span class="n">args</span><span class="p">,</span> <span class="n">scene</span><span class="p">)</span>
+<span class="n">r</span><span class="o">.</span><span class="n">set_args</span><span class="p">(</span><span class="n">args</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="s2">&quot;temp.amb&quot;</span><span class="p">,</span> <span class="s2">&quot;temp2.amb&quot;</span><span class="p">))</span>
+<span class="n">r</span><span class="o">.</span><span class="n">load_source</span><span class="p">(</span><span class="n">srcdef</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>Note that if you are using ambient caching, you must give an ambient file,
+because without a file ambient values are not shared across processes or
+successive calls to the instance.</p>
+<dl class="py attribute">
+<dt class="sig sig-object py" id="raytraverse.renderer.Rtrace.instance">
+<span class="sig-name descname"><span class="pre">instance</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">&lt;craytraverse.crenderer.rtrace_c.cRtrace</span> <span class="pre">object&gt;</span></em><a class="headerlink" href="#raytraverse.renderer.Rtrace.instance" title="Permalink to this definition">¶</a></dt>
+<dd><p>craytraverse.crenderer.cRtrace</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="raytraverse.renderer.Rtrace.defaultargs">
+<span class="sig-name descname"><span class="pre">defaultargs</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">'-u+</span> <span class="pre">-ab</span> <span class="pre">16</span> <span class="pre">-av</span> <span class="pre">0</span> <span class="pre">0</span> <span class="pre">0</span> <span class="pre">-aa</span> <span class="pre">0</span> <span class="pre">-as</span> <span class="pre">0</span> <span class="pre">-dc</span> <span class="pre">1</span> <span class="pre">-dt</span> <span class="pre">0</span> <span class="pre">-lr</span> <span class="pre">-14</span> <span class="pre">-ad</span> <span class="pre">1000</span> <span class="pre">-lw</span> <span class="pre">0.00004</span> <span class="pre">-st</span> <span class="pre">0</span> <span class="pre">-ss</span> <span class="pre">16</span> <span class="pre">-w-'</span></em><a class="headerlink" href="#raytraverse.renderer.Rtrace.defaultargs" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="raytraverse.renderer.Rtrace.directargs">
+<span class="sig-name descname"><span class="pre">directargs</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">'-w-</span> <span class="pre">-av</span> <span class="pre">0</span> <span class="pre">0</span> <span class="pre">0</span> <span class="pre">-ab</span> <span class="pre">0</span> <span class="pre">-lr</span> <span class="pre">1</span> <span class="pre">-n</span> <span class="pre">1</span> <span class="pre">-st</span> <span class="pre">0</span> <span class="pre">-ss</span> <span class="pre">16</span> <span class="pre">-lw</span> <span class="pre">0.00004'</span></em><a class="headerlink" href="#raytraverse.renderer.Rtrace.directargs" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="raytraverse.renderer.Rtrace.usedirect">
+<span class="sig-name descname"><span class="pre">usedirect</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">False</span></em><a class="headerlink" href="#raytraverse.renderer.Rtrace.usedirect" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="raytraverse.renderer.Rtrace.nproc">
+<span class="sig-name descname"><span class="pre">nproc</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">None</span></em><a class="headerlink" href="#raytraverse.renderer.Rtrace.nproc" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="raytraverse.renderer.Rtrace.ospec">
+<span class="sig-name descname"><span class="pre">ospec</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">'Z'</span></em><a class="headerlink" href="#raytraverse.renderer.Rtrace.ospec" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="raytraverse.renderer.Rtrace.set_args">
+<em class="property"><span class="pre">classmethod</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">set_args</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">args</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">nproc</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/raytraverse/renderer/rtrace.html#Rtrace.set_args"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#raytraverse.renderer.Rtrace.set_args" title="Permalink to this definition">¶</a></dt>
+<dd><p>prepare arguments to call engine instance initialization</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>args</strong> (<em>str</em>) – rendering options</p></li>
+<li><p><strong>nproc</strong> (<em>int</em><em>, </em><em>optional</em>) – cpu limit</p></li>
+</ul>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="raytraverse.renderer.Rtrace.get_default_args">
+<em class="property"><span class="pre">classmethod</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">get_default_args</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/raytraverse/renderer/rtrace.html#Rtrace.get_default_args"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#raytraverse.renderer.Rtrace.get_default_args" title="Permalink to this definition">¶</a></dt>
+<dd><p>return default arguments of the class</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="raytraverse.renderer.Rtrace.load_solar_source">
+<em class="property"><span class="pre">classmethod</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">load_solar_source</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">scene</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">sun</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">ambfile</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">intens</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">1</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/raytraverse/renderer/rtrace.html#Rtrace.load_solar_source"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#raytraverse.renderer.Rtrace.load_solar_source" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="raytraverse.renderer.Rtrace.reset">
+<em class="property"><span class="pre">classmethod</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">reset</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/raytraverse/renderer/rtrace.html#Rtrace.reset"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#raytraverse.renderer.Rtrace.reset" title="Permalink to this definition">¶</a></dt>
+<dd><p>reset engine instance and unset associated attributes</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="raytraverse.renderer.Rtrace.get_sources">
+<em class="property"><span class="pre">classmethod</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">get_sources</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/raytraverse/renderer/rtrace.html#Rtrace.get_sources"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#raytraverse.renderer.Rtrace.get_sources" title="Permalink to this definition">¶</a></dt>
+<dd><p>returns source information</p>
+<dl class="field-list simple">
+<dt class="field-odd">Returns</dt>
+<dd class="field-odd"><p><ul class="simple">
+<li><p><strong>sources</strong> (<em>np.array</em>) – x,y,z,v,a
+distant: direction, view angle, solid angle
+not distant: location, max radius, area</p></li>
+<li><p><strong>distant</strong> (<em>np.arrary</em>) – booleans, true if source type is distant</p></li>
+</ul>
+</p>
+</dd>
+</dl>
+</dd></dl>
+
+</dd></dl>
+
+</section>
+<section id="rcontrib">
+<h1>Rcontrib<a class="headerlink" href="#rcontrib" title="Permalink to this headline">¶</a></h1>
+<dl class="py class">
+<dt class="sig sig-object py" id="raytraverse.renderer.Rcontrib">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">raytraverse.renderer.</span></span><span class="sig-name descname"><span class="pre">Rcontrib</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">rayargs</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">scene</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">nproc</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">skyres</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">15</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">modname</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'skyglow'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">ground</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">True</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">default_args</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">True</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">adpatch</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">50</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/raytraverse/renderer/rcontrib.html#Rcontrib"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#raytraverse.renderer.Rcontrib" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <a class="reference internal" href="craytraverse.html#craytraverse.renderer.Rcontrib" title="craytraverse.renderer.rcontrib.Rcontrib"><code class="xref py py-class docutils literal notranslate"><span class="pre">craytraverse.renderer.rcontrib.Rcontrib</span></code></a></p>
+<p>singleton wrapper for c++ raytrraverse.crenderer.cRcontrib class</p>
+<p>this class sets default arguments, helps with initialization and setting
+cpu limits of the cRcontrib instance. see raytrraverse.crenderer.cRcontrib
+for more details.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>rayargs</strong> (<em>str</em><em>, </em><em>optional</em>) – argument string (options and flags only) raises ValueError if arguments
+are not recognized by cRtrace.</p></li>
+<li><p><strong>scene</strong> (<em>str</em><em>, </em><em>optional</em>) – path to octree</p></li>
+<li><p><strong>nproc</strong> (<em>int</em><em>, </em><em>optional</em>) – if None, sets nproc to cpu count, or the RAYTRAVERSE_PROC_CAP
+environment variable</p></li>
+<li><p><strong>skyres</strong> (<em>int</em><em>, </em><em>optional</em>) – resolution of sky patches (sqrt(patches / hemisphere)).
+So if skyres=18, each patch
+will be 100 sq. degrees (0.03046174197 steradians) and there will be
+18 * 18 = 324 sky patches.</p></li>
+<li><p><strong>modname</strong> (<em>str</em><em>, </em><em>optional</em>) – passed the -m option of cRcontrib initialization</p></li>
+<li><p><strong>ground</strong> (<em>bool</em><em>, </em><em>optional</em>) – if True include a ground source (included as a final bin)</p></li>
+<li><p><strong>default_args</strong> (<em>bool</em><em>, </em><em>optional</em>) – if True, prepend default args to rayargs parameter</p></li>
+<li><p><strong>adpatch</strong> (<em>int</em><em>, </em><em>optional</em>) – when using default_args, ad is set to this times srcn</p></li>
+</ul>
+</dd>
+</dl>
+<p class="rubric">Examples</p>
+<p>Basic Initialization and call:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">r</span> <span class="o">=</span> <span class="n">renderer</span><span class="o">.</span><span class="n">Rcontrib</span><span class="p">(</span><span class="n">args</span><span class="p">,</span> <span class="n">scene</span><span class="p">)</span>
+<span class="n">ans</span> <span class="o">=</span> <span class="n">r</span><span class="p">(</span><span class="n">vecs</span><span class="p">)</span>
+<span class="c1"># ans.shape -&gt; (vecs.shape[0], 325)</span>
+</pre></div>
+</div>
+<dl class="py attribute">
+<dt class="sig sig-object py" id="raytraverse.renderer.Rcontrib.instance">
+<span class="sig-name descname"><span class="pre">instance</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">&lt;craytraverse.crenderer.rcontrib_c.cRcontrib</span> <span class="pre">object&gt;</span></em><a class="headerlink" href="#raytraverse.renderer.Rcontrib.instance" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="raytraverse.renderer.Rcontrib.adpatch">
+<span class="sig-name descname"><span class="pre">adpatch</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">50</span></em><a class="headerlink" href="#raytraverse.renderer.Rcontrib.adpatch" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="raytraverse.renderer.Rcontrib.nproc">
+<span class="sig-name descname"><span class="pre">nproc</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">None</span></em><a class="headerlink" href="#raytraverse.renderer.Rcontrib.nproc" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="raytraverse.renderer.Rcontrib.set_args">
+<em class="property"><span class="pre">classmethod</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">set_args</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">args</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">nproc</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/raytraverse/renderer/rcontrib.html#Rcontrib.set_args"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#raytraverse.renderer.Rcontrib.set_args" title="Permalink to this definition">¶</a></dt>
+<dd><p>prepare arguments to call engine instance initialization</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>args</strong> (<em>str</em>) – rendering options</p></li>
+<li><p><strong>nproc</strong> (<em>int</em><em>, </em><em>optional</em>) – cpu limit</p></li>
+</ul>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="raytraverse.renderer.Rcontrib.setup">
+<em class="property"><span class="pre">classmethod</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">setup</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">scene</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">ground</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">True</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">modname</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'skyglow'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">skyres</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">15</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/raytraverse/renderer/rcontrib.html#Rcontrib.setup"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#raytraverse.renderer.Rcontrib.setup" title="Permalink to this definition">¶</a></dt>
+<dd><p>set class attributes for proper argument initialization</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>scene</strong> (<em>str</em><em>, </em><em>optional</em>) – path to octree</p></li>
+<li><p><strong>ground</strong> (<em>bool</em><em>, </em><em>optional</em>) – if True include a ground source (included as a final bin)</p></li>
+<li><p><strong>modname</strong> (<em>str</em><em>, </em><em>optional</em>) – passed the -m option of cRcontrib initialization</p></li>
+<li><p><strong>skyres</strong> (<em>float</em><em>, </em><em>optional</em>) – resolution of sky patches (sqrt(patches / hemisphere)).
+So if skyres=10, each patch will be 100 sq. degrees
+(0.03046174197 steradians) and there will be 18 * 18 = 324 sky
+patches.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns</dt>
+<dd class="field-even"><p><strong>scene</strong> – path to scene with added sky definition</p>
+</dd>
+<dt class="field-odd">Return type</dt>
+<dd class="field-odd"><p>str</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="raytraverse.renderer.Rcontrib.get_default_args">
+<em class="property"><span class="pre">classmethod</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">get_default_args</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/raytraverse/renderer/rcontrib.html#Rcontrib.get_default_args"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#raytraverse.renderer.Rcontrib.get_default_args" title="Permalink to this definition">¶</a></dt>
+<dd><p>construct default arguments</p>
+</dd></dl>
+
+</dd></dl>
+
+</section>

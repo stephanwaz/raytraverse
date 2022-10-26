@@ -16,6 +16,7 @@ History
 * added direct view options to raytu lp2img (warning, non-fisheye color throws error)
 * preserve -ss in direct view sampling
 * clean up srcview sampling (always distant) and fix double counting image when rough specular gets re-samples
+* new factoring with craytraverse / renderer inheritance fixes rcontrib reset
 
 1.3.6 (2022-07-28)
 ------------------
