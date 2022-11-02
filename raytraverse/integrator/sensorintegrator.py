@@ -137,7 +137,7 @@ class SensorIntegrator(Integrator):
                 ResultAxis(apoints, "point"),
                 ResultAxis(sensors, "view"),
                 ResultAxis(["illum"] + dinfo, "metric"))
-        lr = LightResult(fields, *axes)
+        lr = LightResult(fields, *axes, boundary=self.lightplanes[0].pm)
         return lr
 
     def zonal_evaluate(self, skydata, pm, vm=None, datainfo=False,
@@ -220,7 +220,7 @@ class SensorIntegrator(Integrator):
         fvecs = np.broadcast_to(all_vecs[:, None, 3:], oshape + (3,))
         fields = np.concatenate((fvecs, areas, fields), axis=-1)
         fields = np.split(fields, strides)
-        return ZonalLightResult(fields, *axes)
+        return ZonalLightResult(fields, *axes, boundary=pm)
 
     def _evaluate_chunk(self, dsmtx, sunmask, suns, pts, sundata, skarea):
         result = self._unmask_data(dsmtx, sunmask, suns, pts, sundata, skarea)

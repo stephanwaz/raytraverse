@@ -91,8 +91,9 @@ class LightResult(object):
         axis information
     """
 
-    def __init__(self, data, *axes):
+    def __init__(self, data, *axes, boundary=None):
         self._file = None
+        self.boundary = boundary
         if not hasattr(data, "shape") and type(data) not in (list, tuple):
             if os.path.isfile(data):
                 self._file = data
@@ -105,6 +106,20 @@ class LightResult(object):
             raise ValueError(f"data of shape: {self.data.shape} requires "
                              f"{len(self.data.shape)} axes arguments.")
         self._names = [a.name for a in axes]
+
+    @property
+    def boundary(self):
+        return self._boundary
+
+    @boundary.setter
+    def boundary(self, b):
+        if b is None or (hasattr(b, "len") and len(b) == 0):
+            self._boundary = None
+        else:
+            try:
+                self._boundary = b.borders()
+            except AttributeError:
+                self._boundary = PlanMapper(b).borders()
 
     @property
     def data(self):
@@ -135,10 +150,15 @@ class LightResult(object):
             names = result['names']
             axes = tuple([ResultAxis(result[f"arr_{i}"], n)
                           for i, n in enumerate(names)])
+            bkeys = [i for i in result.keys() if i[0:4] == "bnd_"]
+            self.boundary = [result[i] for i in bkeys]
         return data, axes
 
     def write(self, file, compressed=True):
         kws = dict(data=self.data, names=self.names)
+        if self.boundary is not None:
+            for i in range(len(self.boundary)):
+                kws[f"bnd_{i}"] = self.boundary[i]
         args = [a.values for a in self.axes]
         if compressed:
             np.savez_compressed(file, *args, **kws)
@@ -193,7 +213,7 @@ class LightResult(object):
             else:
                 od = np.compress(f, lr.data, axis=oi)
             data = np.concatenate([data, od], axis=oi)
-        return LightResult(data, *outaxes)
+        return LightResult(data, *outaxes, boundary=self.boundary)
 
     def pull(self, *axes, preserve=1, **kwargs):
         """arrange and extract data slices from result.
@@ -372,16 +392,23 @@ class LightResult(object):
         self._print_serial(rt, labels, names, basename, header, rowlabel,
                            skyfill)
 
-    def _pull2hdr_kdplan(self, pm, basename, rt, flabels0, flabels1, res=480):
+    def _pull2hdr_kdplan(self, pm, basename, rt, flabels0, flabels1,
+                         showsample=False, res=480):
         img, vecs, mask, mask2, header = pm.init_img(res)
         pts = self.axis("point").value_array()
-        kd = cKDTree(pts)
+        kd = cKDTree(pts[:, 0:3])
         err, idx = kd.query(vecs[mask])
         for i, la0 in enumerate(flabels0):
             data = rt[..., i]
             for k, (la, d) in enumerate(zip(flabels1, data.T)):
                 img[mask] = d[idx]
-                io.array2hdr(img, f"{basename}_{la}_{la0}.hdr", [header])
+                if showsample:
+                    if len(img.shape) < 3:
+                        img = np.repeat(img[None, ...], 3, 0)
+                    img = pm.add_vecs_to_img(img, kd.data)
+                    io.carray2hdr(img, f"{basename}_{la}_{la0}.hdr", [header])
+                else:
+                    io.array2hdr(img, f"{basename}_{la}_{la0}.hdr", [header])
 
     def rebase(self, points):
         paxis = ResultAxis(points, "point")
@@ -425,17 +452,8 @@ class LightResult(object):
                 io.array2hdr(do[-1::-1], f"{basename}_{la}_"
                                          f"{la0}.hdr")
 
-    def pull2planhdr(self, imgzone, basename, showsample=False, res=480,
-                     **kwargs):
-        pm = PlanMapper(imgzone)
-        rt, labels, names = self.pull("metric", preserve=2, **kwargs)
-        flabels0 = self.fmt_names(names[-1], labels[-1])
-        flabels1 = self.fmt_names(names[-2], labels[-2])
-        return self._pull2hdr_kdplan(pm, basename, rt, flabels0, flabels1,
-                                     res=res)
-
-    def pull2hdr(self, col, basename, skyfill=None, spd=24, pm=None, res=480,
-                 **kwargs):
+    def pull2hdr(self, basename, col="metric", skyfill=None, spd=24, pm=None,
+                 res=480, showsample=False, **kwargs):
         rt, labels, names = self.pull(*col, preserve=2, **kwargs)
         flabels0 = self.fmt_names(names[-1], labels[-1])
         flabels1 = self.fmt_names(names[-2], labels[-2])
@@ -446,9 +464,12 @@ class LightResult(object):
                                  "points. make sure non-point axes besides "
                                  "'col' are filtered to a single value")
             if pm is None:
-                pm = PlanMapper(self.axis("point").value_array()[:, 0:3])
+                if self.boundary is None:
+                    pm = PlanMapper(self.axis("point").value_array()[:, 0:3])
+                else:
+                    pm = PlanMapper(self.boundary)
             return self._pull2hdr_kdplan(pm, basename, rt, flabels0, flabels1,
-                                         res=res)
+                                         showsample=showsample, res=res)
         if skyfill is None:
             raise ValueError("'pull2hdr' with 'sky' requires skyfill")
         elif rt.shape[0] != skyfill.smtx.shape[0]:

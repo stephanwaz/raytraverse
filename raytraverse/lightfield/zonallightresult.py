@@ -59,8 +59,8 @@ class ZonalLightResult(LightResult):
 
     """
 
-    def __init__(self, data, *axes):
-        super().__init__(data, *axes)
+    def __init__(self, data, *axes, boundary=None):
+        super().__init__(data, *axes, boundary=boundary)
         namee = ["sky", "zone", "view", "metric"]
         if (len(namee) != len(self.names) or
                 not np.all([i == j for i, j in zip(namee, self.names)])):
@@ -81,10 +81,15 @@ class ZonalLightResult(LightResult):
             axes = tuple([ResultAxis(result[f"arr_{i}"], n)
                           for i, n in enumerate(names)])
             data = [result[f"data_{i}"] for i in range(len(axes[0].values))]
+            bkeys = [i for i in result.keys() if i[0:4] == "bnd_"]
+            self.boundary = [result[i] for i in bkeys]
         return data, axes
 
     def write(self, file, compressed=True):
         kws = dict(names=self.names)
+        if self.boundary is not None:
+            for i in range(len(self.boundary)):
+                kws[f"bnd_{i}"] = self.boundary[i]
         for i in range(len(self.data)):
             kws[f"data_{i}"] = self.data[i]
         args = [a.values for a in self.axes]
@@ -124,7 +129,7 @@ class ZonalLightResult(LightResult):
                         od = np.compress(f, lr.data[i], axis=oi)
                     d = np.concatenate([d, od], axis=oi)
                 data.append(d)
-        return ZonalLightResult(data, *outaxes)
+        return ZonalLightResult(data, *outaxes, boundary=self.boundary)
 
     def _pull_labels(self, data, order, preserve, filters):
         ax0_labels = []
@@ -191,17 +196,20 @@ class ZonalLightResult(LightResult):
             super()._print_serial(rt, labels, names, basename, header,
                                   rowlabel, None)
 
-    def pull2hdr(self, imgzone, basename, showsample=False, res=480, **kwargs):
-        pm = PlanMapper(imgzone)
+    def pull2hdr(self, basename, showsample=False, pm=None, res=480, **kwargs):
         if "metric" in kwargs and kwargs["metric"] is not None:
-            kwargs["metric"] = np.unique(np.concatenate(([0, 1, 2], kwargs["metric"])))
+            kwargs["metric"] = np.unique(np.concatenate(([0, 1, 2],
+                                                         kwargs["metric"])))
         rt, labels, names = self.pull("metric", preserve=2, **kwargs)
         flabels0 = self.fmt_names(names[-1], labels[-1])
         flabels1 = self.fmt_names(names[-2], labels[-2][3:])
+        if pm is None:
+            if self.boundary is None:
+                pm = PlanMapper(rt[:, 0:3])
+            else:
+                pm = PlanMapper(self.boundary)
         pool_call(_pull2hdr, list(zip(rt, flabels0)), flabels1, pm, basename,
                   showsample=showsample, res=res)
-
-    pull2planhdr = pull2hdr
 
     def rebase(self, points):
         paxis = ResultAxis(points, "point")
@@ -210,7 +218,8 @@ class ZonalLightResult(LightResult):
               ('x', 'y', 'z')]
         maxis = ResultAxis([omet[i].replace("area", "origarea") for i in mf] + ["rebase_err"], "metric")
         odata = pool_call(_pull2grid, self.data, points, mf, expandarg=False)
-        lr = LightResult(np.stack(odata), self.axes[0], paxis, self.axes[2], maxis)
+        lr = LightResult(np.stack(odata), self.axes[0], paxis, self.axes[2],
+                         maxis, boundary=self.boundary)
         return lr
 
 

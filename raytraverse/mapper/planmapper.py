@@ -101,14 +101,27 @@ class PlanMapper(Mapper):
 
     def update_bbox(self, plane, level=0, updatez=True):
         """handle bounding box generation from plane or points"""
+        # check if plane is set of vertices (list or array of arrays)
         try:
-            points = np.atleast_2d(io.load_txt(plane))[:, 0:3]
-            paths, z = self._calc_border(points, level)
-        except TypeError:
-            points = np.atleast_2d(plane)[:, 0:3]
-            paths, z = self._calc_border(points, level)
-        except ValueError:
-            paths, z = self._rad_scene_to_paths(plane)
+            try:
+                if len(plane.shape) != 3:
+                    raise IndexError
+            except AttributeError:
+                if not np.all([len(i.shape) == 2 for i in plane]):
+                    raise IndexError
+        # handle points from file or array-like, or radiance scene
+        except (AttributeError, IndexError):
+            try:
+                points = np.atleast_2d(io.load_txt(plane))[:, 0:3]
+                paths, z = self._calc_border(points, level)
+            except TypeError:
+                points = np.atleast_2d(plane)[:, 0:3]
+                paths, z = self._calc_border(points, level)
+            except ValueError:
+                paths, z = self._rad_scene_to_paths(plane)
+        # handle 3d list:
+        else:
+            paths, z = self._vertices_to_paths(plane)
         bbox = np.full((2, 2), np.inf)
         bbox[1] *= -1
         for p in paths:
@@ -121,7 +134,11 @@ class PlanMapper(Mapper):
         self._sf = self.bbox[1] - self.bbox[0]
         self._path = []
         for pt in paths:
-            p = (np.concatenate((pt, [pt[0]])) - bbox[0, 0:2])/self._sf
+            if np.allclose(pt[0], pt[-1]):
+                p = pt
+            else:
+                p = np.concatenate((pt, [pt[0]]))
+            p = (p - bbox[0, 0:2])/self._sf
             xy = Path(p, closed=True)
             self._path.append(xy)
         return xyz
@@ -304,8 +321,18 @@ class PlanMapper(Mapper):
             zs.append(pt[:, 2])
             pt2 = self.world2view(pt)
             paths.append(pt2[:, 0:2])
-        z = np.median(zs)
-        return np.array(paths), z
+        z = np.median(np.concatenate(zs))
+        return paths, z
+
+    def _vertices_to_paths(self, plane):
+        paths = []
+        zs = []
+        for pt in plane:
+            zs.append(pt[:, 2])
+            pt2 = self.world2view(pt)
+            paths.append(pt2[:, 0:2])
+        z = np.median(np.concatenate(zs))
+        return paths, z
 
     def _calc_border(self, points, level=0):
         """generate a border from convex hull of points"""

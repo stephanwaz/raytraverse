@@ -267,7 +267,7 @@ class Integrator(object):
                     ResultAxis(points, "point"),
                     ResultAxis([v.dxyz for v in vms], "view"),
                     ResultAxis(list(ometrics) + dinfo, "metric"))
-            lr = LightResult(fields, *axes)
+            lr = LightResult(fields, *axes, boundary=self.lightplanes[0].pm)
         return lr
 
     def zonal_evaluate(self, skydata, pm, vm, viewangle=180.,
@@ -363,7 +363,7 @@ class Integrator(object):
             fvecs = np.broadcast_to(all_vecs[:, None, 3:], oshape + (3,))
             fields = np.concatenate((fvecs, areas, fields), axis=-1)
             fields = np.split(fields, strides)
-            lr = ZonalLightResult(fields, *axes)
+            lr = ZonalLightResult(fields, *axes, boundary=pm)
         return lr
 
     @staticmethod

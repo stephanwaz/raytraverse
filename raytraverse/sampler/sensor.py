@@ -42,12 +42,21 @@ class Sensor(object):
         self.name = name
         self.sunview = sunview
         self.engine = engine
-        self.dirs = translate.norm(np.atleast_2d(dirs))
-        # if sunview:
-        #     self.dirs = np.concatenate((((0, 0, 0),), self.dirs))
+        dirs = np.atleast_2d(dirs)
         self.offsets = np.atleast_2d(offsets)
-        d, o = np.broadcast_arrays(self.dirs[None], self.offsets[:, None])
-        self.sensors = np.hstack((o.reshape(-1, 3), d.reshape(-1, 3)))
+        if dirs.shape[1] == 3:
+            self.dirs = translate.norm(np.atleast_2d(dirs))
+            # if sunview:
+            #     self.dirs = np.concatenate((((0, 0, 0),), self.dirs))
+            d, o = np.broadcast_arrays(self.dirs[None], self.offsets[:, None])
+            self.sensors = np.hstack((o.reshape(-1, 3), d.reshape(-1, 3)))
+        elif dirs.shape[1] == 6:
+            dirs[:, 3:] = translate.norm(dirs[:, 3:])
+            self.dirs = dirs
+            self.sensors = dirs
+        else:
+            raise ValueError(f"bad shape for sensor dirs: {dirs.shape} should "
+                             f"be (N,3) or (N,6)")
         self.features = self.sensors.shape[0]
 
     @property

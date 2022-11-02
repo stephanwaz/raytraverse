@@ -68,6 +68,7 @@ class SkyData(object):
         self._mindiff = mindiff
         self._mindir = mindir
         self._skyro = skyro
+        self._td = 10.9735311509
         self._sunproxy = None
         self.skydata = wea
         self.mask = None
@@ -87,6 +88,10 @@ class SkyData(object):
         """sun position and dirnorm diffhoriz"""
         return self._skydata
 
+    def skydata_dew(self):
+        return np.hstack((self.skydata,  np.broadcast_to(self._td,
+                            (self.skydata.shape[0],))[:, None]))
+
     @property
     def rowlabel(self):
         """m,d,h (if known)"""
@@ -105,12 +110,15 @@ class SkyData(object):
             - 4 col: alt, az, dir, diff
             - 5 col: dx, dy, dz, dir, diff
             - 5 col: m, d, h, dir, diff
+            - 6 col: dx, dy, dz, dir, diff, t_dew
+            - 6 col: m, d, h, dir, diff, t_dew
             npz file will rewrite skyres
         """
         npzdata = self._load(wea)
         rowlabel = None
         if npzdata:
-            skydata, smtx, sun, daymask, rowlabel = npzdata
+            skydata, smtx, sun, daymask, rowlabel, td = npzdata
+            self._td = td
         elif wea is not None:
             skydata, md, td, rowlabel = self.format_skydata(wea)
             minz = np.sin(self._minalt * np.pi / 180)
@@ -119,6 +127,7 @@ class SkyData(object):
             daymask = np.logical_and(daymask, skydata[:, 3] >= self._mindir)
             sxyz = skydata[daymask, 0:3]
             dirdif = skydata[daymask, 3:]
+            self._td = td
             if md is not None:
                 md = md[daymask]
             if hasattr(td, "__len__"):
@@ -152,7 +161,7 @@ class SkyData(object):
         if scene is not None:
             file = f"{scene.outdir}/{file}"
         kws = dict(skydata=self._skydata, smtx=self._smtx, sun=self._sun,
-                   daymask=self._daymask)
+                   daymask=self._daymask, td=np.asarray(self._td))
         if self.loc is not None:
             kws["loc"] = self._loc
         if self.rowlabel.shape[1] > 1:
@@ -182,8 +191,12 @@ class SkyData(object):
                 rowlabel = result['rowlabel']
             except (ValueError, KeyError):
                 rowlabel = None
+            try:
+                td = result['td']
+            except KeyError:
+                td = 10.9735311509
             self.skyres = int(np.sqrt(smtx.shape[1] - 1))
-            return skydata, smtx, sun, daymask, rowlabel
+            return skydata, smtx, sun, daymask, rowlabel, td
 
     def format_skydata(self, dat):
         """process dat argument as skydata
@@ -216,7 +229,7 @@ class SkyData(object):
         if skydat.shape[1] == 4:
             xyz = translate.aa2xyz(skydat[:, 0:2])
             skydat = np.hstack((xyz, skydat[:, 2:]))
-        elif skydat.shape[1] == 5:
+        elif skydat.shape[1] == 5 or skydat.shape[1] == 6:
             if np.max(skydat[:, 2]) > 2:
                 if loc is None:
                     raise ValueError("cannot parse wea data without a Location")
@@ -225,11 +238,16 @@ class SkyData(object):
                 md = skydat[:, 0:2].astype(int)
                 rowlabel = skydat[:, 0:3]
                 skydat = np.hstack((xyz, skydat[:, 3:]))
+            if skydat.shape[1] == 6:
+                td = skydat[:, 5]
+                skydat = skydat[:, 0:5]
         else:
             raise ValueError('input data should be one of the following:'
                              '\n4 col: alt, az, dir, diff'
                              '\n5 col: dx, dy, dz, dir, diff'
-                             '\n5 col: m, d, h, dir, diff')
+                             '\n5 col: m, d, h, dir, diff',
+                             '\n6 col: dx, dy, dz, dir, diff, t_dew'
+                             '\n6 col: m, d, h, dir, diff, t_dew')
         return skydat, md, td, rowlabel
 
     @property
