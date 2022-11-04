@@ -342,7 +342,10 @@ class GSS:
             raise ValueError("cannot compute until an image has been set")
         e_g, pupa, pupd = self.adapt(ev_eye)
         img_gs = self.get_glare_sources()
+        # swap comment to mask after response
+        # img_gs = self.lum
         r_g = self.glare_response(img_gs, e_g, pupa, pupd)
+        # r_g[:, self.lum < self.gst] = 0
         if save is not None:
             r_gc = np.stack((*r_g, np.zeros(r_g.shape[1:])))
             io.carray2hdr(r_gc, save)
@@ -400,11 +403,7 @@ class GSS:
         (used in field_response)
 
         Note that this differs from the implementation dscribed by Vissenberg
-        et al., and uses ganglion cell field density from:
-
-        Andrew B. Watson; A formula for human retinal ganglion cell receptive
-        field density as a function of visual field location. Journal of
-        Vision 2014;14(7):15. doi: https://doi.org/10.1167/14.7.15.
+        and incorporates KIM below the horizon
         """
         return self._sigma_c
 
@@ -774,17 +773,40 @@ class GSS:
         and y = 1/unweighted GSS
 
         results::
-
+        mask before response:
             17.078747601175937 - 14.392547712049184·x¹ + 13.521269552690162·x² -
             8.778008624382208·x³ - 6.1589701503713865·x⁴ + 14.405349284130853·x⁵ -
             1.2184994327746506·x⁶ - 4.797592024869671·x⁷
 
+        mask after response:
+            17.62292564700509 - 14.536871051253787·x¹ + 12.685028896938627·x² -
+            7.730401658174977·x³ - 5.604132632551058·x⁴ + 12.907258629769927·x⁵ -
+            1.2954351440572451·x⁶ - 4.154534690013603·x⁷
+
+        no mask:
+            17.391307233014352 - 14.205359954817714·x¹ + 11.281825747420827·x² -
+            3.8125033792134424·x³ - 8.632388080009948·x⁴ + 10.858511970278716·x⁵ +
+            1.4069764750517415·x⁶ - 4.497661785293787·x⁷
         """
-        p = np.polynomial.Polynomial([17.078747601175937, -14.392547712049184,
-                                      13.521269552690162, -8.778008624382208,
-                                      -6.1589701503713865, 14.405349284130853,
-                                      -1.2184994327746506, -4.797592024869671],
+        # mask before response:
+        # p = np.polynomial.Polynomial([17.078747601175937, -14.392547712049184,
+        #                               13.521269552690162, -8.778008624382208,
+        #                               -6.1589701503713865, 14.405349284130853,
+        #                               -1.2184994327746506, -4.797592024869671],
+        #                              domain=[0.009, 0.12])
+        # mask after response (change code in compute()):
+        # p = np.polynomial.Polynomial([17.62292564700509, -14.536871051253787,
+        #                               12.685028896938627, -7.730401658174977,
+        #                               -5.604132632551058, 12.907258629769927,
+        #                               -1.2954351440572451, -4.154534690013603],
+        #                              domain=[0.009, 0.12])
+        # no mask:
+        p = np.polynomial.Polynomial([17.391307233014352, -14.205359954817714,
+                                      11.281825747420827, -3.8125033792134424,
+                                      -8.632388080009948, 10.858511970278716,
+                                      1.4069764750517415, -4.497661785293787],
                                      domain=[0.009, 0.12])
+
         return r * p(self.sigma_c)
 
     # Step 14
