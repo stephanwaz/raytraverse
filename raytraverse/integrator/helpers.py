@@ -89,12 +89,12 @@ def img_pt(lpts, skyvecs, suns, vms=None,  combos=None,
             lp_is = (lp_is,)
         elif interp == "fastc":
             lp_is, w = lpts[0].interp(pdirs[mask], angle=False, lum=False,
-                                      dither=True, rt=svengine,
+                                      dither=False, rt=svengine,
                                       **kwargs)
             lp_is = (lp_is,)
         elif interp == "fast":
             lp_is, w = lpts[0].interp(pdirs[mask], angle=False, lum=False,
-                                      dither=True, **kwargs)
+                                      dither=False, **kwargs)
             lp_is = (lp_is,)
         elif interp:
             lp_is = [None] * len(lpts)

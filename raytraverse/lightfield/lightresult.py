@@ -113,7 +113,7 @@ class LightResult(object):
 
     @boundary.setter
     def boundary(self, b):
-        if b is None or (hasattr(b, "len") and len(b) == 0):
+        if b is None or (hasattr(b, "__len__") and len(b) == 0):
             self._boundary = None
         else:
             try:
@@ -207,13 +207,19 @@ class LightResult(object):
         outaxes, filters = self._merge_axes(*lrs, axis=axis)
         oi = self._index(axis)
         data = self.data
+        boundary = self.boundary
         for lr, f, in zip(lrs, filters):
             if np.all(f):
                 od = lr.data
             else:
                 od = np.compress(f, lr.data, axis=oi)
             data = np.concatenate([data, od], axis=oi)
-        return LightResult(data, *outaxes, boundary=self.boundary)
+            if axis == "point":
+                try:
+                    boundary += lr.boundary
+                except TypeError:
+                    boundary = None
+        return LightResult(data, *outaxes, boundary=boundary)
 
     def pull(self, *axes, preserve=1, **kwargs):
         """arrange and extract data slices from result.

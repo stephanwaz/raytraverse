@@ -2,8 +2,17 @@
 History
 =======
 
-1.3.7
------
+1.3.8 (2022-11-04)
+------------------
+* 0 variance bug in image interpolation
+* added boundaries to LightResults
+* accept dew_point in ttsv format to skydata
+* outtput skydata with dewpoint using skydata_dew
+* pull gridhdr no longer needs zone if it is embedded in LightResult
+
+
+1.3.7 (2022-10-26)
+------------------
 * updated resonse fit in hsvgm
 * resolution option for pull 2 hdr cli
 * modules directly available from import raytraverse

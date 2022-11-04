@@ -289,14 +289,14 @@ class LightPointKD(object):
         if interp == "precomp":
             lum = self.apply_interp(idx, val[0], interpweights)
         elif interp == "fastc" and engine is not None:
-            i, weights = self.interp(vecs, angle=False, lum=False, dither=True,
+            i, weights = self.interp(vecs, angle=False, lum=False, dither=False,
                                      rt=engine, **kwargs)
             lum = self.apply_interp(i, val[0], weights)
         elif interp == "highc" and engine is not None:
             i, weights = self.interp(vecs, rt=engine, **kwargs)
             lum = self.apply_interp(i, val[0], weights)
         elif interp == "fast":
-            i, weights = self.interp(vecs, angle=False, lum=False, dither=True,
+            i, weights = self.interp(vecs, angle=False, lum=False, dither=False,
                                      **kwargs)
             lum = self.apply_interp(i, val[0], weights)
         elif interp == "high":
@@ -677,6 +677,9 @@ class LightPointKD(object):
         lum = np.max(self.lum.reshape(self.lum.shape[0], -1)[i], axis=-1)
         dlum = lum - np.mean(lum, axis=1)[:, None]
         lvar = np.mean(np.square(dlum), axis=1)[:, None]
+        mask = lvar.ravel() == 0
+        lvar[mask] = 1
+        dlum[mask] = 0
         # scale distance on gaussian as weight
         return np.exp(-np.square(dlum)/(2*lvar))
 
@@ -707,7 +710,7 @@ class LightPointKD(object):
         cf = None
         if rt is not None:
             content = self._content_mask(rt, destvecs, i)
-            w[np.logical_not(content)] *= 0.05
+            w[np.logical_not(content)] *= 0.001
             cf = np.all(content, 1)
         if angle:
             if cf is not None:
