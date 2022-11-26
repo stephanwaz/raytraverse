@@ -63,31 +63,35 @@ def auto_reload(scndir, area, areaname="plan", skydata="skydata", ptres=1.0,
 
 
 def load_lp(path, hasparent=True):
-    if hasparent:
-        try:
-            ftree = path.rsplit("/", 3)
-            scndir = ftree[-4]
-            parent = ftree[-3]
-        except IndexError:
+    try:
+        if hasparent:
+            try:
+                ftree = path.rsplit("/", 3)
+                scndir = ftree[-4]
+                parent = ftree[-3]
+            except IndexError:
+                ftree = path.rsplit("/", 2)
+                scndir = ftree[-3]
+                parent = None
+        else:
             ftree = path.rsplit("/", 2)
             scndir = ftree[-3]
             parent = None
+    except IndexError:
+        return LightPointKD(path)
     else:
-        ftree = path.rsplit("/", 2)
-        scndir = ftree[-3]
-        parent = None
-    scn = Scene(scndir)
-    pidx = int(ftree[-1].split(".")[0])
-    try:
-        pts = io.load_txt(path.replace(f"/{ftree[-1]}", "_points.tsv"))
-    except FileNotFoundError:
-        pt = (0, 0, 0)
-    else:
+        scn = Scene(scndir)
+        pidx = int(ftree[-1].split(".")[0])
         try:
-            pt = pts[pidx, -3:]
-        except IndexError:
-            pt = pts[-3:]
-    return LightPointKD(scn, parent=parent, src=ftree[-2], posidx=pidx, pt=pt)
+            pts = io.load_txt(path.replace(f"/{ftree[-1]}", "_points.tsv"))
+        except FileNotFoundError:
+            pt = (0, 0, 0)
+        else:
+            try:
+                pt = pts[pidx, -3:]
+            except IndexError:
+                pt = pts[-3:]
+        return LightPointKD(scn, parent=parent, src=ftree[-2], posidx=pidx, pt=pt)
 
 
 stypes = ('1comp', '2comp', '3comp', '1compdv', 'directview', 'directpatch', 'sunonly',

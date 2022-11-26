@@ -339,6 +339,8 @@ class PlanMapper(Mapper):
         self._candidates = points
         o = self.ptres/2**(level + 1)
         try:
+            if len(points) < 4:
+                raise RuntimeError
             hull = ConvexHull(points[:, 0:2])
         except RuntimeError:
             offset = np.array([[o, o], [o, -o], [-o, -o], [-o, o]])

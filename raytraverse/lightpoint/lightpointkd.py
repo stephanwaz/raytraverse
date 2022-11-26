@@ -60,6 +60,14 @@ class LightPointKD(object):
                  posidx=0, src='sky', srcn=1, srcdir=(0, 0, 1), calcomega=True,
                  write=True, omega=None, filterviews=True, srcviews=None,
                  parent=None, srcviewidxs=None, features=1):
+        directload = False
+        try:
+            if os.path.isfile(scene):
+                self.file = scene
+                scene = None
+                directload = True
+        except TypeError:
+            pass
         self.srcviews = []
         self.srcviewidxs = []
         self.set_srcviews(srcviews, srcviewidxs)
@@ -77,13 +85,19 @@ class LightPointKD(object):
         self.src = src
         #: direction to source(s)
         self.srcdir = translate.norm(np.asarray(srcdir).reshape(-1, 3))
-        if parent is not None:
+        if self.scene is None:
+            outdir = None
+        elif parent is not None:
             outdir = f"{self.scene.outdir}/{parent}"
         else:
             outdir = self.scene.outdir
         self.parent = parent
-        #: str: relative path to disk storage
-        self.file = f"{outdir}/{self.src}/{self.posidx:06d}.rytpt"
+        if self.scene is None:
+            if not directload:
+                self.file = f"{self.src}_{self.posidx:06d}.rytpt"
+        else:
+            #: str: relative path to disk storage
+            self.file = f"{outdir}/{self.src}/{self.posidx:06d}.rytpt"
         self._vec = np.empty((0, 3))
         if features > 1:
             self._lum = np.empty((0, srcn, features))
@@ -122,7 +136,9 @@ class LightPointKD(object):
         f.close()
 
     def dump(self):
-        if self.parent is not None:
+        if self.scene is None:
+            pass
+        elif self.parent is not None:
             try_mkdir(f"{self.scene.outdir}/{self.parent}")
             try_mkdir(f"{self.scene.outdir}/{self.parent}/{self.src}")
         else:
@@ -314,7 +330,10 @@ class LightPointKD(object):
                 i, d = self.query_ray(vecs)
             lum = val[:, i]
         if mask is None:
-            a = np.transpose(lum, (0, 1, 4, 2, 3))[0, 0]
+            if len(lum.shape) == 5:
+                a = np.transpose(lum, (0, 1, 4, 2, 3))[0, 0]
+            else:
+                a = lum[0, 0]
             img += a
         else:
             img[mask] += np.ravel(lum)
@@ -491,6 +510,8 @@ class LightPointKD(object):
             channels = (1, 1, 1)
         if order:
             outf = self.file.replace("/", "_").replace(".rytpt", "_order.hdr")
+        elif rnd:
+            outf = self.file.replace("/", "_").replace(".rytpt", "_random.hdr")
         elif omega:
             outf = self.file.replace("/", "_").replace(".rytpt", "_omega.hdr")
         else:

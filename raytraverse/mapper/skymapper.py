@@ -177,7 +177,7 @@ class SkyMapper(AngularMixin, Mapper):
         idx = np.arange(np.product(shape))
         uv = self.idx2uv(idx, shape, jitter)
         if masked:
-            return uv[self.in_solarbounds_uv(uv)]
+            return uv[self.in_solarbounds_uv(uv, level=level)]
         else:
             return uv
 

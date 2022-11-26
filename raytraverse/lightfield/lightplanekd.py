@@ -55,10 +55,13 @@ class LightPlaneKD(LightField):
         else:
             ridx, d = self.query(points)
             if mask:
-                omask = self.pm.mask
-                self.pm.mask = True
-                ridx = ridx[self.pm.in_view(points, False)]
-                self.pm.mask = omask
+                if hasattr(self.pm, "mask"):
+                    omask = self.pm.mask
+                    self.pm.mask = True
+                    ridx = ridx[self.pm.in_view(points, False)]
+                    self.pm.mask = omask
+                else:
+                    ridx = ridx[self.pm.in_view(points, False)]
             qidx, midx = np.unique(ridx, return_inverse=True)
         results = []
         for qi in qidx:
@@ -66,7 +69,7 @@ class LightPlaneKD(LightField):
             vol = lp.evaluate(skyvec, vm=vm)
             if vm is None:
                 vm = lp.vm
-            results.append(metricclass(*vol, lp.vm, metricset=metrics,
+            results.append(metricclass(*vol, vm, metricset=metrics,
                                        **kwargs)())
         return np.array(results)[midx]
 
