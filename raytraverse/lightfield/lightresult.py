@@ -434,7 +434,11 @@ class LightResult(object):
 
     @staticmethod
     def _pull2hdr_sky(skyfill, basename, spd, rt, flabels0, flabels1):
-        if skyfill.skydata.shape[0] % 365 == 0:
+        if skyfill is None:
+            gsort = None
+            gshp = (int(rt.shape[0]/spd), spd)
+            psize = (int(730/gshp[0]), max(5, int(240/gshp[1])))
+        elif skyfill.skydata.shape[0] % 365 == 0:
             gshp = (365, int(skyfill.skydata.shape[0]/365))
             hour = np.arange(skyfill.skydata.shape[0])
             gsort = np.lexsort((-np.mod(hour, gshp[1]), np.floor(hour/gshp[1])))
@@ -453,7 +457,12 @@ class LightResult(object):
             else:
                 data = rt[..., i]
             for k, (la, d) in enumerate(zip(flabels1, data.T)):
-                do = d[gsort].reshape(gshp)
+                try:
+                    do = d[gsort].reshape(gshp)
+                except ValueError:
+                    raise ValueError(f"'pull2hdr' to sky images without sky "
+                                     f"fill requires data that can be reshaped "
+                                     f"to (-1, spd), where spd={spd}.")
                 do = np.repeat(np.repeat(do, psize[1], 1), psize[0], 0)
                 io.array2hdr(do[-1::-1], f"{basename}_{la}_"
                                          f"{la0}.hdr")
@@ -477,7 +486,7 @@ class LightResult(object):
             return self._pull2hdr_kdplan(pm, basename, rt, flabels0, flabels1,
                                          showsample=showsample, res=res)
         if skyfill is None:
-            raise ValueError("'pull2hdr' with 'sky' requires skyfill")
+            pass
         elif rt.shape[0] != skyfill.smtx.shape[0]:
             raise ValueError("SkyData and result do not have the same number "
                              f"of values ({skyfill.smtx.shape[0]} vs. "

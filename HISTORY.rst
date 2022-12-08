@@ -2,6 +2,13 @@
 History
 =======
 
+1.3.9 (2022-12-08)
+------------------
+* improvements to more easily load lightpoints directly from files without context
+* api.load_config for better compatibility between scripting/CLI
+* change eccentricity model in hvsgsm
+* fix bug in autorotate in planmapper when result should be 0 or 90
+
 1.3.8 (2022-11-04)
 ------------------
 * 0 variance bug in image interpolation
@@ -9,7 +16,6 @@ History
 * accept dew_point in ttsv format to skydata
 * outtput skydata with dewpoint using skydata_dew
 * pull gridhdr no longer needs zone if it is embedded in LightResult
-
 
 1.3.7 (2022-10-26)
 ------------------

@@ -271,12 +271,22 @@ class PlanMapper(Mapper):
 
     def _auto_rotate(self):
         v = np.vstack(self.borders())
-        left = np.average(v[np.isclose(self.bbox[0, 0], v[:, 0])], 0)
-        right = np.average(v[np.isclose(self.bbox[1, 0], v[:, 0])], 0)
-        top = np.average(v[np.isclose(self.bbox[1, 1], v[:, 1])], 0)
-        bottom = np.average(v[np.isclose(self.bbox[0, 1], v[:, 1])], 0)
-        vaxis = np.average((top - right, left - bottom), 0)
-        haxis = np.average((right - bottom, top - left), 0)
+
+        ll = v[np.isclose(self.bbox[0, 0], v[:, 0])]
+        ll = ll[np.argmin(ll[:, 1])]
+
+        ul = v[np.isclose(self.bbox[1, 1], v[:, 1])]
+        ul = ul[np.argmin(ul[:, 0])]
+
+        ur = v[np.isclose(self.bbox[1, 0], v[:, 0])]
+        ur = ur[np.argmax(ur[:, 1])]
+
+        lr = v[np.isclose(self.bbox[0, 1], v[:, 1])]
+        lr = lr[np.argmax(lr[:, 0])]
+
+        vaxis = np.average((ul - ll, ur - lr), 0)
+        haxis = np.average((lr - ll, ur - ul), 0)
+
         hv = np.linalg.norm((haxis, vaxis), axis=1)
         if hv[0] > hv[1]:
             rotation = np.arccos(np.dot(haxis/hv[0], (1, 0, 0)))*180/np.pi

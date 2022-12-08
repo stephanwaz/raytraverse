@@ -10,6 +10,9 @@
 """factory functions for easy api access raytraverse."""
 import os
 
+import configparser
+from clasp.click_ext import ConfigSectionMap
+
 from raytraverse import io
 from raytraverse.integrator import Integrator
 from raytraverse.scene import Scene
@@ -17,6 +20,30 @@ from raytraverse.sky import SkyData
 from raytraverse.mapper import PlanMapper
 from raytraverse.lightfield import SunsPlaneKD, LightPlaneKD
 from raytraverse.lightpoint import LightPointKD
+
+
+def get_config(config, com="raytraverse_"):
+    """load a config file into a dict
+
+    Parameters
+    ----------
+    config: str
+        path to .cfg file with sections raytarverse_*
+    com: str
+        basename of commands in .cfg file
+
+    Returns
+    -------
+    result: dict
+    """
+    parser = configparser.ConfigParser(
+        interpolation=configparser.ExtendedInterpolation())
+    parser.read(config)
+    gargs = {}
+    for section in parser.keys():
+        subc = section.replace(com, "")
+        gargs[subc] = ConfigSectionMap(parser, section)
+    return gargs
 
 
 def auto_reload(scndir, area, areaname="plan", skydata="skydata", ptres=1.0,
@@ -63,6 +90,25 @@ def auto_reload(scndir, area, areaname="plan", skydata="skydata", ptres=1.0,
 
 
 def load_lp(path, hasparent=True):
+    """load a lightpoint from a file
+
+    will try to get appropriate scene/zone information from file path but
+    reverts to a lightpoint without correct meta-data if it does not have the
+    appropriate nesting.
+
+    Parameters
+    ----------
+    path: str
+        relative path to .rytpt file
+    hasparent: bool, optional
+        was sampled within a zone (typical), set to false in the case that
+        the lightpoint file is multiple folders deep from CWD but was not
+        sampled within a zone (meaning you used a samplerpt class, not typical).
+
+    Returns
+    -------
+    LightPointKD
+    """
     try:
         if hasparent:
             try:
@@ -94,8 +140,8 @@ def load_lp(path, hasparent=True):
         return LightPointKD(scn, parent=parent, src=ftree[-2], posidx=pidx, pt=pt)
 
 
-stypes = ('1comp', '2comp', '3comp', '1compdv', 'directview', 'directpatch', 'sunonly',
-          'sunpatch', 'skyonly')
+stypes = ('1comp', '2comp', '3comp', '1compdv', 'directview', 'directpatch',
+          'sunonly', 'sunpatch', 'skyonly')
 
 stypedescriptions = {
     '1comp': "standard DC method, sky patch only, full contribution depending "

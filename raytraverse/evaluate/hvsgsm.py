@@ -107,24 +107,25 @@ class GSS:
     the model requires the following steps:
 
     Done when setting an image with a new resolution:
-    1. calculate solid angle of pixels
-    2. calculate eccentricity from guth position idx
+
+        1. calculate solid angle of pixels
+        2. calculate eccentricity from guth position idx
 
     Steps for applying model to an image:
-    1. calculate eye illuminance from image
-    2. mask non-glare source pixels (not described in model, fixed thresh)
-    3. calculate pupil area and diameter
-    4. calculate global retinal irradiance
-    5. calculate incident retinal irradiance of glare sources
-    6. apply PSF to (5)
-    7. apply movement affecting adaptation to (6)
-    8. apply movement affecting direct response to (6)
-    9. calculate local adaptation using (7)
-    10. calculate V/V_m photoreceptor response (8)
-    11. calculate receptor field response to (10) as DoG
-    12. normalize field response with logistic
-    13. apply position weighting
-    14. sum GSS
+
+        1. calculate eye illuminance from image
+        2. mask non-glare source pixels (not described in model, fixed thresh)
+        3. calculate pupil area and diameter
+        4. calculate global retinal irradiance
+        5. calculate incident retinal irradiance of glare sources
+        6. apply PSF to (5)
+        7. apply movement affecting adaptation to (6)
+        8. apply movement affecting direct response to (6)
+        9. calculate local adaptation using (7)
+        10. calculate V/V_m photoreceptor response (8)
+        11. calculate receptor field response to (10) as DoG
+        12. normalize field response with logistic
+        13. sum GSS and apply position weighting
 
     Parameters
     ----------
@@ -223,6 +224,7 @@ class GSS:
         self._lum = None
         self._sigma_c = None
         self._pparcmin = None
+        self._ecc = None
         if view is None:
             self.vm = ViewMapper(viewangle=180)
         elif isinstance(view, ViewMapper):
@@ -314,15 +316,10 @@ class GSS:
         r_g = self.normalized_field_response(r_rf)
         bfill = np.zeros(r_g.shape[1:])
         parrays["08_response_log"] = np.stack((*r_g, bfill))
-        if self._raw:
-            r_w = r_g
-        else:
-            r_w = self.weight_response(r_g)
-            parrays["09_weighted_response"] = np.stack((*r_g, bfill))
         if return_arrays:
-            return r_w, parrays
+            return r_g, parrays
         else:
-            return r_w
+            return r_g
 
     def compute(self, save=None, ev_eye=None):
         """apply glare sensation model to loaded image
@@ -341,9 +338,9 @@ class GSS:
         if self.lum is None:
             raise ValueError("cannot compute until an image has been set")
         e_g, pupa, pupd = self.adapt(ev_eye)
-        img_gs = self.get_glare_sources()
+        # img_gs = self.get_glare_sources()
         # swap comment to mask after response
-        # img_gs = self.lum
+        img_gs = self.lum
         r_g = self.glare_response(img_gs, e_g, pupa, pupd)
         # r_g[:, self.lum < self.gst] = 0
         if save is not None:
@@ -354,6 +351,10 @@ class GSS:
     @property
     def lum(self):
         return self._lum
+
+    @property
+    def ecc(self):
+        return self._ecc
 
     @lum.setter
     def lum(self, img):
@@ -371,6 +372,7 @@ class GSS:
             self._res = r
             self._pparcmin = self.res/(60*self.vm.viewangle)
             self.sigma_c = r
+        self._ecc = np.average(self.sigma_c, weights=np.power(self._lum, 4))
 
     @property
     def res(self):
@@ -416,6 +418,9 @@ class GSS:
                        np.square(vecc)), 1)
         s_c = p*(self.emax - self.emin) + self.emin
         self._sigma_c = s_c.reshape(r, r)
+        # pos = (PositionIndex().positions(self.vm, self.vecs.reshape(-1, 3)) - 1) / 15
+        # pos = pos*(self.emax - self.emin) + self.emin
+        # self._sigma_c = pos.reshape(r, r)
 
     @property
     def vm(self):
@@ -583,7 +588,6 @@ class GSS:
         trunc = 30 * self._pparcmin / ds
         e_rg = (a * gaussian_filter(e_r, bs) +
                 c * gaussian_filter(e_r, ds, truncate=trunc))
-        # e_rg.flat[self._nmask] = 0
         return e_rg
 
     # Step 8
@@ -617,7 +621,6 @@ class GSS:
         w2 = 2 * np.sqrt(250 * t) * self._pparcmin
         e_ra = gaussian_filter(e_r, w1)
         e_ra = gaussian_filter(e_ra, w2)
-        # e_ra.flat[self._nmask] = 0
         return e_ra
 
     # Step 9
@@ -645,7 +648,6 @@ class GSS:
             log10er = np.where(e_r > 0, np.log10(e_r), 0)
         e_a = np.power(10, self.contrast * log10er +
                        (1-self.contrast) * np.log10(e_g))
-        # e_a.flat[self._nmask] = 0
         return e_a
 
     # Step 10
@@ -715,10 +717,10 @@ class GSS:
         ubounds = np.concatenate(((steps[1:] + steps[:-1])/2, [1]))
         lbounds = np.concatenate(([0], ubounds[:-1]))
         for s, lb, ub in zip(steps, lbounds, ubounds):
-            sp = s * self._pparcmin*60
+            include = np.logical_and(lb <= self.sigma_c, self.sigma_c < ub)
+            sp = s * self._pparcmin * 60
             r_c = gaussian_filter(vvm, sp)
             r_s = gaussian_filter(vvm, sp * 3.5)
-            include = np.logical_and(lb <= self.sigma_c, self.sigma_c < ub)
             rf_c[include] = r_c[include]
             rf_s[include] = r_s[include]
         return rf_c - self.fr_k*rf_s
@@ -750,76 +752,44 @@ class GSS:
         r_go.flat[self._nmask] = 0
         return np.stack((r_gc, r_go))
 
-    # Step 13
-    def weight_response(self, r):
-        """weight rectified response by position index
-
-        Parameters
-        ----------
-        r: np.array
-            response_log
-
-        Returns
-        -------
-        position weighted glare response
-
-        Notes
-        -----
-        fit on guth data using BCD = 2843.58 * e^(x + 1.5 * x^2) / 179
-        with a 2.12 degree source and 34.26 cd/m^2 background
-
-        numpy.polynomial.Polynomial.fit(x, y, 6)
-        where x = eccentricity (.009 -.12 from 0 to 55 degree vertical angle
-        and y = 1/unweighted GSS
-
-        results::
-        mask before response:
-            17.078747601175937 - 14.392547712049184·x¹ + 13.521269552690162·x² -
-            8.778008624382208·x³ - 6.1589701503713865·x⁴ + 14.405349284130853·x⁵ -
-            1.2184994327746506·x⁶ - 4.797592024869671·x⁷
-
-        mask after response:
-            17.62292564700509 - 14.536871051253787·x¹ + 12.685028896938627·x² -
-            7.730401658174977·x³ - 5.604132632551058·x⁴ + 12.907258629769927·x⁵ -
-            1.2954351440572451·x⁶ - 4.154534690013603·x⁷
-
-        no mask:
-            17.391307233014352 - 14.205359954817714·x¹ + 11.281825747420827·x² -
-            3.8125033792134424·x³ - 8.632388080009948·x⁴ + 10.858511970278716·x⁵ +
-            1.4069764750517415·x⁶ - 4.497661785293787·x⁷
-        """
-        # mask before response:
-        # p = np.polynomial.Polynomial([17.078747601175937, -14.392547712049184,
-        #                               13.521269552690162, -8.778008624382208,
-        #                               -6.1589701503713865, 14.405349284130853,
-        #                               -1.2184994327746506, -4.797592024869671],
-        #                              domain=[0.009, 0.12])
-        # mask after response (change code in compute()):
-        # p = np.polynomial.Polynomial([17.62292564700509, -14.536871051253787,
-        #                               12.685028896938627, -7.730401658174977,
-        #                               -5.604132632551058, 12.907258629769927,
-        #                               -1.2954351440572451, -4.154534690013603],
-        #                              domain=[0.009, 0.12])
-        # no mask:
-        p = np.polynomial.Polynomial([17.391307233014352, -14.205359954817714,
-                                      11.281825747420827, -3.8125033792134424,
-                                      -8.632388080009948, 10.858511970278716,
-                                      1.4069764750517415, -4.497661785293787],
-                                     domain=[0.009, 0.12])
-
-        return r * p(self.sigma_c)
-
     # Step 14
     def gss(self, r_g):
         """calculate minkowski sum on normalized response
 
         from Vissenberg et al. 2021 equation (9):
-        (9) GSS = sum_i(R_G,i^m 𝛿_i)^(1/m)
-        GSS: glare sensation score
-        m: minkowski norm (4)
-        delta (𝛿): solid angle of pixel (steradians)
+
+            (9) GSS = sum_i(R_G,i^m 𝛿_i)^(1/m)
+            GSS: glare sensation score
+            m: minkowski norm (4)
+            delta (𝛿): solid angle of pixel (steradians)
+
+        Notes
+        -----
+
+        fit on guth data using BCD = 2843.58 * e^(x + 1.5 * x^2) / 179
+        with a 2.12 degree source and 34.26 cd/m^2 background::
+
+            numpy.polynomial.Polynomial.fit(ecc, fac, 7, window=[0, 1],
+                                            domain=[.009, 0.12])
+            # where x = eccentricity (.009 -.12 from 0 to 55 degree vertical
+            # angle and y = 1/unweighted GSS
+
+        results::
+
+            33.12797281707965 + 2.2872877726594725·x¹ - 104.61419835147568·x² -
+            275.45010218009116·x³ + 1587.8255352939432·x⁴ -
+            2570.6813747583033·x⁵ + 1837.1741161137818·x⁶ - 499.8491902780004·x⁷
         """
-        return np.sum(np.power(r_g, self.norm) * self.omega)**(1/self.norm)
+        if self._raw:
+            return np.sum(np.power(r_g, self.norm)*self.omega)**(1/self.norm)
+
+        p = np.polynomial.Polynomial([33.12797281707965, 2.2872877726594725,
+                                      -104.61419835147568, -275.45010218009116,
+                                      1587.8255352939432, -2570.6813747583033,
+                                      1837.1741161137818, -499.8491902780004],
+                                     window=[0, 1], domain=[0.009, 0.12])
+
+        return np.sum(np.power(r_g, self.norm) * self.omega)**(1/self.norm) * p(self.ecc)
 
 
 
