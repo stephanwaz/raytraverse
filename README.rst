@@ -1,6 +1,6 @@
-===================
+====================
 raytraverse (1.3.10)
-===================
+====================
 
 .. image:: https://img.shields.io/pypi/v/raytraverse?style=flat-square
     :target: https://pypi.org/project/raytraverse
@@ -120,15 +120,15 @@ installation, this process will require about 2.5 GB of disk space.
 	docker run -it --name rayt --mount type=bind,source="$(pwd)",target=/working raytraverse /bin/bash
 	docker rm rayt
 
-9. to update raytraverse, the process is similar to step 4, 
+9. to update raytraverse, the process is similar to step 4,
    but with a slightly different dockerfile::
 
 	# syntax=docker/dockerfile:1
 	# docker build -f Dockerfile_update . --tag raytraverse:latest
 	FROM raytraverse:latest
-	
+
 	WORKDIR /build
-	
+
 	SHELL ["/bin/bash", "-c"]
 	RUN pip3 install --upgrade --no-deps craytraverse
 	RUN pip3 install --upgrade --no-deps clasp
@@ -141,7 +141,7 @@ installation, this process will require about 2.5 GB of disk space.
 	RUN rm -rf bin lib man
 	RUN mv /build/radiance-*-Linux/usr/local/radiance/* ./
 	RUN rm -rf /build
-	
+
 	ENV RAYPATH=.:/radiance/lib
 	ENV MANPATH=/radiance/man
 	ENV PATH=/radiance/bin:$PATH
