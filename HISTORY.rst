@@ -2,6 +2,13 @@
 History
 =======
 
+1.3.10 (2022-12-20)
+-------------------
+* paralellize sensorintegrator matrix multiplication
+* include interpolated/represented area in zonallightresult.rebase() output
+* fix scikit-learn in requiirements.txt/setup.py
+* add random patch color view to lightpointkd.direct_view() for diagrams
+
 1.3.9 (2022-12-08)
 ------------------
 * improvements to more easily load lightpoints directly from files without context

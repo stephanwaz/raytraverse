@@ -20,7 +20,7 @@ def tmpdir(tmp_path_factory):
     cpath = os.getcwd()
     path = data + '/test'
     # uncomment to use actual (to debug results)
-    path = cpath + '/' + subf
+    # path = cpath + '/' + subf
     os.chdir(path)
     yield path
     os.chdir(cpath)

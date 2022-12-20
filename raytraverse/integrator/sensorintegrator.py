@@ -7,6 +7,7 @@
 # =======================================================================
 import numpy as np
 from raytraverse import translate
+from raytraverse.utility import pool_call
 
 from raytraverse.lightfield import ZonalLightResult, ResultAxis, LightResult
 from raytraverse.integrator.integrator import Integrator
@@ -166,37 +167,29 @@ class SensorIntegrator(Integrator):
         cnts = np.full(len(sunmask), len(pts))
         cnts[sunmask] = [len(s) for s in sundata[0]]
         tcnt = np.sum(cnts)
-        chunks = round(tcnt/525000)
+        # seems to be sweet spot to chunk size, too large and bogged down
+        # too small and lots of overhead, on test this is 4x faster than single
+        # thread
+        chunks = round(tcnt/20000)
         if chunks > 1:
             csize = int(np.ceil(len(sunmask)/chunks))
             sdi = 0
-            fields = []
-            serr = []
-            tidxs = []
-            areas = []
-            all_vecs = []
-            pbar = self.scene.progress_bar(None,
-                                           iterable=np.arange(0, len(sunmask),
-                                                              csize),
-                                           message="matrix multiplication")
-            for ci in pbar:
+            chunkrng = np.arange(0, len(sunmask), csize)
+            args = []
+            for ci in chunkrng:
                 slc = slice(ci, ci+csize)
                 sdc = np.sum(sunmask[slc])
                 sdlc = slice(sdi, sdi+sdc)
                 sdi += sdc
                 csundata = [j[sdlc] for j in sundata]
-                r = self._evaluate_chunk(skydata.smtx[slc], sunmask[slc],
-                                         suns[slc], pts, csundata, skarea)
-                fields.append(r[0])
-                serr.append(r[1])
-                tidxs.append(r[2])
-                areas.append(r[3])
-                all_vecs.append(r[4])
-            fields = np.concatenate(fields, axis=0)
-            serr = np.concatenate(serr, axis=0)
-            tidxs = np.concatenate(tidxs, axis=1)
-            areas = np.concatenate(areas, axis=0)
-            all_vecs = np.concatenate(all_vecs, axis=0)
+                args.append((slc, csundata))
+            rs = pool_call(self._evaluate_chunks, args, skydata, sunmask, suns,
+                           pts, skarea, desc="matrix multiplication")
+            fields = np.concatenate([r[0] for r in rs], axis=0)
+            serr = np.concatenate([r[1] for r in rs], axis=0)
+            tidxs = np.concatenate([r[2] for r in rs], axis=1)
+            areas = np.concatenate([r[3] for r in rs], axis=0)
+            all_vecs = np.concatenate([r[4] for r in rs], axis=0)
         else:
             result = self._evaluate_chunk(skydata.smtx, sunmask, suns, pts,
                                           sundata, skarea)
@@ -221,6 +214,12 @@ class SensorIntegrator(Integrator):
         fields = np.concatenate((fvecs, areas, fields), axis=-1)
         fields = np.split(fields, strides)
         return ZonalLightResult(fields, *axes, boundary=pm)
+
+    def _evaluate_chunks(self, slc, csundata, skydata, sunmask, suns, pts,
+                         skarea):
+        """for parallel processing, avoids exploding memory"""
+        return self._evaluate_chunk(skydata.smtx[slc], sunmask[slc],
+                                    suns[slc], pts, csundata, skarea)
 
     def _evaluate_chunk(self, dsmtx, sunmask, suns, pts, sundata, skarea):
         result = self._unmask_data(dsmtx, sunmask, suns, pts, sundata, skarea)

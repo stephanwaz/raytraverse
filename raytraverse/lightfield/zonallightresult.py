@@ -216,9 +216,14 @@ class ZonalLightResult(LightResult):
         omet = self.axis("metric").values
         mf = [i for i, v in enumerate(omet) if v not in
               ('x', 'y', 'z')]
-        maxis = ResultAxis([omet[i].replace("area", "origarea") for i in mf] + ["rebase_err"], "metric")
+        maxis = ResultAxis(["area"] + [omet[i].replace("area", "origarea")
+                                       for i in mf] + ["rebase_err"], "metric")
         odata = pool_call(_pull2grid, self.data, points, mf, expandarg=False)
-        lr = LightResult(np.stack(odata), self.axes[0], paxis, self.axes[2],
+        ai = self.axis("metric").index("area")
+        areas, _, _ = self.pull("metric", sky=0, metric=[ai], view=0)
+        odata = np.stack(odata)
+        narea = np.full(odata.shape[:-1] + (1,), np.sum(areas)/len(points))
+        lr = LightResult(np.concatenate((narea, odata), axis=-1), self.axes[0], paxis, self.axes[2],
                          maxis, boundary=self.boundary)
         return lr
 

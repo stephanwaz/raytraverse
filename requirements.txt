@@ -4,7 +4,7 @@ clasp~=1.1.6
 numpy
 scipy
 craytraverse>=0.1.5
-sklearn
+scikit-learn
 tqdm
 
 pytest~=7.1.1

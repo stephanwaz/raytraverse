@@ -114,7 +114,7 @@ class SamplerSuns(BaseSampler):
         vfile = (f"{self.scene.outdir}/{areamapper.name}/{skymapper.name}_"
                  f"{self.stype}.tsv")
         try:
-            suns = io.load_txt(vfile)
+            suns = np.atleast_2d(io.load_txt(vfile))
         except FileNotFoundError:
             suns = None
         except ValueError:

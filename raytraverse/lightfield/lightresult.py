@@ -419,7 +419,7 @@ class LightResult(object):
     def rebase(self, points):
         paxis = ResultAxis(points, "point")
         omet = self.axis("metric").values
-        mf = [i for i, v in enumerate(omet) if v not in ('x', 'y', 'z', 'area')]
+        mf = [i for i, v in enumerate(omet)]
         maxis = ResultAxis([omet[i] for i in mf] + ["rebase_err"], "metric")
 
         pts = self.axis("point").value_array()

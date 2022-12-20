@@ -253,7 +253,7 @@ class LightPointKD(object):
 
     def add_to_img(self, img, vecs, mask=None, skyvec=1, interp=False,
                    idx=None, interpweights=None, order=False, omega=False,
-                   vm=None, rnd=False, engine=None, **kwargs):
+                   vm=None, rnd=False, engine=None, srcrnd=False, **kwargs):
         """add luminance contributions to image array (updates in place)
 
         Parameters
@@ -298,6 +298,8 @@ class LightPointKD(object):
             val = np.random.rand(1, self.omega.size)
         elif omega:
             val = self.omega.reshape(1, -1)
+        elif srcrnd:
+            val = np.vstack([self.apply_coef(skyvec[i]) for i in range(3)]).T[None]
         else:
             val = self.apply_coef(skyvec)
         if vm is None:
@@ -476,11 +478,14 @@ class LightPointKD(object):
 
     def direct_view(self, res=512, showsample=False, showweight=True, rnd=False,
                     order=False, srcidx=None, interp=False, omega=False,
-                    scalefactor=1, vm=None, fisheye=True, grow=1):
+                    scalefactor=1, vm=None, fisheye=True, grow=1, srcrnd=False):
         """create an unweighted summary image of lightpoint"""
         if omega or rnd or order:
             features = 1
             interp = False
+        elif srcrnd:
+            features = 3
+            showweight = True
         else:
             features = self.features
         if vm is None:
@@ -501,10 +506,13 @@ class LightPointKD(object):
             if srcidx is not None:
                 skyvec = np.zeros(self.srcn)
                 skyvec[srcidx] = scalefactor
+            elif srcrnd:
+                skyvec = translate.norm(np.random.default_rng(0).random((self.srcn, 3))).T
             else:
                 skyvec = np.full(self.srcn, scalefactor)
             self.add_to_img(img, pdirs[mask], mask2, vm=vm, order=order,
-                            interp=interp, skyvec=skyvec, omega=omega, rnd=rnd)
+                            interp=interp, skyvec=skyvec, omega=omega, rnd=rnd,
+                            srcrnd=srcrnd)
             channels = (1, 0, 0)
         else:
             channels = (1, 1, 1)
@@ -514,6 +522,8 @@ class LightPointKD(object):
             outf = self.file.replace("/", "_").replace(".rytpt", "_random.hdr")
         elif omega:
             outf = self.file.replace("/", "_").replace(".rytpt", "_omega.hdr")
+        elif srcrnd:
+            outf = self.file.replace("/", "_").replace(".rytpt", "_srcrnd.hdr")
         else:
             outf = self.file.replace("/", "_").replace(".rytpt", ".hdr")
         outf = outf.strip(".").strip("_")
