@@ -1,5 +1,5 @@
 ===================
-raytraverse (1.3.9)
+raytraverse (1.3.10)
 ===================
 
 .. image:: https://img.shields.io/pypi/v/raytraverse?style=flat-square
