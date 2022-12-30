@@ -2,6 +2,11 @@
 History
 =======
 
+1.3.11
+------
+* updated image generation for comppressedpoint
+* added option to directly sample imagerenderer without transformation
+
 1.3.10 (2022-12-20)
 -------------------
 * paralellize sensorintegrator matrix multiplication

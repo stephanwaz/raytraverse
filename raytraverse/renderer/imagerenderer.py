@@ -29,7 +29,8 @@ class ImageRenderer:
         passed to scipy.interpolate.RegularGridInterpolator
     """
 
-    def __init__(self, scene, viewmapper=None, method="linear", color=False):
+    def __init__(self, scene, viewmapper=None, method="linear", color=False,
+                 uv=False):
         self.srcn = 1
         if viewmapper is None:
             self.vm = ViewMapper(viewangle=180)
@@ -41,6 +42,10 @@ class ImageRenderer:
         else:
             self.features = 1
             self.scene = io.hdr2array(scene)
+        if uv:
+            self.transform = self.vm.xyz2uv
+        else:
+            self.transform = self.vm.xyz2vxy
         fimg = self.scene[..., -1::-1].T
         res = fimg.shape[0]
         of = .5/res
@@ -65,7 +70,7 @@ class ImageRenderer:
         np.array
 
         """
-        pxy = self.vm.xyz2vxy(rays[:, 3:6])
+        pxy = self.transform(rays[:, 3:6])
         return self.instance(pxy)
 
     def run(self, *args, **kwargs):

@@ -29,8 +29,8 @@ class ImageSampler(SamplerPt):
     """
 
     def __init__(self, scene, vm=None, scalefac=None, method='linear',
-                 color=False, **kwargs):
-        engine = ImageRenderer(scene.scene, vm, method, color=color)
+                 color=False, uv=False, **kwargs):
+        engine = ImageRenderer(scene.scene, vm, method, color=color, uv=uv)
         super().__init__(scene, engine, features=engine.features,
                          stype="image", **kwargs)
         if scalefac is None:

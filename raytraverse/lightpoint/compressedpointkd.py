@@ -70,7 +70,8 @@ class CompressedPointKD(LightPointKD):
             io.carray2hdr(vimg, outf, header=[header])
             self._clusterimg = None
 
-    def add_to_img(self, img, vecs, mask=None, skyvec=1, vm=None, **kwargs):
+    def add_to_img(self, img, vecs, mask=None, skyvec=1, vm=None, fisheye=True,
+                   order=False, omega=False, rnd=False, **kwargs):
         """add luminance contributions to image array (updates in place)
 
         Parameters
@@ -86,14 +87,36 @@ class CompressedPointKD(LightPointKD):
             source coefficients, shape is (1,) or (srcn,)
         vm: raytraverse.mapper.ViewMapper, optional
         """
-        val = np.squeeze(self.apply_coef(skyvec))
-        imgkd = cKDTree(vecs)
-        r = translate.theta2chord(np.sqrt(self.omega/np.pi))
-        splats = imgkd.query_ball_point(self.vec, r)
-        img0 = np.zeros(len(vecs))
+        if order:
+            val = np.arange(self.omega.size)
+            features = 1
+        elif rnd:
+            val = np.random.rand(self.omega.size)
+            features = 1
+        elif omega:
+            val = self.omega
+            features = 1
+        else:
+            val = np.squeeze(self.apply_coef(skyvec))
+            features = self.features
+        if vm is None:
+            vm = self.vm
+        vecs = vecs.reshape(-1, 3)
+        if fisheye:
+            imgkd = cKDTree(vecs)
+            r = translate.theta2chord(np.sqrt(self.omega/np.pi))
+            splats = imgkd.query_ball_point(self.vec, r)
+        else:
+            imgkd = cKDTree(vm.xyz2uv(vecs))
+            r = np.sqrt(self.omega/vm.area)/2
+            splats = imgkd.query_ball_point(vm.xyz2uv(self.vec), r)
+        img0 = np.squeeze(np.zeros((len(vecs), features)))
         for sp, lum in zip(splats, val):
             img0[sp] += lum
-        img[mask] += img0
+        if mask is None:
+            img += img0.T.reshape(img.shape)
+        else:
+            img[mask] += img0
         for srcview in self.srcviews:
             srcview.add_to_img(img, vecs, mask, skyvec[-1], vm)
 
@@ -147,7 +170,7 @@ class CompressedPointKD(LightPointKD):
             src = f"{lp.src}_compressed"
         kwargs = dict(vec=ovec, lum=olum, vm=lp.vm, pt=lp.pt, posidx=lp.posidx,
                       src=src, srcn=lp.srcn, omega=ooga, srcdir=lp.srcdir,
-                      srcviews=lp.srcviews)
+                      srcviews=lp.srcviews, features=olum.shape[1])
         return lp.scene, kwargs
 
     @staticmethod
@@ -168,11 +191,13 @@ class CompressedPointKD(LightPointKD):
             (N, 7) ray direction, source direction, and source brightness
         """
         lum = lp.apply_coef(1).T
+        if lp.features > 1:
+            lum = np.average(lum, axis=0)
         # min-max normalize luminances
         bound = np.percentile(lum, (0, 100))
         scale = bound[1] - bound[0]
         ldist = (lum - bound[0])/scale
-        src = np.einsum('jk,ij->ik', lp.srcdir, lp.lum)
+        src = np.einsum('jk,ij->ik', lp.srcdir, lum)
         return np.hstack((lp.vec, src, ldist * weight))
 
     def _reduce(self, lp, slices):

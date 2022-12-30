@@ -512,7 +512,7 @@ class LightPointKD(object):
                 skyvec = np.full(self.srcn, scalefactor)
             self.add_to_img(img, pdirs[mask], mask2, vm=vm, order=order,
                             interp=interp, skyvec=skyvec, omega=omega, rnd=rnd,
-                            srcrnd=srcrnd)
+                            srcrnd=srcrnd, fisheye=fisheye)
             channels = (1, 0, 0)
         else:
             channels = (1, 1, 1)

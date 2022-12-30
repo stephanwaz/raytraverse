@@ -23,6 +23,6 @@ class ImageScene(BaseScene):
     def __init__(self, outdir, scene=None, reload=True,
                  log=False):
         super().__init__(outdir, scene=scene, frozen=True,
-                         reload=reload, log=log)
+                         reload=reload, overwrite=not reload, log=log)
         self._logf = None
 
