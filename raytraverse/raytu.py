@@ -52,7 +52,7 @@ def main(ctx, out=None, config=None, n=None,  **kwargs):
     after adjusting the settings, than each command can be invoked in turn and
     any dependencies will be loaded with the correct options, for example::
 
-        raytraverse -c run.cfg imgmetric pull
+        raytu -c run.cfg imgmetric pull
 
     will calculate metrics on a set of images and then print to the stdout.
     """

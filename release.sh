@@ -2,15 +2,8 @@
 
 # Git Info
 # ---------
-# this project is hosted in two places, a private repo (master branch) at:
 #
-#     https://gitlab.enterpriselab.ch/lightfields/raytraverse
-#
-# and a public repo (release branch) at:
-#
-#     https://github.com/stephanwaz/raytraverse
-#
-# the repo also depends on two submodules, to initialize run the following::
+# this repo depends on two submodules, to initialize run the following::
 #
 #     git clone https://github.com/stephanwaz/raytraverse
 #     cd raytraverse
@@ -75,7 +68,6 @@ if [ "$answer" != "${answer#[Yy]}" ] ;then
                 git push
                 tag="$(git tag | tail -1)"
                 git push origin $tag
-                git push release $tag
 			else
 				git status
 			fi
