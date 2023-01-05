@@ -16,14 +16,15 @@ import numpy as np
 from scipy.interpolate import interp1d
 from skyfield.api import Topos, utc, load
 
-from raytraverse import translate
+import raytraverse
+from raytools import translate
 from raytraverse.formatter import RadianceFormatter
 
 # bsp file made with:
 # python -m jplephem excerpt 2020/1/1 2030/1/1 \
 # https://naif.jpl.nasa.gov/pub/naif/generic_kernels/spk/planets/de432s.bsp \
 # de432_2020s.bsp
-planets = load(os.path.dirname(translate.__file__) + '/de432_2020s.bsp')
+planets = load(os.path.dirname(raytraverse.__file__) + '/de432_2020s.bsp')
 sun = planets['sun']
 earth = planets['earth']
 

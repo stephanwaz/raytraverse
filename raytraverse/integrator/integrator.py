@@ -11,13 +11,14 @@ import tempfile
 
 import numpy as np
 
-from raytraverse import translate
+from raytools import translate
 from raytraverse.evaluate import MetricSet
 from raytraverse.lightfield import SunsPlaneKD, ZonalLightResult
 from raytraverse.lightfield import ResultAxis, LightResult
 import raytraverse.integrator.helpers as intg
+from raytraverse.lightpoint.lightpointkd import calc_voronoi_area
 from raytraverse.mapper import ViewMapper
-from raytraverse.utility import pool_call
+from raytools.utility import pool_call
 
 
 class Integrator(object):
@@ -397,7 +398,7 @@ class Integrator(object):
             pts = np.vstack(pts)
             pts = pts[pm.in_view(pts, False)]
             pts = pts[translate.cull_vectors(pts, ptfilter)]
-            skarea = translate.calc_omega(pts, pm)
+            skarea = calc_voronoi_area(pts, pm)
         else:
             pts = pm.dxyz.reshape(1, 3)
             skarea = np.array([pm.area])
@@ -477,7 +478,7 @@ class Integrator(object):
                                                minsun=minsun)
         spts = [v[:, 3:] for v in vecs]
         if calcarea:
-            areas = pool_call(translate.calc_omega, spts, pm, expandarg=False,
+            areas = pool_call(calc_voronoi_area, spts, pm, expandarg=False,
                               desc="calculating areas", pbar=self.scene.dolog)
         else:
             areas = [[0]*len(v) for v in spts]

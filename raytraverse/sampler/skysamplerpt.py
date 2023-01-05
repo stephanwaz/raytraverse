@@ -9,7 +9,7 @@ import numpy as np
 
 from raytraverse.sampler.samplerpt import SamplerPt
 from raytraverse.lightpoint import LightPointKD
-from raytraverse import translate
+from raytools import translate
 
 
 class SkySamplerPt(SamplerPt):

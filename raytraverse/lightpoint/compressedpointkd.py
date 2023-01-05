@@ -10,7 +10,7 @@ import numpy as np
 from scipy.spatial import cKDTree
 from sklearn.cluster import Birch
 
-from raytraverse import translate, io
+from raytools import translate, io
 from raytraverse.lightpoint.lightpointkd import LightPointKD
 
 

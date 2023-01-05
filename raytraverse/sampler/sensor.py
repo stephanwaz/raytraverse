@@ -7,7 +7,7 @@
 # =======================================================================
 import numpy as np
 
-from raytraverse import translate
+from raytools import translate
 
 
 filterdict = {

@@ -10,7 +10,7 @@ from scipy.interpolate import RegularGridInterpolator
 from scipy.spatial import cKDTree
 from clasp.script_tools import try_mkdir
 
-from raytraverse import io
+from raytools import io
 from raytraverse.sampler import draw
 from raytraverse.sampler.basesampler import BaseSampler, filterdict
 from raytraverse.evaluate import SamplingMetrics

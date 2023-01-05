@@ -12,7 +12,7 @@ from raytraverse.mapper import MaskedPlanMapper
 from raytraverse.sampler import ISamplerArea, Sensor
 from raytraverse.sampler.samplersuns import SamplerSuns
 from raytraverse.lightfield import SunSensorPlaneKD
-from raytraverse.utility import pool_call
+from raytools.utility import pool_call
 
 
 class ISamplerSuns(SamplerSuns):

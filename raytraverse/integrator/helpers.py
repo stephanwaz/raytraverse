@@ -9,7 +9,7 @@
 """parallelization functions for integration"""
 import numpy as np
 
-from raytraverse import io, translate
+from raytools import io, translate
 from raytraverse.mapper import ViewMapper
 from raytraverse.sampler import SunSamplerPtView
 from raytraverse.lightpoint import LightPointKD

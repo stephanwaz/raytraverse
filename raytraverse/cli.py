@@ -20,12 +20,12 @@ import clasp.click_ext as clk
 from clasp.script_tools import try_mkdir
 
 import raytraverse
-from raytraverse import translate
+from raytools import translate
 from raytraverse import api
 from raytraverse.lightfield import LightPlaneKD, ResultAxis
 from raytraverse.lightfield import LightResult
 from raytraverse.mapper import PlanMapper, SkyMapper, ViewMapper
-from raytraverse.utility.cli import np_load, np_load_safe, shared_pull, pull_decs
+from raytraverse.cli_funcs import np_load, np_load_safe, shared_pull, pull_decs
 from raytraverse.scene import Scene
 from raytraverse.renderer import Rtrace, Rcontrib
 from raytraverse.sampler import SkySamplerPt, SamplerArea, SamplerSuns, \

@@ -6,7 +6,6 @@
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 # =======================================================================
 import os
-import re
 import sys
 
 import numpy as np
@@ -69,30 +68,42 @@ class Scene(BaseScene):
                                        (2*side, side))).T/side
         uv += np.random.default_rng().random(uv.shape) * (.5 / side)
         xyz = vm.uv2xyz(uv)
-        pvecs = np.concatenate(np.broadcast_arrays(vecs[:, None],
-                                                   xyz[None, :]), 2)
-        a = reflengine(pvecs.reshape(-1, 6))
-        # count tabs to get level
-        level = np.array([len(i) - len(i.lstrip())
-                          for i in a.splitlines(False)])
-        # normal, direction, modifier
-        a = np.array(a.split()).reshape(-1, 7)
-        mod = a[:, -1]
-        a = a[:, 0:6].astype(float)
-        sky = np.argwhere(mod == "skyglow").ravel()
-        skyl = level[sky]
-        leva, levs = np.broadcast_arrays(level, skyl[:, None])
-        # filter indices before sky index in each row
-        leva[np.arange(len(level)) <= sky[:, None]] = -3
-        # filter indices not one level up from sky
-        leva[level != (skyl[:, None] - 1)] = -2
-        # this returns the first value, our candidate reflection
-        candidate = np.argmax(leva, 1)
-        # check if this is a reflection
-        acos = np.einsum("ij,ij->i", a[candidate, 3:], a[sky, 3:])
-        normals = a[candidate, 0:3][acos < .99]
+
+        chunks = min(int(round(len(vecs)*2**(res-5)/8)), len(vecs))
+        if chunks > 1:
+            cvecs = np.array_split(vecs, chunks)
+        else:
+            cvecs = [vecs]
+
+        unique = []
+        for cv in cvecs:
+            pvecs = np.concatenate(np.broadcast_arrays(cv[:, None],
+                                                       xyz[None, :]), 2)
+            a = reflengine(pvecs.reshape(-1, 6))
+            # count tabs to get level
+            level = np.array([len(i) - len(i.lstrip())
+                              for i in a.splitlines(False)])
+            # normal, direction, modifier
+            a = np.array(a.split()).reshape(-1, 7)
+            mod = a[:, -1]
+            a = a[:, 0:6].astype(float)
+            sky = np.argwhere(mod == "skyglow").ravel()
+            skyl = level[sky]
+            leva, levs = np.broadcast_arrays(level, skyl[:, None])
+            leva = np.copy(leva)
+            # filter indices before sky index in each row
+            leva[np.arange(len(level)) <= sky[:, None]] = -3
+            # filter indices not one level up from sky
+            leva[level != (skyl[:, None] - 1)] = -2
+            # this returns the first value, our candidate reflection
+            candidate = np.argmax(leva, 1)
+            # check if this is a reflection
+            acos = np.einsum("ij,ij->i", a[candidate, 3:], a[sky, 3:])
+            normals = a[candidate, 0:3][acos < .99]
+            unique.append(np.array(list(set(zip(*normals.T)))))
+        unique = np.array(list(set(zip(*np.vstack(unique).T))))
         # find unique
-        return np.array(list(set(zip(*normals.T))))
+        return unique
 
     def source_scene(self, srcfile, srcname):
         files, frozen = self.formatter.get_scene(self.scene)

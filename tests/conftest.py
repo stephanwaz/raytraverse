@@ -6,8 +6,6 @@ import os
 import sys
 import craytraverse
 
-failures = os.path.dirname(__file__) + "/failures"
-
 
 def pytest_addoption(parser):
     parser.addoption(
@@ -28,8 +26,6 @@ def pytest_configure(config):
         path_new = list(dict.fromkeys(path_rt + path_env))
     os.environ["PATH"] = os.pathsep.join(path_new)
 
-    if os.path.isfile(failures):
-        os.remove(failures)
     config.addinivalue_line("markers", "slow: mark test as slow to run")
 
 
@@ -41,15 +37,3 @@ def pytest_collection_modifyitems(config, items):
     for item in items:
         if "slow" in item.keywords:
             item.add_marker(skip_slow)
-
-
-@pytest.hookimpl(tryfirst=True, hookwrapper=True)
-def pytest_runtest_makereport(item, call):
-    # execute all other hooks to obtain the report object
-    outcome = yield
-    rep = outcome.get_result()
-    # we only look at actual failing test calls, not setup/teardown
-    if rep.when == "call" and rep.failed:
-        mode = "a" if os.path.exists(failures) else "w"
-        with open(failures, mode) as f:
-            f.write(rep.nodeid + "\n")

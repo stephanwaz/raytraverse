@@ -8,7 +8,7 @@
 
 import numpy as np
 
-from raytraverse import io
+from raytools import io
 from raytraverse.evaluate import retina
 from raytraverse.mapper import ViewMapper
 from scipy.interpolate import LinearNDInterpolator

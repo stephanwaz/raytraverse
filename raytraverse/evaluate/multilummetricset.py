@@ -8,7 +8,7 @@
 import numpy as np
 import functools
 
-from raytraverse.evaluate.basemetricset import BaseMetricSet
+from raytools.evaluate import BaseMetricSet
 
 
 class MultiLumMetricSet(BaseMetricSet):

@@ -10,10 +10,9 @@ import functools
 import numpy as np
 from scipy import stats
 
-from raytraverse import translate
-from raytraverse.evaluate.positionindex import PositionIndex
-from raytraverse.evaluate.basemetricset import BaseMetricSet
-from raytraverse.mapper import ViewMapper
+from raytools import translate
+from raytools.evaluate import BaseMetricSet, PositionIndex
+from raytools.mapper import ViewMapper
 
 
 class Ray:

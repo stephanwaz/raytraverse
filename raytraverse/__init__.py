@@ -12,8 +12,10 @@ __author__ = """Stephen Wasilewski"""
 __email__ = 'stephanwaz@gmail.com'
 __version__ = '1.3.10'
 __all__ = ['evaluate', 'formatter', 'lightpoint', 'mapper',
-           'renderer', 'sampler', 'scene', 'sky', 'io', 'translate', 'utility']
+           'renderer', 'sampler', 'scene', 'sky', 'io', 'translate']
 
+
+from raytools import translate, io
 from raytraverse import *
 
 

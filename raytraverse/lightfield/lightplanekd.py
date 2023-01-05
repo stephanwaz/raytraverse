@@ -6,14 +6,13 @@
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 # =======================================================================
 import numpy as np
-from scipy.spatial import Voronoi
 from scipy.interpolate import LinearNDInterpolator
-from shapely.geometry import Polygon
 
-from raytraverse import io, translate
+from raytools import io
 from raytraverse.evaluate import MetricSet
 from raytraverse.lightfield.sets import LightPointSet
 from raytraverse.lightfield.lightfield import LightField
+from raytraverse.lightpoint.lightpointkd import calc_voronoi_area
 
 
 class LightPlaneKD(LightField):
@@ -38,7 +37,7 @@ class LightPlaneKD(LightField):
         :type: np.array
         """
         if self._omega is None:
-            self._omega = translate.calc_omega(self.vecs, self.pm)
+            self._omega = calc_voronoi_area(self.vecs, self.pm)
         return self._omega
 
     @omega.setter

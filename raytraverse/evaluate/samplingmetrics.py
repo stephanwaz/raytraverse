@@ -8,8 +8,8 @@
 import numpy as np
 import functools
 
-from raytraverse import translate
-from raytraverse.evaluate.basemetricset import BaseMetricSet
+from raytools import translate
+from raytools.evaluate import BaseMetricSet
 
 
 class SamplingMetrics(BaseMetricSet):

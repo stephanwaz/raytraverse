@@ -9,10 +9,10 @@
 import numpy as np
 from matplotlib.path import Path
 
-from raytraverse import translate, io
+from raytools import translate, io
 from raytraverse.sky import skycalc
-from raytraverse.mapper.mapper import Mapper
-from raytraverse.mapper.angularmixin import AngularMixin
+from raytools.mapper.mapper import Mapper
+from raytools.mapper.angularmixin import AngularMixin
 
 
 class SkyMapper(AngularMixin, Mapper):

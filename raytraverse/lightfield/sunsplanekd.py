@@ -10,8 +10,8 @@ from scipy.spatial import cKDTree, distance_matrix
 
 from raytraverse.lightfield.sets import MultiLightPointSet
 from raytraverse.lightfield.lightfield import LightField
-from raytraverse.translate import theta2chord, chord2theta
-from raytraverse.utility import pool_call
+from raytools.translate import theta2chord, chord2theta
+from raytools.utility import pool_call
 
 
 class SunsPlaneKD(LightField):

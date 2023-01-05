@@ -14,8 +14,8 @@ from shapely.geometry import Polygon
 from scipy.spatial import ConvexHull
 from shapely.ops import unary_union
 
-from raytraverse import translate, io
-from raytraverse.mapper.mapper import Mapper
+from raytools import io
+from raytools.mapper.mapper import Mapper
 
 
 class PlanMapper(Mapper):

@@ -7,9 +7,8 @@
 # =======================================================================
 import numpy as np
 from clasp.script_tools import try_mkdir, sglob
-from scipy.spatial import cKDTree
 
-from raytraverse import io, translate
+from raytools import io, translate
 from raytraverse.mapper import MaskedPlanMapper
 from raytraverse.sampler import draw
 from raytraverse.sampler.samplerarea import SamplerArea
@@ -17,7 +16,7 @@ from raytraverse.sampler.basesampler import BaseSampler, filterdict
 from raytraverse.sampler.sunsamplerpt import SunSamplerPt
 from raytraverse.lightfield import SunsPlaneKD, LightPlaneKD
 from raytraverse.evaluate import SamplingMetrics
-from raytraverse.utility import pool_call
+from raytools.utility import pool_call
 
 
 class SamplerSuns(BaseSampler):

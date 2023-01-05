@@ -6,7 +6,7 @@
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 # =======================================================================
 import numpy as np
-from raytraverse import translate, io
+from raytools import translate, io
 from raytraverse.sky import skycalc
 from raytraverse.formatter import RadianceFormatter as RadFmt
 

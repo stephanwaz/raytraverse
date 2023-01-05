@@ -7,7 +7,7 @@
 # =======================================================================
 import numpy as np
 
-from raytraverse import io
+from raytools import io
 from raytraverse.sampler.samplerpt import SamplerPt
 from raytraverse.lightpoint import LightPointKD, SrcViewPoint
 

@@ -9,7 +9,7 @@
 import numpy as np
 from scipy.interpolate import RegularGridInterpolator
 
-from raytraverse import io
+from raytools import io
 from raytraverse.mapper import ViewMapper
 
 
@@ -46,7 +46,7 @@ class ImageRenderer:
             self.transform = self.vm.xyz2uv
         else:
             self.transform = self.vm.xyz2vxy
-        fimg = self.scene[..., -1::-1].T
+        fimg = self.scene
         res = fimg.shape[0]
         of = .5/res
         self.args = f"interpolation: {method}"

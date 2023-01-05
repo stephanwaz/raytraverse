@@ -6,8 +6,8 @@
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 # =======================================================================
 import numpy as np
-from raytraverse import translate
-from raytraverse.utility import pool_call
+from raytools import translate
+from raytools.utility import pool_call
 
 from raytraverse.lightfield import ZonalLightResult, ResultAxis, LightResult
 from raytraverse.integrator.integrator import Integrator

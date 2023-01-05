@@ -8,7 +8,7 @@
 import numpy as np
 from scipy.spatial import cKDTree
 
-from raytraverse import io
+from raytools import io
 
 
 class LightField(object):

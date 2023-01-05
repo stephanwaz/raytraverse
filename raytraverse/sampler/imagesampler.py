@@ -9,7 +9,7 @@ import os
 
 import numpy as np
 
-from raytraverse import io, translate
+from raytools import io
 from raytraverse.lightpoint import LightPointKD
 from raytraverse.mapper import ViewMapper
 from raytraverse.sampler.samplerpt import SamplerPt

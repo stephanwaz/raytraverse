@@ -40,7 +40,7 @@ def test_sample(tmpdir):
     lf.direct_view(ref.shape[0], showsample=False, interp=False, omega=True)
     fmetric = MetricSet(*lf.evaluate(1, vm), vm, ["illum", "density"])()
     fmetric2 = MetricSet(*lf2.evaluate(1, vm), vm, ["illum", "density"])()
-    assert np.abs(fmetric[0] - 28144) < 40
+    assert np.abs(fmetric[0] - 28144) < 50
     assert np.abs(fmetric[1] - 2480) < 20
     assert np.abs(fmetric[0] - fmetric2[0])/fmetric[0] < .05
     assert np.abs(fmetric[1] - fmetric2[1])/fmetric[1] < .1

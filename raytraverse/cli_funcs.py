@@ -13,9 +13,8 @@ import numpy as np
 from clasp import click
 import clasp.click_ext as clk
 
-from raytraverse import io
+from raytools import io
 from raytraverse.lightfield import LightResult, ZonalLightResult
-from raytraverse.mapper import PlanMapper
 from raytraverse.sky import SkyData
 
 

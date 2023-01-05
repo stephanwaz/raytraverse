@@ -6,8 +6,8 @@
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 # =======================================================================
 import numpy as np
-from raytraverse import io
-from raytraverse.utility import pool_call
+from raytools import io
+from raytools.utility import pool_call
 from scipy.spatial import cKDTree
 
 from raytraverse.lightfield.lightresult import LightResult, ResultAxis

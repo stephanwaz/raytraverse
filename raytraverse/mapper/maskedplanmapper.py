@@ -6,14 +6,8 @@
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 # =======================================================================
-import re
-
 import numpy as np
-from matplotlib.path import Path
-from shapely.geometry import Polygon
-from scipy.spatial import ConvexHull
 
-from raytraverse import translate
 from raytraverse.mapper.planmapper import PlanMapper
 
 

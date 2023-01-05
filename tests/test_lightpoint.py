@@ -8,7 +8,7 @@ import pytest
 import numpy as np
 
 from raytraverse.mapper import ViewMapper
-from raytraverse.utility import imagetools
+from raytools import imagetools
 from raytraverse.lightpoint import LightPointKD, CompressedPointKD
 from raytraverse import translate, io
 from raytraverse.scene import BaseScene, ImageScene
@@ -36,6 +36,7 @@ def make_checker(res, offset=0.5, src='checker'):
     xyz = vm.uv2xyz(uv)
     vals = np.mod(np.indices((res, res)).sum(axis=0), 2).ravel()
     vals = np.stack((vals, 1-vals)).T
+    # vals = vals * (xyz[:, 0:1] + 1)
     scene = BaseScene(None)
     return LightPointKD(scene, xyz, vals, write=False, vm=vm, srcn=2, src=src)
 

@@ -10,7 +10,7 @@ import tempfile
 
 import numpy as np
 
-from raytraverse import translate, io
+from raytools import translate, io
 from craytraverse.renderer import Rtrace as pRtrace
 from craytraverse.renderer.rtrace import rtrace_instance
 

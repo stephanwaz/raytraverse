@@ -12,12 +12,45 @@ import numpy as np
 from scipy.interpolate import LinearNDInterpolator
 from scipy.ndimage import correlate1d
 
-from scipy.spatial import cKDTree, SphericalVoronoi
+from scipy.spatial import cKDTree, SphericalVoronoi, Voronoi
+from shapely.geometry import Polygon
+
 from clasp.script_tools import try_mkdir
 
-from raytraverse import io, translate
+from raytools import io, translate
 from raytraverse.mapper import ViewMapper, PlanMapper
 from raytraverse.lightpoint.srcviewpoint import SrcViewPoint
+
+
+def calc_voronoi_area(vecs, pm):
+    """calculate area in the bounded (non-spherical case)"""
+    # border capture any infinite edges
+    bordered = np.concatenate((vecs, pm.bbox_vertices(pm.area**.5 * 10)))
+
+    # due to precision errors, Qhull may return fewer regions than
+    # vertices, the QJ options helps this...
+    vor = Voronoi(bordered[:, 0:2], qhull_options="Qbb Qc QJ")
+    # but in case of failure, this will distribute the area of the duplicate
+    # region evenly among the enclosed vertices by scaling by 1/# of vertices
+    # using each region.
+    if len(vor.regions) < len(vor.point_region):
+        r, idx, inv, cnt = np.unique(vor.point_region[:len(vecs)],
+                                     return_index=True, return_inverse=True,
+                                     return_counts=True)
+        scale = 1./cnt[inv]
+    else:
+        scale = 1.
+
+    omega = np.zeros(len(vecs))
+    for i in range(len(vecs)):
+        region = vor.regions[vor.point_region[i]]
+        p = Polygon(vor.vertices[region])
+        if pm.boundary.contains(p):
+            omega[i] = p.area
+        else:
+            omega[i] = p.intersection(pm.boundary).area
+    omega *= scale
+    return np.asarray(omega)
 
 
 class LightPointKD(object):
@@ -207,7 +240,7 @@ class LightPointKD(object):
             pm = PlanMapper(b)
             uv = np.hstack((vm.xyz2uv(self.vec), np.zeros((len(self.vec), 1))))
             # scale unit square back to view area
-            omega = translate.calc_omega(uv, pm)*vm.area
+            omega = calc_voronoi_area(uv, pm)*vm.area
         else:
             try:
                 omega = SphericalVoronoi(self.vec,

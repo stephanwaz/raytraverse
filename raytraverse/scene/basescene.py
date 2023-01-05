@@ -11,7 +11,7 @@ import shutil
 import sys
 
 from raytraverse.formatter import Formatter
-from raytraverse.utility import TStqdm
+from raytools.utility import TStqdm
 
 
 class BaseScene(object):

@@ -12,7 +12,7 @@ import numpy as np
 from scipy.spatial import cKDTree
 
 from raytraverse.mapper import PlanMapper
-from raytraverse import io
+from raytools import io
 
 
 class ResultAxis(object):
