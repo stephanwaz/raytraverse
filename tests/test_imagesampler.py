@@ -54,3 +54,15 @@ def test_sample(tmpdir):
     assert np.abs(np.sum(test) - 6866) < 3
     assert np.isclose(np.sum(lf.omega), np.pi * 2)
 
+
+def test_360(tmpdir):
+    scene = ImageScene('360sample', "360.hdr")
+    sampler = DeterministicImageSampler(scene, idres=32, nlev=4, accuracy=4.0)
+    ref = sampler.engine.scene
+    vm = ViewMapper(jitterrate=0)
+    lf = sampler.run((0, 0, 0), 0, vm)
+    lf.direct_view(ref.shape[1], interp=False)
+    test = io.hdr2array("360sample_image_000000.hdr")
+    ref = io.hdr2array("360sample.hdr")
+    assert np.allclose(ref, test)
+    assert np.isclose(np.sum(lf.omega), np.pi*4)

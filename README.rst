@@ -25,7 +25,14 @@ raytraverse is a workflow for climate based daylight simulation for the
 evaluation of architectural spaces. Built around a wavelet
 guided adaptive sampling strategy, raytraverse can fully explore the daylight
 conditions throughout a space with efficient use of processing power and
-storage space.
+storage space. The code base has been split into three seperate packages: this
+one as well as two others that provide much of the backend functionality.
+craytraverse (https://pypi.org/project/craytraverse) is doccumented here and
+contains code to run radiance simulations from within python. raytools is
+documented here: https://raytools.readthedocs.io/en/latest/ and contains a lot
+of the library functions with working with hdr and ray based data. It is its'
+own repository because it includes stand alone tools for evaluating hdr images
+for glare metrics.
 
 * Free software: Mozilla Public License 2.0 (MPL 2.0)
 * Documentation: https://raytraverse.readthedocs.io/en/latest/.

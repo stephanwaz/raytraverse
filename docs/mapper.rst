@@ -1,30 +1,6 @@
 raytraverse.mapper
 ==========================================================
 
-Mapper
-------------------------------
-
-.. autoclass:: raytraverse.mapper.Mapper
-    :members:
-    :undoc-members:
-    :show-inheritance:
-
-AngularMixin
-------------------------------
-
-.. autoclass:: raytraverse.mapper.angularmixin.AngularMixin
-    :members:
-    :undoc-members:
-    :show-inheritance:
-
-ViewMapper
-------------------------------
-
-.. autoclass:: raytraverse.mapper.ViewMapper
-    :members:
-    :undoc-members:
-    :show-inheritance:
-
 SkyMapper
 ------------------------------
 

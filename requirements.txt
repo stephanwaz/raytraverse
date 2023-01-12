@@ -4,9 +4,8 @@ clasp~=1.1.6
 numpy
 scipy
 craytraverse>=0.1.5
+raytools
 scikit-learn
-tqdm
-
 pytest~=7.1.1
 setuptools~=50.3.2
 Click~=8.1

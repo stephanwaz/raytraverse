@@ -464,7 +464,7 @@ class LightResult(object):
                                      f"fill requires data that can be reshaped "
                                      f"to (-1, spd), where spd={spd}.")
                 do = np.repeat(np.repeat(do, psize[1], 1), psize[0], 0)
-                io.array2hdr(do[-1::-1], f"{basename}_{la}_"
+                io.array2hdr(do, f"{basename}_{la}_"
                                          f"{la0}.hdr")
 
     def pull2hdr(self, basename, col="metric", skyfill=None, spd=24, pm=None,

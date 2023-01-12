@@ -22,7 +22,7 @@ class ImageRenderer:
     Parameters
     ----------
     scene: str
-        path to hdr image file with projecting matching ViewMapper
+        path to hdr image file with projection matching ViewMapper
     viewmapper: raytraverse.mapper.ViewMapper, optional
         if None, assumes 180 degree angular fisheye (vta)
     method: str, optional
@@ -32,28 +32,32 @@ class ImageRenderer:
     def __init__(self, scene, viewmapper=None, method="linear", color=False,
                  uv=False):
         self.srcn = 1
-        if viewmapper is None:
-            self.vm = ViewMapper(viewangle=180)
-        else:
-            self.vm = viewmapper
         if color:
             self.features = 3
             self.scene = io.hdr2carray(scene)
         else:
             self.features = 1
             self.scene = io.hdr2array(scene)
+        fimg = self.scene
+        if viewmapper is None:
+            if fimg.shape[0] > fimg.shape[1]:
+                self.vm = ViewMapper()
+            else:
+                self.vm = ViewMapper(viewangle=180)
+        else:
+            self.vm = viewmapper
         if uv:
             self.transform = self.vm.xyz2uv
         else:
             self.transform = self.vm.xyz2vxy
-        fimg = self.scene
-        res = fimg.shape[0]
+        res = fimg.shape[1]
         of = .5/res
         self.args = f"interpolation: {method}"
-        x = np.linspace(of, 1-of, res)
+        x = np.linspace(of, fimg.shape[0]/res - of, fimg.shape[0])
+        y = np.linspace(of, 1 - of, res)
         fv = np.median(np.concatenate((fimg[0], fimg[-1], fimg[:, 0],
                                        fimg[:, -1]), 0), 0)
-        self.instance = RegularGridInterpolator((x, x), fimg,
+        self.instance = RegularGridInterpolator((x, y), fimg,
                                                 bounds_error=False,
                                                 method=method,
                                                 fill_value=fv)

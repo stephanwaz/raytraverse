@@ -108,3 +108,6 @@ def test_compress(tmpdir):
     met2 = (soga2, slum2, boga2, blum2, m2.illum, m2.srcillum, m2.gcr)
 
     assert np.allclose(met1, met2, atol=1e-4, rtol=.01)
+
+
+# def test_direct_view(tmpdir):

@@ -529,8 +529,7 @@ class LightPointKD(object):
             header = [header]
         else:
             uv = translate.bin2uv(np.arange(res*res*vm.aspect), res)
-            pdirs = vm.uv2xyz(uv).reshape(vm.aspect, res, res, 3)
-            pdirs = pdirs[:, ::-1].reshape(vm.aspect*res, res, 3)
+            pdirs = vm.uv2xyz(uv).reshape(vm.aspect*res, res, 3)
             mask = None
             mask2 = None
             header = None

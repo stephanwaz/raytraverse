@@ -106,9 +106,6 @@ and then from the command line run::
    evaluate
    craytraverse
 
-   io
-   translate
-   utility
    api
 
 Tutorials

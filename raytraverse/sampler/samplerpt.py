@@ -133,7 +133,7 @@ class SamplerPt(BaseSampler):
             img = ps[ij[:, 0], ij[:, 1]].reshape(outshape)
             io.array2hdr(np.where(mask, img, 0), outf)
         else:
-            detail = translate.resample(ps[-1::-1], outshape, radius=0,
+            detail = translate.resample(ps, outshape, radius=0,
                                         gauss=False)
             io.array2hdr(detail, outf)
 
