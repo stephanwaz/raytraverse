@@ -1,0 +1,33 @@
+Fri Jan 13 09:56:53 CET 2023
+Hardware:
+
+    Hardware Overview:
+
+      Model Name: MacBook Pro
+      Model Identifier: MacBookPro15,1
+      Processor Name: Intel Core i9
+      Processor Speed: 2.9 GHz
+      Number of Processors: 1
+      Total Number of Cores: 6
+      L2 Cache (per Core): 256 KB
+      L3 Cache: 12 MB
+      Hyper-Threading Technology: Enabled
+      Memory: 16 GB
+      Boot ROM Version: 1554.140.20.0.0 (iBridge: 18.16.14759.0.1,0)
+      Serial Number (system): C02XW1QLJGH6
+      Hardware UUID: 33F7DF93-2D45-52F2-AB80-D2DA291F2ABB
+
+
+opt     MAE_Ev   MAE_DGP  MAE_UGP  MSD_Ev   MSD_DGP  MSD_UGP
+------------------------------------------------------------
+01_glz   0.0422   0.0110   0.0101  -0.0119  -0.0038  -0.0063
+02_ecg   0.0274   0.0034   0.0077  -0.0049   0.0023   0.0010
+03_shd   0.0305   0.0038   0.0074   0.0000   0.0017   0.0003
+04_trn   0.0483   0.0077   0.0122  -0.0204  -0.0028  -0.0055
+05_ngl   0.0654   0.0069   0.0065   0.0566   0.0055  -0.0010
+06_nmt   0.0532   0.0133   0.0204   0.0139   0.0005  -0.0087
+------------------------------------------------------------
+total    0.0445   0.0077   0.0107   0.0056   0.0006  -0.0034
+
+simulation time: 257 (per point: 14.2777778)
+

@@ -1,0 +1,15 @@
+#TVIS=0.3, RDIFF=0.5, RSPEC=0.08, ROUGH=0.04
+void trans wgTopMat
+0
+0
+7 0.87 0.87 0.87 0.08 0.04 0.375 0.333
+
+void glass wgMiddleMat
+0
+0
+3 0.327 0.327 0.327
+
+void glass wgBottomMat
+0
+0
+3 0.327 0.327 0.327

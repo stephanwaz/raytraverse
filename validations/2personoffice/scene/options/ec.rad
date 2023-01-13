@@ -1,0 +1,18 @@
+#2% transmission: ec
+
+# switch to 1%
+# leave bottom window at 60%
+void glass wgTopMat
+0
+0
+3 0.011 0.011 0.011
+
+void glass wgMiddleMat
+0
+0
+3 0.011 0.011 0.011
+
+void glass wgBottomMat
+0
+0
+3 0.654 0.654 0.654
