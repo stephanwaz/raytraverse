@@ -1,0 +1,31 @@
+{
+	trans_refl.cal - A. Roos model for transmission 
+	adapted model for reflection
+	
+	by J. Wienold Sep 2012, ISE
+        modified for Fabric transmission with cut-off-angle-input by J. Wienold, Apr. 2016
+        
+        cut: Cut-Off angle in degree
+
+}
+
+ {normalized angle of incidence }
+z0 = acos(abs(bound(-1,Rdot,1)))*0.636619772368;
+ 
+ {power function}
+pow(a,b) =  if(a,exp(b*log(a)),0);
+  
+ {Roos model parameters }
+a = 8;
+b(q) = 0.25/q; 
+c(p,q) = (1-a-b(q));
+
+alpha(q) = 5.2+0.7*q;
+beta = 2;
+gamma(p,q) = (5.26+0.06*p)+(0.73+0.04*p)*q;
+
+ {roos transmission model}
+t1(t0,p,q,cut) = t0*(1-a*pow((z0+1-cut/90),alpha(q))-b(q)*pow((z0+1-cut/90),beta)-c(p,q)*pow((z0+1-cut/90),gamma(p,q)));
+tau(t0,p,q,cut) = if ((cut/90.0-z0),t1(t0,p,q,cut),0);
+	
+

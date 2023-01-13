@@ -36,7 +36,7 @@ mv 06_nmt_point_-0.60_-4.60_01.20_00.00_01.00_00.00_metric.txt results/06_nmt_v3
 mv 06_nmt_point_00.60_-1.00_01.20_00.00_01.00_00.00_metric.txt results/06_nmt_v2_ryt.tsv
 
 
-filen=$(date "+%Y_%m_%d-%H:%M:%S")
+filen=$(date "+%Y_%m_%d-%H-%M-%S")
 
 date > "$filen"_report.txt
 
