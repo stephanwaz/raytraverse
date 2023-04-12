@@ -1,17 +1,17 @@
 
             
   <section id="rtrace">
-<h1>Rtrace<a class="headerlink" href="#rtrace" title="Permalink to this headline">¶</a></h1>
+<h1>Rtrace<a class="headerlink" href="#rtrace" title="Permalink to this heading">¶</a></h1>
 <dl class="py class">
 <dt class="sig sig-object py" id="raytraverse.renderer.Rtrace">
 <em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">raytraverse.renderer.</span></span><span class="sig-name descname"><span class="pre">Rtrace</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">rayargs</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">scene</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">nproc</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">default_args</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">True</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">direct</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/raytraverse/renderer/rtrace.html#Rtrace"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#raytraverse.renderer.Rtrace" title="Permalink to this definition">¶</a></dt>
-<dd><p>Bases: <a class="reference internal" href="craytraverse.html#craytraverse.renderer.Rtrace" title="craytraverse.renderer.rtrace.Rtrace"><code class="xref py py-class docutils literal notranslate"><span class="pre">craytraverse.renderer.rtrace.Rtrace</span></code></a></p>
+<dd><p>Bases: <a class="reference internal" href="craytraverse.html#craytraverse.renderer.Rtrace" title="craytraverse.renderer.rtrace.Rtrace"><code class="xref py py-class docutils literal notranslate"><span class="pre">Rtrace</span></code></a></p>
 <p>singleton wrapper for c++ raytraverse.crenderer.cRtrace class</p>
 <p>this class sets default arguments, helps with initialization and setting
 cpu limits of the cRtrace instance. see raytraverse.crenderer.cRtrace
 for more details.</p>
 <dl class="field-list simple">
-<dt class="field-odd">Parameters</dt>
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
 <dd class="field-odd"><ul class="simple">
 <li><p><strong>rayargs</strong> (<em>str</em><em>, </em><em>optional</em>) – argument string (options and flags only) raises ValueError if arguments
 are not recognized by cRtrace.</p></li>
@@ -78,7 +78,7 @@ successive calls to the instance.</p>
 <em class="property"><span class="pre">classmethod</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">set_args</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">args</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">nproc</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/raytraverse/renderer/rtrace.html#Rtrace.set_args"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#raytraverse.renderer.Rtrace.set_args" title="Permalink to this definition">¶</a></dt>
 <dd><p>prepare arguments to call engine instance initialization</p>
 <dl class="field-list simple">
-<dt class="field-odd">Parameters</dt>
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
 <dd class="field-odd"><ul class="simple">
 <li><p><strong>args</strong> (<em>str</em>) – rendering options</p></li>
 <li><p><strong>nproc</strong> (<em>int</em><em>, </em><em>optional</em>) – cpu limit</p></li>
@@ -109,7 +109,7 @@ successive calls to the instance.</p>
 <em class="property"><span class="pre">classmethod</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">get_sources</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/raytraverse/renderer/rtrace.html#Rtrace.get_sources"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#raytraverse.renderer.Rtrace.get_sources" title="Permalink to this definition">¶</a></dt>
 <dd><p>returns source information</p>
 <dl class="field-list simple">
-<dt class="field-odd">Returns</dt>
+<dt class="field-odd">Returns<span class="colon">:</span></dt>
 <dd class="field-odd"><p><ul class="simple">
 <li><p><strong>sources</strong> (<em>np.array</em>) – x,y,z,v,a
 distant: direction, view angle, solid angle
@@ -125,17 +125,17 @@ not distant: location, max radius, area</p></li>
 
 </section>
 <section id="rcontrib">
-<h1>Rcontrib<a class="headerlink" href="#rcontrib" title="Permalink to this headline">¶</a></h1>
+<h1>Rcontrib<a class="headerlink" href="#rcontrib" title="Permalink to this heading">¶</a></h1>
 <dl class="py class">
 <dt class="sig sig-object py" id="raytraverse.renderer.Rcontrib">
 <em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">raytraverse.renderer.</span></span><span class="sig-name descname"><span class="pre">Rcontrib</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">rayargs</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">scene</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">nproc</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">skyres</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">15</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">modname</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'skyglow'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">ground</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">True</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">default_args</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">True</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">adpatch</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">50</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/raytraverse/renderer/rcontrib.html#Rcontrib"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#raytraverse.renderer.Rcontrib" title="Permalink to this definition">¶</a></dt>
-<dd><p>Bases: <a class="reference internal" href="craytraverse.html#craytraverse.renderer.Rcontrib" title="craytraverse.renderer.rcontrib.Rcontrib"><code class="xref py py-class docutils literal notranslate"><span class="pre">craytraverse.renderer.rcontrib.Rcontrib</span></code></a></p>
+<dd><p>Bases: <a class="reference internal" href="craytraverse.html#craytraverse.renderer.Rcontrib" title="craytraverse.renderer.rcontrib.Rcontrib"><code class="xref py py-class docutils literal notranslate"><span class="pre">Rcontrib</span></code></a></p>
 <p>singleton wrapper for c++ raytrraverse.crenderer.cRcontrib class</p>
 <p>this class sets default arguments, helps with initialization and setting
 cpu limits of the cRcontrib instance. see raytrraverse.crenderer.cRcontrib
 for more details.</p>
 <dl class="field-list simple">
-<dt class="field-odd">Parameters</dt>
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
 <dd class="field-odd"><ul class="simple">
 <li><p><strong>rayargs</strong> (<em>str</em><em>, </em><em>optional</em>) – argument string (options and flags only) raises ValueError if arguments
 are not recognized by cRtrace.</p></li>
@@ -180,7 +180,7 @@ will be 100 sq. degrees (0.03046174197 steradians) and there will be
 <em class="property"><span class="pre">classmethod</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">set_args</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">args</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">nproc</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/raytraverse/renderer/rcontrib.html#Rcontrib.set_args"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#raytraverse.renderer.Rcontrib.set_args" title="Permalink to this definition">¶</a></dt>
 <dd><p>prepare arguments to call engine instance initialization</p>
 <dl class="field-list simple">
-<dt class="field-odd">Parameters</dt>
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
 <dd class="field-odd"><ul class="simple">
 <li><p><strong>args</strong> (<em>str</em>) – rendering options</p></li>
 <li><p><strong>nproc</strong> (<em>int</em><em>, </em><em>optional</em>) – cpu limit</p></li>
@@ -194,7 +194,7 @@ will be 100 sq. degrees (0.03046174197 steradians) and there will be
 <em class="property"><span class="pre">classmethod</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">setup</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">scene</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">ground</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">True</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">modname</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'skyglow'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">skyres</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">15</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/raytraverse/renderer/rcontrib.html#Rcontrib.setup"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#raytraverse.renderer.Rcontrib.setup" title="Permalink to this definition">¶</a></dt>
 <dd><p>set class attributes for proper argument initialization</p>
 <dl class="field-list simple">
-<dt class="field-odd">Parameters</dt>
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
 <dd class="field-odd"><ul class="simple">
 <li><p><strong>scene</strong> (<em>str</em><em>, </em><em>optional</em>) – path to octree</p></li>
 <li><p><strong>ground</strong> (<em>bool</em><em>, </em><em>optional</em>) – if True include a ground source (included as a final bin)</p></li>
@@ -205,10 +205,10 @@ So if skyres=10, each patch will be 100 sq. degrees
 patches.</p></li>
 </ul>
 </dd>
-<dt class="field-even">Returns</dt>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
 <dd class="field-even"><p><strong>scene</strong> – path to scene with added sky definition</p>
 </dd>
-<dt class="field-odd">Return type</dt>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
 <dd class="field-odd"><p>str</p>
 </dd>
 </dl>

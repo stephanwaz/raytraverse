@@ -3,3 +3,4 @@ sphinx-click
 clasp
 numpy
 tqdm
+raytools

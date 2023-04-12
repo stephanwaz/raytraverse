@@ -87,6 +87,9 @@ click.option("-spd", default=24,
               help="image indices to return (ignored for lightfield result)"),
  click.option("-metricfilter", callback=clk.split_str,
               help="metrics to return (non-existant are ignored)"),
+ click.option("-genfilter", multiple=True,
+              help="for custom light results, first value is the axis, "
+                   "subsequent are the filter"),
  click.option("-skyfill", callback=clk.is_file,
               help="path to skydata file. assumes rows are timesteps."
                    " skyfilter should be None and other beside col "
@@ -110,7 +113,7 @@ click.option("-res", default=480,
 
 
 def shared_pull(ctx, lr=None, col=("metric",), ofiles=None, ptfilter=None,
-                viewfilter=None, skyfilter=None, imgfilter=None,
+                viewfilter=None, skyfilter=None, imgfilter=None, genfilter=None,
                 metricfilter=None, skyfill=None, header=True, spd=24,
                 rowlabel=True, info=False, gridhdr=False, imgzone=None, res=480,
                 **kwargs):
@@ -162,7 +165,17 @@ def shared_pull(ctx, lr=None, col=("metric",), ofiles=None, ptfilter=None,
         filters["sky"] = skyf
         skydata = None
     pargs = dict(header=header, rowlabel=rowlabel)
-
+    if genfilter is not None:
+        for filt in genfilter:
+            k, v = filt.split(None, 1)
+            try:
+                v = clk.split_int(ctx, None, v)
+            except click.BadParameter:
+                v = clk.split_str(ctx, None, v)
+                av = result.axis(k).values
+            else:
+                av = list(range(len(result.axis("metric").values)))
+            filters[k] = np.flatnonzero([i in v for i in av])
     if ofiles is None:
         result.print(col, skyfill=skydata, **pargs, **filters)
     else:
