@@ -28,12 +28,13 @@ class SrcViewPoint(object):
             r = np.sqrt(hull.volume/np.pi)
             offset = tr - r
             p = Polygon(hull.points[hull.vertices])
-            b = p.boundary.parallel_offset(offset, join_style=2)
+            b = p.boundary.parallel_offset(offset, join_style=1)
             hull = ConvexHull(np.array(b.xy).T)
         return hull.points[hull.vertices]
 
     def __init__(self, scene, vecs, lum, pt=(0, 0, 0), posidx=0, src='sunview',
                  res=64, srcomega=6.796702357283834e-05):
+        vecs = vecs.reshape(-1, 3)
         #: raytraverse.scene.Scene
         self.scene = scene
         #: int: index for point
@@ -42,19 +43,31 @@ class SrcViewPoint(object):
         self.pt = np.asarray(pt).flatten()[0:3]
         #: str: source key
         self.src = src
-        #: np.array: individual vectors that hit the source (pixels)
-        self.raster = vecs
-        #: float: source luminance (average)
-        self.lum = lum
         #: float: source radius
-        self.radius = (srcomega/np.pi)**.5
-        # 2*np.pi*(1 - np.cos(0.533*np.pi/360))
-        self.omega = srcomega*vecs.shape[0]/(res * res)
+        self.radius = (srcomega / np.pi) ** .5
         self.vec = np.average(vecs, 0)
+        #: np.array: individual vectors that hit the source (pixels)
+        if res == 1:
+            res = 64
+            self.raster = self.vm.uv2xyz(self.vm.idx2uv(np.arange(res*res), (res, res)))
+            self.omega = srcomega
+        else:
+            self.raster = vecs
+            # 2*np.pi*(1 - np.cos(0.533*np.pi/360))
+            self.omega = srcomega * vecs.shape[0] / (res * res)
+        if np.asarray(lum).size > 1:
+            self.lum = io.rgb2rad(lum)
+            self._color_coef = lum/self.lum
+        else:
+            #: float: source luminance (average)
+            self.lum = lum
+            self._color_coef = None
+
+
 
     @property
     def vm(self):
-        return ViewMapper(self.vec, .533)
+        return ViewMapper(self.vec, self.radius * 360 / np.pi)
 
     def _to_pix(self, atv, vm, res):
         if atv > 90:
@@ -86,7 +99,10 @@ class SrcViewPoint(object):
         else:
             target = self.omega/np.average(omegap)
             target = np.square(np.sqrt(target/np.pi) + .5) * np.pi
-            hullpoints = SrcViewPoint.offset(px, target)
+            try:
+                hullpoints = SrcViewPoint.offset(px, target)
+            except ValueError:
+                return None
             return hullpoints
 
     def add_to_img(self, img, vecs, mask=None, coefs=1, vm=None):
@@ -118,19 +134,22 @@ class SrcViewPoint(object):
                     target = self.omega*self.lum*coefs
                     current = np.sum(pomega*luma)
                     gap = (target - current)/np.sum(pomega[corona])
-                    luma[corona] = gap * coefs * self.lum
-                if len(img.shape) > 2:
-                    fe = img.shape[0]
-                    i2[mask[1][::fe], mask[2][::fe]] = luma
-                else:
-                    i2[mask] = luma
+                    luma[corona] = gap * coefs * self.lum * pomega[corona]
+                i2.flat[mask] = luma[mask]
             else:
                 px = tuple(zip(*px))
                 i2[px] += clum
             if vm.viewangle >= 10:
                 r = res/vm.viewangle*.0625
                 i2 = gaussian_filter(i2, r, truncate=8)
-            img += np.maximum(i2-img, 0)
+            try:
+                ccf = self._color_coef
+            except AttributeError:
+                ccf = None
+            if len(img.shape) > 2 and ccf is not None:
+                img += np.maximum(i2 * ccf[:, None, None] - img, 0)
+            else:
+                img += np.maximum(i2-img, 0)
 
     @staticmethod
     def _hpsf(x, fwhm=0.183333):
@@ -164,7 +183,7 @@ class SrcViewPoint(object):
             return self.vec.reshape(-1, 3), np.zeros(1), np.zeros(1)
 
     def direct_view(self, res=80):
-        vm = ViewMapper(self.vec, .666)
+        vm = ViewMapper(self.vec, self.vm.viewangle*1.2)
         vecs = vm.pixelrays(res)
         img = np.zeros((res, res))
         mask = vm.in_view(vecs)

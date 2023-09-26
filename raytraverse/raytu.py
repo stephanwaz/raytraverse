@@ -218,14 +218,19 @@ def imgmetric(ctx, imgs=None, metrics=None, parallel=True,
 @click.option("--useview/--no-useview", default=True,
               help="use view direction for transform ang2uv to match standard"
                    "projection")
+@click.option("-rotate", default=None, type=float,
+              help="degrees to rotate img (overrides projection, "
+                   "assumes angular fisheye input)")
 @clk.shared_decs(clk.command_decs(raytraverse.__version__, wrap=True))
-def project(ctx, img=None, uv2ang=False, useview=True, **kwargs):
+def project(ctx, img=None, uv2ang=False, useview=True, rotate=None, **kwargs):
     """project images between angular and shirley-chiu square coordinates"""
-    if uv2ang:
+    if rotate is not None:
+        func = imagetools.hdr_rotate
+    elif uv2ang:
         func = imagetools.hdr_uv2ang
     else:
         func = imagetools.hdr_ang2uv
-    results = pool_call(func, img, expandarg=False, useview=useview)
+    results = pool_call(func, img, expandarg=False, useview=useview, rotate=rotate)
 
 
 # @main.command()
@@ -375,6 +380,9 @@ def padsky(ctx, wea=None, loc=None, opts=False,
     for i in d:
         print("\t".join([str(int(j)) for j in i[0:intcol]] +
                         [f"{j}" for j in i[intcol:]]))
+
+
+
 
 
 @main.result_callback()

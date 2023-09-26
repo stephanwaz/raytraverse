@@ -607,7 +607,68 @@ def perez(sxyz, dirdif, md=None, ground_fac=0.2, td=10.9735311509):
     return coefs, solarrad
 
 
-def sky_mtx(sxyz, dirdif, side, jn=4, intersky=True, **kwargs):
+# perez(t, g, a, b, c, d, e) = (1.+a*exp(b/(0.004+abs(cos(t))))) * (1+c*exp(d*g)+e*cos(g)*cos(g));
+#
+# cosgamma = Dx*A8 + Dy*A9 + Dz*A10;
+# gamma = Acos(cosgamma);		{ angle from sun to this point in sky }
+# theta = Acos(Dz);		{ angle from zenith to this point in sky }
+# thetas = Acos(A10);		{ angle from zenith to sun }
+# turb = bound(1.2,arg(11),6.);	{ clamp the bounds of turbidity }
+#
+# { zenith brightness, chromaticity }
+# yyzTest = (4.0453*turb - 4.971)*tan((0.4444-turb/120.)*(3.1415927-2*thetas)) - 0.2155*turb + 2.4192;
+# yyz = if (yyzTest, yyzTest, 0.);
+# xz = 0.25886 + 0.00394*turb + thetas*(0.06052 - 0.03202*turb*(1.-0.065272*turb) + thetas*(-0.21196 + 0.06377*turb*(1.-0.058805*turb) + thetas*(0.11693 - 0.02903*turb*(1.-0.057182*turb))));
+# yz = 0.26688 + 0.00516*turb + thetas*(0.0667 - 0.04153*turb*(1.-0.07633*turb) + thetas*(-0.26756 + 0.0897*turb*(1.-0.068004*turb) + thetas*(0.15346 - 0.04214*turb*(1.-0.065259*turb))));
+#
+# { distribution coefficients for luminance, chromaticity; functions of turbidity }
+# ax = -0.0193*turb - 0.2593;
+# bx = -0.0665*turb + 0.0008;
+# cx = -0.0004*turb + 0.2125;
+# dx = -0.0641*turb - 0.8989;
+# ex = -0.0033*turb + 0.0452;
+#
+# ay = -0.0167*turb - 0.2608;
+# by = -0.095*turb + 0.0092;
+# cy = -0.0079*turb + 0.2102;
+# dy = -0.0441*turb - 1.6537;
+# ey = -0.0109*turb + 0.0529;
+#
+# { point values for luminance, chromaticity }
+# xp = xz * perez(theta, gamma, ax, bx, cx, dx, ex) / perez(0., thetas, ax, bx, cx, dx, ex);
+# yp = yz * perez(theta, gamma, ay, by, cy, dy, ey) / perez(0., thetas, ay, by, cy, dy, ey);
+#
+#
+# {perezlum.cal bit}
+# wmean(a, x, b, y) = (a*x+b*y)/(a+b);
+# intersky = if( (Dz-0.01),
+# 		A1 * (1 + A3*Exp(A4/Dz) ) * ( 1 + A5*Exp(A6*gamma) + A7*cos(gamma)*cos(gamma) ),
+# 		A1 * (1 + A3*Exp(A4/0.01) ) * ( 1 + A5*Exp(A6*gamma) + A7*cos(gamma)*cos(gamma) ) );
+# skybr = wmean((Dz+1.01)^10, intersky, (Dz+1.01)^-10, A2 );
+# yyp = skybr;
+#
+#
+#
+# { output radiance }
+#
+# { first, tristimulus values (are these CIE XYZ?)}
+# x = yyp*xp/yp;
+# y = yyp;
+# z = yyp*if(1.-xp-yp, 1-xp-yp, 0.)/yp;
+#
+# { convert using CIE M^-1 matrix from http://www.brucelindbloom.com/Eqn_RGB_XYZ_Matrix.html }
+# skyr = if(Dz,2.3706743*x - 0.9000405*y - 0.4706338*z,skybr);
+# skyg = if(Dz,-0.513885*x + 1.4253036*y + 0.0885814*z,skybr);
+# skyb = if(Dz,0.0052982*x - 0.0146949*y + 1.0093968*z,skybr);
+
+
+
+
+
+
+
+
+def sky_mtx(sxyz, dirdif, side, jn=4, intersky=True, color=False, **kwargs):
     """generate sky, ground and sun values from sun position and sky values
 
     Parameters
@@ -642,7 +703,13 @@ def sky_mtx(sxyz, dirdif, side, jn=4, intersky=True, **kwargs):
     xyz = translate.uv2xyz(uvj.reshape(-1, 2), xsign=1).reshape(-1, 3)
     lum = perez_lum(xyz, coefs, intersky).reshape(coefs.shape[0], -1, jn*jn)
     lum = np.average(lum, -1)
-    return lum, coefs[:, 1], np.hstack((sxyz, solarrad[:, None]))
+    ground = coefs[:, 1:2]
+    sun = solarrad[:, None]
+    if color:
+        lum = lum[..., None] * np.ones((1,1,3))
+        ground = ground[..., None] * np.ones((1, 1, 3))
+        sun = sun * np.ones((1, 3))
+    return lum, ground, np.hstack((sxyz, sun))
 
 
 def radiance_skydef(sunpos, dirdif, loc=None, md=None, ground_fac=0.2,

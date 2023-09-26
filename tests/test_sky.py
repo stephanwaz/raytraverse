@@ -82,13 +82,13 @@ def test_sunrotation(tmpdir):
 
 def test_skydata(tmpdir):
     loc = (46.25, -6.13, -15)
-    skydat = SkyData("geneva.wea", loc=loc)
+    skydat = SkyData("geneva.wea", loc=loc, color=True)
     hdr = "LOCATION= lat: {} lon: {} tz: {} ro: 0.0".format(*loc)
     assert hdr == skydat.header()
     wsun = skydat.smtx_patch_sun()
     assert wsun.shape == skydat.smtx.shape
     d = np.max(wsun - skydat.smtx, 1)
-    assert np.allclose(d, skydat.sun[:, 4])
+    assert np.allclose(d, skydat.sun[:, 6:])
     # print(skydat.sun)
     # print(skydat.sunproxy.shape, np.percentile(skydat.sunproxy, (0, 100), 0))
     # print(skydat.smtx.shape, skydat.sunproxy.shape, skydat.suns.suns.shape)

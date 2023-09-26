@@ -39,7 +39,7 @@ class SrcSamplerPt(SamplerPt):
         self._oospec = engine.ospec
         if scenedetail:
             # use deterministic sampler (take all points above threshold
-            # otherwise luminance detail gets undersanmpled
+            # otherwise luminance detail gets undersampled
             self.ub = 1
             engine.update_ospec(engine.ospec + "LNM")
         kwargs.update(features=engine.features)

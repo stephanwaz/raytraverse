@@ -39,14 +39,23 @@ class SkyData(object):
         minimum solar altitude for daylight masking
     mindiff: float, optional
         minumum diffuse horizontal irradiance for daylight masking
+    mindir: float, optional
+        minimum direct normal for daylight masking
+    ground: bool, optional
+        include ground component in matrix
+    srcname: str, optional
+        name
+    color: bool, optional
+        store sky data with 3 color channels (not implemented)
     """
 
     def __init__(self, wea, loc=None, skyro=0.0, ground_fac=0.2, intersky=True,
                  skyres=15, minalt=2.0, mindiff=5.0, mindir=0.0, ground=True,
-                 srcname="sky"):
+                 srcname="sky", color=False):
         self.srcname = srcname
         self.ground = ground
-        #: sky patach resolution
+        self._color = color
+        #: sky patch resolution
         self.skyres = skyres
         self.intersky = intersky
         if wea is None:
@@ -134,13 +143,14 @@ class SkyData(object):
                 td = td[daymask]
             smtx, grnd, sun = skycalc.sky_mtx(sxyz, dirdif, self.skyres, md=md,
                                               ground_fac=self.ground_fac, td=td,
-                                              intersky=self.intersky)
+                                              intersky=self.intersky,
+                                              color=self._color)
             # ratio between actual solar disc and patch
             omegar = np.square(0.2665 * np.pi * self.skyres / 180) * .5
-            plum = sun[:, -1] * omegar
-            sun = np.hstack((sun, plum[:, None]))
+            plum = sun[:, 3:] * omegar
+            sun = np.hstack((sun, plum))
             if self.ground:
-                smtx = np.hstack((smtx, grnd[:, None]))
+                smtx = np.hstack((smtx, grnd))
         else:
             smtx = np.ones((1, self.skyres**2 + self.ground))
             sun = np.array([[0, 0, 1, 0, 0]])
@@ -296,8 +306,9 @@ class SkyData(object):
 
     @property
     def smtx(self):
-        """shape (np.sum(daymask), skyres**2 + 1) coefficients for each sky
-        patch each row is a timestep, coefficients exclude sun"""
+        """shape (np.sum(daymask), skyres**2 + 1) (+(3,) if self.color)
+         coefficients for each sky patch each row is a timestep,
+         coefficients exclude sun"""
         return self._smtx[self.mask]
 
     @property
@@ -326,7 +337,10 @@ class SkyData(object):
         else:
             wsun = np.zeros_like(self.smtx)
         r = wsun.shape[0]
-        wsun[range(r), self.sunproxy] += self.sun[:, 4]
+        if self._color:
+            wsun[range(r), self.sunproxy] += self.sun[:, 6:]
+        else:
+            wsun[range(r), self.sunproxy] += self.sun[:, 4]
         return wsun
 
     def header(self):
