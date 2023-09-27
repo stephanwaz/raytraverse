@@ -184,10 +184,10 @@ class SrcViewPoint(object):
 
     def direct_view(self, res=80):
         vm = ViewMapper(self.vec, self.vm.viewangle*1.2)
-        vecs = vm.pixelrays(res)
+        vecs = vm.pixelrays(res).reshape(-1, 3)
         img = np.zeros((res, res))
         mask = vm.in_view(vecs)
-        self.add_to_img(img, vecs[mask], mask, vm=vm)
+        self.add_to_img(img, vecs, mask, vm=vm)
         outf = f"{self.scene.outdir}_{self.src}_{self.posidx:06d}.hdr"
         vstr = ('VIEW= -vta -vv {0} -vh {0} -vd {1} {2} {3}'
                 ' -vp {4} {5} {6}'.format(vm.viewangle, *vm.dxyz, *self.pt))

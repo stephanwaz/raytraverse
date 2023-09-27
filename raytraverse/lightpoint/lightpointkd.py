@@ -26,7 +26,6 @@ def calc_voronoi_area(vecs, pm):
     """calculate area in the bounded (non-spherical case)"""
     # border capture any infinite edges
     bordered = np.concatenate((vecs, pm.bbox_vertices(pm.area**.5 * 10)))
-
     # due to precision errors, Qhull may return fewer regions than
     # vertices, the QJ options helps this...
     vor = Voronoi(bordered[:, 0:2], qhull_options="Qbb Qc QJ")
@@ -42,15 +41,19 @@ def calc_voronoi_area(vecs, pm):
         scale = 1.
 
     omega = np.zeros(len(vecs))
+    c = 0
+    d = 0
     for i in range(len(vecs)):
         region = vor.regions[vor.point_region[i]]
         p = Polygon(vor.vertices[region])
         if pm.boundary.contains(p):
             omega[i] = p.area
+            c += 1
         else:
             omega[i] = p.intersection(pm.boundary).area
+            d += 1
     omega *= scale
-    return np.asarray(omega)
+    return omega
 
 
 class LightPointKD(object):

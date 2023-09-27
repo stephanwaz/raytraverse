@@ -10,13 +10,12 @@ import re
 
 import numpy as np
 from matplotlib.path import Path
-from shapely.geometry import Polygon
+from shapely.geometry import Polygon, LinearRing
 from scipy.spatial import ConvexHull
 from shapely.ops import unary_union
 
 from raytools import io
 from raytools.mapper.mapper import Mapper
-
 
 class PlanMapper(Mapper):
     """translate between world positions on a horizontal plane and
@@ -113,10 +112,16 @@ class PlanMapper(Mapper):
         except (AttributeError, IndexError):
             try:
                 points = np.atleast_2d(io.load_txt(plane))[:, 0:3]
-                paths, z = self._calc_border(points, level)
+                if len(points) in [3, 4]:
+                    paths, z = self._vertices_to_paths([plane])
+                else:
+                    paths, z = self._calc_border(points, level)
             except TypeError:
                 points = np.atleast_2d(plane)[:, 0:3]
-                paths, z = self._calc_border(points, level)
+                if len(points) in [3, 4]:
+                    paths, z = self._vertices_to_paths([plane])
+                else:
+                    paths, z = self._calc_border(points, level)
             except ValueError:
                 paths, z = self._rad_scene_to_paths(plane)
         # handle 3d list:
@@ -356,10 +361,16 @@ class PlanMapper(Mapper):
             offset = np.array([[o, o], [o, -o], [-o, -o], [-o, o]])
             pts = (points[:, 0:2] + offset[:, None]).reshape(-1, 2)
         else:
-            p = Polygon(hull.points[hull.vertices])
-            b = p.boundary.parallel_offset(o, join_style=2)
+            hp = hull.points[hull.vertices]
+            cp = np.average(hp, 0)
+            vp = hp - cp
+            asr = np.argsort(-np.arctan2(vp[:, 0], vp[:, 1]))
+            shp = hp[asr]
+            shp = np.concatenate((shp, shp[0:1]))
+            p = Polygon(shp)
+            b = p.boundary.parallel_offset(o, join_style=1)
             pts = np.array(b.xy).T
-        z = np.max(points[:, 2])
+        z = np.median(points[:, 2])
         hull = ConvexHull(pts)
         pt = hull.points[hull.vertices]
         pt2 = np.full((pt.shape[0], 3), z)
