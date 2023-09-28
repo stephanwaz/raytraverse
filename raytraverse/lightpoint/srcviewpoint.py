@@ -14,7 +14,7 @@ from raytraverse.mapper import ViewMapper
 from scipy.interpolate import LinearNDInterpolator
 from scipy.spatial import ConvexHull
 from scipy.ndimage import gaussian_filter
-from shapely.geometry import Polygon
+from shapely.geometry import Polygon, LineString
 
 
 class SrcViewPoint(object):
@@ -27,8 +27,13 @@ class SrcViewPoint(object):
         while abs(hull.volume - target)/target > .02:
             r = np.sqrt(hull.volume/np.pi)
             offset = tr - r
-            p = Polygon(hull.points[hull.vertices])
-            b = p.boundary.parallel_offset(offset, join_style=1)
+            hp = hull.points[hull.vertices]
+            cp = np.average(hp, 0)
+            vp = hp - cp
+            asr = np.argsort(np.arctan2(vp[:, 0], vp[:, 1]))
+            shp = hp[asr]
+            p = LineString(np.concatenate((shp, shp[0:2])))
+            b = p.offset_curve(offset, join_style=1)
             hull = ConvexHull(np.array(b.xy).T)
         return hull.points[hull.vertices]
 

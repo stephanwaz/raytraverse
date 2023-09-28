@@ -1,0 +1,32 @@
+Thu Sep 28 18:59:45 CEST 2023
+Hardware:
+
+    Hardware Overview:
+
+      Model Name: MacBook Pro
+      Model Identifier: Mac14,9
+      Model Number: Z17H001R6SM/A
+      Chip: Apple M2 Pro
+      Total Number of Cores: 12 (8 performance and 4 efficiency)
+      Memory: 32 GB
+      System Firmware Version: 8422.141.2
+      OS Loader Version: 8422.141.2
+      Serial Number (system): DDG7LJTXVP
+      Hardware UUID: EAFC1F08-489F-532F-9786-27B00A3213D0
+      Provisioning UDID: 00006020-001421EA3A87401E
+      Activation Lock Status: Disabled
+
+
+opt     MAE_Ev   MAE_DGP  MAE_UGP  MSD_Ev   MSD_DGP  MSD_UGP
+------------------------------------------------------------
+01_glz   0.3745   0.0641   0.0214   0.1612   0.0033  -0.0028
+02_ecg   0.3007   0.0302   0.0664   0.1463  -0.0171  -0.0420
+03_shd   0.3007   0.0394   0.0721   0.1416  -0.0197  -0.0466
+04_trn   0.3478   0.0486   0.0342   0.1418   0.0025  -0.0079
+05_ngl   0.2522   0.0557   0.0796   0.0205  -0.0311  -0.0601
+06_nmt   0.3601   0.0414   0.0389   0.1174  -0.0062  -0.0113
+------------------------------------------------------------
+total    0.3227   0.0466   0.0521   0.1215  -0.0114  -0.0285
+
+simulation time: 117 (per point: 6.5)
+

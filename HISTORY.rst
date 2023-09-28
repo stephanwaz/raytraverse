@@ -2,10 +2,16 @@
 History
 =======
 
-1.3.11
-------
+1.4.2
+-----
+
+
+1.4.0 (2023-01-12)
+------------------
 * updated image generation for comppressedpoint
 * added option to directly sample imagerenderer without transformation
+* reorganized code breaking out python libraries into raytools
+* added benchmark testing to repository
 
 1.3.10 (2022-12-20)
 -------------------
