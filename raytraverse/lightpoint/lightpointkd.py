@@ -239,7 +239,7 @@ class LightPointKD(object):
         elif vm.aspect == 1:
             # in case of 180 view, cannot use spherical voronoi, instead
             # the method estimates area in square coordinates
-            b = np.array([[0, 0, 0], [0, 1, 0], [1, 1, 0], [1, 0, 0]])
+            b = np.array([[[0, 0, 0], [0, 1, 0], [1, 1, 0], [1, 0, 0]]])
             pm = PlanMapper(b)
             uv = np.hstack((vm.xyz2uv(self.vec), np.zeros((len(self.vec), 1))))
             # scale unit square back to view area

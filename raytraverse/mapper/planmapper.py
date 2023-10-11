@@ -26,7 +26,12 @@ class PlanMapper(Mapper):
     ----------
     area: str np.array, optional
         radiance scene geometry defining a plane to sample, tsv file of
-        points to generate bounding box, or np.array of points.
+        points to generate bounding box, or np.array of points. if area is
+        a radiance scene, or a 3d array of points, vertices are used to directly
+        define the borders of the planmapper. if the array is 2d (or loaded from
+        a tsv) points are used to generate an offset (see ptres) convexhull.
+        points are stored as candidates for use as a static point sampler
+        (jitter=false and level=0).
     ptres: float, optional
         resolution for considering points duplicates, border generation
         (1/2) and add_grid(). updateable
@@ -112,16 +117,10 @@ class PlanMapper(Mapper):
         except (AttributeError, IndexError):
             try:
                 points = np.atleast_2d(io.load_txt(plane))[:, 0:3]
-                if len(points) in [3, 4]:
-                    paths, z = self._vertices_to_paths([points])
-                else:
-                    paths, z = self._calc_border(points, level)
+                paths, z = self._calc_border(points, level)
             except TypeError:
                 points = np.atleast_2d(plane)[:, 0:3]
-                if len(points) in [3, 4]:
-                    paths, z = self._vertices_to_paths([points])
-                else:
-                    paths, z = self._calc_border(points, level)
+                paths, z = self._calc_border(points, level)
             except ValueError:
                 paths, z = self._rad_scene_to_paths(plane)
         # handle 3d list:
@@ -340,6 +339,7 @@ class PlanMapper(Mapper):
         return paths, z
 
     def _vertices_to_paths(self, plane):
+        """interprets list of arrays as boundary paths"""
         paths = []
         zs = []
         for pt in plane:
@@ -350,7 +350,8 @@ class PlanMapper(Mapper):
         return paths, z
 
     def _calc_border(self, points, level=0):
-        """generate a border from convex hull of points"""
+        """generate a border from convex hull of points
+        interprets points as candidates"""
         self._candidates = points
         o = self.ptres/2**(level + 1)
         try:
