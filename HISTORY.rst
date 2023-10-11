@@ -2,8 +2,12 @@
 History
 =======
 
-1.4.2
------
+1.4.1 (2023-10-11)
+------------------
+* fixed bug when using 3 or 4 candidate points for static point samplers
+* added benchmark testing to repository
+* improved srcviewpoint for use with captured hdrs
+* initial work on 3-channel color support for CBDM runs
 
 
 1.4.0 (2023-01-12)
@@ -11,7 +15,7 @@ History
 * updated image generation for comppressedpoint
 * added option to directly sample imagerenderer without transformation
 * reorganized code breaking out python libraries into raytools
-* added benchmark testing to repository
+
 
 1.3.10 (2022-12-20)
 -------------------
