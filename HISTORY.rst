@@ -2,6 +2,12 @@
 History
 =======
 
+1.4.2 (2023-11-17)
+------------------
+* updated readthedocsyaml to handle deprecation
+* fixed source view point image drawing that caused to large a solar source
+  (only effects images, not metrics)
+
 1.4.1 (2023-10-11)
 ------------------
 * fixed bug when using 3 or 4 candidate points for static point samplers

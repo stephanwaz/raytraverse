@@ -14,10 +14,6 @@ raytraverse (1.4.1)
     :target: https://raytraverse.readthedocs.io/en/stable/
     :alt: Read the Docs (version)
 
-.. image:: https://img.shields.io/coveralls/github/stephanwaz/raytraverse?style=flat-square
-    :target: https://coveralls.io/github/stephanwaz/raytraverse
-    :alt: Coveralls github
-
 .. image:: https://zenodo.org/badge/doi/10.5281/zenodo.4091318.svg
    :target: https://zenodo.org/badge/latestdoi/296295567
 
