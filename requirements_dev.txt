@@ -13,5 +13,4 @@ nose
 sphinx-click
 pytest-cov
 setuptools
-coveralls
 pyyaml

@@ -138,8 +138,8 @@ class SrcViewPoint(object):
                 if np.sum(corona) > 0:
                     target = self.omega*self.lum*coefs
                     current = np.sum(pomega*luma)
-                    gap = (target - current)/np.sum(pomega[corona])
-                    luma[corona] = gap * coefs * self.lum * pomega[corona]
+                    # distribute gap in energy to corona pixels
+                    luma[corona] = (target - current)/np.sum(pomega[corona])
                 i2.flat[mask] = luma[mask]
             else:
                 px = tuple(zip(*px))

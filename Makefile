@@ -68,9 +68,6 @@ coverage: ## check code coverage quickly with the default Python
 	coverage html
 	$(BROWSER) htmlcov/index.html
 
-coverall: coverage
-	coveralls
-
 docs: cdocs pdocs showdocs## generate Sphinx HTML documentation, including API docs
 
 

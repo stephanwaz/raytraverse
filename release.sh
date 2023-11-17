@@ -57,7 +57,6 @@ if [ "$answer" != "${answer#[Yy]}" ] ;then
             make clean
             python setup.py sdist
             pip wheel . --no-deps -w dist/
-            make coverall
             echo -n "ok to push (y/n)? "
             read -r answer
             if [ "$answer" != "${answer#[Yy]}" ] ;then
