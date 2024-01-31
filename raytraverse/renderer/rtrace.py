@@ -100,6 +100,11 @@ class Rtrace(pRtrace):
         super().set_args(args, nproc)
 
     @classmethod
+    def reset(cls):
+        super().reset()
+        cls.nproc = None
+
+    @classmethod
     def get_default_args(cls):
         """return default arguments of the class"""
         if cls.usedirect:

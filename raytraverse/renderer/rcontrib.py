@@ -91,6 +91,11 @@ class Rcontrib(pRcontrib):
         super().set_args(args, nproc)
 
     @classmethod
+    def reset(cls):
+        super().reset()
+        cls.nproc = None
+
+    @classmethod
     def setup(cls, scene=None, ground=True, modname="skyglow", skyres=15):
         """set class attributes for proper argument initialization
 
