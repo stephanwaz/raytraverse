@@ -279,7 +279,7 @@ class BaseSampler(object):
             array of shape (N,) to update weights
         """
         self._dump_vecs(vecs)
-        lum = self.engine.run(np.copy(vecs, 'C'))
+        lum = self.engine.run(vecs)
         slum, dlum = self._process_features(lum)
         if len(self.lum) == 0:
             self.lum = slum

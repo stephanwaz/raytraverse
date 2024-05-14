@@ -63,7 +63,7 @@ class ImageRenderer:
                                                 fill_value=fv)
 
     def __call__(self, rays):
-        """tranforms rays to 2-D image space before calling interpolator
+        """transforms rays to 2-D image space before calling interpolator
 
         Parameters
         ----------

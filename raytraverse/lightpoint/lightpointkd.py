@@ -20,6 +20,7 @@ from clasp.script_tools import try_mkdir
 from raytools import io, translate
 from raytraverse.mapper import ViewMapper, PlanMapper
 from raytraverse.lightpoint.srcviewpoint import SrcViewPoint
+from concurrent.futures import ThreadPoolExecutor
 
 
 def calc_voronoi_area(vecs, pm):
@@ -54,6 +55,18 @@ def calc_voronoi_area(vecs, pm):
             d += 1
     omega *= scale
     return omega
+
+
+def _sva(vec):
+    sv = SphericalVoronoi(vec, threshold=1e-10)
+    a = sv.calculate_areas()
+    return a
+
+
+def calc_voronoi_area_sphere(vecs):
+    with ThreadPoolExecutor(max_workers=1) as executor:
+        result = executor.submit(_sva, vecs).result()
+    return result
 
 
 class LightPointKD(object):
@@ -246,8 +259,7 @@ class LightPointKD(object):
             omega = calc_voronoi_area(uv, pm)*vm.area
         else:
             try:
-                omega = SphericalVoronoi(self.vec,
-                                         threshold=1e-10).calculate_areas()
+                omega = calc_voronoi_area_sphere(self.vec)
             except ValueError:
                 # spherical voronoi raises a ValueError when points are
                 # too close, in this case we cull duplicates before calculating
@@ -257,7 +269,7 @@ class LightPointKD(object):
                 omega = np.zeros(self.vec.shape[0])
                 tol = 2*np.pi/2**10
                 flt = translate.cull_vectors(self.d_kd, tol)
-                omega[flt] = SphericalVoronoi(self.vec[flt]).calculate_areas()
+                omega[flt] = calc_voronoi_area_sphere(self.vec[flt])
         self._omega = omega
         if write:
             self.dump()

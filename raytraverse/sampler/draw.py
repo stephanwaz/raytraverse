@@ -8,7 +8,6 @@
 
 """wavelet and associated probability functions."""
 import numpy as np
-from craytraverse.craytraverse import from_pdf as c_from_pdf
 from scipy.ndimage import convolve
 
 
@@ -82,12 +81,16 @@ def from_pdf(pdf, threshold, lb=.5, ub=4, minsamp=0):
             idx = np.array([0])
         return idx
     pdf[pdf > ub*threshold] = ub*threshold
-    candidates, bidx, nsampc = c_from_pdf(pdf, threshold, lb=lb, ub=ub+1)
-    nsampc = max(nsampc, minsamp)
+
+    idxarr = np.arange(pdf.size)
+    undert = pdf < (threshold * (ub+1))
+    bidx = idxarr[np.logical_not(undert)]
+    inrange = np.logical_and(pdf > threshold, undert)
+    nsampc = max(np.sum(inrange), minsamp)
     if nsampc == 0:
         return bidx
-    # if normalization happens in c-func floating point precision does not
-    # guarantee that pdfc adds to 1, which choice() requires.
+    inrangec = np.logical_and(pdf > threshold * lb, undert)
+    candidates = idxarr[inrangec]
     nperr = np.seterr(all="raise")
     try:
         pdfc = pdf[candidates]/np.sum(pdf[candidates])
