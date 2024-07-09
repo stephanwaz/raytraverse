@@ -744,11 +744,14 @@ class LightPointKD(object):
         return all_match
 
     @staticmethod
-    def _weight_distance(d):
-        # get var on distance (from true mean zero)
-        dvar = np.mean(np.square(d), axis=1)[:, None]
+    def _weight_distance(d, offset=False):
+        m = 0
+        if offset:
+            m = np.min(d, axis=1, keepdims=True)
+        # get var on distance (from true mean zero unless offset)
+        dvar = np.maximum(np.mean(np.square(d - m), axis=1)[:, None], 1e-9)
         # scale distance on gaussian as weight
-        return np.exp(-np.square(d)/(2*dvar))
+        return np.exp(-np.square(d - m)/(2*dvar))
 
     def _weight_lum(self, i):
         # get variance on lum
@@ -780,9 +783,9 @@ class LightPointKD(object):
         return (lookb[:, 2:-2] + lookf[:, 2:-2]), asr
 
     def interp(self, destvecs, bandwidth=10, rt=None, lum=True, angle=True,
-               dither=False, **kwargs):
+               dither=False, offset=False, **kwargs):
         d, i = self.d_kd.query(destvecs, bandwidth)
-        w = self._weight_distance(d)
+        w = self._weight_distance(d, offset=offset)
         if lum:
             w *= self._weight_lum(i)
         cf = None
