@@ -258,7 +258,7 @@ class PlanMapper(Mapper):
         """
         # bypasses grid when initialized with points
         shape = self.shape(level)
-        idx = np.arange(np.product(shape))
+        idx = np.arange(np.prod(shape))
         uv = self.idx2uv(idx, shape, jitter)
         if level == 0 and not jitter and self._candidates is not None:
             uvup = self.xyz2uv(self._candidates)

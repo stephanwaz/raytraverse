@@ -111,5 +111,5 @@ def test_isunsampler(tmpdir):
     i = i[val > 0]
 
     j, d = slp.query(v)
-    assert np.alltrue(i == j)
+    assert np.all(i == j)
 

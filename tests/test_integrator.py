@@ -42,7 +42,7 @@ def test_api(tmpdir):
     skd2 = SkyData("geneva.epw")
     skd2.write(scene=scn2)
     scn, pm, skd = api.auto_reload("result", "plane.rad", ptres=1.2)
-    assert np.alltrue(skd.smtx == skd2.smtx)
+    assert np.all(skd.smtx == skd2.smtx)
 
 
 def check_itg(itg, skd):

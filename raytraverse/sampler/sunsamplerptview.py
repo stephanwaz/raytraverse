@@ -71,7 +71,7 @@ class SunSamplerPtView(SamplerPt):
             skd = LightPointKD(self.scene, self.vecs, self.lum, vm, point,
                                posidx, self.stype, calcomega=False, write=write)
             shp = self.weights.shape
-            si = np.stack(np.unravel_index(np.arange(np.product(shp)), shp))
+            si = np.stack(np.unravel_index(np.arange(np.prod(shp)), shp))
             uv = (si.T + .5)/shp[1]
             grid = vm.uv2xyz(uv)
             i = skd.query_ray(grid)[0]
