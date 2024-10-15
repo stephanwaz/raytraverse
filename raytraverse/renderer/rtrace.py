@@ -115,7 +115,7 @@ class Rtrace(pRtrace):
     @classmethod
     def load_solar_source(cls, scene, sun, ambfile=None, intens=1):
         # load new source
-        fd, srcdef = tempfile.mkstemp(dir=f"./{scene.outdir}/",
+        fd, srcdef = tempfile.mkstemp(dir=scene.outdir,
                                       prefix='tmp_src')
         try:
             with os.fdopen(fd, 'w') as f:

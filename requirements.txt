@@ -1,7 +1,7 @@
 skyfield>=1.42
 matplotlib>=3.5.1
 clasp~=1.1.6
-numpy
+numpy<1.27
 scipy
 craytraverse>=0.1.5
 raytools

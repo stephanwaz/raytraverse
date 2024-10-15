@@ -136,7 +136,7 @@ class Integrator(object):
         return sorted([i for j in outfs for i in j])
 
     def _echunk(self, evalfunc, esize, csize, skydata, points, vm, **kwargs):
-        fd, rbase = tempfile.mkstemp(dir=f"./", prefix='tmp_eval')
+        fd, rbase = tempfile.mkstemp(dir=self.scene.outdir, prefix='tmp_eval')
         rbase = rbase.rsplit("/", 1)[-1]
         with os.fdopen(fd) as f:
             pass

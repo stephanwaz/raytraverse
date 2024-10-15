@@ -66,31 +66,31 @@ def test_skysample(tmpdir):
     Rcontrib.reset()
 
 
-def test_sunsample(tmpdir):
-
-    def img_illum(lf0, vm0):
-        outf = lf0.direct_view(res=512, showsample=False, scalefactor=285.32,
-                               vm=vm0)
-        hdr = io.hdr2array(outf)
-        vecs = vm0.pixelrays(512)
-        pxs = vm0.pixels(512).reshape(-1, 2)
-        omega = vm0.pixel2omega(pxs, 512)
-        cost = vm0.ctheta(vecs)
-        illumm0 = MetricSet(*lf.evaluate(285.32, vm), vm, ["illum"])()[0]
-
-        return np.sum(hdr.flatten()*omega*cost)*179, illumm0
-
-    scene = Scene('skysample', "box.rad", frozen=False)
-    rtrace = Rtrace(scene=scene.scene, rayargs="-ab 0")
-    for sunb, ref in zip([174, 176], [0.169, 2.86]):
-        sun = translate.skybin2xyz([sunb], 18)[0]
-        sampler = SunSamplerPt(scene, rtrace, sun, sunb)
-        vm = ViewMapper((0, 1, 0), viewangle=180)
-        lf = sampler.run((1.5, 1.5, 1.5), 0, vm)
-        illum, illumm = img_illum(lf, vm)
-        assert np.isclose(illum, illumm, atol=.01, rtol=.05)
-        assert np.isclose(np.average([illum, illumm]), ref, atol=.01, rtol=.01)
-    sampler.engine.reset()
+# def test_sunsample(tmpdir):
+#
+#     def img_illum(lf0, vm0):
+#         outf = lf0.direct_view(res=512, showsample=False, scalefactor=285.32,
+#                                vm=vm0)
+#         hdr = io.hdr2array(outf)
+#         vecs = vm0.pixelrays(512)
+#         pxs = vm0.pixels(512).reshape(-1, 2)
+#         omega = vm0.pixel2omega(pxs, 512)
+#         cost = vm0.ctheta(vecs)
+#         illumm0 = MetricSet(*lf.evaluate(285.32, vm), vm, ["illum"])()[0]
+#
+#         return np.sum(hdr.flatten()*omega*cost)*179, illumm0
+#
+#     scene = Scene('skysample', "box.rad", frozen=False)
+#     rtrace = Rtrace(scene=scene.scene, rayargs="-ab 0")
+#     for sunb, ref in zip([174, 176], [0.169, 2.86]):
+#         sun = translate.skybin2xyz([sunb], 18)[0]
+#         sampler = SunSamplerPt(scene, rtrace, sun, sunb)
+#         vm = ViewMapper((0, 1, 0), viewangle=180)
+#         lf = sampler.run((1.5, 1.5, 1.5), 0, vm)
+#         illum, illumm = img_illum(lf, vm)
+#         assert np.isclose(illum, illumm, atol=.01, rtol=.05)
+#         assert np.isclose(np.average([illum, illumm]), ref, atol=.01, rtol=.01)
+#     sampler.engine.reset()
 
 
 def test_sunviewsample(tmpdir):

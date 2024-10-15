@@ -25,6 +25,7 @@ echo make clean
 echo make docs
 echo make coverage
 echo update HISTORY.rst
+echo git checkout release
 echo git commit
 
 
@@ -47,8 +48,8 @@ if [ "$answer" != "${answer#[Yy]}" ] ;then
     clean=$(git status --porcelain --untracked-files=no | wc -l)
     if [ "$clean" -lt 1 ]; then
         if [[ $# == 1 && ($1 == "patch" || $1 == "minor" || $1 == "major" || $1 == v*.*.* || $1 == "continue") ]]; then
-            git checkout release
-            git merge master
+#            git checkout release
+#            git merge master
             if [[ $1 == v*.*.* ]]; then
                 git tag -a "$1" -m "tagged for release $1"
             elif [[ $1 == "continue" ]]; then
@@ -63,9 +64,9 @@ if [ "$answer" != "${answer#[Yy]}" ] ;then
             if [ "$answer" != "${answer#[Yy]}" ] ;then
                 twine upload dist/*.tar.gz dist/*.whl
                 git push
-                git checkout master
-                git merge release
-                git push
+#                git checkout master
+#                git merge release
+#                git push
                 tag="$(git tag | tail -1)"
                 git push origin $tag
 			else

@@ -12,7 +12,7 @@ from raytools import io
 from raytraverse.evaluate import retina
 from raytraverse.mapper import ViewMapper
 from scipy.interpolate import LinearNDInterpolator
-from scipy.spatial import ConvexHull
+from scipy.spatial import ConvexHull, QhullError
 from scipy.ndimage import gaussian_filter
 from shapely.geometry import Polygon, LineString
 
@@ -106,7 +106,7 @@ class SrcViewPoint(object):
             target = np.square(np.sqrt(target/np.pi) + .5) * np.pi
             try:
                 hullpoints = SrcViewPoint.offset(px, target)
-            except ValueError:
+            except (ValueError, QhullError):
                 return None
             return hullpoints
 
